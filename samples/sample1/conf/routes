@@ -1,0 +1,23 @@
+# Routes
+# This file defines all application routes (Higher priority routes first)
+# ~~~~
+
+# Home page
+GET        /                     controllers.Application.index
+
+# Map static resources from the /public folder to the /assets URL path
+GET        /assets/*file         controllers.Assets.at(path="/public", file)
+
+# Basic wiki engine: show a page, create a missing topic and edit a page
+#GET        /wiki/*wpath           normal link to show an existing page
+#GET        /wikie/show/*wpath     link to a non-existent page, use it to hide from bots
+#GET        /wikie/edit/*wpath     edit new or existing page
+#POST       /wikie/save/*wpath     save an edited page
+#GET        /wiki/tag/*tag         browse a tag
+
+GET        /wiki/*wpath           controllers.WikiBasic.showWid(wpath:model.CMDWID, count:Int ?= 1, realm="rk")
+GET        /wikie/show/*wpath     controllers.WikiBasic.showWid(wpath:model.CMDWID, count:Int ?= 1, realm="rk")
+GET        /wikie/edit/*wpath     controllers.WikiBasic.edit(wpath:model.CMDWID, realm="rk")
+POST       /wikie/save/*wpath     controllers.WikiBasic.save(wpath:model.CMDWID, realm="rk")
+GET        /wiki/tag/*tag         controllers.WikiBasic.showTag(tag:String, realm="rk")
+
