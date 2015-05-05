@@ -3,7 +3,7 @@ Cool Scala Wiki
 
 Embedded Markdown Wiki: a wiki engine written in scala, which you can embed in any application.
 
-Status: WIP (still refactoring it out of a bigger project, some features missing).
+Status: WIP (still refactoring it out of a bigger project, some features missing) but functional.
 
 Features:
 
@@ -56,6 +56,10 @@ See some usage scenarios below - more to come.
 ### Help pages
 
 Use this engine to create editable help/documentation pages within your app. Users can help create/update/maintain help and documentation pages which link to each-other nicely in a web of help.
+
+### Forums, blogs
+
+Easily add social features embedded in your app, like forums, discussions and blogs - all as wiki topics.
 
 ### Some wiki content
 
