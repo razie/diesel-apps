@@ -58,7 +58,7 @@ case class WikiEntry(
   /** i should be conservative and default to rk. Note this doesn't check Config.urlcanon */
   def canonicalUrl =
     if (realm != Wikis.RK) {
-      Wikis(realm).navTagFor(tags).map().getOrElse
+      Wikis(realm).navTagFor(tags).map(x => s"http://www.racerkidz.com/wiki/${wid.wpath}") getOrElse s"http://www.racerkidz.com/wiki/${wid.wpath}"
     } else s"http://www.racerkidz.com/wiki/${wid.wpath}"
 
   def cloneContent(newcontent: String) = copy(content = newcontent)
@@ -104,12 +104,12 @@ case class WikiEntry(
   }
 
   /** backup old version and update entry, update index */
-  def update(newVer: WikiEntry)(implicit txn:Txn) = {
+  def update(newVer: WikiEntry, reason:Option[String] = None)(implicit txn:Txn) = {
     Audit.logdbWithLink(
       if(wid.cat=="Note") AUDIT_NOTE_UPDATED else AUDIT_WIKI_UPDATED,
       newVer.wid.urlRelative,
       s"""BY ${(WikiUsers.impl.findUserById(newVer.by).map(_.userName).getOrElse(newVer.by.toString))} - $category : $name ver ${newVer.ver}""")
-    WikiEntryOld(this).create
+    WikiEntryOld(this, reason).create
     RUpdate.noAudit[WikiEntry](Wikis(realm).weTables(wid.cat), Map("_id" -> newVer._id), newVer)
     Wikis.shouldFlag(name, label, content).map(auditFlagged(_))
 
@@ -122,7 +122,7 @@ case class WikiEntry(
   /** backup old version and update entry, update index */
   def delete(sby: String) (implicit txn:Txn) = {
     Audit.logdb(AUDIT_WIKI_DELETED, "BY " + sby + " " + category + ":" + name, "\nCONTENT:\n" + this)
-    WikiEntryOld(this).create
+    WikiEntryOld(this, Some ("deleted")).create
     val key = Map("category" -> category, "name" -> name, "parent" -> parent)
     RDelete.apply (Wikis(realm).weTables(wid.cat), key)
     if (shouldIndex) Wikis(realm).index.delete(this)
@@ -224,6 +224,6 @@ object WikiEntry {
 
 /** old wiki entries - a copy of each older version when udpated or deleted */
 @RTable
-case class WikiEntryOld(entry: WikiEntry, _id: ObjectId = new ObjectId()) {
+case class WikiEntryOld(entry: WikiEntry, reason:Option[String], _id: ObjectId = new ObjectId()) {
   def create (implicit txn:Txn) = RCreate.noAudit[WikiEntryOld](this)
 }

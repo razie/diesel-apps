@@ -20,9 +20,11 @@ import razie.wiki.admin.{Audit}
 /** wiki factory and utils */
 object Wikis extends Logging with Validation {
   //todo per realm
+  /** these categories are persisted in their own tables */
   final val PERSISTED = Array("Item", "Event", "Training", "Note", "Entry", "Form",
     "DRReactor", "DRElement", "DRDomain")
 
+  /** customize table names per category */
   final val TABLE_NAME = "WikiEntry"
   final val TABLE_NAMES = Map("DRReactor" -> "weDR", "DRElement" -> "weDR", "DRDomain" -> "weDR")
 

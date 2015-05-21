@@ -21,7 +21,7 @@ trait WikiObserver {
   def entityUpdateAfter[A](e: A, what: String)(implicit errCollector: VErrors = IgnoreErrors): Unit = {}
 }
 
-/** simple notification observers attempt */
+/** listen to and observe wiki entities being updated */
 object WikiObservers {
   val notifieds = new ListBuffer[WikiObserver]()
 

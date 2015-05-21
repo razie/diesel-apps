@@ -139,6 +139,8 @@ trait WikiParserBase extends ParserCommons {
 
   // ======================== args
 
+  // simple value - i.e. no name, a default argument
+  protected def arg0 = "[^},]*".r ^^ { case v => ("ARG0", v) }
   // simple x=y
   protected def arg = "[^:=,}]*".r ~ "=" ~ "[^},]*".r ^^ { case n ~ _ ~ v => (n, v) }
   // if contains comma, use ""

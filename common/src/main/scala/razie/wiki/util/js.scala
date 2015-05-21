@@ -14,7 +14,10 @@ import scala.collection.mutable.{HashMap, ListBuffer}
 /**
  * json helpers
  *
- *  a json is represented as maps of (name,value) and lists of values, which can be recursive
+ *  a json is represented as maps of (name,value) and lists of values, either of which can be recursive, representing
+ *  a json object via a map and an array as a list.
+ *
+ *  we do not have a common Node class - but simple Map and List
  */
 object js extends Logging {
 
@@ -46,7 +49,10 @@ object js extends Logging {
     o
   }
 
-  /** recursively transform a name,value map */
+  /** recursively transform a name,value map
+    *
+    * the transformation is f(path, name, value)
+    */
   def jt(map: Map[_, _], path: String = "/")(f: PartialFunction[(String, String, Any), (String, Any)]): Map[String, Any] = {
     val o = new HashMap[String, Any]()
     map.foreach { t:(_,_) =>
@@ -64,7 +70,10 @@ object js extends Logging {
 
   def jt(x: List[_])(f: PartialFunction[(String, String, Any), (String, Any)]): List[_] = jt(x, "/")(f)
 
-  /** recursively transform a name,value map */
+  /** recursively transform a name,value map
+    *
+    * the transformation is f(path, name, value)
+    */
   def jt(x: List[_], path: String)(f: PartialFunction[(String, String, Any), (String, Any)]): List[_] = {
     val o = new ListBuffer[Any]()
     x.foreach { t:Any =>

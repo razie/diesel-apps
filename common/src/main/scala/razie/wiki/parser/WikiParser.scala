@@ -143,9 +143,11 @@ trait WikiParserT extends WikiParserBase with CsvParser {
   }
 
   //  simplified links with [xxx text] - uses only links starting with http or / or .
-    def link1: PS = "[" ~ not("[") ~> ("""http[s]?://""".r | "/") ~ """[^] ]*""".r ~ opt("[ ]+".r ~ """[^]]*""".r) <~ "]" ^^ {
-      case http ~ url ~ Some(sp ~ text) => """[%s](%s)""".format(text, http+url)
-      case http ~ url ~ None => """[%s](%s)""".format(url, http+url)
+    def link1: PS = "[" ~ not("[") ~> ("""http[s]?://""".r | "/") ~ """[^] <>]*""".r ~ opt("[ ]+".r ~ """[^]]*""".r) <~ "]" ^^ {
+    case http ~ url ~ Some(sp ~ text) => """<a href="%s">%s</a>""".format(http+url, text)
+    case http ~ url ~ None => """<a href="%s">%s</a>""".format(http+url, url)
+//      case http ~ url ~ Some(sp ~ text) => """[%s](%s)""".format(text, http+url)
+//      case http ~ url ~ None => """[%s](%s)""".format(url, http+url)
     }
 
 //    simplified links with [xxx text]
@@ -156,8 +158,9 @@ trait WikiParserT extends WikiParserBase with CsvParser {
 
 
   /** simplify url - don't require markup for urls so http://xxx works */
-  def linkUrl: PS = not("""[\[(]""".r) ~> """http[s]?://""".r ~ """[^\s]+""".r ^^ {
-    case http ~ url => s"""[$http$url]($http$url)"""
+  def linkUrl: PS = not("""[\[(]""".r) ~> """http[s]?://""".r ~ """[^\s\]]+""".r ^^ {
+//    case http ~ url => s"""[$http$url]($http$url)"""
+    case http ~ url => s"""<a href="$http$url">$http$url</a>"""
   }
 
   def hr: PS = """^---+""".r ~> opt("div:" ~> ".*") ^^ {
@@ -204,7 +207,7 @@ trait WikiParserT extends WikiParserBase with CsvParser {
     moreWikiProps.foldLeft(
     wikiPropMagic | wikiPropBy | wikiPropWhen | wikiPropXp | wikiPropWhere |
     wikiPropLoc | wikiPropRoles | wikiPropAttrs | wikiPropAttr | wikiPropWidgets | wikiPropCsv | wikiPropCsv2 |
-    wikiPropTable | wikiPropISection | wikiPropSection | wikiPropImg | wikiPropVideo | wikiPropTodo |
+    wikiPropTable | wikiPropISection | wikiPropSection | wikiPropImg | wikiPropVideo |
     wikiPropCode | wikiPropField | wikiPropRk | wikiPropLinkImg | wikiPropFeedRss | wikiPropTag |
     wikiPropRed
     )((x,y) => x | y) | wikiProp
@@ -232,20 +235,39 @@ trait WikiParserT extends WikiParserBase with CsvParser {
 
   def wikiProp: PS = "{{" ~> """[^}: ]+""".r ~ """[: ]""".r ~ """[^}]*""".r <~ "}}" ^^ {
     case name ~ _ ~ value =>
-      if (name startsWith ".")
-        SState("", Map(name.substring(1) -> value)) // hidden
-      else
-        SState("""{{Property %s=%s}}""".format(name, value), Map(name -> value))
+      // default to widgets
+      if(Wikis(realm).index.containsName("widget_" + name.toLowerCase()))
+        SState(
+          // todo cache this
+          Wikis(realm).find(WID("Admin", "widget_" + name.toLowerCase())).map(_.content).map { c =>
+            List(("WIDGET_ARGS", value)).foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
+          } getOrElse "")
+      else {
+        if (name startsWith ".")
+          SState("", Map(name.substring(1) -> value)) // hidden
+        else
+          SState(s"""<span style="font-weight:bold">{{Property $name=$value}}</span>\n\n""", Map(name -> value))
+      }
   }
 
   private def dotProps: PS = moreDotProps.foldLeft(dotPropTags | dotPropName )((x,y) => x | y) | dotProp
 
   def dotProp: PS = """^\.""".r ~> """[.]?[^.: ][^: ]+""".r ~ """[: ]""".r ~ """[^\r\n]*""".r ^^ {
     case name ~ _ ~ value =>
-      if (name startsWith ".")
-        SState("", Map(name.substring(1) -> value)) // hidden
-      else
-        SState(s"""<span style="font-weight:bold">{{Property $name=$value}}</span>\n\n""", Map(name -> value))
+
+      // default to widgets
+      if(Wikis(realm).index.containsName("widget_" + name.toLowerCase()))
+        SState(
+          // todo cache this
+          Wikis(realm).find(WID("Admin", "widget_" + name.toLowerCase())).map(_.content).map { c =>
+            List(("WIDGET_ARGS", value)).foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
+          } getOrElse "")
+      else {
+        if (name startsWith ".")
+          SState ("", Map (name.substring (1) -> value) ) // hidden
+        else
+          SState (s"""<span style="font-weight:bold">{{Property $name=$value}}</span>\n\n""", Map (name -> value) )
+      }
   }
 
   def dotPropTags: PS = """^\.t """.r ~> """[^\n\r]*""".r  ^^ {
@@ -288,12 +310,6 @@ trait WikiParserT extends WikiParserBase with CsvParser {
   private def wikiPropLocName: PS = "{{" ~> "loc" ~> """[: ]""".r ~> """[^:]*""".r ~ ":".r ~ """[^}]*""".r <~ "}}" ^^ {
     case what ~ _ ~ loc => {
       SState("""{{at:%s:%s)}}""".format(what, loc), Map("loc:" + what -> loc))
-    }
-  }
-
-  def wikiPropTodo: PS = "{{" ~> """(?i)todo""".r ~ """[^}]*""".r <~ "}}" ^^ {
-    case task ~ desc => {
-      SState(s"""`$task $desc`""")
     }
   }
 
@@ -386,6 +402,7 @@ trait WikiParserT extends WikiParserBase with CsvParser {
   private def wikiPropWidgets: PS = "{{" ~> "widget:" ~> "[^:]+".r ~ optargs <~ "}}" ^^ {
     case name ~ args => {
       SState(
+      // todo cache this
         Wikis(realm).find(WID("Admin", "widget_" + name)).map(_.content).map { c =>
           args.foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
         } getOrElse "")

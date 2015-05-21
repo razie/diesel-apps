@@ -34,8 +34,8 @@ object Services {
     (s: String, page: Option[WikiEntry], user: Option[WikiUser], query: Map[String, String], devMode:Boolean) =>
     "TODO customize scripster"
 
-  var mkReactor : (String, Option[Reactor]) => Reactor = { (realm, fallBack)=>
-    new Reactor(realm, fallBack)
+  var mkReactor : (String, Option[Reactor], Option[WikiEntry]) => Reactor = { (realm, fallBack, we)=>
+    new Reactor(realm, fallBack, we)
   }
 
   var alli: Alligator = NoAlligator

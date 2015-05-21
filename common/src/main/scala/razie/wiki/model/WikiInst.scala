@@ -12,9 +12,10 @@ import com.novus.salat._
 import play.api.mvc.Request
 import razie.db.{RazMongo, RMany}
 import razie.db.RazSalatContext._
+import razie.wiki.admin.{WikiObservers, WikiObserver}
 import razie.wiki.dom.WikiDomain
 import razie.wiki.parser.{nWikiParser, WikiParserT}
-import razie.wiki.util.PlayTools
+import razie.wiki.util.{IgnoreErrors, VErrors, DslProps, PlayTools}
 import razie.wiki.{Services, WikiConfig}
 
 /** reactor management */
@@ -34,22 +35,22 @@ object Reactors {
     val res = new collection.mutable.HashMap[String,Reactor]()
 
     // load reserved reactors: rk and wiki first
-    val rk = Services.mkReactor(DFLT, None)
+    val rk = Services.mkReactor(DFLT, None, None) // todo why not have a reactor entry for rk
     res.put (DFLT, rk)
     lowerCase.put(DFLT, DFLT)
 
-    res.put (NOTES, Services.mkReactor(NOTES, None))
+    res.put (NOTES, Services.mkReactor(NOTES, None, None)) // todo why not have a reactor entry for rk
     lowerCase.put(NOTES, NOTES)
 
-    val wiki = Services.mkReactor(WIKI, Some(rk))
+    val wiki = Services.mkReactor(WIKI, Some(rk), None) // todo why not have a reactor entry for wiki
     res.put (WIKI, wiki)
     lowerCase.put(WIKI, WIKI)
 
     // load all other reactors
     rk.wiki.weTable("WikiEntry").find(Map("category" -> "Reactor")).map(grater[WikiEntry].asObject(_)).filter(x=>
-      !(Array(DFLT, NOTES, WIKI) contains x.name)).foreach {w=>
-      res.put (w.name, Services.mkReactor(w.name, Some(wiki)))
-      lowerCase.put(w.name.toLowerCase, w.name)
+      !(Array(DFLT, NOTES, WIKI) contains x.name)).foreach {we=>
+      res.put (we.name, Services.mkReactor(we.name, Some(wiki), Some(we)))
+      lowerCase.put(we.name.toLowerCase, we.name)
     }
 
     res
@@ -59,18 +60,18 @@ object Reactors {
     rk.wiki.weTable("WikiEntry").findOne(Map("category" -> "Reactor", "name" -> r)).map(grater[WikiEntry].asObject(_))
 
   def reload(r:String): Unit = {
-    findWikiEntry(r).foreach{w=>
-      reactors.put (w.name, Services.mkReactor(w.name, Some(wiki)))
-      lowerCase.put(w.name.toLowerCase, w.name)
+    findWikiEntry(r).foreach{we=>
+      reactors.put (we.name, Services.mkReactor(we.name, Some(wiki), Some(we)))
+      lowerCase.put(we.name.toLowerCase, we.name)
     }
   }
 
   def rk = reactors(DFLT)
   def wiki = reactors(WIKI)
 
-  def add (realm:String): Reactor = {
+  def add (realm:String, we:WikiEntry): Reactor = {
     assert(! reactors.contains(realm), "Sorry, SITE_ERR: Reactor already active ???")
-    val r = Services.mkReactor(realm, reactors.get(WIKI))
+    val r = Services.mkReactor(realm, reactors.get(WIKI), Some(we))
     reactors.put(realm, r)
     lowerCase.put(realm.toLowerCase, realm)
     r
@@ -80,10 +81,19 @@ object Reactors {
 
   def apply (realm:String = Wikis.RK) = reactors.getOrElse(realm, rk) // using RK as a fallback
 
+  // todo listen to updates and reload
+  lazy val fallbackProps = new DslProps(WID("Reactor", "wiki").r("wiki").page, "properties")
+
+  WikiObservers mini {
+    case we:WikiEntry if fallbackProps.we.exists(_.uwid == we.uwid) => {
+      fallbackProps.reload(we)
+    }
+  }
+
 }
 
 /** the basic element of reaction: an app or module... also a wiki instance */
-class Reactor (val realm:String, val fallback:Option[Reactor] = None) {
+class Reactor (val realm:String, val fallback:Option[Reactor] = None, val we:Option[WikiEntry]) {
   val wiki   : WikiInst   = new WikiInst(realm, fallback.map(_.wiki))
   val domain : WikiDomain = new WikiDomain (realm, wiki)
 
@@ -91,6 +101,21 @@ class Reactor (val realm:String, val fallback:Option[Reactor] = None) {
   def mainPage(au:Option[WikiUser]) = {
     val p = if(au.isDefined) WID("Admin", "UserHome").r(realm).page.map(_.wid) else None
     p orElse WID("Admin", "Home").r(realm).page.map(_.wid) getOrElse WID("Reactor", realm).r(realm)
+  }
+
+  //todo fallback also in real time to rk, per prop
+  // todo listen to updates and reload
+  lazy val props = {
+    WID("Reactor", realm).r(realm).page.map{p=>
+      new DslProps(Some(p), "properties")
+    } getOrElse
+      Reactors.fallbackProps
+  }
+
+  WikiObservers mini {
+    case we:WikiEntry if props.we.exists(_.uwid == we.uwid) => {
+      props.reload(we)
+    }
   }
 }
 
@@ -198,8 +223,16 @@ class WikiInst (val realm:String, val fallback:Option[WikiInst]) {
 
   def categories = cats.values
   def category(cat: String) = cats.get(cat)
+
+  final val VISIBILITY = "visibility"
+
+  /** can override in cat, fallback to reactor, fallback to what's here */
   def visibilityFor(cat: String): Seq[String] =
-    cats.get(cat).flatMap(_.contentTags.get("visibility")).map(_.split(",").toSeq).getOrElse(Seq("Public"))
+    cats.get(cat).flatMap(_.contentTags.get(VISIBILITY)).orElse(
+      Reactors(realm).props.prop(VISIBILITY)
+    ).getOrElse(
+      "Public,Private"
+    ).split(",").toSeq
 
   /** see if any of the tags of a page are nav tags */
   def navTagFor(pageTags: Seq[String]) = pageTags.map(tags.get).find(op=>op.isDefined && op.get.contentTags.contains("navTag"))

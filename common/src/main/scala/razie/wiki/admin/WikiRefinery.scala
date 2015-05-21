@@ -9,6 +9,7 @@ import scala.collection.mutable.ListBuffer
 /** something that extracts/refines info from a wiki topic or multiple wiki topics - can be cached */
 object WikiRefinery {
   // todo multithread this - use Futures when re-building them
+  //todo this and the observers are not dissimilar
   type REFINER = UWID => Option[WikiRefined]
 
   /** index entry */
