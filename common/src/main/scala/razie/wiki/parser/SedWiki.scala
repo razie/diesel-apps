@@ -32,6 +32,7 @@ object SedWiki {
   val USERLIST = """userlist:?([^]]*)""".r
   val ALIAS = """alias:([^\]]*)""".r
   val NORMAL = """(rk:)?([^|\]]*)([ ]*[|][ ]*)?([^]]*)?""".r
+  val ROLE = """([^:]*::)?([^|\]]*)([ ]*[|][ ]*)?([^]]*)?""".r
 
   def apply(realm:String, repf: (String => String), input: String): Option[(String, Option[ILink])] = {
     var i: Option[ILink] = None
@@ -45,7 +46,7 @@ object SedWiki {
       case LIST(newr, cat) => Some({
         val newRealm = if(newr == null || newr.isEmpty) realm else newr.substring(0,newr.length-1)
         Wikis(newRealm).pageNames(cat).take(50).toList.sortWith(_ < _).map { p =>
-          Wikis.formatWikiLink(realm, WID(cat, p).r(newRealm), p, p)
+          Wikis.formatWikiLink(realm, WID(cat, p).r(newRealm), p, p, None)
         }.map(_._1).mkString(" ")
       },
       None)
@@ -58,7 +59,7 @@ object SedWiki {
             val up = razie.NoStaticS.get[WikiUser]
             val upp = up.toList.flatMap(_.myPages(realm, cat)).map(_.asInstanceOf[{ def wid: WID }])
             "<ul>" + upp.sortWith(_.wid.name < _.wid.name).take(20).map(_.wid).map { wid =>
-              Wikis.formatWikiLink(realm, wid, Wikis(realm).label(wid).toString, Wikis(realm).label(wid).toString)
+              Wikis.formatWikiLink(realm, wid, Wikis(realm).label(wid).toString, Wikis(realm).label(wid).toString, None)
             }.map(_._1).map(x => "<li>" + x + "</li>").mkString(" ") + "</ul>"
           } catch {
             case e @ (_: Throwable) => {
@@ -71,9 +72,21 @@ object SedWiki {
       case ALIAS(wpath) => {
         val wid = WID.fromPath(wpath)
         wid.map { w =>
-          val f = Wikis.formatWikiLink(realm, w, w.name, w.name)
+          val f = Wikis.formatWikiLink(realm, w, w.name, w.name, None)
           ("Alias for " + f._1, f._2)
         }
+      }
+
+      case ROLE(role, wpath, _, label) => {
+        val wid = WID.fromPath(wpath)
+        wid map (w => Wikis.formatWikiLink(
+          realm, w,
+          w.name,
+          (if (label != null && label.length > 1) label else w.name),
+          {
+            if(role == null) None else Some(role.substring(0,role.length-2))
+          },
+          None))
       }
 
       case NORMAL(rk, wpath, _, label) => {
@@ -82,6 +95,7 @@ object SedWiki {
           realm, w,
           w.name,
           (if (label != null && label.length > 1) label else w.name),
+        None,
           None,
           rk != null && rk.length > 0))
       }

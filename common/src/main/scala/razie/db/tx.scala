@@ -30,7 +30,7 @@ class REntityAction (entity:REntity[_], action:REAction) {
 }
 
 // TODO complete transactions, just for fun
-class Txn (val name: String) {
+class Txn (val name: String, val xid:String = System.currentTimeMillis().toString) {
   clog << "DB.TX.START "+name
 
   def add(s: String, ss: String) {}
@@ -44,6 +44,8 @@ class Txn (val name: String) {
   def rollback {
     clog << "DB.TX.ROLLBACK... NOT! "+name
   }
+
+  def id = name+"-"+xid
 }
 
 object tx {

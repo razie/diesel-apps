@@ -41,8 +41,8 @@ case class WikiLink(
   def isPrivate = List(pageFrom, page).flatMap(_ map (_.isPrivate)).exists(identity)
 }
 
-/** most information about a page */
-case class ILink(wid: WID, label: String, tags: Map[String, String] = Map(), ilinks: List[ILink] = Nil) {
+/** most information about a page - represents the z End of an association, as you get it from the a End */
+case class ILink(wid: WID, label: String, role:Option[String] = None, tags: Map[String, String] = Map(), ilinks: List[ILink] = Nil) {
   def this (wid:WID) = this(wid, wid.name)
   def href = Services.config.urlmap("/wiki/%s".format(wid.wpath))
   def format = Wikis.formatWikiLink(Wikis.RK, wid, wid.name, label, None)

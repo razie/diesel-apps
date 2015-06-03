@@ -7,6 +7,7 @@
 package razie.wiki.parser
 
 import org.bson.types.ObjectId
+import razie.wiki.mods.WikiMods
 import razie.wiki.{Services, Enc}
 import razie.{cdebug, cout, clog}
 
@@ -90,7 +91,7 @@ trait WikiParserT extends WikiParserBase with CsvParser {
         // this is an ilink with auto-props in the name/label
         // for now, reformat the link to allow props and collect them in the ILInk
         //        SedWiki(wikip2a, expand2 _, identity, p.get.s).map(x => SState(x._1, Map(), x._2.map(x => ILink(x.cat, x.name, x.label, p.get.tags, p.get.ilinks)).toList)).get // TODO something with the props
-        SedWiki(realm, identity, p.get.s).map(x => SState(x._1, Map(), x._2.map(x => ILink(x.wid, x.label, p.get.tags, p.get.ilinks)).toList)).get // TODO something with the props
+        SedWiki(realm, identity, p.get.s).map(x => SState(x._1, Map(), x._2.map(x => ILink(x.wid, x.label, x.role, p.get.tags, p.get.ilinks)).toList)).get // TODO something with the props
       } else {
         // this is a normal ilink
         //        SedWiki(wikip2a, expand2 _, Wikis.formatName _, name).map(x => SState(x._1, Map(), x._2.toList)).get
@@ -99,43 +100,7 @@ trait WikiParserT extends WikiParserBase with CsvParser {
     }
   }
 
-  final val wikip2 = """\[\[([^:\]]*:)?([^/:\]]*[/:])?([^|\]]+)([ ]*[|][ ]*)?([^]]*)?\]\]"""
-  final val wikip2a = """([^:|\]]*:)?([^/:|\]]*[/:])?([^|\]]+)([ ]*[|][ ]*)?([^]]*)?"""
-
-  /** processing special categories */
-  def expand2(m: Match): (String, Option[ILink]) = {
-    def hackmd(s1: String, s2: String, s3: String) = {
-      val ss2 = s2.replace('/', ':')
-      val cat = ss2
-      val catnocolon = if (ss2.isEmpty || !ss2.endsWith(":")) ss2 else ss2.substring(0, ss2.length - 1)
-      val nicename = s3
-      val label = s1
-      Wikis.formatWikiLink(realm, WID(catnocolon, nicename), nicename, label)
-    }
-
-    var cat = if (m.group(2) == null) "any:" else m.group(2)
-    val nm = if (m.group(3) != null) m.group(3).trim else "?"
-    var label = if (m.group(5) != null) m.group(5) else nm
-    if (label.length <= 0) label = nm
-
-    def res = if (m.group(3) != null) hackmd(label, cat, nm) else (SedWiki.ERR, None)
-
-    if (m.group(1) != null) m.group(1) match {
-      case "alias:" => ("Alias for " + res._1, res._2)
-      case "search:" => ("""<a href="http://google.com/search?q=""" + Enc.toUrl(nm) + "\">" + nm + "</a>", None)
-      case "list:" => {
-        val c = if (m.group(3) != null) nm else "?"
-
-        ((if (Wikis(realm).pageNames(c).size < 100)
-          Wikis(realm).pageNames(c).map { p =>
-          hackmd(p, c, p)
-        }.map(_._1).mkString(" ")
-        else "TOO MANY to list"), None)
-      }
-      case _ => if (m.group(2) == null) { cat = m.group(1); res } else (SedWiki.ERR + res, None)
-    }
-    else res
-  }
+  final val wikip2a = """([^:|\]]*::)?([^:|\]]*:)?([^/:|\]]*[/:])?([^|\]]+)([ ]*[|][ ]*)?([^]]*)?"""
 
   // just leave MD []() links alone
   def link2: PS = """\[[^\]]*\]\([^)]+\)""".r ^^ {
@@ -209,7 +174,7 @@ trait WikiParserT extends WikiParserBase with CsvParser {
     wikiPropLoc | wikiPropRoles | wikiPropAttrs | wikiPropAttr | wikiPropWidgets | wikiPropCsv | wikiPropCsv2 |
     wikiPropTable | wikiPropISection | wikiPropSection | wikiPropImg | wikiPropVideo |
     wikiPropCode | wikiPropField | wikiPropRk | wikiPropLinkImg | wikiPropFeedRss | wikiPropTag |
-    wikiPropRed
+    wikiPropRed | wikiPropLater
     )((x,y) => x | y) | wikiProp
 
   private def wikiPropMagic: PS = "{{{" ~> """[^}]*""".r <~ "}}}" ^^ {
@@ -242,7 +207,12 @@ trait WikiParserT extends WikiParserBase with CsvParser {
           Wikis(realm).find(WID("Admin", "widget_" + name.toLowerCase())).map(_.content).map { c =>
             List(("WIDGET_ARGS", value)).foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
           } getOrElse "")
-      else {
+      else if(WikiMods.index.contains(name.toLowerCase)) {
+        LazyState {(current, we) =>
+          //todo the mod to be able to add some properties in the context of the current topic
+          SState(WikiMods.index(name.toLowerCase).modProp(name, value, we))
+        }
+      } else {
         if (name startsWith ".")
           SState("", Map(name.substring(1) -> value)) // hidden
         else
@@ -328,16 +298,16 @@ trait WikiParserT extends WikiParserBase with CsvParser {
     case date => {
       val p = parseAll(dates, date)
       if (p.successful) {
-        SState("""{{date %s}}""".format(date), Map("date" -> date))
+        SState(s"""{{date $date}}""", Map("date" -> date))
       } else {
-        SState("""%s??""".format(date), Map())
+        SState(s"""$date??""", Map())
       }
     }
   }
 
   private def wikiPropXp: PS = "{{" ~> """xpl?""".r ~ """[: ]""".r ~ """[^}]*""".r <~ "}}" ^^ {
     case what ~ _ ~ path => {
-      SState("""`{{{""" + what + """:%s}}}`""".format(path), Map())
+      SState(s"""`{{{$what:$path}}}`""", Map())
     }
   }
 
@@ -399,6 +369,10 @@ trait WikiParserT extends WikiParserBase with CsvParser {
     case what => SState(s"""<span style="color:red;font-weight:bold;">${what.mkString}</span>""")
   }
 
+  private def wikiPropLater: PS = "{{" ~> "later" ~> "[: ]".r ~> """[^ :]*""".r ~ "[: ]".r ~ """[^}]*""".r <~ "}}" ^^ {
+    case id~ _ ~ url => SState(s"""<script async>$$("#$id").load("$url");</script>""")
+  }
+
   private def wikiPropWidgets: PS = "{{" ~> "widget:" ~> "[^:]+".r ~ optargs <~ "}}" ^^ {
     case name ~ args => {
       SState(
@@ -433,7 +407,7 @@ trait WikiParserT extends WikiParserBase with CsvParser {
 
   // to not parse the content, use slines instead of lines
   /** {{section:name}}...{{/section}} */
-  def wikiPropSection: PS = "{{" ~> opt(".") ~ """section|template|properties""".r ~ ":" ~ """[^}]*""".r ~ "}}" ~ lines <~ ("{{/" ~ """section|template|properties""".r ~ "}}") ^^ {
+  def wikiPropSection: PS = "{{" ~> opt(".") ~ """section|template|properties""".r ~ "[: ]".r ~ """[^}]*""".r ~ "}}" ~ lines <~ ("{{/" ~ """section|template|properties""".r ~ "}}") ^^ {
     case hidden ~ stype ~ _ ~ name ~ _ ~ lines => {
       val sname = "{{" + stype + ":" + name + "}}"
       hidden.map(x => SState.EMPTY) getOrElse SState(

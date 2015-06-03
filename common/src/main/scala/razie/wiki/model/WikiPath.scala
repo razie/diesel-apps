@@ -26,26 +26,48 @@ abstract class WWrapper(val cat: String) {
 class WikiWrapper(val wid:WID) extends WWrapper(wid.cat) {
   lazy val w = Wikis.find(wid)
 
+  /** special node means all */
+  def isAll = "*" == wid.name
+
   /** links from page only, if defined */
-  protected lazy val wilinks = (w.map(realw=> realw.ilinks.map {ilink =>
-    if (ilink.wid.cat == "any") Wikis(wid.getRealm).findAnyOne(ilink.wid.name).map(w => ILink(w.wid, w.label))
-    else Some(ilink)
-  }.flatMap(_.toList) ++ lfrom ++ lto ++ BADlto))
+  protected lazy val wilinks =
+    if(isAll)
+      Some(BADlto)
+    else
+      (w.map(_.ilinks.flatMap {ilink =>
+        if (ilink.wid.cat == "any")
+          Wikis(wid.getRealm).findAnyOne(ilink.wid.name).map(w => ILink(w.wid, w.label))
+        else
+          Some(ilink)
+      }.toList ++ lfrom ++ lto ++ BADlto))
+
+  lazy val ilinks = wilinks.toList.flatMap(identity)
+
+  def childrenByTag (tag:String) =
+    if(isAll && "*" == tag)
+      Wikis(wid.getRealm).categories.toList.flatMap{cat=>
+        Wikis(wid.getRealm).pageNames(cat.name).toList.map(name=>new ILink(WID(cat.name, name).r(wid.getRealm), name))
+      }
+    else if(isAll)
+      Wikis(wid.getRealm).pageNames(tag).toList.map(name=>new ILink(WID(tag, name).r(wid.getRealm), name))
+    else
+      ilinks filter ("*" == tag || tag == _.wid.cat)
 
   // TODO optimize
   def lfrom = w.toList.flatMap(realw=>Wikis.linksFrom(realw.uwid)).map(x=>new ILink(x.to.wid.get, x.to.nameOrId))
   def lto = w.toList.flatMap(realw=>Wikis.linksTo(realw.uwid)).map(x=>new ILink(x.from.wid.get, x.from.nameOrId))
 
   // TODO this is like extremely bad !!!
-  protected def BADallPages = Wikis(wid.getRealm).pageNames("Category").flatMap(cat=>Wikis(wid.getRealm).pageNames(cat).flatMap(name=>Wikis(wid.getRealm).find(cat, name).toList)).toList
+  protected def BADallPages = Wikis(wid.getRealm).categories.toList.flatMap(cat=>Wikis(wid.getRealm).pages(cat.name).toList)
 
   protected def BADlto =
-    if (Services.config.sitecfg("searchall").isDefined)
-    BADallPages.filter(_.ilinks.exists(_.wid.formatted.name == wid.name)).map(realw=>new ILink(realw.wid, realw.label))
+    if (Services.config.sitecfg("searchall").isDefined || isAll)
+      BADallPages.filter(_.ilinks.exists(_.wid.formatted.name == wid.name || "*" == wid.name)).map(realw=>new ILink(realw.wid, realw.label))
     else Nil
-//  protected def BADlto = BADallPages.map(realw=>new ILink(realw.wid, realw.label))
+  //  protected def BADlto = BADallPages.map(realw=>new ILink(realw.wid, realw.label))
 
-  lazy val ilinks = wilinks.toList.flatMap(_.toList)
+  protected def allPagesAsILinks = BADallPages.map(realw=>new ILink(realw.wid, realw.label))
+
 
   def tags = w.map(_.contentTags).getOrElse(Map())
 
@@ -95,9 +117,10 @@ object WikiXpSolver extends XpSolver[WWrapper] {
 
   private def children2(node: WWrapper, tag: String): Seq[WWrapper] = {
     if(WikiPath.debug) println("---CHILDREN2 ("+node+") ("+tag+")")
+
     val x = node match {
       case b: WikiWrapper => {
-        b.ilinks filter ("*" == tag || tag == _.wid.cat) map (n => Tuple2(n.wid.cat, n)) flatMap (t => t match {
+        b.childrenByTag(tag) map (n => Tuple2(n.wid.cat, n)) flatMap (t => t match {
           case (name: String, o: ILink) => IWikiWrapper(o) :: Nil
           case _ => Nil
         })
@@ -112,7 +135,11 @@ object WikiXpSolver extends XpSolver[WWrapper] {
     if(WikiPath.debug) println("-getAttr ("+o.toString+") ("+attr+")")
     val ret = o match {
       case o: IWikiWrapper => o.tags.get(attr).getOrElse("")
-      case o: WikiWrapper  => o.w.flatMap(_.contentTags.get(attr)).getOrElse("")
+      case o: WikiWrapper  => o.w.flatMap(we=>
+        we.contentTags.get(attr).orElse(we.sections.find(_.name == attr).map(_.content))
+      ).orElse(
+          if("content" == attr) o.w.map(_.content) else None
+        ).getOrElse("")
       case _               => null
     }
     ret.toString

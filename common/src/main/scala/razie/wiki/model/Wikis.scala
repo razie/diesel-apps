@@ -22,7 +22,7 @@ object Wikis extends Logging with Validation {
   //todo per realm
   /** these categories are persisted in their own tables */
   final val PERSISTED = Array("Item", "Event", "Training", "Note", "Entry", "Form",
-    "DRReactor", "DRElement", "DRDomain")
+    "DRReactor", "DRElement", "DRDomain", "JSON")
 
   /** customize table names per category */
   final val TABLE_NAME = "WikiEntry"
@@ -116,7 +116,7 @@ object Wikis extends Logging with Validation {
   /** format an even more complex name
     * @param rk force links back to RK main or leave them
     */
-  def formatWikiLink(curRealm:String, wid: WID, nicename: String, label: String, hover: Option[String] = None, rk: Boolean = false) = {
+  def formatWikiLink(curRealm:String, wid: WID, nicename: String, label: String, role:Option[String], hover: Option[String] = None, rk: Boolean = false) = {
     val name = formatName(wid.name)
     val title = hover.map("title=\"" + _ + "\"") getOrElse ("")
 
@@ -131,16 +131,16 @@ object Wikis extends Logging with Validation {
 
       if (rk && (u startsWith "/")) u = "http://" + Services.config.rk + u
 
-      (s"""<a href="$u" title="$title">$label</a>""", Some(ILink(newwid, label)))
+      (s"""<a href="$u" title="$title">$label</a>""", Some(ILink(newwid, label, role)))
     } else if (rk)
       (s"""<a href="http://${Services.config.rk}${wid.formatted.urlRelative}" title="$title">$label<sup><b style="color:red">^</b></sup></a>""" ,
-        Some(ILink(wid, label)))
+        Some(ILink(wid, label, role)))
     else {
       // hide it from google
       val prefix = (wid.realm.filter(_ != curRealm).map(r=>s"/we/$r").getOrElse("/wikie"))
       (s"""<a href="$prefix/show/${wid.wpath}" title="%s">$label<sup><b style="color:red">++</b></sup></a>""".format
         (hover.getOrElse("Missing page")),
-        Some(ILink(wid, label)))
+        Some(ILink(wid, label, role)))
     }
   }
 
@@ -294,17 +294,22 @@ object Wikis extends Logging with Validation {
     var xpath = "*/" + path // TODO why am I doing this?
 
     if (path startsWith "root(") {
-      val parser = """root\(([^:]*):([^:)/]*)\)/(.*)""".r //\[[@]*(\w+)[ \t]*([=!~]+)[ \t]*[']*([^']*)[']*\]""".r
-      val parser(cat, name, p) = path
-      root = new razie.Snakk.Wrapper(new WikiWrapper(WID(cat, name)), WikiXpSolver)
-      xpath = "*/" + p
+      if(path startsWith("root(*)")) {
+        root = new razie.Snakk.Wrapper(new WikiWrapper(WID("Admin", "*").r(w.realm)), WikiXpSolver)
+        xpath = "*/" + path.replace("root(*)/", "")
+      } else {
+        val parser = """root\(([^:]*):([^:)/]*)\)/(.*)""".r //\[[@]*(\w+)[ \t]*([=!~]+)[ \t]*[']*([^']*)[']*\]""".r
+        val parser(cat, name, p) = path
+        root = new razie.Snakk.Wrapper(new WikiWrapper(WID(cat, name).r(w.realm)), WikiXpSolver)
+        xpath = "*/" + p
+      }
     }
 
     val res: List[_] =
       if (razie.GPath(xpath).isAttr) (root xpla xpath).filter(_.length > 0) // sometimes attributes come as zero value?
       else {
         (root xpl xpath).collect {
-          case ww: WikiWrapper => formatWikiLink(w.realm, ww.wid, ww.wid.name, ww.page.map(_.label).getOrElse(ww.wid.name))._1
+          case ww: WikiWrapper => formatWikiLink(w.realm, ww.wid, ww.wid.name, ww.page.map(_.label).getOrElse(ww.wid.name), None)._1
         }
       }
 
@@ -312,7 +317,7 @@ object Wikis extends Logging with Validation {
 
     what match {
       case "xp" => res.headOption.getOrElse("?").toString
-      case "xpl" => "<ul>" + res.map { x: Any => "<li>" + x.toString + "</li>" }.mkString + "</ul>"
+      case "xpl" => "<ul>" + res.take(100).map { x: Any => "<li>" + x.toString + "</li>" }.mkString + (if(res.size>100)"<li>...</li>" else "") + "</ul>"
     }
     //        else "TOO MANY to list"), None))
   }
@@ -320,6 +325,25 @@ object Wikis extends Logging with Validation {
   // scaled down formatting of jsut some content
   def sformat(content: String, markup:String="md") =
     format (WID("1","2"), markup, content)
+
+  /** main formatting function
+    *
+    * @param wid - the wid being formatted
+    * @param markup - markup language being formatted
+    * @param icontent - the content being formatted or "" if there is a WikiEntry being formatted
+    * @param we - optional page for context for formatting
+    * @return
+    */
+  def formatJson(wid: WID, markup: String, icontent: String, we: Option[WikiEntry] = None) = {
+    val content =
+      if(icontent == null || icontent.isEmpty) wid.content.mkString
+      else icontent
+
+    content
+  }
+
+  final val JSON = "JSON"
+  final val XML = "XML"
 
   /** main formatting function
    *
@@ -330,6 +354,9 @@ object Wikis extends Logging with Validation {
    * @return
    */
   def format(wid: WID, markup: String, icontent: String, we: Option[WikiEntry] = None) = {
+    if (JSON == wid.cat || JSON == markup || XML == wid.cat || XML == markup)
+      formatJson(wid, markup, icontent, we)
+    else {
     var res = format1(wid, markup, icontent, we)
 
     // mark the external links
@@ -355,6 +382,26 @@ object Wikis extends Logging with Validation {
         s"""${wid.wpath} ver ${we.map(_.ver)}""")
 
     res
+    }
+  }
+
+  def divLater(x:String) = {
+    val y = x.replaceAll("\\{\\{div.later ([^ ]*) ([^}]*)\\}\\}",
+      """
+        | <div id=$1>div.later</div>
+        | <script type="text/javascript">
+        |   \$("#$1").attr("src","$2");
+        | </script>
+        | """.stripMargin)
+    """
+      | <div id=$1>div.later</div>
+      | <script type="text/javascript">
+      |   \$(document).ready(function(){
+      |     \$("#$1").attr("src","$2");
+      | })
+      | </script>
+      | """.stripMargin
+    y
   }
 
   private def runScript(s: String, page: Option[WikiEntry]) = {

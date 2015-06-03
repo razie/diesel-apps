@@ -9,7 +9,7 @@ package razie.wiki.model
 import com.mongodb.casbah.Imports._
 import com.novus.salat._
 import razie.db.RazSalatContext._
-import razie.wiki.{WikiConfig, Services}
+import razie.wiki.{Services}
 import razie.wiki.dom.WikiDomain
 import model.CMDWID
 
@@ -35,6 +35,12 @@ case class UWID(cat: String, id:ObjectId, realm:Option[String]=None) {
 
   /** withRealm - convienience builder */
   def r(r:String) = if(Wikis.DFLT == r) this else this.copy(realm=Some(r))
+
+  /** some topics don't use cats */
+  override def equals (other:Any) = other match {
+    case o: UWID => this.id == o.id
+    case _ => false
+  }
 }
 
 /** a wrapper for categories, since they can now have a realm */
@@ -82,19 +88,22 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
   def getRealm = realm orElse CAT.unapply(cat).flatMap(_.realm) getOrElse Wikis.DFLT
 
   /** find the ID for this page, if any - respects the NOCATS */
-  def findId = {
+  def findId = findCatId.map(_._2)
+  def findCat = findCatId.map(_._1)
+
+  private def findCatId = {
     WikiIndex.withIndex(getRealm) { idx =>
       if(! cat.isEmpty)
-        idx.get2(name, this)
+        idx.get2(name, this).map((cat, _))
       else {
         // try the nocats
-        idx.get1k(name).filter(x=>WID.NOCATS.contains(x.cat)).headOption.flatMap(x=>idx.get2(name, x))
+        idx.get1k(name).filter(x=>WID.NOCATS.contains(x.cat)).headOption.flatMap(x=>idx.get2(name, x)).map((cat, _))
         //todo maybe forget this branch and enhance equals to look at nocats ?
       }
-    } orElse Wikis.find(this).map(_._id)
+    } orElse Wikis.find(this).map(x=>(x.category, x._id))
   }
 
-  def uwid = findId map {x=>UWID(cat, x, realm)}
+  def uwid = findCatId map {x=>UWID(x._1, x._2, realm)}
 
   def cats = if(realm.exists(_ != Wikis.RK)) (realm.get + "." + cat) else cat
 

@@ -62,14 +62,17 @@ class WikiIndex (val realm:String, val fallBack : Option[WikiIndex]) {
   }
 
   def update(oldVer: WikiEntry, newVer: WikiEntry) = withIndex { idx =>
-    if (oldVer.category != newVer.category || oldVer.name != newVer.name || oldVer.realm != newVer.realm) {
-      idx.put(newVer.name, newVer.wid, oldVer._id)
-      idx.remove2(oldVer.name, oldVer.wid)
-      lower.put(newVer.name.toLowerCase(), newVer.name)
-      lower.remove(oldVer.name)
-      labels.put(newVer.name, newVer.label)
-      labels.remove(oldVer.name)
-    }
+//    if (oldVer.category != newVer.category || oldVer.name != newVer.name || oldVer.realm != newVer.realm) {
+
+    // doing it all the time because these WIDs cache the old version of the page so they need refreshing
+
+    idx.remove2(oldVer.name, oldVer.wid)
+    idx.put(newVer.name, newVer.wid, oldVer._id)
+    lower.remove(oldVer.name)
+    lower.put(newVer.name.toLowerCase(), newVer.name)
+    labels.remove(oldVer.name)
+    labels.put(newVer.name, newVer.label)
+//    }
     up(newVer)
   }
 

@@ -16,4 +16,13 @@ object Visibility {
   final val CLUB = "Club"
   /** only club admins can see - i.e. registration forms */
   final val CLUB_ADMIN = "ClubAdmin"
+
+  /** member of website */
+  final val MEMBER = "Member"
+  /** member of website */
+  final val BASIC = "Basic"
+  /** member of website */
+  final val GOLD = "Gold"
+  /** member of website */
+  final val PLATINUM = "Platinum"
 }

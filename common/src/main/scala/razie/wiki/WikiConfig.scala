@@ -24,9 +24,20 @@ import scala.collection.mutable
  *   *****************************************************************
  */
 abstract class WikiConfig {
+  // load properties from system or from a file rk.properties
   val props = {
     val p = new Properties();
-    p.load(new FileInputStream(System.getProperty("rk.properties")))
+    if(System.getProperty("rk.properties") != null) {
+      p.load(new FileInputStream(System.getProperty("rk.properties")))
+    } else {
+      clog << "================ E R R O R        rk.properties ==================\n" + p.toString
+      clog << "you do not have a file rk.properties in the classpath, using defaults"
+      p.put("rk.hostport", "localhost:9000")
+      p.put("rk.safemode", "no")
+      p.put("rk.noads", "true")
+      p.put("rk.forcephone", "false")
+
+    }
     clog << "================ rk.properties ==================\n" + p.toString
     p
   }
@@ -37,6 +48,11 @@ abstract class WikiConfig {
   final val analytics = true; //props.getProperty("rk.analytics").toBoolean
   final val noads = props.getProperty("rk.noads").toBoolean
   final val forcephone = props.getProperty("rk.forcephone").toBoolean
+
+  final val mongodb = props.getProperty("rk.mongodb")
+  final val mongohost = props.getProperty("rk.mongohost")
+  final val mongouser = props.getProperty("rk.mongouser")
+  final val mongopass = props.getProperty("rk.mongopass")
 
   /** when running on localhost, simulate this host */
   def simulateHost = props.getProperty("rk.simulateHost")
@@ -87,6 +103,11 @@ abstract class WikiConfig {
   /** modify external sites mapped to external URLs */
   def urlfwd(u: String) = config(URLFWD) flatMap (_.get(u))
 
+  /** modify external sites mapped to external URLs */
+  def urlrewrite(u: String) = config(URLREWRITE).flatMap (_.collectFirst {
+      case (k,v) if u.matches(k) => u.replaceFirst(k, v)
+    })
+
   /** generic site configuration */
   def sitecfg(parm: String) = config(SITECFG) flatMap (_.get(parm))
 
@@ -123,6 +144,7 @@ abstract class WikiConfig {
   final val URLCANON = "urlcanon"
   final val URLMAP = "urlmap"
   final val URLFWD = "urlfwd"
+  final val URLREWRITE = "urlrewrite"
   final val SITECFG = "sitecfg"
   final val TOPICRED = "topicred"
   final val SAFESITES = "safesites"
@@ -140,3 +162,48 @@ object WikiConfig {
   // parse a properties looking thing
   def parsep(content: String) = (content.split("\r\n")) filter (!_.startsWith("#")) map (_.split("=", 2)) filter (_.size == 2) map (x => (x(0), x(1)))
 }
+
+/** sample config - use for testing for instance. Before beginning a test, do Services.config = SampleConfig */
+object SampleConfig extends WikiConfig {
+  final val METAS = "sitemetas"
+
+  def robotUserAgents = irobotUserAgents
+  private var irobotUserAgents = List[String]()
+
+  def trustedSites = itrustedSites
+  private var itrustedSites = List[String]()
+
+  def reservedNames = ireservedNames
+  private var ireservedNames = List[String]()
+
+  def reloadUrlMap {
+    println("========================== RELOADING URL MAP ==============================")
+
+    val props = ""
+
+    for (c <- Array(SITECFG, TOPICRED, SAFESITES, USERTYPES, BANURLS)) {
+      val urlmaps = Some(Seq(props) flatMap WikiConfig.parsep)
+      val xurlmap = (urlmaps.map(se => mutable.HashMap[String, String](se: _*)))
+      println("========================== RELOADING URL MAP ==============================")
+      xurlmap.map(xconfig.put(c, _))
+    }
+
+    for (u <- Seq(props) flatMap WikiConfig.parsep) {
+      val RE = """([^.]+)\.(.*)""".r
+      val RE(pre, prop) = u._1
+
+      if (!xconfig.contains(pre))
+        xconfig.put(pre, mutable.HashMap[String, String](prop -> u._2))
+      else
+        xconfig.get(pre).map(_.put(prop, u._2))
+    }
+
+    Services.configCallbacks foreach (_())
+
+    irobotUserAgents = sitecfg("robots.useragents").toList.flatMap(s=>s.split("[;,]"))
+    ireservedNames = sitecfg("reserved.names").toList.flatMap(s=>s.split("[;,]"))
+    itrustedSites = sitecfg("trusted.sites").toList.flatMap(s=>s.split("[;,]"))
+  }
+
+}
+

@@ -10,7 +10,7 @@ import scala.collection.mutable.ListBuffer
 object WikiRefinery {
   // todo multithread this - use Futures when re-building them
   //todo this and the observers are not dissimilar
-  type REFINER = UWID => Option[WikiRefined]
+  type REFINER = UWID => (Boolean, Option[WikiRefined])
 
   /** index entry */
   private case class WRE (var wr:Option[WikiRefined], k:String, refine:REFINER)
@@ -19,7 +19,9 @@ object WikiRefinery {
     WRE(wr, k, refine)
   }
 
+  /** just list of factories / refineries - invoked to refine when needed */
   private val refinery = new scala.collection.mutable.HashMap[String, WRE]()
+  /** cache of refined products by object id and class */
   private val cache = new TripleIdx[ObjectId, String, WRE]()
   // index dependent wiki id to dependent refined
   private val index = new scala.collection.mutable.HashMap[ObjectId, ListBuffer[WRE]]()
@@ -35,15 +37,25 @@ object WikiRefinery {
   def iget[T <: WikiRefined] (uwid: UWID) (implicit m: Manifest[T]) : Option[T] = {
     val k = m.runtimeClass.getCanonicalName
     val wre = cache.get2(uwid.id, k)
+    var result : Option[WikiRefined] = None
 
     if(! wre.isDefined) {
+      //refine it
       require(refinery contains k)
-      val x = refinery.get(k)
       refinery.get(k).map {wre=>
-        cache.put(uwid.id, k, new WRE(wre.refine(uwid), k, wre.refine))
+        val newf = wre.refine(uwid)
+        if(newf._1) {
+          val newwre = new WRE(newf._2, k, wre.refine)
+          cache.put(uwid.id, k, newwre)
+          reindex(newwre)
+        } else {
+          cache.remove2(uwid.id, k)
+          result = newf._2
+        }
       }
     }
-    cache.get2(uwid.id, k).flatMap(_.wr).map(_.asInstanceOf[T])
+
+    (result orElse cache.get2(uwid.id, k).flatMap(_.wr)).map(_.asInstanceOf[T])
   }
 
   def add[T <: WikiRefined] (refine:REFINER) (implicit m : Manifest[T]) = {
@@ -66,17 +78,24 @@ object WikiRefinery {
   }
 
   /** refresh and refine all dependents */
-  def update (uwid:UWID) = {
-    index.get(uwid.id).toList.flatMap(_.toList).toList.foreach {wre=>
+  def update (we:WikiEntry) = {
+    val updated = index.get(we.uwid.id).toList.flatMap(_.toList).toList.map {wre=>
       // refine the
-      wre.wr = wre refine uwid
+      wre.wr.map(_.uwid).foreach { u=>
+        wre.wr = (wre refine u)._2
+      }
 
       // clean index
       index.values.foreach { lb =>
         if (lb.indexOf(wre) >= 0)
           lb.remove(lb.indexOf(wre))
-      }
+        }
 
+      wre
+    }
+
+    // reindex later so they don't overwrite as they're recalculated
+    updated.foreach {wre=>
       reindex(wre)
     }
   }
@@ -84,7 +103,7 @@ object WikiRefinery {
   WikiObservers mini {
     case we:WikiEntry=> {
       // todo lazy/async
-      update (we.uwid)
+      update (we)
     }
   }
 }

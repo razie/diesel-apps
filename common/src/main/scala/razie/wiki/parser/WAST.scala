@@ -64,7 +64,7 @@ object WAST {
     override def toString = s"SSTATE ($s)"
   }
 
-  /** a set of AST nodes - it's a branch in the AST tree */
+  /** a list of AST nodes - it's a branch in the AST tree */
   case class LState(states:PState*) extends PState {
     def this(l:List[PState]) = this ()
 

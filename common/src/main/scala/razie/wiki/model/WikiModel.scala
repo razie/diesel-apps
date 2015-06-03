@@ -123,6 +123,7 @@ case class WikiEntry(
   def delete(sby: String) (implicit txn:Txn) = {
     Audit.logdb(AUDIT_WIKI_DELETED, "BY " + sby + " " + category + ":" + name, "\nCONTENT:\n" + this)
     WikiEntryOld(this, Some ("deleted")).create
+    WikiTrash("WikiEntry", this.grated, sby, txn.id).create
     val key = Map("category" -> category, "name" -> name, "parent" -> parent)
     RDelete.apply (Wikis(realm).weTables(wid.cat), key)
     if (shouldIndex) Wikis(realm).index.delete(this)
@@ -134,7 +135,7 @@ case class WikiEntry(
   lazy val sections = {
     // this ((?>.*?(?=\{\{/))) means non-greedy lookahead
     //todo use the wiki parser later modifiers to load the sections, not a separate parser here
-    val PATT1 = """(?s)\{\{\.*(section|template|def|lambda|dsl\.\w*)(:)?([^:}]*)?(:)?([^}]*)?\}\}((?>.*?(?=\{\{/[^`])))\{\{/\.*(section|template|def|lambda|dsl\.\w*)?\}\}""".r //?s means DOTALL - multiline
+    val PATT1 = """(?s)\{\{\.*(section|template|def|lambda|dsl\.\w*)([: ])?([^:}]*)?(:)?([^}]*)?\}\}((?>.*?(?=\{\{/[^`])))\{\{/\.*(section|template|def|lambda|dsl\.\w*)?\}\}""".r //?s means DOTALL - multiline
     val PATT2 = PATT1
 
     (for (m <- PATT1.findAllIn(content)) yield {
@@ -160,8 +161,8 @@ case class WikiEntry(
     s.decs.map(x => x(this))
     // add hardcoded attribute - these can be overriden by tags in content
     WAST.SState(s.s,
-      Map("category" -> category, "name" -> name, "label" -> label, "url" -> (category + ":" + name),
-        "tags" -> tags.mkString(",")) ++ s.tags,
+      Map("category" -> category, "name" -> name, "label" -> label, "url" -> (wid.urlRelative),
+      "id" -> _id.toString, "tags" -> tags.mkString(",")) ++ s.tags,
       s.ilinks, s.decs)
   }
 
@@ -227,3 +228,10 @@ object WikiEntry {
 case class WikiEntryOld(entry: WikiEntry, reason:Option[String], _id: ObjectId = new ObjectId()) {
   def create (implicit txn:Txn) = RCreate.noAudit[WikiEntryOld](this)
 }
+
+/** old wiki entries - a copy of each older version when udpated or deleted */
+@RTable
+case class WikiTrash(table:String, entry: DBObject, by:String, txnId:String, date:DateTime=DateTime.now, _id: ObjectId = new ObjectId()) {
+  def create (implicit txn:Txn) = RCreate.noAudit[WikiTrash](this)
+}
+
