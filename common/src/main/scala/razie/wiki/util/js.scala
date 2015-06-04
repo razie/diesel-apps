@@ -19,7 +19,7 @@ import scala.collection.mutable.{HashMap, ListBuffer}
  *
  *  we do not have a common Node class - but simple Map and List
  */
-object js extends Logging {
+object js {
 
   /** turn a map of name,value into json */
   def tojson(x: Map[_, _]): JSONObject = {
@@ -68,6 +68,10 @@ object js extends Logging {
     o.toMap
   }
 
+  /** recursively transform a name,value map
+    *
+    * the transformation is f(path, name, value)
+    */
   def jt(x: List[_])(f: PartialFunction[(String, String, Any), (String, Any)]): List[_] = jt(x, "/")(f)
 
   /** recursively transform a name,value map
@@ -121,6 +125,7 @@ object js extends Logging {
     o + (if(x.headOption.exists(!_.isInstanceOf[String])) " "*(i-1) else "") + "]"
   }
 
+  /** build a List from a JSON parsed Array */
   def fromArray (a:JSONArray) : List[Any] = {
     (for (i <- 0 until a.length())
     yield a.get(i) match {
@@ -129,16 +134,22 @@ object js extends Logging {
     }).toList
   }
 
+  /** build a Map from a JSON parsed object */
   def fromObject (a:JSONObject) : Map[String, Any] = {
     import scala.collection.JavaConversions._
     val r = new HashMap[String, Any]
     for (k <- 0 until a.names.length)
-    r.put(a.names.get(k).toString, a.get(a.names.get(k).toString) match {
-          case s: String => s
-          case s: JSONObject => fromObject(s)
-          case s: JSONArray => fromArray(s)
-        })
+      r.put(a.names.get(k).toString, a.get(a.names.get(k).toString) match {
+        case s: String => s
+        case s: JSONObject => fromObject(s)
+        case s: JSONArray => fromArray(s)
+      })
     r.toMap
+  }
+
+  /** build a Map from a JSON string */
+  def parse (a:String) : Map[String, Any] = {
+    fromObject(new JSONObject(a))
   }
 }
 
