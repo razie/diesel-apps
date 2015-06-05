@@ -7,7 +7,6 @@
 package razie.wiki.util
 
 import org.json.{JSONArray, JSONObject}
-import razie.Logging
 
 import scala.collection.mutable.{HashMap, ListBuffer}
 
