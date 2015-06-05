@@ -50,7 +50,7 @@ object js {
 
   /** recursively transform a name,value map
     *
-    * the transformation is f(path, name, value)
+    * the transformation is f(path, name, value) => (name, value)
     */
   def jt(map: Map[_, _], path: String = "/")(f: PartialFunction[(String, String, Any), (String, Any)]): Map[String, Any] = {
     val o = new HashMap[String, Any]()
@@ -69,13 +69,7 @@ object js {
 
   /** recursively transform a name,value map
     *
-    * the transformation is f(path, name, value)
-    */
-  def jt(x: List[_])(f: PartialFunction[(String, String, Any), (String, Any)]): List[_] = jt(x, "/")(f)
-
-  /** recursively transform a name,value map
-    *
-    * the transformation is f(path, name, value)
+    * the transformation is f(path, name, value) => (name, value)
     */
   def jt(x: List[_], path: String)(f: PartialFunction[(String, String, Any), (String, Any)]): List[_] = {
     val o = new ListBuffer[Any]()
@@ -87,6 +81,10 @@ object js {
     }
     o.toList
   }
+
+  /** @see jt */
+  def jt(x: List[_])(f: PartialFunction[(String, String, Any), (String, Any)]): List[_] = jt(x, "/")(f)
+
 
   val q = "\""
 
