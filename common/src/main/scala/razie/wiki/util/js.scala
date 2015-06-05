@@ -89,19 +89,21 @@ object js {
     o.toList
   }
 
-  val q = ""
+  val q = "\""
+
+  private def q(str:String) = "\""+str+"\""
 
   /** turn a map of name,value into json */
   def tojsons(x: Map[_, _], i:Int = 1): String = {
     var o = " "*(i-1) + "{\n"
-    x.zipWithIndex foreach {t =>
+    x.zipWithIndex.toSeq.sortBy(_._2) foreach {t =>
       val (k,v) = t._1
       def comma = if(t._2 < x.size-1) ",\n" else "\n"
       v match {
-        case m: Map[_, _] => o += (" "*i) + q + k.toString  + q+ tojsons(m, i+1) + comma
-        case s: String => o += (" "*i) + q + k.toString + q+ ":"+ s + comma
+        case m: Map[_, _] => o += (" "*i) + q + k.toString  + q+ ":"+tojsons(m, i+1) + comma
+        case s: String => o += (" "*i) + q + k.toString + q+ ":"+ q(s) + comma
         case l: List[_] => o += " "*i + q + k.toString + q + ":"+tojsons(l, i+1) + comma
-        case h @ _ => o += " "*i + q + k.toString + q+ ":" + h.toString + comma
+        case h @ _ => o += " "*i + q + k.toString + q+ ":" + q(h.toString) + comma
       }
     }
     o + " "*(i-1) + "}"
@@ -113,13 +115,13 @@ object js {
     */
   def tojsons(x: List[_], i:Int): String = {
     var o = " "*(i-1) + "[" + (if(x.headOption.exists(!_.isInstanceOf[String]))"\n" else "")
-    x.zipWithIndex foreach { t =>
+    x.zipWithIndex.toSeq.sortBy(_._2) foreach { t =>
       def comma = if(t._2 < x.size-1) "," else ""
       t._1 match {
         case m: Map[_, _] => o += tojsons(m, i+1) +comma+"\n"
         case l: List[_] => o += tojsons(l, i+1) +comma+"\n"
-        case s: String => o += " "*i+s +comma
-        case s: JSONObject => o += " "*i+s.toString +comma
+        case s: String => o += " "*i+q(s) +comma
+        case s: JSONObject => o += " "*i+q(s.toString) +comma
       }
     }
     o + (if(x.headOption.exists(!_.isInstanceOf[String])) " "*(i-1) else "") + "]"
