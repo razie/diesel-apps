@@ -46,7 +46,7 @@ abstract class WikiConfig {
   final val hostport = props.getProperty("rk.hostport")
   final val safeMode = props.getProperty("rk.safemode")
   final val analytics = true; //props.getProperty("rk.analytics").toBoolean
-  final val noads = props.getProperty("rk.noads").toBoolean
+  val noads = props.getProperty("rk.noads").toBoolean
   final val forcephone = props.getProperty("rk.forcephone").toBoolean
 
   final val mongodb = props.getProperty("rk.mongodb")
@@ -112,7 +112,7 @@ abstract class WikiConfig {
   def sitecfg(parm: String) = config(SITECFG) flatMap (_.get(parm))
 
   /** @obsolete find the realm from the request parameters - hostport or forwarded-for or something */
-  def realm(implicit request: Request[_]) = {
+  def xrealm(implicit request: Request[_]) = {
     if(request.host contains "localhost") WikiConfig.RK else {
       config("realm").map { m =>
         PlayTools.getHost match {
@@ -125,10 +125,10 @@ abstract class WikiConfig {
 
   /** pre-configured user types */
   def userTypes(implicit request: Request[_])  = {
-    if(realm == WikiConfig.NOTES)
-      // TODO configure these
-      List("Individual", "Organization")
-    else
+//    if(realm == WikiConfig.NOTES)
+//       TODO configure these
+//      List("Individual", "Organization")
+//    else
       config(USERTYPES).toList.flatMap(_.keys.toList)
   }
 
@@ -147,7 +147,6 @@ abstract class WikiConfig {
   final val URLREWRITE = "urlrewrite"
   final val SITECFG = "sitecfg"
   final val TOPICRED = "topicred"
-  final val SAFESITES = "safesites"
   final val USERTYPES = "usertypes"
   final val BANURLS = "banurls"
 
@@ -181,7 +180,7 @@ object SampleConfig extends WikiConfig {
 
     val props = ""
 
-    for (c <- Array(SITECFG, TOPICRED, SAFESITES, USERTYPES, BANURLS)) {
+    for (c <- Array(SITECFG, TOPICRED, USERTYPES, BANURLS)) {
       val urlmaps = Some(Seq(props) flatMap WikiConfig.parsep)
       val xurlmap = (urlmaps.map(se => mutable.HashMap[String, String](se: _*)))
       println("========================== RELOADING URL MAP ==============================")

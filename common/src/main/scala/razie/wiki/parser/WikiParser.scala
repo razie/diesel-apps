@@ -6,6 +6,8 @@
  */
 package razie.wiki.parser
 
+import java.net.URI
+
 import org.bson.types.ObjectId
 import razie.wiki.mods.WikiMods
 import razie.wiki.{Services, Enc}
@@ -77,7 +79,11 @@ trait WikiParserT extends WikiParserBase with CsvParser {
 
   def lines: PS = rep((blocks ~ CRLF2) | (optline ~ (CRLF1 | CRLF3 | CRLF2))) ~ opt(dotProps | line) ^^ {
     case l ~ c =>
-      l.map(t => RState("", t._1, t._2)) ::: c.toList
+      l.map(t => t._1 match {
+        // just optimizing to reduce the number of resulting elements
+//        case ss:SState => ss.copy(s = ss.s+t._2)
+        case _ => RState("", t._1, t._2)
+      }) ::: c.toList
   }
 
   def wiki3: PS = "[[[" ~ """[^]]*""".r ~ "]]]" ^^ {
@@ -99,6 +105,18 @@ trait WikiParserT extends WikiParserBase with CsvParser {
       }
     }
   }
+
+  //todo can't do it here - sections will include AST trees then not text
+//  def wiki2Include: PS = "[[include:" ~> """[^]]*""".r <~ "]]" ^^ {
+//    case wpath  => {
+//      val other = for (
+//        wid <- WID.fromPath(wpath);
+//        c <- wid.content // this I believe is optimized for categories
+//      ) yield c
+//
+//      other.map(apply).getOrElse(SState("`[ERR Can't include $1]`"))
+//    }
+//  }
 
   final val wikip2a = """([^:|\]]*::)?([^:|\]]*:)?([^/:|\]]*[/:])?([^|\]]+)([ ]*[|][ ]*)?([^]]*)?"""
 
@@ -141,8 +159,14 @@ trait WikiParserT extends WikiParserBase with CsvParser {
   def iframe: PS = "<iframe" ~> """[^>]*""".r <~ ">" <~ opt(""" *</iframe>""".r) ^^ {
     case a => {
       val url = a.replaceAll(""".*src="(.*)".*""", "$1")
-      val x = Services.config.config(Services.config.SAFESITES).flatMap(_.keys.find(x => url.startsWith(x)).map(x => "<iframe" + a + "></iframe>")) getOrElse ("&lt;iframe" + a + "&gt;")
-      x
+      SState(try {
+        val u = new URI(url)
+        val s = u.getHost
+        if(Services.isSiteTrusted(u.getHost)) ("<iframe" + a + "></iframe>")
+        else ("&lt;iframe" + a + "&gt;")
+      } catch {
+        case _ : Throwable => ("&lt;iframe" + a + "&gt;")
+      })
     }
   }
 
@@ -170,10 +194,10 @@ trait WikiParserT extends WikiParserBase with CsvParser {
   // this is used for contents of a topic
   private def wikiProps: PS =
     moreWikiProps.foldLeft(
-    wikiPropMagic | wikiPropBy | wikiPropWhen | wikiPropXp | wikiPropWhere |
+    wikiPropISection | wikiPropMagic | wikiPropBy | wikiPropWhen | wikiPropXp | wikiPropXmap | wikiPropWhere |
     wikiPropLoc | wikiPropRoles | wikiPropAttrs | wikiPropAttr | wikiPropWidgets | wikiPropCsv | wikiPropCsv2 |
-    wikiPropTable | wikiPropISection | wikiPropSection | wikiPropImg | wikiPropVideo |
-    wikiPropCode | wikiPropField | wikiPropRk | wikiPropLinkImg | wikiPropFeedRss | wikiPropTag |
+    wikiPropTable | wikiPropSection | wikiPropImg | wikiPropVideo |
+    wikiPropCode | wikiPropField | wikiPropRk | wikiPropLinkImg | wikiPropFeedRss | wikiPropTag | wikiPropExprS |
     wikiPropRed | wikiPropLater
     )((x,y) => x | y) | wikiProp
 
@@ -208,9 +232,9 @@ trait WikiParserT extends WikiParserBase with CsvParser {
             List(("WIDGET_ARGS", value)).foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
           } getOrElse "")
       else if(WikiMods.index.contains(name.toLowerCase)) {
-        LazyState {(current, we) =>
+        LazyState {(current, ctx) =>
           //todo the mod to be able to add some properties in the context of the current topic
-          SState(WikiMods.index(name.toLowerCase).modProp(name, value, we))
+          SState(WikiMods.index(name.toLowerCase).modProp(name, value, ctx.we))
         }
       } else {
         if (name startsWith ".")
@@ -305,9 +329,45 @@ trait WikiParserT extends WikiParserBase with CsvParser {
     }
   }
 
+  private def wikiPropXmap: PS = "{{" ~> """xmap""".r ~ """[: ]""".r ~ """[^}]*""".r ~ "}}" ~ lines <~ ("{{/" ~ """xmap""".r ~ "}}") ^^ {
+    case what ~ _ ~ path ~ _ ~ lines => {
+      LazyState {(current, ctx) =>
+        val html =
+          try {
+            val s = lines.fold(ctx).s
+            ctx.we.map {x =>
+              val values = Wikis.irunXp(what, x, path)
+              values.map {value=>
+                val PAT = """\$\{([^}]+)\}""".r
+                PAT replaceSomeIn (s, { m =>
+                  if(m.group(1) == "value") Some(value.toString)
+                  else None
+                })
+              }.mkString
+            }
+          } catch {
+            case ex: Throwable => Some("`{{ERROR: "+ex.toString+"}}`")
+          }
+
+        SState(html.mkString)
+      }
+    }
+  }
+
   private def wikiPropXp: PS = "{{" ~> """xpl?""".r ~ """[: ]""".r ~ """[^}]*""".r <~ "}}" ^^ {
     case what ~ _ ~ path => {
       SState(s"""`{{{$what:$path}}}`""", Map())
+      // can't expand this during parsing as it will recursively mess up XP
+//      LazyState {(current, we) =>
+//        val html =
+//          try {
+//            we.map(x => Wikis.runXp(what, x, path))
+//          } catch {
+//            case _: Throwable => Some("!?!")
+//          }
+//
+//        SState(html.get)
+//      }
     }
   }
 
@@ -387,11 +447,12 @@ trait WikiParserT extends WikiParserBase with CsvParser {
 
   private def wikiPropField: PS = "{{" ~> "f:" ~> "[^:]+".r ~ optargs <~ "}}" ^^ {
     case name ~ args => {
-      SState(
-        "`{{{f:%s}}}`".format(name), Map(), List(), List({ w =>
-          w.fields = w.fields ++ Map(name -> FieldDef(name, "", args.map(t => t).toMap))
-          w
-        }))
+      LazyState {(current, ctx) =>
+        ctx.we.foreach { we =>
+          we.fields = we.fields ++ Map(name -> FieldDef(name, "", args.map(t => t).toMap))
+        }
+        SState("`{{{f:%s}}}`".format(name))
+      }
     }
   }
 
@@ -407,26 +468,52 @@ trait WikiParserT extends WikiParserBase with CsvParser {
 
   // to not parse the content, use slines instead of lines
   /** {{section:name}}...{{/section}} */
-  def wikiPropSection: PS = "{{" ~> opt(".") ~ """section|template|properties""".r ~ "[: ]".r ~ """[^}]*""".r ~ "}}" ~ lines <~ ("{{/" ~ """section|template|properties""".r ~ "}}") ^^ {
-    case hidden ~ stype ~ _ ~ name ~ _ ~ lines => {
+  def wikiPropSection: PS = "{{" ~> opt(".") ~ """section|template|properties""".r ~ "[: ]".r ~ """[^:}]*""".r ~ opt("[: ]".r ~ """[^}]*""".r) ~ "}}" ~ lines <~ ("{{/" ~ """section|template|properties""".r ~ "}}") ^^ {
+    case hidden ~ stype ~ _ ~ name ~ sig ~ _ ~ lines => {
       val sname = "{{" + stype + ":" + name + "}}"
-      hidden.map(x => SState.EMPTY) getOrElse SState(
-        "`SECTION START " + sname + "`<br>") + lines + SState("<br>`SECTION END` " + sname )
+      val signature = sig.map(_._2).getOrElse("")
+      //todo complete this - sections to use AST as well
+//      LazyState {(current, ctx) =>
+//        ctx.we.foreach{w=>
+//          w.collectedSections += WikiSection(ctx.we.get, stype, name, signature, lines.toString)
+//          }
+        hidden.map(x => SState.EMPTY) getOrElse
+          RState("`SECTION START " + sname + "`<br>", lines, "<br>`SECTION END` " + sname)//.fold(ctx)
+//      }
     }
   }
 
   // to not parse the content, use slines instead of lines
-  def wikiPropISection: PS = "{{`" ~> opt(".") ~ """section|template|properties""".r ~ ":" ~ """[^}]*""".r ~ "}}" ~ slines ~ ("{{/" ~ "`" ~ """section|template|properties""".r ~ "}}") ^^ {
-    case hidden ~ stype ~ _ ~ name ~ _ ~ lines ~ (e1 ~ e2 ~ e3 ~ e4) => {
-      val sname = "{{`" + hidden.mkString + stype + ":" + name + "}}"
-      RState(sname, lines, e1+e2+e3+e4)
+//  def wikiPropITemplate: PS = "{{" ~> opt(".") ~ """template""".r ~ "[: ]".r ~ """[^}]*""".r ~ "}}" ~ slines ~ "{{/" ~ """template""".r ~ "}}" ^^ {
+//    case hidden ~ stype ~ _ ~ name ~ _ ~ lines ~ e1 ~ e3 ~ e4 => {
+//      val sname = "{{" + hidden.mkString + stype + ":" + name + "}}"
+//      RState(sname, lines, e1+e3+e4)
+//    }
+//  }
+
+  // to not parse the content, use slines instead of lines
+  def wikiPropISection: PS = "{{`" ~> """[^}]*""".r <~ "}}" ^^ {
+    case whatever => {
+      SState("{{`"+ whatever+ "}}")
+    }
+  }
+
+  // let it be - avoid replacing it - it's expanded in Wikis where i have the wid
+  def wikiPropExprS: PS = """\{\{\$\$?""".r ~ """[^}]*""".r <~ "}}" ^^ {
+    case kind ~ expr => {
+      LazyState {(current, ctx) =>
+        SState(ctx.eval(kind.substring(2), expr))
+      }
     }
   }
 
   // let it be - avoid replacing it - it's expanded in Wikis where i have the wid
   def wikiPropTag: PS = "{{tag" ~ """[: ]""".r ~> """[^}]*""".r <~ "}}" ^^ {
     case name => {
-      SState(s"""`{{tag:$name}}`""")
+      LazyState {(current, ctx) =>
+        val html = Some(Wikis.hrefTag(ctx.we.get.wid, name, name))
+        SState(html.get)
+      }
     }
   }
 

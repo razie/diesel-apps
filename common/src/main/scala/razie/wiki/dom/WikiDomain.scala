@@ -6,61 +6,71 @@
  */
 package razie.wiki.dom
 
+import razie.diesel.{RDOM, RDomain}
+import razie.wiki.admin.WikiObservers
 import razie.wiki.model._
-import razie.wiki.util.js
 
 /** DO NOT USE THIS PLEASE - it's in its very early stages
   *
   * encapsulates the knowledge to use the wiki-defined domain model */
-class WikiDomain (realm:String, wi:WikiInst) {
-  import razie.wiki.dom.DOM._
+class WikiDomain (val realm:String, val wi:WikiInst) {
 
-  //todo optimize
-  private var idom : Domain = null
+  final val WIKI_CAT = "wikiCategory"
 
-  /** have a neutral domain/meta model and load it from categories */
-  def dom = {
-    //todo async antip?
-    if(idom == null) idom = wikid()
-    idom
+  private var irdom : RDomain = null
+  def rdom : RDomain = synchronized {
+    if (irdom == null)
+      irdom = Wikis(realm).pages("DslDomain").toList.flatMap(p=>WikiDomain.domFrom(p).toList).fold(toRdom(realm))(_ plus _.revise)
+    irdom
   }
 
-  /** when dom classes edited */
-  def resetDom = {
-    //todo async antip?
-    idom = null // wikid()
+  def resetDom = synchronized {
+    irdom = null
   }
 
+  import RDOM._
 
-  //todo rewrite these in terms of the neutral DOM
+  def isWikiCategory(cat: String): Boolean = rdom.classes.values.exists(c=> c.name == cat && c.stereotypes.contains(WIKI_CAT))
 
-  /** get all zends as List (to, role) */
-  def gzEnds(aEnd: String) =
-    (for (
-      c <- wi.categories if (c.contentTags.get("roles:" + aEnd).isDefined);
-      t <- c.contentTags.get("roles:" + aEnd).toList;
-      r <- t.split(",")
-    ) yield (c.name, r)).toList
+  /** parse categories into domain model */
+  def toRdom(realm:String): RDomain = {
+    val diamonds = for (cat <- wi.categories if cat.contentTags.exists(t=>t._1.startsWith("diamond:"))) yield {
+      val x = cat.contentTags.find(t=>t._1.startsWith("diamond"))
+    }
 
-//    Wikis.categories.filter(_.contentTags.get("roles:" + aEnd).isDefined).flatMap(c=>c.contentTags.get("roles:" + aEnd).get.split(",").toList.map(x=>(c,x)))
+    val classes = for (cat <- wi.categories) yield {
+      val assocs =
+        for (
+          t <- cat.contentTags if (t._1 startsWith "roles:");
+          r <- t._2.split(",")
+        ) yield {
+        A("", cat.name, t._1.split(":")(1), "", r)
+      }
+      C(cat.name, "", WIKI_CAT, Nil, "", Nil, Nil, assocs.toList)
+    }
 
-  def gaEnds(zEnd: String) =
-    for (
-      c <- wi.category(zEnd).toList;
-      t <- c.contentTags if (t._1 startsWith "roles:");
-      r <- t._2.split(",")
-    ) yield (t._1.split(":")(1), r)
-
-  /** zEnds that link to ME as role */
-  def zEnds(aEnd: String, role: String) =
-    wi.categories.filter(_.contentTags.get("roles:" + aEnd).map(_.split(",")).exists(_.contains(role) || role=="")).toList
+    var x = new RDomain(realm, classes.map(c=>(c.name, c)).toMap, classes.flatMap(_.assocs).toList, List.empty, Map.empty)
+//    x = wi.fallback.fold(x) {wi2=> x.plus(x.name, WikiDomain(wi2.realm).rdom)}
+    x
+  }
 
   /** aEnds that I link TO as role */
-  def aEnds(zEnd: String, role: String) =
-    for (
-      c <- wi.category(zEnd).toList;
-      t <- c.contentTags if (t._1.startsWith ("roles:") && (t._2.split(",").contains(role) || role==""))
-    ) yield t._1.split(":")(1)
+  def assocsWhereTheyHaveRole(cat: String, role: String) =
+    rdom.assocs.filter(t=> t.z == cat && t.aRole == role).map(_.a) :::
+      rdom.assocs.filter(t=> t.a == cat && t.zRole == role).map(_.z)
+
+  /** aEnds that I link TO as role */
+  def assocsWhereIHaveRole(cat: String, role: String) =
+    rdom.assocs.filter(t=> t.z == cat && t.zRole == role).map(_.a) :::
+    rdom.assocs.filter(t=> t.a == cat && t.aRole == role).map(_.z)
+
+  /** aEnds that I link TO as role */
+  def aEnds(zEnd: String, zRole: String) =
+    rdom.assocs.filter(t=> t.z == zEnd && t.zRole == zRole).map(_.a)
+
+  /** zEnds that link to ME and I have role */
+  def zEnds(aEnd: String, zRole: String) =
+    rdom.assocs.filter(t=> t.a == aEnd && t.zRole == zRole).map(_.z)
 
   def needsOwner(cat: String) =
     wi.category(cat).flatMap(_.contentTags.get("roles:" + "User")).exists(_.split(",").contains("Owner"))
@@ -69,107 +79,47 @@ class WikiDomain (realm:String, wi:WikiInst) {
     wi.category(cat).flatMap(_.contentTags.get("noAds")).isDefined
 
   def needsParent(cat: String) =
-    wi.category(cat).exists(_.contentTags.exists { t =>
-      t._1.startsWith("roles:") && t._1 != "roles:User" && t._2.split(",").contains("Parent")
-    })
+    rdom.assocs.filter(t=> t.a == cat && t.zRole == "Parent").map(_.z)
 
-  def labelFor(wid: WID, action: String) = wi.category(wid.cat) flatMap (_.contentTags.get("label." + action))
-
-  /** parse categories into domain model */
-  def wikid(): DOM.Domain = {
-    val diamonds = for (cat <- wi.categories if cat.contentTags.exists(t=>t._1.startsWith("diamond:"))) yield {
-      val x = cat.contentTags.find(t=>t._1.startsWith("diamond"))
-    }
-    val classes = for (cat <- wi.categories) yield {
-      val assocs = for (t <- cat.contentTags if t._1 startsWith "roles:") yield {
-        A(cat.name, t._1.split(":")(1), "", t._2)
-      }
-      C(cat.name, "?", Nil, Nil, assocs.toList)
-    }
-
-    Domain(realm, classes.map(c=>(c.name, c)).toMap, Map.empty)
-  }
 }
 
 object WikiDomain {//extends WikiDomain (Wikis.RK) {
   def apply (realm:String) = Reactors(realm).domain
-  val rk = Reactors("rk").domain
-}
 
-object DOM {
-  // archtetypes
-  val ARCH_SPEC = "Spec"
-  val ARCH_ROLE = "Role"
-  val ARCH_ENTITY = "Entity"
-  val ARCH_MI = "MI"
+  final val DOM_LIST = "dom.list"
+  import RDOM._
 
-  class CM // abstract Class Member
-  case class P (name:String, ttype:String, multi:String, dflt:String, expr:String) extends CM // attr/parm spec
-  case class F (name:String, parms:List[P]) extends CM // function/method
-  case class V (name:String, value:String)  // attr value
-  case class C (name:String, archetype:String, base:List[String], parms:List[P]=Nil, assocs:List[D]=Nil, methods:List[F]=Nil) //class
-  case class O (name:String, base:String, parms:List[V]) { // object = instance of class
-    def toJson = parms.map{p=> p.name -> p.value}.toMap
+  final val empty = new RDomain("EMPTY", Map.empty, Nil)
+
+  /** crawl all domain pieces and build a domain */
+  def domFrom (we:WikiEntry) : Option[RDomain] = {
+    we.preprocessed
+    //    if(we.tags.contains(R_DOM) || we.tags.contains(DSL_DOM))
+    Some(
+      we.cache.getOrElseUpdate("dom",
+        new RDomain("?",
+          we.cache.getOrElse(DOM_LIST, List[Any]()).asInstanceOf[List[Any]].collect {
+            case c:C => (c.name, c)
+          }.toMap,
+          we.cache.getOrElse(DOM_LIST, List[Any]()).asInstanceOf[List[Any]].collect {
+            case c:A => c
+          },
+          we.cache.getOrElse(DOM_LIST, List[Any]()).asInstanceOf[List[Any]].collect {
+            case c:D if !c.isInstanceOf[A] => c
+          },
+          we.cache.getOrElse(DOM_LIST, List[Any]()).asInstanceOf[List[Any]].collect {
+            case o:O => (o.name, o)
+          }.toMap)
+      )) collect {
+      case d:RDomain => d
+    }
+    //    else None
   }
-       class D  (val roles:List[(String, String)], val ac:Option[AC]=None) //diamond association
-  case class A  (a:String, z:String, aRole:String, zRole:String, override val ac:Option[AC]=None) //association
-    extends D (List(a->aRole, z->zRole), ac)
-  case class AC (name:String, a:String, z:String, aRole:String, zRole:String, parms:List[P]=Nil, methods:List[F]=Nil) //association class
 
-   // Diamond Class
-
-  case class E (name:String, parms:List[P], methods:List[F]) //event
-  case class R (name:String, parms:List[P], body:String) //rule
-  case class X (body:String) //expression
-
-  case class Domain (name:String, classes:Map[String,C], objects:Map[String,O]) {
-
-    // compose domains parsed in differnt places
-    def plus (newName:String, other:Domain) = {
-      Domain(newName, classes ++ other.classes, objects ++ other.objects)
+  WikiObservers mini {
+    case we:WikiEntry if we.category == "DslDomain" => {
+      apply(we.realm).resetDom
     }
-
-    /** simple json like representation of domain for browsing */
-    def tojmap = {
-      Map("name"->name,
-        "classes" -> classes.values.toList.map{c=>
-          Map(
-            "name"->c.name,
-            "parms" -> c.parms.map{p=>
-              Map(
-                "name"->p.name,
-                "t" -> p.ttype
-              )
-            },
-            "assocs" -> c.assocs.collect{
-              case a : A => Map(
-                "aname"     -> a.a,
-                "zname"     -> a.z,
-                "aRole"     -> a.aRole,
-                "zRole"     -> a.zRole,
-                "assocClass"-> a.ac.map(_.name).mkString
-              )
-              case d : D => Map(
-                "roles"      -> d.roles.map{t=>Map("className"->t._1, "role"->t._2)},
-                "assocClass" -> d.ac.map(_.name).mkString
-              )
-            }
-          )},
-        "objects" -> objects.values.toList.map{c=>
-          Map(
-            "name"  -> c.name,
-            "parms" -> c.parms.toList.map{p=>
-              Map(
-                "name"  -> p.name,
-                "value" -> p.value
-              )
-            }
-          )}
-      )
-    }
-
-//    def toJson = admin.js.tojson(tojmap)
-    override def toString = js.tojsons(tojmap)
   }
 }
 

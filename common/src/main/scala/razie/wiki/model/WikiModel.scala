@@ -16,6 +16,8 @@ import razie.wiki.Services
 import razie.wiki.parser.WAST
 import razie.wiki.admin.Audit
 
+import scala.collection.mutable.ListBuffer
+
 /** a simple wiki-style entry: language (markdown, mediawiki wikidot etc) and the actual source
   *
   * There is an "owner" property - owner is supposed to have special privileges
@@ -50,6 +52,26 @@ case class WikiEntry(
       val wikip2r(wpath) = content
       WID.fromPath(wpath)
     } else None
+  }
+
+  /** todo should use this version instead of content - this resolves includes */
+  def included : String = {
+    // todo this is not cached as the underlying page may change - need to pick up changes
+    var done = false
+
+      val INCLUDE = """(?<!`)\[\[include:([^\]]*)\]\]""".r
+      val res1 = INCLUDE.replaceAllIn(content, { m =>
+        val other = for (
+          wid <- WID.fromPath(m.group(1));
+          c <- wid.content // this I believe is optimized for categories
+        ) yield c
+
+        done = true
+        //regexp uses $ as a substitution, escape them before returning this subst string
+        other.map(_.replaceAll("\\$", "\\\\\\$")).getOrElse("`[ERR Can't include $1]`")
+      })
+
+    if(done) res1 else content
   }
 
   def wid  = WID(category, name, parent, None, if(realm == Wikis.RK) None else Some(realm))
@@ -124,7 +146,7 @@ case class WikiEntry(
     Audit.logdb(AUDIT_WIKI_DELETED, "BY " + sby + " " + category + ":" + name, "\nCONTENT:\n" + this)
     WikiEntryOld(this, Some ("deleted")).create
     WikiTrash("WikiEntry", this.grated, sby, txn.id).create
-    val key = Map("category" -> category, "name" -> name, "parent" -> parent)
+    val key = Map("realm" -> realm, "category" -> category, "name" -> name, "parent" -> parent)
     RDelete.apply (Wikis(realm).weTables(wid.cat), key)
     if (shouldIndex) Wikis(realm).index.delete(this)
   }
@@ -132,13 +154,27 @@ case class WikiEntry(
   def auditFlagged(f: String) { Log.audit(Audit.logdb(f, category + ":" + name)) }
 
   /** reparsing the content - wiki sections are delimited by {{section:name}} */
-  lazy val sections = {
-    // this ((?>.*?(?=\{\{/))) means non-greedy lookahead
-    //todo use the wiki parser later modifiers to load the sections, not a separate parser here
-    val PATT1 = """(?s)\{\{\.*(section|template|def|lambda|dsl\.\w*)([: ])?([^:}]*)?(:)?([^}]*)?\}\}((?>.*?(?=\{\{/[^`])))\{\{/\.*(section|template|def|lambda|dsl\.\w*)?\}\}""".r //?s means DOTALL - multiline
-    val PATT2 = PATT1
 
-    (for (m <- PATT1.findAllIn(content)) yield {
+  /** these are normal - all sections after include */
+  lazy val sections = findSections(included, PATT_SEC) ::: findSections(included, PATT_TEM)
+
+  /** these are when used as a template - template sections do not resolve include */
+  lazy val templateSections = findSections(included, PATT_SEC) ::: findSections(content, PATT_TEM)
+
+  // this ((?>.*?(?=\{\{/))) means non-greedy lookahead
+  //?s means DOTALL - multiline
+  // format: {{stype[ :]name:signature}}
+  private final val PATT_SEC =
+    """(?s)\{\{\.*(section|def|lambda|dsl\.\w*)([: ])?([^:}]*)?(:)?([^}]*)?\}\}((?>.*?(?=\{\{/[^`])))\{\{/\.*(section|def|lambda|dsl\.\w*)?\}\}""".r
+  private final val PATT_TEM =
+    """(?s)\{\{\.*(template)([: ])?([^:}]*)?(:)?([^}]*)?\}\}((?>.*?(?=\{\{/[^`])))\{\{/\.*(template)?\}\}""".r
+
+  /** find the sections - used because for templating I don't want to reolves the includes */
+  private def findSections (c:String, pat:scala.util.matching.Regex) = {
+    //todo use the wiki parser later modifiers to load the sections, not a separate parser here
+    val PATT2 = pat
+
+    (for (m <- pat.findAllIn(c)) yield {
       val mm = PATT2.findFirstMatchIn(m).get
       WikiSection(this, mm.group(1), mm.group(3), mm.group(5), mm.group(6))
     }).toList
@@ -154,16 +190,16 @@ case class WikiEntry(
   lazy val scripts = sections.filter(x => "def" == x.stype || "lambda" == x.stype)
 
   /** pre processed form - parsed and graphed */
+  lazy val ast = Wikis.preprocess(this.wid, this.markup, Wikis.noBadWords(this.content))
+
+  /** pre processed form - parsed and graphed */
   lazy val preprocessed = {
-    val ss = Wikis.preprocess(this.wid, this.markup, Wikis.noBadWords(this.content))
-    val s = ss.fold(Some(this)) // fold the AST
-    // apply transformations
-    s.decs.map(x => x(this))
+    val s = ast.fold(WAST.context(Some(this))) // fold the AST
     // add hardcoded attribute - these can be overriden by tags in content
     WAST.SState(s.s,
       Map("category" -> category, "name" -> name, "label" -> label, "url" -> (wid.urlRelative),
       "id" -> _id.toString, "tags" -> tags.mkString(",")) ++ s.tags,
-      s.ilinks, s.decs)
+      s.ilinks)
   }
 
   def grated = grater[WikiEntry].asDBObject(this)
@@ -183,7 +219,7 @@ case class WikiEntry(
   final val AUDIT_NOTE_CREATED = "NOTE_CREATED"
   final val AUDIT_NOTE_UPDATED = "NOTE_UPDATED"
 
-  /** field definitions contained - added to during parsing */
+  /** field definitions contained - added to when accessing the form */
   var fields = new scala.collection.mutable.HashMap[String, FieldDef]()
   lazy val form = new WikiForm(this)
   def formRole = this.props.get(FormStatus.FORM_ROLE)

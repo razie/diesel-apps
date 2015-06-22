@@ -23,6 +23,7 @@ abstract class WWrapper(val cat: String) {
   def page : Option[WikiEntry]
 }
 
+/** wrap an actual topic - will load the page lazily if browsing */
 class WikiWrapper(val wid:WID) extends WWrapper(wid.cat) {
   lazy val w = Wikis.find(wid)
 
@@ -41,7 +42,7 @@ class WikiWrapper(val wid:WID) extends WWrapper(wid.cat) {
           Some(ilink)
       }.toList ++ lfrom ++ lto ++ BADlto))
 
-  lazy val ilinks = wilinks.toList.flatMap(identity)
+  lazy val ilinks = wilinks.toList.flatMap(_.toList)
 
   def childrenByTag (tag:String) =
     if(isAll && "*" == tag)
@@ -58,16 +59,13 @@ class WikiWrapper(val wid:WID) extends WWrapper(wid.cat) {
   def lto = w.toList.flatMap(realw=>Wikis.linksTo(realw.uwid)).map(x=>new ILink(x.from.wid.get, x.from.nameOrId))
 
   // TODO this is like extremely bad !!!
-  protected def BADallPages = Wikis(wid.getRealm).categories.toList.flatMap(cat=>Wikis(wid.getRealm).pages(cat.name).toList)
+  protected def BADallPages = Wikis(wid.getRealm).pageNames("Category").flatMap(cat=>Wikis(wid.getRealm).pageNames(cat).flatMap(name=>Wikis(wid.getRealm).find(cat, name).toList)).toList
+//  protected def BADallPages = Wikis(wid.getRealm).categories.toList.flatMap(cat=>Wikis(wid.getRealm).pages(cat.name).toList)
 
   protected def BADlto =
     if (Services.config.sitecfg("searchall").isDefined || isAll)
       BADallPages.filter(_.ilinks.exists(_.wid.formatted.name == wid.name || "*" == wid.name)).map(realw=>new ILink(realw.wid, realw.label))
     else Nil
-  //  protected def BADlto = BADallPages.map(realw=>new ILink(realw.wid, realw.label))
-
-  protected def allPagesAsILinks = BADallPages.map(realw=>new ILink(realw.wid, realw.label))
-
 
   def tags = w.map(_.contentTags).getOrElse(Map())
 
@@ -78,6 +76,7 @@ class WikiWrapper(val wid:WID) extends WWrapper(wid.cat) {
   override def page : Option[WikiEntry] = w
 }
 
+/** wrap just a link - will load the other end lazily as needed */
 case class IWikiWrapper(val ilink: ILink) extends WikiWrapper(ilink.wid) {
   override def mkLink = ilink
   override def tags = w.map(_.contentTags).getOrElse(ilink.tags)
@@ -91,28 +90,19 @@ case class IWikiWrapper(val ilink: ILink) extends WikiWrapper(ilink.wid) {
 object WikiXpSolver extends XpSolver[WWrapper] {
 
   type T = WWrapper
-  type CONT = List[WWrapper]
+  type CONT = PartialFunction[(String, String), List[WWrapper]]  // getNext
   type U = CONT
 
   val debug = WikiPath.debug
 
-  override def children(root: T): (T, U) = {
-    if(WikiPath.debug) println ("--CHILDREN("+root+")")
-    val x=root match {
-      case x: WikiWrapper => (x, children2(x, "*").toList.teeIf(debug,"C").asInstanceOf[U])
-      case _              => throw new IllegalArgumentException()
-    }
-//    if(WikiPath.printTrace) println ("----CHILDREN("+root+") ="+x)
-    x
-  }
+  override def children(root: T): (T, U) = (root, {
+    case (tag, assoc) if root.isInstanceOf[WikiWrapper] => children2(root, tag).toList.teeIf(debug,"C").toList
+  })
 
   override def getNext(o: (T, U), tag: String, assoc: String): List[(T, U)] = {
     if(WikiPath.debug) println("-getNext ("+o.toString+") ("+tag+")")
-    // 1. all children of type
-    o._2.asInstanceOf[List[WWrapper]].filter(zz => XP.stareq(zz.asInstanceOf[WWrapper].cat, tag)).teeIf(debug,"D").flatMap (_ match {
-      // 2. wrap them
-      case x: WikiWrapper => (x, children2(x, "*").toList.asInstanceOf[U]) :: Nil
-    }).tee("E").toList
+    // 1. apply continuation and filter just in case... all children of type
+    o._2.apply(tag, assoc).filter(zz => XP.stareq(zz.cat, tag)).teeIf(debug,"D").map(children).tee("E").toList
   }
 
   private def children2(node: WWrapper, tag: String): Seq[WWrapper] = {
@@ -127,7 +117,7 @@ object WikiXpSolver extends XpSolver[WWrapper] {
       }
       case what @ _ => throw new IllegalArgumentException("Unsupported json type here: " + what)
     }
-//    if(WikiPath.printTrace) println("-----CHILDREN2 ("+node+") ("+tag+") =\n ------ "+x)
+    //    if(WikiPath.printTrace) println("-----CHILDREN2 ("+node+") ("+tag+") =\n ------ "+x)
     x tee "C2"
   }
 
@@ -135,11 +125,11 @@ object WikiXpSolver extends XpSolver[WWrapper] {
     if(WikiPath.debug) println("-getAttr ("+o.toString+") ("+attr+")")
     val ret = o match {
       case o: IWikiWrapper => o.tags.get(attr).getOrElse("")
-      case o: WikiWrapper  => o.w.flatMap(we=>
-        we.contentTags.get(attr).orElse(we.sections.find(_.name == attr).map(_.content))
-      ).orElse(
-          if("content" == attr) o.w.map(_.content) else None
-        ).getOrElse("")
+            case o: WikiWrapper  => o.w.flatMap(we=>
+              we.contentTags.get(attr).orElse(we.sections.find(_.name == attr).map(_.content))
+            ).orElse(
+                if("content" == attr) o.w.map(_.content) else None
+              ).getOrElse("")
       case _               => null
     }
     ret.toString
@@ -150,7 +140,6 @@ object WikiXpSolver extends XpSolver[WWrapper] {
       case null => curr.asInstanceOf[List[(T, U)]]
       case _    => curr.asInstanceOf[List[(T, U)]].filter(x => xe.cond.passes(x._1, this))
     }).filter(gaga => XP.stareq(gaga._1.asInstanceOf[WWrapper].cat, xe.name))
-
 }
 
 object TestWikiPath extends App {

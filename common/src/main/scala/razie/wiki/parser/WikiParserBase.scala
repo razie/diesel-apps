@@ -118,10 +118,10 @@ trait WikiParserBase extends ParserCommons {
   def lastLine: PS = ("""^[\s]+$""".r) ^^ { case a => "\n"}
 
   // block static, used for blocks of code or DSL etc
-  def sstatic: PS = not("{{/" | "```" | """^\./""".r ) ~> (""".""".r) ~ ("""[^{}\[\]`\r\n]""".r*) ^^ { case a ~ b => SState(a + b.mkString) }
+  def sstatic: PS = not("{{/" | "{{xx`/" | "```" | """^\./""".r ) ~> (""".""".r) ~ ("""[^{}\[\]`\r\n]""".r*) ^^ { case a ~ b => SState(a + b.mkString) }
   def sline: PS = rep(lastLine | sstatic) ^^ {
     // leave as SState for DSL parser
-    case l => SState(l.map(_.s).mkString, l.flatMap(_.tags).toMap, l.flatMap(_.ilinks), l.flatMap(_.decs))
+    case l => SState(l.map(_.s).mkString, l.flatMap(_.tags).toMap, l.flatMap(_.ilinks))
   }
 
   def soptline: PS = opt(sline) ^^ { case o => o.map(identity).getOrElse(SState.EMPTY) }
@@ -132,9 +132,7 @@ trait WikiParserBase extends ParserCommons {
       SState(
         l.map(t => t._1.s + t._2.s).mkString + c.map(_.s).getOrElse(""),
         l.flatMap(_._1.tags).toMap ++ c.map(_.tags).getOrElse(Map()),
-        l.flatMap(_._1.ilinks).toList ++ c.map(_.ilinks).getOrElse(Nil),
-        l.flatMap(_._1.decs).toList ++ c.map(_.decs).getOrElse(Nil))
-//      LState(l.map(t => RState("", t._1, t._2)) ::: c.toList)
+        l.flatMap(_._1.ilinks).toList ++ c.map(_.ilinks).getOrElse(Nil))
   }
 
   // ======================== args

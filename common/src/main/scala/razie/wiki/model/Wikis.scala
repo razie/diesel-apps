@@ -9,6 +9,7 @@ package razie.wiki.model
 import com.mongodb.DBObject
 import com.mongodb.casbah.Imports._
 import com.novus.salat._
+import play.api.templates.JavaScript
 import razie.Logging
 import razie.db.{RMany, RazMongo}
 import razie.db.RazSalatContext._
@@ -22,11 +23,12 @@ object Wikis extends Logging with Validation {
   //todo per realm
   /** these categories are persisted in their own tables */
   final val PERSISTED = Array("Item", "Event", "Training", "Note", "Entry", "Form",
-    "DRReactor", "DRElement", "DRDomain", "JSON")
+    "DslReactor", "DslElement", "DslDomain", "JSON", "DslEntity")
 
   /** customize table names per category */
   final val TABLE_NAME = "WikiEntry"
-  final val TABLE_NAMES = Map("DRReactor" -> "weDR", "DRElement" -> "weDR", "DRDomain" -> "weDR")
+  // map all Dsl type entities in the same table
+  final val TABLE_NAMES = Map("DslReactor" -> "weDsl", "DslElement" -> "weDsl", "DslDomain" -> "weDsl", "DslEntity" -> "weDslEntity")
 
   final val RK = WikiConfig.RK
   final val DFLT = RK // todo replace with RK
@@ -60,9 +62,6 @@ object Wikis extends Logging with Validation {
     }
     else rk.category(cat)
 
-  /** @deprecated use realm */
-  def visibilityFor(cat: String): Seq[String] = rk.visibilityFor(cat)
-
   def linksFrom(from: UWID) = RMany[WikiLink]("from" -> from.grated)
 
   def linksTo(to: UWID) = RMany[WikiLink]("to" -> to.grated)
@@ -90,9 +89,23 @@ object Wikis extends Logging with Validation {
     
    //todo refactor in own utils  vvv
     
-  val MD = "md"
-  val TEXT = "text"
-  val markups = Array(MD, TEXT)
+  final val MD = "md"
+  final val TEXT = "text"
+  final val JS = "js"
+  final val SCALA = "scala"
+  final val JSON = "json"
+  final val XML = "xml"
+
+  /** helper to deal with the different markups */
+  object markups {
+    final val list = Seq(MD->"Markdown", TEXT->"Text", JSON->"JSON", XML->"XML", JS->"JavaScript", SCALA->"Scala") // todo per reator type - hackers like stuff
+
+    def contains (s:String) = list.exists(_._1 == s)
+
+    def isDsl (s:String) =
+      s == JS || s == XML || s == JSON || s == SCALA
+  }
+
 
   import com.tristanhunt.knockoff.DefaultDiscounter._
 
@@ -204,6 +217,7 @@ object Wikis extends Logging with Validation {
       Reactors(wid.getRealm).wiki.mkParser apply c2
 
     case TEXT => WAST.SState(content.replaceAll("""\[\[([^]]*)\]\]""", """[[\(1\)]]"""))
+    case JSON | XML | JS | SCALA => WAST.SState(content)
 
     case _ => WAST.SState("UNKNOWN MARKUP " + markup + " - " + content)
   }
@@ -221,13 +235,13 @@ object Wikis extends Logging with Validation {
       var content =
         if(icontent == null || icontent.isEmpty) {
           if (wid.section.isDefined)
-            preprocess(wid, markup, noBadWords(wid.content.mkString)).fold(we).s
+            preprocess(wid, markup, noBadWords(wid.content.mkString)).fold(WAST.context(we)).s
           else
             // use preprocessed cache
-            we.map(_.preprocessed).getOrElse(preprocess(wid, markup, noBadWords(icontent))).fold(we).s
+            we.map(_.preprocessed).getOrElse(preprocess(wid, markup, noBadWords(icontent))).fold(WAST.context(we)).s
         }
         else
-          preprocess(wid, markup, noBadWords(icontent)).fold(we).s
+          preprocess(wid, markup, noBadWords(icontent)).fold(WAST.context(we)).s
 
       // TODO index nobadwords when saving/loading page, in the WikiIndex
       // TODO have a pre-processed and formatted page index I can use - for non-scripted pages, refreshed on save
@@ -253,20 +267,12 @@ object Wikis extends Logging with Validation {
 //        } catch { case _: Throwable => Some("!?!") }
 //      })
 
-      // todo move to an AST approach of states that are folded here instead of sequential replaces
+      // cannot have these expanded in the  AST parser because then i recurse forever when resolving XPATHs...
       val XP_PAT = """`\{\{\{(xp[l]*):([^}]*)\}\}\}`""".r
 
       content = XP_PAT replaceSomeIn (content, { m =>
         try {
           we.map(x => runXp(m group 1, x, m group 2))
-        } catch { case _: Throwable => Some("!?!") }
-      })
-
-      val TAG_PAT = """`\{\{(tag)[: ]([^}]*)\}\}`""".r
-
-      content = TAG_PAT replaceSomeIn (content, { m =>
-        try {
-          Some(hrefTag(wid, m group 2, m group 2))
         } catch { case _: Throwable => Some("!?!") }
       })
 
@@ -276,6 +282,7 @@ object Wikis extends Logging with Validation {
       markup match {
         case MD => toXHTML(knockoff(content)).toString
         case TEXT => content
+        case JSON | XML | JS | SCALA => content
         case _ => "UNKNOWN MARKUP " + markup + " - " + content
       }
     } catch {
@@ -289,19 +296,19 @@ object Wikis extends Logging with Validation {
     res
   }
 
-  private def runXp(what: String, w: WikiEntry, path: String) = {
+  def irunXp(what: String, w: WikiEntry, path: String) = {
     var root = new razie.Snakk.Wrapper(new WikiWrapper(w.wid), WikiXpSolver)
-    var xpath = "*/" + path // TODO why am I doing this?
+    var xpath = path // TODO why am I doing this?
 
     if (path startsWith "root(") {
       if(path startsWith("root(*)")) {
         root = new razie.Snakk.Wrapper(new WikiWrapper(WID("Admin", "*").r(w.realm)), WikiXpSolver)
-        xpath = "*/" + path.replace("root(*)/", "")
+        xpath = path.replace("root(*)/", "")
       } else {
         val parser = """root\(([^:]*):([^:)/]*)\)/(.*)""".r //\[[@]*(\w+)[ \t]*([=!~]+)[ \t]*[']*([^']*)[']*\]""".r
         val parser(cat, name, p) = path
         root = new razie.Snakk.Wrapper(new WikiWrapper(WID(cat, name).r(w.realm)), WikiXpSolver)
-        xpath = "*/" + p
+        xpath = p
       }
     }
 
@@ -313,11 +320,18 @@ object Wikis extends Logging with Validation {
         }
       }
 
-//    println("XP:" + res.mkString)
+    //    println("XP:" + res.mkString)
+
+    res
+  }
+
+  def runXp(what: String, w: WikiEntry, path: String) = {
+    val res = irunXp(what, w, path)
 
     what match {
       case "xp" => res.headOption.getOrElse("?").toString
       case "xpl" => "<ul>" + res.take(100).map { x: Any => "<li>" + x.toString + "</li>" }.mkString + (if(res.size>100)"<li>...</li>" else "") + "</ul>"
+//      case "xmap" => res.take(100).map { x: Any => "<li>" + x.toString + "</li>" }.mkString
     }
     //        else "TOO MANY to list"), None))
   }
@@ -341,9 +355,6 @@ object Wikis extends Logging with Validation {
 
     content
   }
-
-  final val JSON = "JSON"
-  final val XML = "XML"
 
   /** main formatting function
    *
@@ -410,16 +421,37 @@ object Wikis extends Logging with Validation {
     Services.runScript(s, page, up, q.map(_.q.map(t => (t._1, t._2.mkString))).getOrElse(Map()))
   }
 
-  /** format content from a template, given some parms */
+  /** format content from a template, given some parms
+    *
+    * - this is used only when creating new pages from spec
+    *
+    * DO NOT mess with this - one side effect is only replacing the ${} it understands...
+    *
+    * CANNOT should reconcile with templateFromContent
+    */
   def template(wpath: String, parms:Map[String,String]) = {
-    (for (wid <- WID.fromPath(wpath).map(x=>if(x.realm.isDefined)x else x.r("wiki")); // templates are in wiki or rk
-          c <- wid.content
+    (for (
+      wid <- WID.fromPath(wpath).map(x=>if(x.realm.isDefined)x else x.r("wiki")); // templates are in wiki or rk
+      c <- wid.templateContent
     ) yield {
-      val s1 = parms.foldLeft(c)((a,b)=>a.replaceAll("\\$\\{"+b._1+"\\}", b._2))
-      s1.replaceAll("\\{\\{`section", "{{section").replaceAll("\\{\\{`.section", "{{.section").replaceAll("\\{\\{/`section", "{{/section")
-    }) getOrElse (
+//        val s1 = parms.foldLeft(c)((a,b)=>a.replaceAll("\\$\\{"+b._1+"\\}", b._2))
+        val s1 = parms.foldLeft(c)((a,b)=>a.replaceAll("\\{\\{\\$\\$"+b._1+"\\}\\}", b._2))
+        s1.replaceAll("\\{\\{`", "{{")//.replaceAll("\\{\\{`", "{{").replaceAll("\\{\\{`/section", "{{/section")
+      }) getOrElse (
       "No content template for: " + wpath + "\n\nAttributes:\n\n" + parms.map{t=>s"* ${t._1} = ${t._2}\n"}.mkString
       )
+  }
+
+  /** format content from a template, given some parms
+  *
+  * @param parms will resolve expressions from the template into Strings. you can use a Map.
+  *              parms("*") should return some details for debugging
+  */
+  def templateFromContent(content: String, parms:String=>String) = {
+    val PAT = """\\$\\{([^\\}]*)\\}""".r
+    val s1 = PAT.replaceAllIn(content, {m =>
+      parms(m.group(1))
+    })
   }
 
   def noBadWords(s: String) = badWords.foldLeft(s)((x, y) => x.replaceAll("""\b%s\b""".format(y), "BLIP"))

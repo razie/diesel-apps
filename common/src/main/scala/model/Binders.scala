@@ -20,7 +20,7 @@ object Binders {
   implicit def widPathBindable =
     new PathBindable[WID] {
       def bind(key: String, value: String): Either[String, WID] = {
-        Log.log ("BINDER "+value)
+//        Log.debug ("BINDER "+value)
         WID.fromPath(Enc.fromUrl(value)).map(Right(_)).getOrElse(Left("Oh-Uh"))
       }
       def unbind(key: String, wid: WID): String =
@@ -46,7 +46,7 @@ object Binders {
   implicit def cmwidPathBindable =
     new PathBindable[CMDWID] {
       def bind(key: String, value: String): Either[String, CMDWID] = {
-        Log.log ("BINDER "+value)
+//        Log.debug ("BINDER "+value)
         WID.cmdfromPath(Enc.fromUrl(value)).map(Right(_)).getOrElse(Left("Oh-Uh"))
       }
       def unbind(key: String, wid: CMDWID): String =

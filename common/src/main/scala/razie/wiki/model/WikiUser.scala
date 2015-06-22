@@ -19,6 +19,8 @@ abstract class WikiUser {
 
   /** pages of category that I linked to */
   def myPages (realm:String, cat: String) : List[Any]
+
+  def css : Option[String] // "dark" vs "light" if there is a preference
 }
 
 /** user factory and utils */

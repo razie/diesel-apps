@@ -77,7 +77,7 @@ object dbop {
 
   def apply[A](name: String)(f: => A): A = {
     val ba = new RBeforeAft(name)
-    cdebug << s"dbop.BEFORE for ${ba.name}"
+    cdebug << s"dbop.before for ${ba.name}"
     val res = f
     val t2 = System.currentTimeMillis
     val debinf = res match {
@@ -85,7 +85,7 @@ object dbop {
       case Some(_) => "Some"
       case x@_ => x.getClass.getName
     }
-    clog << s"dbop.AFTER ${t2 - ba.t1} millis for ${ba.name} res: $debinf"
+    cdebug << s"dbop.after ${t2 - ba.t1} millis for ${ba.name} res: $debinf"
     res
   }
 

@@ -79,7 +79,8 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
    }
 
   /** get textual content, unprocessed, of this object, if found */
-  def content = section.map{s=> page.flatMap(_.sections.find(_.name == s)).map(_.content) getOrElse s"[Section $s not found!]"} orElse page.map(_.content)
+  def content = section.map{s=> page.flatMap(_.sections.find(_.name == s)).map(_.content) getOrElse s"`[Section $s not found!]`"} orElse page.map(_.content)
+  def templateContent = section.map{s=> page.flatMap(_.templateSections.find(_.name == s)).map(_.content) getOrElse s"`[Section $s not found!]`"} orElse page.map(_.content)
 
   /** withRealm - convienience builder. Note that you can't override a category prefix */
   def r(r:String) = if(Wikis.DFLT == r || CAT.unapply(cat).flatMap(_.realm).isDefined) this else this.copy(realm = Some(r))
@@ -128,8 +129,8 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
 
   /** helper to get a label, if defined or the default provided */
   //todo labels should not be in domain but in index...
-  def label(id: String, alt: String) = WikiDomain(getRealm).labelFor(this, id).getOrElse(alt)
-  def label(id: String) = WikiDomain(getRealm).labelFor(this, id).getOrElse(id)
+  def label(id: String, alt: String) = Reactors(getRealm).wiki.labelFor(this, id).getOrElse(alt)
+  def label(id: String) = Reactors(getRealm).wiki.labelFor(this, id).getOrElse(id)
 
 }
 

@@ -29,6 +29,9 @@ class WForm(val we: WikiEntry) {
     * this assumes the content is just an `[[include:...]]`
     */
   def mkContent(j: org.json.JSONObject, content:String = we.content) =
+  if(content.contains("{{.section:formData}}"))
+    content.replaceFirst("(?s)\\{\\{.section:formData\\}\\}.*\\{\\{/section\\}\\}", "") + WForm.formData(j)
+  else
     content.replaceFirst("(?s)\\]\\].*", "]]") + "\n" + WForm.formData(j)
 
   /** replace the fields in content with the respective html code */

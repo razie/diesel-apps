@@ -1,6 +1,6 @@
 package razie.wiki.util
 
-import play.api.mvc.{AnyContent, Request}
+import play.api.mvc.{RequestHeader, AnyContent, Request}
 import razie.wiki.Services
 
 /**
@@ -8,7 +8,7 @@ import razie.wiki.Services
  */
 object PlayTools {
   /** get the host that was forwarded here - used for multi-site hosting */
-  def getHost (implicit request: Request[_]) =
+  def getHost (implicit request: RequestHeader) =
     if(Services.config.isLocalhost)
       Some(Services.config.simulateHost)
     else

@@ -7,8 +7,6 @@ object V {
   val organization = "com.razie"
 
   def snap = (if (V.version endsWith "-SNAPSHOT") "-SNAPSHOT" else "")
-
-  def RAZBASEVER = "0.6.6" + snap
 }
 
 object MyBuild extends Build {
@@ -24,9 +22,9 @@ object MyBuild extends Build {
     "org.scalatest"      %% "scalatest"          % "1.9.2",
     "com.typesafe"        % "config"             % "1.2.1",
 
-    "com.razie"          %% "base"               % "0.6.6-SNAPSHOT",
-    "com.razie"          %% "snakked"            % "0.6.6-SNAPSHOT",
-    "com.razie"          %% "scripster-core"     % "0.8.6-SNAPSHOT"
+    "com.razie"          %% "base"               % "0.6.7" +snap,
+    "com.razie"          %% "snakked"            % "0.6.7" +snap,
+    "com.razie"          %% "scripster-core"     % "0.8.7"+snap
     )
 
   lazy val root = Project(id="coolscala",    base=file("."),

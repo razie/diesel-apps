@@ -36,6 +36,7 @@ trait AuthService[+U <: WikiUser] {
 case class MyUser(userName: String, email: String, _id: ObjectId = new ObjectId()) extends WikiUser {
   def ename = userName
   def myPages(realm: String, cat: String): List[Any] = List.empty
+  def css = Some("dark") // dark/light preferences
 }
 
 /** sample stub authentication */

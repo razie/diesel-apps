@@ -60,6 +60,8 @@ object Reactors {
     rk.wiki.weTable("WikiEntry").findOne(Map("category" -> "Reactor", "name" -> r)).map(grater[WikiEntry].asObject(_))
 
   def reload(r:String): Unit = {
+    reactors.remove (r)
+    lowerCase.remove (r)
     findWikiEntry(r).foreach{we=>
       reactors.put (we.name, Services.mkReactor(we.name, Some(wiki), Some(we)))
       lowerCase.put(we.name.toLowerCase, we.name)
@@ -132,11 +134,11 @@ class WikiInst (val realm:String, val fallback:Option[WikiInst]) {
 
   /** cache of categories - updated by the WikiIndex */
   lazy val cats = new collection.mutable.HashMap[String,WikiEntry]() ++
-    (RMany[WikiEntry](REALM, "category" -> "Category") map (w=>(w.name,w)))
+    (RMany[WikiEntry](REALM, "category" -> "Category") map (w=>(w.name,w))).toList
 
   /** cache of tags - updated by the WikiIndex */
   lazy val tags = new collection.mutable.HashMap[String,WikiEntry]() ++
-    (RMany[WikiEntry](REALM, "category" -> "Tag") map (w=>(w.name,w)))
+    (RMany[WikiEntry](REALM, "category" -> "Tag") map (w=>(w.name,w))).toList
 
   def weTable(cat: String) = Wikis.TABLE_NAMES.get(cat).map(x=>RazMongo(x)).getOrElse(if (Wikis.PERSISTED contains cat) RazMongo("we"+cat) else table)
   def weTables(cat: String) = Wikis.TABLE_NAMES.getOrElse(cat, if (Wikis.PERSISTED contains cat) ("we"+cat) else Wikis.TABLE_NAME)
@@ -164,6 +166,11 @@ class WikiInst (val realm:String, val fallback:Option[WikiInst]) {
   def label(wid: UWID):String = /*wid.page map (_.label) orElse*/
     wid.wid.map(x=>label(x)).getOrElse(wid.nameOrId)
 
+  /** get label from category definiition */
+  def labelFor(wid: WID, action: String) =
+    category(wid.cat) flatMap (_.contentTags.get("label." + action))
+
+  // this can't be further optimized - it SHOULD lookup the storage, to refresh stuff as well
   private def ifind(wid: WID) = {
     wid.parent.map {p=>
       weTable(wid.cat).findOne(Map(REALM, "category" -> wid.cat, "name" -> wid.name, "parent" -> p))
@@ -196,8 +203,13 @@ class WikiInst (val realm:String, val fallback:Option[WikiInst]) {
         else None // don't want to randomly find what others define with same name...
         //todo if someone else defines a blog/forum with same name, it will not find mine anymore - so MUST use REALMS
       }
-    } else
+    } else {
+    // optimized for Categories
+      if(wid.cat == "Category")
+        category(wid.name)
+      else
       ifind(wid) orElse fallback.flatMap(_.ifind(wid)) map (grater[WikiEntry].asObject(_))
+    }
 
   def find(uwid: UWID): Option[WikiEntry] = findById(uwid.cat, uwid.id)
 
@@ -222,20 +234,64 @@ class WikiInst (val realm:String, val fallback:Option[WikiInst]) {
     table.findOne(Map(REALM, "name" -> name)) map (grater[WikiEntry].asObject(_))
 
   def categories = cats.values
-  def category(cat: String) = cats.get(cat)
+  def category(cat: String) : Option[WikiEntry] = cats.get(cat).orElse(fallback.flatMap(_.category(cat)))
+
+  def refreshCat (we:WikiEntry): Unit = {
+    cats.put(we.wid.name, we)
+// scan all other realms that may [[include:: this category
+//    Reactors.reactors.values.filter(_.realm != realm).map{r=>
+//      if(r.wiki.cats contains we.wid.name)
+//        r.wiki.cats.remove(we.wid.name)
+//    }
+  }
 
   final val VISIBILITY = "visibility"
 
   /** can override in cat, fallback to reactor, fallback to what's here */
-  def visibilityFor(cat: String): Seq[String] =
-    cats.get(cat).flatMap(_.contentTags.get(VISIBILITY)).orElse(
-      Reactors(realm).props.prop(VISIBILITY)
+  def visibilityFor(cat: String, prop:String = VISIBILITY): Seq[String] =
+    cats.get(cat).flatMap(_.contentTags.get(prop)).orElse(
+      Reactors(realm).props.prop(prop)
     ).getOrElse(
       "Public,Private"
     ).split(",").toSeq
 
   /** see if any of the tags of a page are nav tags */
   def navTagFor(pageTags: Seq[String]) = pageTags.map(tags.get).find(op=>op.isDefined && op.get.contentTags.contains("navTag"))
+
+  /** look for and apply any formatting templates
+    *
+    * @param wid
+    * @param content
+    * @param which one of html|json
+    * @return
+    */
+  def applyTemplates (wid:WID, content:String, which:String) = {
+    val wpath=wid.wpath
+    category(wid.cat).flatMap(_.section("template", which)).fold(content) { sec =>
+      sec.signature match {
+        case "interpolated" => {
+          content
+        }
+        case "uppercase" => {
+          sec.content.
+            replaceAllLiterally("NAME", wid.name).
+            replaceAllLiterally("REALM", wid.getRealm).
+            replaceAllLiterally("WPATH", wpath).
+            replaceAllLiterally("CONTENT", content)
+          // todo important to have COTENT at the end so it doenst replace inside it
+        }
+        case _ => {
+          sec.content.
+            replaceAllLiterally("{{$$name}}", wid.name).
+            replaceAllLiterally("{{$$realm}}", wid.getRealm).
+            replaceAllLiterally("{{$$wpath}}", wpath).
+            replaceAllLiterally("{{$$content}}", content)
+          // it is important to have $$content at the end so it doenst replace inside it
+          //todo use the ast folding with T_TEMPLATE
+      }
+      }
+    }
+  }
 }
 
 

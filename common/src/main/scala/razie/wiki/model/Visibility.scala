@@ -25,4 +25,6 @@ object Visibility {
   final val GOLD = "Gold"
   /** member of website */
   final val PLATINUM = "Platinum"
+  /** mods */
+  final val MODERATOR = "Moderator"
 }

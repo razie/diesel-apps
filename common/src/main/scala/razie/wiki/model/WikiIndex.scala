@@ -9,6 +9,7 @@ package razie.wiki.model
 import com.mongodb.casbah.Imports._
 import razie.base.data.TripleIdx
 import razie.wiki.admin.GlobalData
+import razie.wiki.dom.WikiDomain
 
 import scala.collection.mutable.HashMap
 
@@ -50,8 +51,8 @@ class WikiIndex (val realm:String, val fallBack : Option[WikiIndex]) {
   private def up(we: WikiEntry) {
     parsed.put(we._id, PEntry(we.ilinks))
     if (we.wid.cat == "Category") {
-      Wikis(realm).cats.put(we.wid.name, we)
-      Reactors(realm).domain.resetDom
+      Wikis(realm).refreshCat(we)
+      WikiDomain(realm).resetDom
     } else if (we.wid.cat == "Tag") {
       Wikis(realm).tags.put(we.wid.name, we)
     }

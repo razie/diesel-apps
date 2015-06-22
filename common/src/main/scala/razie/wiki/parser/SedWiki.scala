@@ -7,6 +7,7 @@
 package razie.wiki.parser
 
 import org.bson.types.ObjectId
+import razie.wiki.dom.WikiDomain
 import razie.wiki.{Services, Enc}
 import razie.{cdebug, cout, clog}
 
@@ -45,9 +46,14 @@ object SedWiki {
 
       case LIST(newr, cat) => Some({
         val newRealm = if(newr == null || newr.isEmpty) realm else newr.substring(0,newr.length-1)
-        Wikis(newRealm).pageNames(cat).take(50).toList.sortWith(_ < _).map { p =>
-          Wikis.formatWikiLink(realm, WID(cat, p).r(newRealm), p, p, None)
-        }.map(_._1).mkString(" ")
+        if(cat == "Domain")
+          WikiDomain(newRealm).rdom.classes.values.take(50).toList.sortWith(_.name < _.name).map { c =>
+            Wikis.formatWikiLink(realm, WID("Category", c.name).r(newRealm), c.name, c.name, None)
+          }.map(_._1).mkString(" ")
+        else
+          Wikis(newRealm).pageNames(cat).take(50).toList.sortWith(_ < _).map { p =>
+            Wikis.formatWikiLink(realm, WID(cat, p).r(newRealm), p, p, None)
+          }.map(_._1).mkString(" ")
       },
       None)
 
