@@ -23,7 +23,8 @@ You can embedd this in any Java or Scala project. Here are a few websites built 
 
 - http://www.coolscala.com - a blog site
 - http://www.racerkidz.com - a sports wiki with calendar and forms extensions, club membership etc
-- https://www.nofolders.com - an online note taking application
+- https://www.nofolders.net - an online note taking application
+- http://www.effectiveskiing.com - online ski teaching app
 
 See the demos/samples included:
 
