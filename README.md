@@ -1,9 +1,7 @@
 Cool Scala Wiki
 ===============
 
-Embedded Markdown Wiki: a wiki engine written in scala, which you can embed in any application.
-
-Status: WIP (still refactoring it out of a bigger project, some features missing) but functional.
+Embedded Markdown Wiki: a wiki engine written in scala, which you can embed in any application, especially for play framework apps. It is a great match for collaborative, content-intensive websites.
 
 Features:
 
@@ -18,13 +16,16 @@ Versions and technologies
 - knockoff as the markdown parser
 - mongodb/casbah/salat for persistency.
 - bootstrap 2.3
+- play framework 2.3
+
+## You can't beat wikis for content-intensive websites
 
 You can embedd this in any Java or Scala project. Here are a few websites built on top of this wiki engine:
 
-- http://www.coolscala.com - a blog site
-- http://www.racerkidz.com - a sports wiki with calendar and forms extensions, club membership etc
 - https://www.nofolders.net - an online note taking application
 - http://www.effectiveskiing.com - online ski teaching app
+- http://www.coolscala.com and http://www.enduroschool.com - blogs
+- http://www.racerkidz.com - a sports wiki with calendar and forms extensions, club membership etc
 
 See the demos/samples included:
 
@@ -45,7 +46,7 @@ More details to come!
 Idea
 =====
 
-Many apps need editable pages and markdown is a nice, user-friendly language. Adding some wiki-style markups can make it so much more functional.
+Many content-intensive websites need editable pages and markdown is a nice, user-friendly language. Adding some wiki-style markups can make it so much more functional. You can evolve your website in real time, engaging the audience as needed etc.
 
 You can focus on the overall layout and functionality of your app and leave the editable details (such as description of a task or details for a calendar event or whatever) to be written in Markdown and stored as a wiki page in this embedded wiki. 
 
@@ -68,14 +69,7 @@ The engine will store the page, render it as html (part of whatever page you wil
 
 ### All wiki content
 
-The other integration model, the idea that this was written for, is where your entire app is a wiki, ran by the wiki engine and you can massively customize stuff. Any entity can be modelled as a wiki page and... well, guess it.
-
-This wiki engine is running my http//www.racerkidz.com/wiki project. Other sites powered by this wiki engine:
-
-* http://www.enduroschool.com - my enduro blog
-* http://www.askicoach.com - my ski blog
-* http://www.coolscala.com - my scala and reactive stuff blog
-* http://www.nofolders.net - unleash your creativy
+The other integration model, the idea that this was written for, is where your entire app is a wiki, ran by the wiki engine and you can massively customize content and page layouts.
 
 Here's how to use the dark CSS for bootstrap: http://www.coolscala.com/wiki/Cool_Scala/Dark_skin_for_bootstrap
 
