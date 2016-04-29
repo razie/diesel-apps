@@ -13,12 +13,14 @@ Features:
 Versions and technologies
 
 - scala 2.10.4
-- knockoff as the markdown parser
+- knockoff and pegdown as the markdown parsers
 - mongodb/casbah/salat for persistency.
-- bootstrap 2.3
+- bootstrap 3
 - play framework 2.3
 
 ## You can't beat wikis for content-intensive websites
+
+... and you can't beat markdown for wikis: HTML is a publishing format; Markdown is a writing format!
 
 You can embedd this in any Java or Scala project. Here are a few websites built on top of this wiki engine:
 
