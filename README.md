@@ -13,7 +13,7 @@ Features:
 Versions and technologies
 
 - scala 2.10.4
-- knockoff and pegdown as the markdown parsers
+- [commonmark](https://github.com/atlassian/commonmark-java) as the markdown parser
 - mongodb/casbah/salat for persistency.
 - bootstrap 3
 - play framework 2.3
