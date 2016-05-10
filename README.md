@@ -12,11 +12,11 @@ Features:
 
 Versions and technologies
 
-- scala 2.10.4
+- scala 2.11.8
 - [commonmark](https://github.com/atlassian/commonmark-java) as the markdown parser
 - mongodb/casbah/salat for persistency.
-- bootstrap 3
-- play framework 2.3
+- bootstrap 3.3.4
+- play framework 2.4
 
 ## You can't beat wikis for content-intensive websites
 
