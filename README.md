@@ -50,6 +50,15 @@ Features:
 - mongoDB for storage, customizable persistance
 - etc
 
+### Not your average wiki
+
+This is not your average markdown wiki... you can use it to create complete websites and apps: 
+
+- you can have users, assign permissions
+- supports multiple hosting right off the bat, with custom domains too
+- it's a domain-driven wiki (see details below)
+
+
 Details
 ==========
 
