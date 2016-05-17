@@ -33,6 +33,16 @@ See the demos/samples included:
 
 - [sample1 - simple text wiki](samples/sample1)
 
+Features:
+
+- include photos, images
+- write html directly in the pages, create nice layouts
+- API to extract just contents or format html and embed
+- history, revert to earlier versions
+- clone entire wiki locally for "development" and then push changes remotely
+- easy to organize and browse: search, by tags etc
+- etc
+
 Details
 ==========
 
