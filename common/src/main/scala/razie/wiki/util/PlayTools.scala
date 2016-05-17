@@ -4,7 +4,7 @@ import play.api.mvc.{RequestHeader, AnyContent, Request}
 import razie.wiki.Services
 
 /**
- * Created by raz on 2014-11-18.
+ * just some play request utils
  */
 object PlayTools {
   /** get the host that was forwarded here - used for multi-site hosting */
@@ -15,7 +15,8 @@ object PlayTools {
       request.headers.get("X-FORWARDED-HOST")
 
   /** assume the request was a post - get the data reformatted as simpel NVP */
-  def postData (implicit request : Request[AnyContent]) =
-    // somehow i get list of values?
-    request.body.asFormUrlEncoded.map(_.collect { case (k, v :: r) => (k, v) }).getOrElse(Map.empty)
+  def postData (implicit request : Request[AnyContent]) = {
+    val x = request.body.asFormUrlEncoded
+    request.body.asFormUrlEncoded.map(_.collect { case (k, v) => (k, v.head) }).getOrElse(Map.empty)
+  }
 }

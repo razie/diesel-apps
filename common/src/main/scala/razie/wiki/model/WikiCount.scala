@@ -8,6 +8,7 @@ package razie.wiki.model
 
 import org.bson.types.ObjectId
 import razie.db.{RTable, RCreate, ROne, RUpdate}
+import razie.db.tx.txn
 
 /** keep track of view counts, per wiki page id */
 @RTable
@@ -17,12 +18,19 @@ case class WikiCount (
 //todo add thumbup, thumbdown
   ) {
   def inc = {
+    //todo optimize use upsert
     WikiCount.findOne (pid) map (p=>
       RUpdate noAudit (Map("pid" -> pid), p.copy(count=p.count+1))
-    ) orElse {
+      ) orElse {
       RCreate noAudit this
       None
     }
+  }
+  def set (newCount:Long) = {
+    //todo optimize use upsert
+    WikiCount.findOne (pid) foreach (p=>
+      RUpdate (Map("pid" -> pid), p.copy(count=newCount))
+    )
   }
 }
 

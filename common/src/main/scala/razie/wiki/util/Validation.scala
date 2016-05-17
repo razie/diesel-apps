@@ -24,12 +24,21 @@ trait Validation extends Logging {
   final val cExpired = new Corr("token expired", "get another token")
   final val cNoProfile = InternalErr("can't load the user profile")
   final def cNoPermission = InternalErr("No permission!")
+  final val cNotVerified = new Corr("No permission", """You need to verify your email address!""")
   final val cDemoAccount = new Corr("This is a demo account", """You need to <a href="/do/signout">logout</a> and create your own account!""")
   final val cAccountNotActive = new Corr("This account is not active", """create a <a href="/doe/support?desc=Account+inactive">support request</a> to re-activate!""")
 
-  def cNotMember (oname:String) = new Corr(
-      "This is a club-members only topic and you are not a club member",
-      """You need to request membership in this club <a href="/wikie/linkuser/Club:%s?wc=0">%s</a>!""".format(oname,oname))
+  def cNotMember (clubName:String) = new Corr(
+    "This is a club-members only topic and you are not a club member",
+    """You need to request membership in this club <a href="/wikie/linkuser/Club:%s?wc=0">%s</a>!""".format(clubName,clubName))
+
+  def cNotCoach (clubName:String) = new Corr(
+    "This is only for coaches of club "+clubName,
+    "")
+
+  def cNotAdmin (clubName:String) = new Corr(
+      "This is an admin operation and you are not a club admin",
+      "")
 
   def cNoQuotaUpdates = new Corr(
       "You have exceeded your quota for now - awaiting review.",
@@ -77,12 +86,12 @@ trait Validation extends Logging {
       Invalid(ValidationError("specialChars not allowed, eh?")) else Valid
   }
   def vEmail: Constraint[String] = Constraint[String]("constraint.emailFormat") { o =>
-    if (o.length > 0 && !o.matches("[^@]+@[^@]+\\.[^@]+"))
-      Invalid(ValidationError("email format is bad, eh?")) else Valid
+    if (o.length > 0 && !o.matches("[^@]+@[^@]+\\.[^@]+") || o.contains(" ") || o.contains("\t"))
+      Invalid(ValidationError("re-type the email, please")) else Valid
   }
 
   def vldSpec(s: String) = !(s.contains('<') || s.contains('>'))
-  def vldEmail(s: String) = s.matches("[^@]+@[^@]+\\.[^@]+")
+  def vldEmail(s: String) = s.matches("[^@]+@[^@]+\\.[^@]+") && !s.contains(" ") && !s.contains("\t")
 }
 
 /** collecting errors - the idea is that errors are collected throughout the code and then presented at the end */

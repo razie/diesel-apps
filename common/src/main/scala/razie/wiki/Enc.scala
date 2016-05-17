@@ -62,7 +62,7 @@ object Enc {
   def toSession(orig: String) = orig.replaceAll("-", "RAZIEDASH")
   def fromSession(orig: String) = orig.replaceAll("RAZIEDASH", "-")
 
-  /** hash a string */
+  /** hash a string - result must be safe BASE64 asciis */
   def hash(input: String): String = {
     md() update input.getBytes()
     val arr = md().digest
@@ -75,7 +75,8 @@ object Enc {
     def apply() = { i }
   }
 
-  def escapeHtml (s:String) = s.replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+  def escapeHtml (s:String) = s.replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("\"", "&quot;")
+  def unescapeHtml (s:String) = s.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", "\"")
 }
 
 object Dec {

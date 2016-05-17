@@ -10,7 +10,7 @@ import java.net.URI
 
 import org.bson.types.ObjectId
 import razie.wiki.mods.WikiMods
-import razie.wiki.{Services, Enc}
+import razie.wiki.{EncUrl, Services, Enc}
 import razie.{cdebug, cout, clog}
 
 import scala.collection.mutable.ListBuffer
@@ -97,7 +97,7 @@ trait WikiParserT extends WikiParserBase with CsvParser {
         // this is an ilink with auto-props in the name/label
         // for now, reformat the link to allow props and collect them in the ILInk
         //        SedWiki(wikip2a, expand2 _, identity, p.get.s).map(x => SState(x._1, Map(), x._2.map(x => ILink(x.cat, x.name, x.label, p.get.tags, p.get.ilinks)).toList)).get // TODO something with the props
-        SedWiki(realm, identity, p.get.s).map(x => SState(x._1, Map(), x._2.map(x => ILink(x.wid, x.label, x.role, p.get.tags, p.get.ilinks)).toList)).get // TODO something with the props
+        SedWiki(realm, identity, p.get.s).map(x => SState(x._1, Map(), x._2.map(x => ILink(x.wid, x.label, x.role, p.get.props, p.get.ilinks)).toList)).get // TODO something with the props
       } else {
         // this is a normal ilink
         //        SedWiki(wikip2a, expand2 _, Wikis.formatName _, name).map(x => SState(x._1, Map(), x._2.toList)).get
@@ -141,12 +141,12 @@ trait WikiParserT extends WikiParserBase with CsvParser {
 
 
   /** simplify url - don't require markup for urls so http://xxx works */
-  def linkUrl: PS = not("""[\[(]""".r) ~> """http[s]?://""".r ~ """[^\s\]]+""".r ^^ {
+  private def linkUrl: PS = not("""[\[(]""".r) ~> """http[s]?://""".r ~ """[^\s\]]+""".r ^^ {
 //    case http ~ url => s"""[$http$url]($http$url)"""
     case http ~ url => s"""<a href="$http$url">$http$url</a>"""
   }
 
-  def hr: PS = """^---+""".r ~> opt("div:" ~> ".*") ^^ {
+  private def hr: PS = """^---+""".r ~> opt("div:" ~> ".*") ^^ {
     case div => "<hr>"
   }
 
@@ -158,7 +158,7 @@ trait WikiParserT extends WikiParserBase with CsvParser {
 
   def iframe: PS = "<iframe" ~> """[^>]*""".r <~ ">" <~ opt(""" *</iframe>""".r) ^^ {
     case a => {
-      val url = a.replaceAll(""".*src="(.*)".*""", "$1")
+      val url = a.replaceAll(""".*src="([^"]*)".*""", "$1")
       SState(try {
         val u = new URI(url)
         val s = u.getHost
@@ -188,7 +188,7 @@ trait WikiParserT extends WikiParserBase with CsvParser {
     wikiPropWhereName | wikiPropLocName | wikiPropRoles | wikiProp |
     xstatic) ^^ {
     // LEAVE this as a SState - don't make it a LState or you will have da broblem
-    case l => SState(l.map(_.s).mkString, l.flatMap(_.tags).toMap, l.flatMap(_.ilinks))
+    case l => SState(l.map(_.s).mkString, l.flatMap(_.props).toMap, l.flatMap(_.ilinks))
   }
 
   // this is used for contents of a topic
@@ -198,7 +198,8 @@ trait WikiParserT extends WikiParserBase with CsvParser {
     wikiPropLoc | wikiPropRoles | wikiPropAttrs | wikiPropAttr | wikiPropWidgets | wikiPropCsv | wikiPropCsv2 |
     wikiPropTable | wikiPropSection | wikiPropImg | wikiPropVideo |
     wikiPropCode | wikiPropField | wikiPropRk | wikiPropLinkImg | wikiPropFeedRss | wikiPropTag | wikiPropExprS |
-    wikiPropRed | wikiPropLater
+    wikiPropRed | wikiPropAlert | wikiPropLater | wikiPropHeading | wikiPropFootref | wikiPropFootnote |
+    wikiPropIf | wikiPropVisible
     )((x,y) => x | y) | wikiProp
 
   private def wikiPropMagic: PS = "{{{" ~> """[^}]*""".r <~ "}}}" ^^ {
@@ -223,13 +224,16 @@ trait WikiParserT extends WikiParserBase with CsvParser {
   }
 
   def wikiProp: PS = "{{" ~> """[^}: ]+""".r ~ """[: ]""".r ~ """[^}]*""".r <~ "}}" ^^ {
-    case name ~ _ ~ value =>
+//  def wikiProp: PS = "{{" ~> """[^}: ]+""".r ~ "[: ]".r ~ rep((arg2 | arg | arg0) <~ opt(",")) <~ "}}" ^^ {
+    case name ~ _ ~ value => {
+//      val value = args.find(_._1 == "ARG0").map(_._2).getOrElse(args.mkString(","))
       // default to widgets
       if(Wikis(realm).index.containsName("widget_" + name.toLowerCase()))
         SState(
           // todo cache this
           Wikis(realm).find(WID("Admin", "widget_" + name.toLowerCase())).map(_.content).map { c =>
-            List(("WIDGET_ARGS", value)).foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
+//            (List(("WIDGET_ARGS", value)) ::: args).foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
+            (List(("WIDGET_ARGS", value)) ).foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
           } getOrElse "")
       else if(WikiMods.index.contains(name.toLowerCase)) {
         LazyState {(current, ctx) =>
@@ -242,13 +246,13 @@ trait WikiParserT extends WikiParserBase with CsvParser {
         else
           SState(s"""<span style="font-weight:bold">{{Property $name=$value}}</span>\n\n""", Map(name -> value))
       }
+    }
   }
 
   private def dotProps: PS = moreDotProps.foldLeft(dotPropTags | dotPropName )((x,y) => x | y) | dotProp
 
   def dotProp: PS = """^\.""".r ~> """[.]?[^.: ][^: ]+""".r ~ """[: ]""".r ~ """[^\r\n]*""".r ^^ {
-    case name ~ _ ~ value =>
-
+    case name ~ _ ~ value => {
       // default to widgets
       if(Wikis(realm).index.containsName("widget_" + name.toLowerCase()))
         SState(
@@ -262,6 +266,7 @@ trait WikiParserT extends WikiParserBase with CsvParser {
         else
           SState (s"""<span style="font-weight:bold">{{Property $name=$value}}</span>\n\n""", Map (name -> value) )
       }
+    }
   }
 
   def dotPropTags: PS = """^\.t """.r ~> """[^\n\r]*""".r  ^^ {
@@ -270,6 +275,10 @@ trait WikiParserT extends WikiParserBase with CsvParser {
 
   def dotPropName: PS = """^\.n """.r ~> """[^\n\r]*""".r  ^^ {
     case value => SState(s"""<small><span style="font-weight:bold;">$value</span></small><br>""", Map("name" -> value))
+  }
+
+  private def wikiPropHeading: PS = """^#+ +""".r ~ """[^\n\r]*""".r  ^^ {
+    case head ~ name => SState(s"""<a name="${name.replaceAll(" ", "_")}"></a>\n$head $name""") // hidden
   }
 
   private def wikiPropByName: PS = ("\\{\\{[Bb]y[: ]+".r | "\\{\\{[Cc]lub[: ]+".r) ~> """[^}]*""".r <~ "}}" ^^ {
@@ -329,46 +338,14 @@ trait WikiParserT extends WikiParserBase with CsvParser {
     }
   }
 
-  private def wikiPropXmap: PS = "{{" ~> """xmap""".r ~ """[: ]""".r ~ """[^}]*""".r ~ "}}" ~ lines <~ ("{{/" ~ """xmap""".r ~ "}}") ^^ {
-    case what ~ _ ~ path ~ _ ~ lines => {
-      LazyState {(current, ctx) =>
-        val html =
-          try {
-            val s = lines.fold(ctx).s
-            ctx.we.map {x =>
-              val values = Wikis.irunXp(what, x, path)
-              values.map {value=>
-                val PAT = """\$\{([^}]+)\}""".r
-                PAT replaceSomeIn (s, { m =>
-                  if(m.group(1) == "value") Some(value.toString)
-                  else None
-                })
-              }.mkString
-            }
-          } catch {
-            case ex: Throwable => Some("`{{ERROR: "+ex.toString+"}}`")
-          }
-
-        SState(html.mkString)
-      }
-    }
+  private def wikiPropFootnote : PS = "{{footnote" ~> """[: ]""".r ~> """[^:}]*""".r ~ opt("[: ]".r ~> """[^}]*""".r) <~ "}}" ^^ {
+    case name ~ text => s"""<span id="$name"><sup>$name</sup></span>"""+text.map(s=>
+        s"""<small>$s</small>"""
+    ).mkString
   }
 
-  private def wikiPropXp: PS = "{{" ~> """xpl?""".r ~ """[: ]""".r ~ """[^}]*""".r <~ "}}" ^^ {
-    case what ~ _ ~ path => {
-      SState(s"""`{{{$what:$path}}}`""", Map())
-      // can't expand this during parsing as it will recursively mess up XP
-//      LazyState {(current, we) =>
-//        val html =
-//          try {
-//            we.map(x => Wikis.runXp(what, x, path))
-//          } catch {
-//            case _: Throwable => Some("!?!")
-//          }
-//
-//        SState(html.get)
-//      }
-    }
+  private def wikiPropFootref : PS = "{{footref" ~> """[: ]""".r ~> """[^:}]*""".r <~ "}}" ^^ {
+    case name => s"""<a href="#$name"><sup>$name</sup></a>"""
   }
 
   // reused
@@ -406,7 +383,7 @@ trait WikiParserT extends WikiParserBase with CsvParser {
   }
 
   // just a nice badge for RK
-  private def wikiPropRk: PS = "{{" ~> ("rk" | "wiki") ~ opt("[: ]".r ~> """[^}]*""".r) <~ "}}" ^^ {
+  private def wikiPropRk: PS = "{{" ~> ("rk" | "wiki" | "ski") ~ opt("[: ]".r ~> """[^}]*""".r) <~ "}}" ^^ {
     case rk ~ what => {
       rk match {
         case "rk" =>  what match {
@@ -419,6 +396,8 @@ trait WikiParserT extends WikiParserBase with CsvParser {
         }
         case "wiki" =>
           SState("""<a class="badge badge-warning" href="http://www.wikireactor.com">WikiReactor</a>""")
+        case "ski" =>
+          SState("""<a class="badge badge-warning" href="http://www.effectiveskiing.com">EffectiveSkiing</a>""")
         case _ =>
           SState("""<a class="badge badge-warning" href="http://www.wikireactor.com">WikiReactor</a>""")
       }
@@ -430,14 +409,18 @@ trait WikiParserT extends WikiParserBase with CsvParser {
   }
 
   private def wikiPropLater: PS = "{{" ~> "later" ~> "[: ]".r ~> """[^ :]*""".r ~ "[: ]".r ~ """[^}]*""".r <~ "}}" ^^ {
-    case id~ _ ~ url => SState(s"""<script async>$$("#$id").load("$url");</script>""")
+    case id~ _ ~ url => SState(Wikis.propLater(id, url))
   }
 
-  private def wikiPropWidgets: PS = "{{" ~> "widget:" ~> "[^:]+".r ~ optargs <~ "}}" ^^ {
+  private def wikiPropWidgets: PS = "{{" ~> "widget[: ]".r ~> "[^: ]+".r ~ optargs <~ "}}" ^^ {
     case name ~ args => {
+      val wid = WID("Admin", "widget_" + name)
+      val widl = WID("Admin", "widget_" + name.toLowerCase)
       SState(
       // todo cache this
-        Wikis(realm).find(WID("Admin", "widget_" + name)).map(_.content).map { c =>
+        Wikis(realm).find(wid).orElse(
+          Wikis(realm).find(widl)).orElse(
+            Wikis.rk.find(wid)).map(_.content).map { c =>
           args.foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
         } getOrElse "")
     }
@@ -468,18 +451,71 @@ trait WikiParserT extends WikiParserBase with CsvParser {
 
   // to not parse the content, use slines instead of lines
   /** {{section:name}}...{{/section}} */
-  def wikiPropSection: PS = "{{" ~> opt(".") ~ """section|template|properties""".r ~ "[: ]".r ~ """[^:}]*""".r ~ opt("[: ]".r ~ """[^}]*""".r) ~ "}}" ~ lines <~ ("{{/" ~ """section|template|properties""".r ~ "}}") ^^ {
+  def wikiPropSection: PS = "{{" ~> opt(".") ~ """section|template|properties""".r ~ "[: ]".r ~ """[^:}]*""".r ~ opt("[: ]".r ~ """[^}]*""".r) ~ "}}" ~ lines <~ ("{{/" ~ """section|template|properties""".r ~ "}}".r) ^^ {
     case hidden ~ stype ~ _ ~ name ~ sig ~ _ ~ lines => {
-      val sname = "{{" + stype + ":" + name + "}}"
       val signature = sig.map(_._2).getOrElse("")
       //todo complete this - sections to use AST as well
-//      LazyState {(current, ctx) =>
-//        ctx.we.foreach{w=>
-//          w.collectedSections += WikiSection(ctx.we.get, stype, name, signature, lines.toString)
-//          }
+      LazyState {(current, ctx) =>
+        ctx.we.foreach{w=>
+          //          w.collectedSections += WikiSection(ctx.we.get, stype, name, signature, lines.toString)
+        }
         hidden.map(x => SState.EMPTY) getOrElse
-          RState("`SECTION START " + sname + "`<br>", lines, "<br>`SECTION END` " + sname)//.fold(ctx)
+          RState(s"`{{$stype $name:$signature}}`<br>", lines, s"<br>`{{/$stype}}` ").fold(ctx)
+      }
+    }
+  }
+
+//  /** {{FAU}}...{{/FAU}} */
+//  def wikiPropFAU: PS = "{{" ~> "FAU[: ]".r ~ opt("[^}]+".r) ~ " *\\}\\}".r ~ lines <~ ("{{/" ~ """FAU""".r ~ " *}}".r) ^^ {
+//    case stype ~ attrs ~ _ ~ lines => {
+//      LazyState {(currentState, ctx) =>
+//        if(api.wix) RState("", lines, "").fold(ctx)
+//        else SState.EMPTY
 //      }
+//    }
+//  }
+
+  /** {{alert.color}}...{{/alert}} */
+  def wikiPropAlert: PS = "{{" ~> "alert[: ]".r ~> """green|blue|yellow|red|black""".r ~ " *".r ~ opt("[^}]+".r) ~ " *\\}\\}".r ~ lines <~ ("{{/" ~ """alert""".r ~ " *}}".r) ^^ {
+    case stype ~ _ ~ attrs ~ _ ~ lines => {
+      val color = stype match {
+        case "green" => "success"
+        case "blue" => "info"
+        case "yellow" => "warning"
+        case "red" => "danger"
+        case "black" => "black"
+      }
+      // todo someone mangles the quotes if this is just {{}}
+      RState(s"""{{div class="alert alert-$color" ${attrs.mkString} }}""", lines, s"{{/div}}")
+    }
+  }
+
+  def wikiPropIf: PS = "{{" ~> "if[: ]".r ~> "[^}]+".r ~ " *\\}\\}".r ~ lines <~ ("{{/" ~ """if""".r ~ " *}}".r) ^^ {
+    case expr ~ _ ~ lines => {
+      LazyState {(current, ctx) =>
+        ctx.we.map { we =>
+          //          val res = ctx.eval(, expr)
+          val res = Wikis.runScript(expr, "js", ctx.we, ctx.au)
+          if(res == "true") lines.fold(ctx)
+          else SState.EMPTY
+        } getOrElse {
+          SState.EMPTY
+        }
+      }
+    }
+  }
+
+  def wikiPropVisible: PS = "{{" ~> "visible[: ]".r ~> "[^}]+".r ~ " *\\}\\}".r ~ lines <~ ("{{/" ~ """visible""".r ~ " *}}".r) ^^ {
+    case expr ~ _ ~ lines => {
+      LazyState {(current, ctx) =>
+        ctx.we.map { we =>
+          if(ctx.au.exists(_.hasMembershipLevel(expr))) lines.fold(ctx)
+          else
+            SState(s"""{{div class="alert alert-danger"}}""" + s"<b>Member-only content avilable</b> - to see more on this topic, you need to login. ($expr)" + s"{{/div}}")
+        } getOrElse {
+          SState.EMPTY
+        }
+      }
     }
   }
 
@@ -517,18 +553,38 @@ trait WikiParserT extends WikiParserBase with CsvParser {
     }
   }
 
-  def wikiPropImg: PS = "{{img" ~> opt("""\.icon|\.small|\.medium""".r) ~ """[: ]""".r ~ """[^} ]*""".r ~ optargs <~ "}}" ^^ {
-    case stype ~ _ ~ name ~ args => {
-      val sargs = args.foldLeft(""){(c, a) => s""" $c ${a._1}="${a._2}" """}
-      SState(s"""<img src="$name" $sargs />""")
+  /** map nvp to html tag attrs */
+  private def htmlArgs (args:List[(String,String)]) = args.foldLeft(""){(c, a) => s""" $c ${a._1}="${a._2}" """}
+
+  def wikiPropImg: PS = "{{" ~> "img|photo".r ~ opt("""\.icon|\.small|\.medium|\.large""".r) ~ """[: ]+""".r ~ """[^} ]*""".r ~ optargs <~ "}}" ^^ {
+    case skind ~ stype ~ _ ~ name ~ iargs => {
+      val width = stype match {
+        case Some(".icon") => "width=\"50px\""
+        case Some(".small") => "width=\"200px\""
+        case Some(".medium") => "width=\"400px\""
+        case Some(".large") => "width=\"600px\""
+        case _ => ""
+      }
+
+      val args = iargs.filter(_._1 != "caption")
+      val caption = iargs.toMap.get("caption").map(x=>
+        s"""
+          |<div style="text-align: center;">
+          |<small style="align:center">$x</small>
+          |</div>
+        """.stripMargin) getOrElse ""
+      skind match {
+        case "img" =>   SState(s"""<img src="$name" $width ${htmlArgs(args)} /><br>$caption<br>""")
+        case "photo" => SState(s"""<div style="text-align:center"><a href="$name"><img src="$name" $width ${htmlArgs(args)} ></a></div>$caption\n<br>""")
+      }
     }
   }
 
-  private def wikiPropVideo: PS = "{{" ~> ("video" | "photo" | "slideshow") ~ """[: ]""".r ~ """[^}]*""".r <~ "}}" ^^ {
-    case what ~ _ ~ url => wpVideo(what, url)
+  private def wikiPropVideo: PS = "{{" ~> ("video" | "slideshow") ~ """[: ]""".r ~ """[^} ]*""".r ~ optargs <~ "}}" ^^ {
+    case what ~ _ ~ url ~ args => wpVideo(what, url, args)
   }
 
-  private def wpVideo (what:String, url:String) = {
+  private def wpVideo (what:String, url:String, args:List[(String,String)]) = {
     what match {
       case "video" => {
         val yt1 = """http[s]?://youtu.be/([^?]+)(\?t=.*)?""".r
@@ -553,17 +609,9 @@ trait WikiParserT extends WikiParserBase with CsvParser {
           case _ => SState("""{{Unsupported video source - please report to support: <a href="%s">url</a>}}""".format(url))
         }
       }
-      case "photo" => {
-        val yt2 = """(.*)""".r
-        def xt2(id: String) = """<a href="%s"><img src="%s"></a>""".format(id, id)
-        url match {
-          case yt2(a) => SState(xt2(a))
-          case _ => SState("""{{Unsupported photo source - please report to support: [%s]}}""".format(url))
-        }
-      }
       case "slideshow" => {
         val yt1 = """(.*)""".r
-        def xt(id: String) = """<a href="%s">Slideshow</a>""".format(id)
+        def xt(id: String) = """<a href="%s">Slideshow</a><br>""".format(id)
         url match {
           case yt1(a) => SState(xt(a))
           case _ => SState("""{{Unsupported slideshow source - please report to support: %s}}""".format(url))
@@ -582,29 +630,64 @@ trait WikiParserT extends WikiParserBase with CsvParser {
   // todo more humane name
   def wikiPropFeedRss: PS = "{{feed.rss" ~ "[: ;]".r ~> """[^ ;}]*""".r <~ "}}" ^^ {
     case xurl => {
-      import razie.Snakk._
-      val rss  = url (xurl)
-      Try {
-        (for (xn <- xml(scala.xml.XML.loadString(body(rss))) \ "channel" \ "item") yield {
-          val n = xml(xn)
-          // insulate external strings - sometimes the handling of underscore is bad
-          // replace urls with MD markup:
-          def ext(s: String) = s //.replaceAll("""(\s|^)(https?://[^\s]+)""", "$1[$2]")
+      val id = System.currentTimeMillis().toString
 
-          val link = ext(n \@ "link")
-          val title = ext(n \@ "title")
-          val desc = ext(n \@ "description")
-          s"""<h3><a href="$link">$title</a></h3><pre>$desc</pre> """
-        }).mkString
-      }
-    }.recover{
-      case e:Throwable => s"Error reading RSS: ${e.getClass.getSimpleName} : ${e.getLocalizedMessage}"
-    }.get
+      SState(s"""<div id="$id">""" + Wikis.propLater(id, "/wikie/feed?url="+Enc.toUrl(xurl)) + "</div>")
+    }
   }
 
   def wikiPropCode: PS = "{{" ~> """code""".r ~ "[: ]".r ~ """[^:}]*""".r ~ "}}" ~ opt(CRLF1 | CRLF3 | CRLF2) ~ slines <~ "{{/code}}" ^^ {
     case stype ~ _ ~ name ~ _ ~ crlf ~ lines => {
-      RState("<pre><code>", lines, "</code></pre>")
+      RState(
+        "<pre><code>",
+        if(name != "xml") lines else {
+          Enc.escapeHtml(lines.s)
+        },
+        "</code></pre>")
+    }
+  }
+
+  //=================== XP maps and lists
+
+  private def wikiPropXmap: PS = "{{" ~> """xmap""".r ~ """[: ]""".r ~ """[^}]*""".r ~ "}}" ~ lines <~ ("{{/" ~ """xmap""".r ~ "}}") ^^ {
+    case what ~ _ ~ path ~ _ ~ lines => {
+      LazyState {(current, ctx) =>
+        val html =
+          try {
+            val s = lines.fold(ctx).s
+            ctx.we.map {x =>
+              val values = Wikis.irunXp(what, x, path)
+              values.map {value=>
+                val PAT = """\$\{([^}]+)\}""".r
+                PAT replaceSomeIn (s, { m =>
+                  if(m.group(1) == "value") Some(value.toString)
+                  else None
+                })
+              }.mkString
+            }
+          } catch {
+            case ex: Throwable => Some("`{{ERROR: "+ex.toString+"}}`")
+          }
+
+        SState(html.mkString)
+      }
+    }
+  }
+
+  private def wikiPropXp: PS = "{{" ~> """xpl?""".r ~ """[: ]""".r ~ """[^}]*""".r <~ "}}" ^^ {
+    case what ~ _ ~ path => {
+      SState(s"""`{{{$what:$path}}}`""", Map())
+      // can't expand this during parsing as it will recursively mess up XP
+      //      LazyState {(current, we) =>
+      //        val html =
+      //          try {
+      //            we.map(x => Wikis.runXp(what, x, path))
+      //          } catch {
+      //            case _: Throwable => Some("!?!")
+      //          }
+      //
+      //        SState(html.get)
+      //      }
     }
   }
 
@@ -733,11 +816,4 @@ trait CsvParser extends ParserCommons {
   //  def cell(implicit xdelim: String): P = (not(xdelim) ~> not("{{") ~> not("[[") ~> not("}}") ~> """.""".r+) ^^ { case l => l.mkString }
 }
 
-//object Widgets {
-//  def weather(s: String) = """
-//<iframe marginheight="0" marginwidth="0" name="wxButtonFrame" id="wxButtonFrame" height="168"
-//    src="http://btn.weather.ca/weatherbuttons/template7.php?placeCode=%s&category0=Cities&containerWidth=180&btnNo=&backgroundColor=blue&multipleCity=0&citySearch=1&celsiusF=C"
-//    align="top" frameborder="0" width="180" scrolling="no"></iframe><br>
-//""".format(s)
-//}
 

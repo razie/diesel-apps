@@ -9,6 +9,7 @@ package razie.wiki.model
 import com.mongodb.casbah.Imports._
 import org.joda.time.DateTime
 import razie.db.{RCreate, RDelete, RMany, RTable}
+import razie.db.tx.txn
 
 /** staged stuff
   *

@@ -16,6 +16,8 @@ object Visibility {
   final val CLUB = "Club"
   /** only club admins can see - i.e. registration forms */
   final val CLUB_ADMIN = "ClubAdmin"
+  /** any coach from your clubs can see it */
+  final val CLUB_COACH = "ClubCoach"
 
   /** member of website */
   final val MEMBER = "Member"

@@ -38,6 +38,8 @@ trait AuditService extends Auditor with razie.Logging {
   final val ERR_AUTHREQUIRED = "ERR_AUTHREQUIRED"
   final val ERR_UNAUTHORIZED = "ERR_UNAUTHORIZED"
 
+  private def many(m: Any*) = m.mkString(" ")
+
   def missingPage(url: String) { error(many("WIKI_MISSING_PAGE", url)) }
   def regdemail(email: String) { audit(logdb(REGD_EMAIL, email)) }
   def wrongLogin(email: String, pwd: String) { audit(logdb(ERR_NO_SUCH_USER, many(email, pwd))) }

@@ -67,7 +67,7 @@ class WikiWrapper(val wid:WID) extends WWrapper(wid.cat) {
       BADallPages.filter(_.ilinks.exists(_.wid.formatted.name == wid.name || "*" == wid.name)).map(realw=>new ILink(realw.wid, realw.label))
     else Nil
 
-  def tags = w.map(_.contentTags).getOrElse(Map())
+  def tags = w.map(_.contentProps).getOrElse(Map())
 
   def mkLink = ILink (wid, w.map(_.label).getOrElse(wid.name))
 
@@ -79,7 +79,7 @@ class WikiWrapper(val wid:WID) extends WWrapper(wid.cat) {
 /** wrap just a link - will load the other end lazily as needed */
 case class IWikiWrapper(val ilink: ILink) extends WikiWrapper(ilink.wid) {
   override def mkLink = ilink
-  override def tags = w.map(_.contentTags).getOrElse(ilink.tags)
+  override def tags = w.map(_.contentProps).getOrElse(ilink.tags)
 
   override lazy val ilinks = wilinks.getOrElse(ilink.ilinks)
 }
@@ -126,7 +126,7 @@ object WikiXpSolver extends XpSolver[WWrapper] {
     val ret = o match {
       case o: IWikiWrapper => o.tags.get(attr).getOrElse("")
             case o: WikiWrapper  => o.w.flatMap(we=>
-              we.contentTags.get(attr).orElse(we.sections.find(_.name == attr).map(_.content))
+              we.contentProps.get(attr).orElse(we.sections.find(_.name == attr).map(_.content))
             ).orElse(
                 if("content" == attr) o.w.map(_.content) else None
               ).getOrElse("")
@@ -142,7 +142,7 @@ object WikiXpSolver extends XpSolver[WWrapper] {
     }).filter(gaga => XP.stareq(gaga._1.asInstanceOf[WWrapper].cat, xe.name))
 }
 
-object TestWikiPath extends App {
+object TestWikiPath /*extends App*/ {
   // val node = new WikiWrapper("Club", "Offroad_Ontario")
   val node = new WikiWrapper(WID("Calendar", "OO_XC_2012"))
   val noder = new WikiWrapper(WID("Race", "OO_XC_Mansfield,_by_HORRA_,_date_May_27,_2012"))

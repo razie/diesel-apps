@@ -10,11 +10,12 @@ import org.bson.types.ObjectId
 import org.joda.time.DateTime
 import razie.db._
 import razie.wiki.Services
+import razie.db.tx.txn
 
 /**
- * secured link with expiry date, to be emailed for instance, like "active your account"
+ * secured link with expiry date, to be emailed for instance, like "activate your account"
  *
- * the idea is that the info required (account number, email whatever) is saved on the server side and given a unique ID.
+ * the idea is that the info required (account number, email whatever) is saved on the server side and given a unique ID/hash which is emailed.
  *
  * @see razie.controllers.Sec
  *

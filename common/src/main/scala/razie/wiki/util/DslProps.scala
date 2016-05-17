@@ -22,7 +22,9 @@ class DslProps (val we:Option[WikiEntry], section:String, extra:Seq[(String,Stri
 
   def prop (s:String) = props get s
   def wprop (s:String) = (this prop s).flatMap(x=>WID.fromPath(x))
-  def bprop (s:String) = (this prop s).map(_.toBoolean)
+  def bprop (s:String) = (this prop s).map(_.toUpperCase).map {p=>
+    p == "TRUE" || p == "YES" || p == "1" || p == "ON"
+  }
 
   override def toString = propSeq.mkString
 

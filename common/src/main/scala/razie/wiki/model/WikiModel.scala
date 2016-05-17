@@ -9,7 +9,8 @@ package razie.wiki.model
 import com.mongodb.casbah.Imports._
 import com.novus.salat._
 import org.joda.time.DateTime
-import razie.Log
+import razie.wiki.parser.WAST.SState
+import razie.{cdebug, AA, Log}
 import razie.db.RazSalatContext._
 import razie.db._
 import razie.wiki.Services
@@ -34,7 +35,9 @@ case class WikiEntry(
   realm:String = Wikis.RK,
   ver: Int = 1,
   parent: Option[ObjectId] = None,
-  props: Map[String, String] = Map.empty,
+  props: Map[String, String] = Map.empty, // properties - can be supplemented in the content
+  likes: List[String]=List.empty,         // list of usernames that liked it
+  dislikes: List[String]=List.empty,      // list of usernames that liked it
   crDtm: DateTime = DateTime.now,
   updDtm: DateTime = DateTime.now,
   _id: ObjectId = new ObjectId()) {
@@ -51,6 +54,17 @@ case class WikiEntry(
     if (content.matches(wikip2)) {
       val wikip2r(wpath) = content
       WID.fromPath(wpath)
+    } else None
+  }
+
+  /** is this just a redirect?
+    */
+  def redirect: Option[String] = {
+    val wikip2 = """(?s)\{\{redirect[ :]([^\]]*)\}\}.*"""
+    val wikip2r = wikip2.r
+    if (content.matches(wikip2)) {
+      val wikip2r(url) = content
+      Some(url)
     } else None
   }
 
@@ -99,11 +113,13 @@ case class WikiEntry(
   def isPrivate = "User" == category || (props.exists(e => PROP_OWNER == e._1))
   def isOwner(id: String) = ("User" == category && name == id) || (props.exists(e => PROP_OWNER == e._1 && id == e._2))
   def owner = props.get(PROP_OWNER).flatMap(s => WikiUsers.impl.findUserById(new ObjectId(s)))
+  def ownerId = props.get(PROP_OWNER).map(s=> new ObjectId(s))
 
-  // todo stupid name
-  def getLabel = contentTags.getOrElse("label", label)
-  def getDescription = contentTags.getOrElse("meta.description", getFirstParagraph.mkString)
+  // todo trying to avoid parsing it just to get the label
+  def getLabel = if(content contains "label") contentProps.getOrElse("label", label) else label
+  def getDescription = contentProps.getOrElse("meta.description", getFirstParagraph.mkString)
   def getFirstParagraph = content.linesIterator.find(s => !s.trim.isEmpty && !".{".contains(s.trim.charAt(0)))
+  def wordCount = content.count(_ == ' ')
 
   def visibility = props.get(PROP_VISIBILITY).getOrElse(Visibility.PUBLIC)
   def wvis = props.get(PROP_WVIS).getOrElse(visibility)
@@ -127,19 +143,16 @@ case class WikiEntry(
 
   /** backup old version and update entry, update index */
   def update(newVer: WikiEntry, reason:Option[String] = None)(implicit txn:Txn) = {
-    Audit.logdbWithLink(
-      if(wid.cat=="Note") AUDIT_NOTE_UPDATED else AUDIT_WIKI_UPDATED,
-      newVer.wid.urlRelative,
-      s"""BY ${(WikiUsers.impl.findUserById(newVer.by).map(_.userName).getOrElse(newVer.by.toString))} - $category : $name ver ${newVer.ver}""")
+    val uname = WikiUsers.impl.findUserById(newVer.by).map(_.userName).getOrElse(newVer.by.toString)
+    if(uname != "Razie")
+      Audit.logdbWithLink(
+        if(wid.cat=="Note") AUDIT_NOTE_UPDATED else AUDIT_WIKI_UPDATED,
+        newVer.wid.urlRelative,
+        s"""BY $uname - $category : $name ver ${newVer.ver}""")
     WikiEntryOld(this, reason).create
     RUpdate.noAudit[WikiEntry](Wikis(realm).weTables(wid.cat), Map("_id" -> newVer._id), newVer)
     Wikis.shouldFlag(name, label, content).map(auditFlagged(_))
-
-    if (shouldIndex) Wikis(realm).index.update(this, newVer)
   }
-
-  /** should this entry be indexed in memory */
-  def shouldIndex = !(Wikis.PERSISTED contains wid.cat)
 
   /** backup old version and update entry, update index */
   def delete(sby: String) (implicit txn:Txn) = {
@@ -148,7 +161,6 @@ case class WikiEntry(
     WikiTrash("WikiEntry", this.grated, sby, txn.id).create
     val key = Map("realm" -> realm, "category" -> category, "name" -> name, "parent" -> parent)
     RDelete.apply (Wikis(realm).weTables(wid.cat), key)
-    if (shouldIndex) Wikis(realm).index.delete(this)
   }
 
   def auditFlagged(f: String) { Log.audit(Audit.logdb(f, category + ":" + name)) }
@@ -176,7 +188,10 @@ case class WikiEntry(
 
     (for (m <- pat.findAllIn(c)) yield {
       val mm = PATT2.findFirstMatchIn(m).get
-      WikiSection(this, mm.group(1), mm.group(3), mm.group(5), mm.group(6))
+      val signargs = mm.group(5).split(':')
+      val args = if(signargs.length>1) AA(signargs(1)).toMap else Map.empty[String,String]
+      val sign = signargs(0)
+      WikiSection(mm.source.toString, this, mm.group(1), mm.group(3), sign, mm.group(6), args)
     }).toList
   }
 
@@ -189,18 +204,29 @@ case class WikiEntry(
   /** scripts are just a special section */
   lazy val scripts = sections.filter(x => "def" == x.stype || "lambda" == x.stype)
 
-  /** pre processed form - parsed and graphed */
+  /** pre processed form - parsed and graphed. No context is used when parsing - only when folding this AST, so you can reuse the AST */
   lazy val ast = Wikis.preprocess(this.wid, this.markup, Wikis.noBadWords(this.content))
 
-  /** pre processed form - parsed and graphed */
-  lazy val preprocessed = {
-    val s = ast.fold(WAST.context(Some(this))) // fold the AST
+  /** AST folded with a context */
+  var ipreprocessed : Option[(SState, Option[WikiUser])] = None;
+  //todo don't hold the actual user, but someone that can get the user... prevents caching?
+
+  // smart preprocess with user and stuff
+  def preprocess(au:Option[WikiUser]) = {
+    val t1 = System.currentTimeMillis
+    val s = ast.fold(WAST.context(Some(this), au)) // fold the AST
     // add hardcoded attribute - these can be overriden by tags in content
-    WAST.SState(s.s,
+    val res = WAST.SState(s.s,
       Map("category" -> category, "name" -> name, "label" -> label, "url" -> (wid.urlRelative),
-      "id" -> _id.toString, "tags" -> tags.mkString(",")) ++ s.tags,
+        "id" -> _id.toString, "tags" -> tags.mkString(",")) ++ s.props,
       s.ilinks)
+    ipreprocessed = Some(res, au)
+    val t2 = System.currentTimeMillis
+    cdebug << s"wikis.folded ${t2 - t1} millis for ${wid.name}"
+    res
   }
+
+  lazy val preprocessed = ipreprocessed.map(_._1).getOrElse(preprocess(None))
 
   def grated = grater[WikiEntry].asDBObject(this)
 
@@ -208,7 +234,7 @@ case class WikiEntry(
     grater[WikiEntry].asDBObject(this).toString
 
   /** tags collected during parsing of the content, with some static tags like url,label etc */
-  def contentTags = preprocessed.tags
+  def contentProps = preprocessed.props
 
   /** all the links from this page to others, based on parsed content */
   def ilinks = preprocessed.ilinks
@@ -228,6 +254,9 @@ case class WikiEntry(
     * Parsers can put stuff in here. */
   //todo move the fields and form stuff here
   val cache = new scala.collection.mutable.HashMap[String, Any]()
+
+  def linksFrom = RMany[WikiLink] ("from" -> this.uwid.grated)
+  def linksTo = RMany[WikiLink] ("to" -> this.uwid.grated)
 }
 
 /** a form field definition */
@@ -236,21 +265,17 @@ case class FieldDef(name: String, value: String, attributes: Map[String, String]
 }
 
 /** a section inside a wiki page */
-case class WikiSection(parent: WikiEntry, stype: String, name: String, signature: String, content: String) {
+case class WikiSection(original:String, parent: WikiEntry, stype: String, name: String, signature: String, content: String, args:Map[String,String] = Map.empty) {
   def sign = Services.auth.sign(content)
 
   def checkSignature = Services.auth.checkSignature(sign, signature)
 
   def wid = parent.wid.copy(section=Some(name))
 
-  override def toString = s"WikiSection(stype=$stype,name=$name,signature=$signature,content=$content)"
+  override def toString = s"WikiSection(stype=$stype, name=$name, signature=$signature, args=$args, content=$content)"
 }
 
 object WikiEntry {
-  final val UPD_CONTENT = "UPD_CONTENT"
-  final val UPD_TOGGLE_RESERVED = "UPD_TOGGLE_RESERVED"
-  final val UPD_UOWNER = "UPD_UOWNER"
-
   final val PROP_VISIBILITY = "visibility"
   final val PROP_WVIS = "wvis"
   final val PROP_RESERVED = "reserved"

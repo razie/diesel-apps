@@ -23,5 +23,7 @@ object GlobalData {
   var serving = 0
 
   val startedDtm = DateTime.now
+
+  var clusterStatus : String = "?"
 }
 

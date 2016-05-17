@@ -33,6 +33,7 @@ case class EmailMsg(
   status: String = EmailMsg.STATUS.READY,
   lastError: String = "",
   sendCount: Integer = 0,
+  senderNode: Option[String] = None,
   lastDtm: DateTime = DateTime.now(),
   _id: ObjectId = new ObjectId()) extends REntity[EmailMsg] {
   def shouldResend = (EmailMsg.RESEND contains status) && (sendCount < EmailMsg.MAX_RETRY_COUNT)
@@ -43,7 +44,7 @@ object EmailMsg {
   /** statuses for email messages */
   object STATUS {
     final val READY = "ready"
-    final val SENDING = "sending"
+    final val SENDING = "sending" // while picked up in memory for re-delivery
     final val OOPS = "oops"
     final val FAILED = "failed"
     final val SKIPPED = "skipped"
@@ -53,7 +54,7 @@ object EmailMsg {
   val RESEND = Array (STATUS.READY, STATUS.OOPS)
 
   // will stop trying to send after X attempts
-  val MAX_RETRY_COUNT = 3
+  val MAX_RETRY_COUNT = 100
 }
 
 /**
@@ -63,7 +64,32 @@ object EmailMsg {
  */
 class MailSession(implicit mailSession: Option[Session] = None) {
   var emails: scala.List[EmailMsg] = Nil // collecting messages here to be sent at end
+
   lazy val session = mailSession getOrElse SendEmail.mkSession(false)
+  private var transport:Option[Transport] = None;
+
+  var count = 0;
+
+  def send (msg:MimeMessage) = {
+    // todo I assume it has at least one recipient
+    try {
+      if(transport.isEmpty)
+        transport=Some(session.getTransport(msg.getAllRecipients()(0)))
+      if(!transport.get.isConnected) {
+        transport.get.connect()
+        Audit.logdb("EMAIL_STATUS", "MAIL.CONNECT status="+transport.map(_.isConnected).mkString)
+      }
+
+      count +=1
+      transport.get.sendMessage(msg, msg.getAllRecipients);
+    } finally {
+    }
+  }
+
+  def close = {
+    if(transport.isDefined && transport.get.isConnected) transport.get.close()
+    Audit.logdb("EMAIL_STATUS", "MAIL.CLOSE status="+transport.map(_.isConnected).mkString + " sent "+count +" emails")
+  }
 }
 
 /** the email sender - saves emails in DB and sends them asynchronously, retrying in certain cases */
@@ -76,7 +102,9 @@ object SendEmail extends razie.Logging {
   var NO_EMAILS_TESTNG = true
 
   // should be lazy because of akka's bootstrap
-  lazy val sender = Akka.system.actorOf(Props[EmailSender], name = "EmailSender")
+  lazy val emailSender = Akka.system.actorOf(Props[EmailSender], name = "EmailSender")
+
+  def init = {emailSender.path} // initialize lazy
 
   // set from Global, with your actual user/pass/email server combo
   var mkSession : (Boolean) => javax.mail.Session = {debug:Boolean=>
@@ -120,19 +148,26 @@ object SendEmail extends razie.Logging {
     implicit val mailSession = new MailSession
     val res = body(mailSession)
 
-    sender ! mailSession // spawn sender
+    emailSender ! mailSession // spawn sender
 
     res
   }
 
-  val STATE_OK = "ok" // all ok
-  val STATE_MAXED = "maxed" // last sending resulted in too many emails - should wait a bit
+  val STATE_OK      = "ok" // all ok
+  val STATE_MAXED   = "maxed" // last sending resulted in too many emails - should wait a bit
+  val STATE_BACKOFF = "backoff" // last sending resulted in some error - backoff for a bit
 
-  val CMD_TICK = "tick"        // it tries to resed on a TICK every now and then
-  val CMD_RESEND = "resend"    // admin command sent somehow
+  val CMD_TICK = "CMD_TICK"        // it tries to resed on a TICK every now and then
+  val CMD_RESEND = "CMD_RESEND"    // admin command sent somehow
+  val CMD_RESTARTED = "CMD_RESTARTED"        // when process restarted - see what was in progress
 
   var curCount = 0;            // current sending queue size
   var state = STATE_OK
+
+  // todo improve to include port
+  def getNodeId = {
+    java.net.InetAddress.getLocalHost.getCanonicalHostName
+  }
 
   /** email sender - also acts on a timer for retries
     *
@@ -140,25 +175,76 @@ object SendEmail extends razie.Logging {
     */
   private class EmailSender extends Actor {
     def receive = {
-      case id: ObjectId => ROne[EmailMsg](id).fold {curCount -= 1} (e => isend(e, new MailSession))
+//      case id: ObjectId => ROne[EmailMsg](id).fold {curCount -= 1} (e => isend(e, new MailSession))
 
-      case e: EmailMsg => isend(e, new MailSession)
+      case e: EmailMsg => {
+        Audit.logdb("ERR_EMAIL", "SOMEBODY SENT AN EMAIL DIRECTLY... find and kill "+e.toString)
+//        isend(e, new MailSession)
+      }
 
       case mailSession: MailSession => {
         //todo decrement if maxed below, also if ok keep sending only until the first error
-        curCount += mailSession.emails.size
-        if (state == STATE_OK)
-          mailSession.emails.reverse.map(e => isend(e, mailSession)) // reuse session
-        else {
-          clog << "ERR_EMAIL_MAXED EmailSender received messages while maxed, scheduling just one"
-          mailSession.emails.lastOption.foreach (e => sender ! e._id)
+        Audit.logdb("EMAIL_STATUS", "MAIL.process session ")
+        try {
+          if (state == STATE_OK) {
+            curCount += mailSession.emails.size
+            mailSession.emails.reverse.collect {
+              // reuse session but on first failure, stop sending
+              case e: EmailMsg if state == STATE_OK => isend(e, mailSession)
+              case e: EmailMsg if state != STATE_OK => curCount -= 1
+            }
+          } else {
+            Audit.logdb("ERR_EMAIL_MAXED", "EmailSender received messages while not OK, scheduling just one")
+            mailSession.emails.lastOption.map(_._id).flatMap(id=>ROne[EmailMsg](id)).fold {} (e => isend(e, mailSession))
+          }
+        } finally {
+          mailSession.close
+          maybeBackoff
         }
       }
 
       // check for messages to retry
-      case sss @ (CMD_TICK | CMD_RESEND) => {
-        clog << s"EmailSender @sss state=$state"
+      case sss @ CMD_TICK => {
+        Audit.logdb("EMAIL_STATUS", s"CMD_TICK EmailSender $sss state=$state")
         resend
+      }
+
+      // check for messages to retry
+      case sss @ CMD_RESEND => {
+        // update all failed for resending once...
+        val x = RMany[EmailMsg]().filter(_.sendCount >= EmailMsg.MAX_RETRY_COUNT).toList
+        Audit.logdb("EMAIL_STATUS", s"CMD_RESEND EmailSender $sss state=$state resending "+x.size)
+        x.foreach { g =>
+          g.copy(sendCount = EmailMsg.MAX_RETRY_COUNT - 1).updateNoAudit
+        }
+        resend
+      }
+
+      // INIT - upon restart check for messages to retry that were being sent from this node
+      case ssss @ (CMD_RESTARTED) => {
+        clog << s"EmailSender $ssss state=$state"
+          RMany[EmailMsg]().filter(x=> x.status == STATUS.SENDING && (x.senderNode.isEmpty || x.senderNode.exists(_ == getNodeId))).grouped(50).foreach(g => {
+            val gg = g.toList.map { ie =>
+              // reset the messages to oops from sending
+              val e = ie.copy(status = STATUS.OOPS, senderNode = Some(getNodeId))
+              e.updateNoAudit
+              e
+            }
+            val s = new MailSession()
+            s.emails = gg
+            emailSender ! s
+            clog << s"EmailSender resent: ${s.emails.size}"
+          })
+        }
+    }
+
+    def maybeBackoff: Unit = {
+      if (state == STATE_BACKOFF) {
+        Audit.logdb("EMAIL_STATUS", "MAIL.backing off")
+        Akka.system.scheduler.scheduleOnce(
+          Duration.create(1, TimeUnit.MINUTES),
+          this.self,
+          CMD_TICK)
       }
     }
 
@@ -166,96 +252,109 @@ object SendEmail extends razie.Logging {
       RMany[EmailMsg]().filter(_.shouldResend).grouped(50).foreach(g => {
         val s = new MailSession()
         s.emails = g.toList
-        sender ! s
-//        RMany[EmailMsg]().filter(_.shouldResend).foreach(g => {
-//        sender ! e._id
-//        curCount += 1
+        emailSender ! s
+        Audit.logdb("EMAIL_STATUS", s"MAIL.resending EmailSender resent: ${s.emails.size}")
       })
     }
 
     // upon start, reload ALL messages to send - whatever was not sent last time
     override def preStart(): Unit = {
-      resend
-
       Akka.system.scheduler.schedule(
-        Duration.create(0, TimeUnit.MILLISECONDS),
+        Duration.create(30, TimeUnit.SECONDS),
         Duration.create(30, TimeUnit.MINUTES),
         this.self,
         CMD_TICK)
+      Akka.system.scheduler.scheduleOnce(
+        Duration.create(10, TimeUnit.SECONDS),
+        this.self,
+        CMD_RESTARTED)
     }
 
     /** send an email */
-    private def isend(ie: EmailMsg, mailSession: MailSession) {
-      val e = ie.copy(status = STATUS.SENDING, sendCount = ie.sendCount + 1, lastDtm = DateTime.now())
-      e.updateNoAudit
+    private def isend(ie: EmailMsg, mailSession: MailSession) = {
+      // check: anyone got to it before I did?
+      ROne[EmailMsg](ie._id).filter(x=> x.shouldResend && x.sendCount == ie.sendCount).map {orig=>
+        val e = ie.copy(status = STATUS.SENDING, sendCount = ie.sendCount + 1, lastDtm = DateTime.now(), senderNode = Some(getNodeId))
+        e.updateNoAudit
 
-      if (Services.config.hostport.startsWith("test") && NO_EMAILS_TESTNG ||
-        Services.config.isLocalhost && (e.isNotification || NO_EMAILS || NO_EMAILS_TESTNG)) {
-        // don't send emails when running test mode
-        Audit.logdb("EMAIL_SENT_NOT", Seq("to:" + e.to, "from:" + e.from, "subject:" + e.subject, "body:" + e.html).mkString("\n"))
-        e.copy(status = STATUS.SKIPPED, lastDtm = DateTime.now()).updateNoAudit
-      } else
-        try {
-          val message = new MimeMessage(mailSession.session);
-          message.setFrom(new InternetAddress(e.from));
-          message.addRecipient(Message.RecipientType.TO, new InternetAddress(e.to));
-          e.bcc.foreach { b =>
-            message.addRecipient(Message.RecipientType.BCC, new InternetAddress(b));
+        if (Services.config.hostport.startsWith("test") && NO_EMAILS_TESTNG ||
+          Services.config.isLocalhost && (e.isNotification || NO_EMAILS || NO_EMAILS_TESTNG)) {
+          // don't send emails when running test mode
+          Audit.logdb("EMAIL_SENT_NOT", Seq("to:" + e.to, "from:" + e.from, "subject:" + e.subject, "body:" + e.html).mkString("\n"))
+          e.copy(status = STATUS.SKIPPED, lastDtm = DateTime.now()).updateNoAudit
+        } else
+          try {
+            val message: MimeMessage = mkMsg(e, mailSession)
+
+            mailSession.send(message);
+
+            Audit.logdb("EMAIL_SENT", Seq("to:" + e.to, "from:" + e.from, "subject:" + e.subject).mkString("\n"))
+            e.deleteNoAudit
+
+            if (state != STATE_OK)
+              resend // seems ok now: reload all messages that were waiting
+
+            state = STATE_OK // i can send messages for sure now, eh?
+          } catch {
+            case mex: MessagingException => {
+              e.copy(status = STATUS.OOPS, lastDtm = DateTime.now(), lastError = mex.toString).updateNoAudit
+              Audit.logdb("ERR_EMAIL",
+                Seq("to:" + e.to, "from:" + e.from,
+                  "subject:" + e.subject, "html=" + e.html,
+                  "EXCEPTION = " + mex.toString()).mkString("\n"))
+              if (mex.toString contains "quota exceeded")
+                state = STATE_MAXED
+              else
+                state = STATE_BACKOFF
+              error("ERR_EMAIL", mex)
+            }
+          } finally {
+            curCount -= 1
           }
+      }
 
-          message.setSubject(e.subject)
+    }
+    private def mkMsg(e: EmailMsg, mailSession: MailSession): MimeMessage = {
+      val message = new MimeMessage(mailSession.session);
+      message.setFrom(new InternetAddress(e.from));
+      message.addRecipient(Message.RecipientType.TO, new InternetAddress(e.to));
+      e.bcc.foreach { b =>
+        message.addRecipient(Message.RecipientType.BCC, new InternetAddress(b));
+      }
 
-          val multipart = new MimeMultipart();
-          val htmlPart = new MimeBodyPart();
-          htmlPart.setContent(e.html, "text/html");
-          htmlPart.setDisposition("inline"); //BodyPart.INLINE);
+      message.setSubject(e.subject)
 
-          // PREPARE THE IMAGE
-          //      val imgPart = new MimeBodyPart();
-          //
-          //      val fileName = "public/racerkidz-small.png";
-          //
-          //      var classLoader = Thread.currentThread().getContextClassLoader();
-          //      if (classLoader == null) {
-          //        classLoader = this.getClass().getClassLoader();
-          //        if (classLoader == null) {
-          //          throw new IllegalStateException("IT IS NULL AGAIN!!!!");
-          //        }
-          //      }
-          //
-          //      val ds = new URLDataSource(classLoader.getResource(fileName));
-          //
-          //      imgPart.setDataHandler(new DataHandler(ds));
-          //      imgPart.setHeader("Content-ID", "<logoimg_cid>");
-          //      imgPart.setDisposition("inline"); //MimeBodyPart.INLINE);
-          //      imgPart.setFileName("logomailtemplate.png");
+      val multipart = new MimeMultipart();
+      val htmlPart = new MimeBodyPart();
+      htmlPart.setContent(e.html, "text/html");
+      htmlPart.setDisposition("inline"); //BodyPart.INLINE);
 
-          multipart.addBodyPart(htmlPart);
-          //      multipart.addBodyPart(imgPart);
-          message.setContent(multipart);
+      // PREPARE THE IMAGE
+      //      val imgPart = new MimeBodyPart();
+      //
+      //      val fileName = "public/racerkidz-small.png";
+      //
+      //      var classLoader = Thread.currentThread().getContextClassLoader();
+      //      if (classLoader == null) {
+      //        classLoader = this.getClass().getClassLoader();
+      //        if (classLoader == null) {
+      //          throw new IllegalStateException("IT IS NULL AGAIN!!!!");
+      //        }
+      //      }
+      //
+      //      val ds = new URLDataSource(classLoader.getResource(fileName));
+      //
+      //      imgPart.setDataHandler(new DataHandler(ds));
+      //      imgPart.setHeader("Content-ID", "<logoimg_cid>");
+      //      imgPart.setDisposition("inline"); //MimeBodyPart.INLINE);
+      //      imgPart.setFileName("logomailtemplate.png");
 
-          Transport.send(message);
-          Audit.logdb("EMAIL_SENT", Seq("to:" + e.to, "from:" + e.from, "subject:" + e.subject).mkString("\n"))
-          e.deleteNoAudit
+      multipart.addBodyPart(htmlPart);
+      //      multipart.addBodyPart(imgPart);
+      message.setContent(multipart);
 
-          if (state == STATE_MAXED)
-            resend // seems ok now: reload all messages that were waiting
-
-          state = STATE_OK // i can send messages for sure now, eh?
-        } catch {
-          case mex: MessagingException => {
-            e.copy(status = STATUS.OOPS, lastDtm = DateTime.now(), lastError = mex.toString).updateNoAudit
-            Audit.logdb("ERR_EMAIL",
-              Seq("to:" + e.to, "from:" + e.from,
-                "subject:" + e.subject, "html=" + e.html,
-                "EXCEPTION = " + mex.toString()).mkString("\n"))
-            if (mex.toString contains "Daily sending quota exceeded")
-              state = STATE_MAXED
-            error("ERR_EMAIL", mex)
-          }
-        } finally {
-          curCount -= 1
-        }
+      //            Transport.send(message);
+      message
     }
   }
 }

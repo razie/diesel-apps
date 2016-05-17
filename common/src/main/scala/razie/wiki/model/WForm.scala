@@ -40,7 +40,7 @@ class WForm(val we: WikiEntry) {
 
     val ro = "" //if(we.exists(_.fields.get("formState").map(_.value).getOrElse("editing") != "editing")) "readonly" else ""
 
-    val res = FIELDS replaceSomeIn (content, { m =>
+    var res = FIELDS replaceSomeIn (content, { m =>
       try {
         Some {
           val name = m group 2

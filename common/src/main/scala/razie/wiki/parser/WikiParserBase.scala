@@ -121,17 +121,17 @@ trait WikiParserBase extends ParserCommons {
   def sstatic: PS = not("{{/" | "{{xx`/" | "```" | """^\./""".r ) ~> (""".""".r) ~ ("""[^{}\[\]`\r\n]""".r*) ^^ { case a ~ b => SState(a + b.mkString) }
   def sline: PS = rep(lastLine | sstatic) ^^ {
     // leave as SState for DSL parser
-    case l => SState(l.map(_.s).mkString, l.flatMap(_.tags).toMap, l.flatMap(_.ilinks))
+    case l => SState(l.map(_.s).mkString, l.flatMap(_.props).toMap, l.flatMap(_.ilinks))
   }
 
   def soptline: PS = opt(sline) ^^ { case o => o.map(identity).getOrElse(SState.EMPTY) }
 
-  def slines: PS = rep(soptline ~ (CRLF1 | CRLF3 | CRLF2)) ~ opt(sline) ^^ {
+  def slines: Parser[SState] = rep(soptline ~ (CRLF1 | CRLF3 | CRLF2)) ~ opt(sline) ^^ {
     case l ~ c =>
       // leave as SState for DSL parser
       SState(
         l.map(t => t._1.s + t._2.s).mkString + c.map(_.s).getOrElse(""),
-        l.flatMap(_._1.tags).toMap ++ c.map(_.tags).getOrElse(Map()),
+        l.flatMap(_._1.props).toMap ++ c.map(_.props).getOrElse(Map()),
         l.flatMap(_._1.ilinks).toList ++ c.map(_.ilinks).getOrElse(Nil))
   }
 
@@ -142,11 +142,17 @@ trait WikiParserBase extends ParserCommons {
   // simple x=y
   protected def arg = "[^:=,}]*".r ~ "=" ~ "[^},]*".r ^^ { case n ~ _ ~ v => (n, v) }
   // if contains comma, use ""
-  protected def arg2 = "[^:=,}]*".r ~ "=\"" ~ "[^\"]*".r <~ "\"" ^^ { case n ~ _ ~ v => (n, v) }
+//  protected def arg2 = "[^:=,}]*".r ~ "=\"" ~ "[^\"]*".r <~ "\"" ^^ { case n ~ _ ~ v => (n, v) }
+  protected def arg2 = "[^:=,}]*".r ~ "=\"" ~ "([^\"=\\\\]*(?:\\\\.[^\"=\\\\]*)*)".r <~ "\"" ^^ { case n ~ _ ~ v => (n, v.replaceAll("\\\\\"", "\"").replaceAll("\\\\=", "=")) }
 
   protected def optargs : Parser[List[(String,String)]] = opt("[: ]".r ~ rep((arg2 | arg) <~ opt(","))) ^^ {
     case Some(_ ~ l) => l
     case None => List()
+  }
+
+  // for wikiProp - something's weird
+  protected def noptargs : Parser[List[(String,String)]] = "[: ]".r ~ rep((arg2 | arg) <~ opt(",")) ^^ {
+    case _ ~ l => l
   }
 }
 

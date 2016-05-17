@@ -1,9 +1,11 @@
 import sbt._
 import Keys._
+import play.PlayScala._
+import play.sbt.routes.RoutesKeys
 
 object V {
-  val version      = "0.1.6-SNAPSHOT"
-  val scalaVersion = "2.10.4" 
+  val version      = "0.9.1-SNAPSHOT"
+  val scalaVersion = "2.11.8" 
   val organization = "com.razie"
 
   def snap = (if (V.version endsWith "-SNAPSHOT") "-SNAPSHOT" else "")
@@ -15,29 +17,27 @@ object MyBuild extends Build {
     "commons-codec"       % "commons-codec"      % "1.4",
     "javax.mail"          % "mail"               % "1.4.5",
     "ch.qos.logback"      % "logback-classic"    % "1.0.13",
-    "org.mongodb"        %% "casbah"             % "2.6.5", //"2.5.0",
-    "com.novus"          %% "salat-core"         % "1.9.2", //"1.9.6",
-    "com.tristanhunt"    %% "knockoff"           % "0.8.1",
-    "org.scalaz"         %% "scalaz-core"        % "7.0.3",
-    "org.scalatest"      %% "scalatest"          % "1.9.2",
+    "org.mongodb"        %% "casbah"             % "2.8.2", //"2.6.5", //"2.5.0",
+    "com.novus"          %% "salat-core"         % "1.9.9", //"1.9.2", //"1.9.6",
+    "org.scalaz"         %% "scalaz-core"        % "7.2.1",
+    "org.scalatest"      %% "scalatest"          % "2.1.3",
     "com.typesafe"        % "config"             % "1.2.1",
+    "com.atlassian.commonmark"   % "commonmark"  % "0.5.0",
 
-    "com.razie"          %% "base"               % "0.6.7" +snap,
-    "com.razie"          %% "snakked"            % "0.6.7" +snap,
-    "com.razie"          %% "scripster-core"     % "0.8.7"+snap
+    "com.razie"          %% "base"               % ("0.9.1"),// +V.snap),
+    "com.razie"          %% "snakked"            % ("0.9.1"),// +V.snap),
+    "com.razie"          %% "scripster-core"     % ("0.9.1") // +V.snap)
     )
 
-  lazy val root = Project(id="coolscala",    base=file("."),
-                          settings = defaultSettings ++ Seq()
+  lazy val root = Project("coolscala", file(".")).enablePlugins(play.PlayScala).settings(
+    defaultSettings:_*
                   ) aggregate (common, core) dependsOn (common, core)
 
-  lazy val common = Project(id="coolscala-common", base=file("common"),
-                          settings = defaultSettings ++ 
-                          Seq(libraryDependencies ++= appDependencies)
+  lazy val common = Project("coolscala-common", file("common")).enablePlugins(play.PlayScala).settings(
+    (defaultSettings ++ Seq(libraryDependencies ++= appDependencies)) :_*
                   )
-  lazy val core = Project(id="coolscala-core", base=file("core"),
-                          settings = defaultSettings ++ 
-                          Seq(libraryDependencies ++= appDependencies)
+  lazy val core = Project("coolscala-core", file("core")).enablePlugins(play.PlayScala).settings(
+    (defaultSettings ++ Seq(libraryDependencies ++= appDependencies)) :_*
                   ) dependsOn(common)
 
   def defaultSettings = baseSettings ++ Seq()

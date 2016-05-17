@@ -9,6 +9,10 @@ package razie.wiki.model
 import org.bson.types.ObjectId
 import org.joda.time.DateTime
 import razie.db.{RTable, RCreate, Txn, tx}
+import com.novus.salat._
+import com.novus.salat.annotations._
+import razie.db.RazSalatContext._
+import razie.wiki.admin.WikiEvent
 
 /**
  * auditing events on wiki pages, like edits, views etc
@@ -23,7 +27,39 @@ case class WikiAudit(
   wpath: String,
   userId: Option[ObjectId],
   details: Option[String] = None, // extra details
+  @Ignore page:Option[WikiEntry] = None, // always the page this is about, after any updates
+  @Ignore oldPage:Option[WikiEntry] = None, // in case of update, the old page
+  oldWpath:Option[String] = None, // in case of update, the old page
   crDtm: DateTime = DateTime.now,
   _id: ObjectId = new ObjectId()) {
   def create(implicit txn: Txn = tx.auto) = RCreate noAudit this
+
+  def toEvent = WikiEvent(
+    event,
+    "WikiEntry",
+    page.map(_.wid.wpathFull).getOrElse(wpath),
+    page,
+    oldPage,
+    oldPage.map(_.wid.wpathFull).orElse(oldWpath))
 }
+
+object WikiAudit {
+  final val CREATE_WIKI = "create.UPD_CREATE"
+  final val CREATE_API = "create.SET_CONTENT"
+
+  final val MOVE_POSTS = "update.MOVE_POSTS"
+  final val UPD_PARENT = "update.UPD_PARENT"
+  final val UPD_SETP_PARENT = "update.UPD_SETP_PARENT"
+  final val UPD_SET_CONTENT = "update.UPD_SET_CONTENT"
+  final val UPD_CONTENT = "update.UPD_CONTENT"
+  final val UPD_TOGGLE_RESERVED = "update.UPD_TOGGLE_RESERVED"
+  final val UPD_UOWNER = "update.UPD_UOWNER"
+  final val UPD_CATEGORY = "update.UPD_CATEGORY"
+  final val UPD_EDIT = "update.UPD_EDIT"
+  final val UPD_REALM = "update.UPD_REALM"
+  final val UPD_RENAME = "update.RENAME"
+  final val UPD_LIKE = "update.LIKE"
+
+  final val DELETE_WIKI = "delete.wiki"
+}
+

@@ -47,3 +47,4 @@ case class ILink(wid: WID, label: String, role:Option[String] = None, tags: Map[
   def href = Services.config.urlmap("/wiki/%s".format(wid.wpath))
   def format = Wikis.formatWikiLink(Wikis.RK, wid, wid.name, label, None)
 }
+

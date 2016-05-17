@@ -6,10 +6,16 @@ import razie.wiki.model.{UWID, WikiEntry}
 
 import scala.collection.mutable.ListBuffer
 
-/** something that extracts/refines info from a wiki topic or multiple wiki topics - can be cached */
+/**
+  * something that extracts/refines info from a wiki topic or multiple wiki topics - and the results can be cached
+  *
+  * Register the refiner and it will be called when the underlying wikis change
+  *
+  * Yes - wikiflow as in dataflow
+  */
 object WikiRefinery {
   // todo multithread this - use Futures when re-building them
-  //todo this and the observers are not dissimilar
+  // todo this and the WikiObservers are not dissimilar
   type REFINER = UWID => (Boolean, Option[WikiRefined])
 
   /** index entry */
@@ -21,11 +27,17 @@ object WikiRefinery {
 
   /** just list of factories / refineries - invoked to refine when needed */
   private val refinery = new scala.collection.mutable.HashMap[String, WRE]()
+
   /** cache of refined products by object id and class */
   private val cache = new TripleIdx[ObjectId, String, WRE]()
+
   // index dependent wiki id to dependent refined
   private val index = new scala.collection.mutable.HashMap[ObjectId, ListBuffer[WRE]]()
 
+  /** get the (cached) result of a refiner for a specific wiki
+    *
+    * the refiners and their cached results are indexed by classname
+    */
   def get[T <: WikiRefined] (uwid:UWID) (refine:REFINER) (implicit m : Manifest[T]) : Option[T] = {
     val k = m.runtimeClass.getCanonicalName
     if(!(refinery contains k)) {
@@ -58,6 +70,7 @@ object WikiRefinery {
     (result orElse cache.get2(uwid.id, k).flatMap(_.wr)).map(_.asInstanceOf[T])
   }
 
+  /** add a WikiRefiner to the index - the refiners and their cached results are indexed by classname */
   def add[T <: WikiRefined] (refine:REFINER) (implicit m : Manifest[T]) = {
     val k = m.runtimeClass.getCanonicalName
 
@@ -100,11 +113,10 @@ object WikiRefinery {
     }
   }
 
+  // the actual main callback
   WikiObservers mini {
-    case we:WikiEntry=> {
-      // todo lazy/async
-      update (we)
-    }
+      case WikiEvent(_, "WikiEntry", _, Some(x), _, _) =>
+        update(x.asInstanceOf[WikiEntry]) // todo lazy/async
   }
 }
 

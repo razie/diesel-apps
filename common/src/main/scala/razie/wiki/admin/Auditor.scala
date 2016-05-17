@@ -21,9 +21,5 @@ trait Auditor {
 
   /** log a db operation with a link to the thing being audited */
   def logdbWithLink(what: String, link: String, details: Any*): String
-
-  // -------------- utilities
-
-  def many(m: Any*) = m.mkString(" ")
 }
 

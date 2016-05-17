@@ -13,19 +13,21 @@ import razie.db._
 import razie.wiki.Services
 
 /**
- *  all audit events - stored in db table. Some of these may end up as emails or alerts.
+ * all audit events - stored in db table. Some of these may end up as emails or alerts.
  *
- *  there are two tables: Audit for events to be reviewed and AuditCleared for reviewed events. You need your own purging
- *  of the AuditCleared table.
+ * there are two tables: Audit for events to be reviewed and AuditCleared for reviewed events. You need your own purging
+ * of the AuditCleared table.
  *
- *  TODO should have a configurable workflow for each of these - what's the pattern?
+ * these are also used for cluster notifications
+ *
+ * TODO should have a configurable workflow for each of these - what's the pattern?
  */
 @RTable
 case class Audit(
   level: String,
-  msg: String,
-  details: String,
-  link: Option[String] = None,
+  msg: String,                    // free format message
+  details: String,                // free form
+  link: Option[String] = None,    // optional link to the entity involved
   when: DateTime = DateTime.now,
   _id: ObjectId = new ObjectId) extends REntity[Audit] {
   override def create (implicit txn: Txn = tx.auto) = RCreate.noAudit[Audit](this)
@@ -35,14 +37,6 @@ case class Audit(
  * just a proxy to
  */
 object Audit extends AuditService with Logging {
-
-  /**
-   * process some audit objects persisence asynchronously...
-   *
-   *   TODO I really ended up using this as a generic persistence deferring service...
-   */
-  def !(a: Any) { Services.alli ! a }
-  def !?(a: Any) { Services.alli !? a }
 
   def logdb(what: String, details: Any*) =
     Services.audit.logdb(what, details:_*)

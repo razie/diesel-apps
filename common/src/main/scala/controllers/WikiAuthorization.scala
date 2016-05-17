@@ -9,7 +9,7 @@ package controllers
 import razie.wiki.model._
 import razie.wiki.util.{IgnoreErrors, VErrors}
 
-/** minimum authorization functionality required - provide your own in Global::beforeStart */
+/** Authorization: minimum authorization functionality required - provide your own in Global::beforeStart */
 trait WikiAuthorization {
 
   /** can user see a topic with the given properties? */
@@ -19,6 +19,8 @@ trait WikiAuthorization {
    * can the user see the topic - a little more checks than isVisibile - this is the one to use
    *
    * can pass admin.IgnoreErrors as an errCollector
+   *
+   * @return Some(true) or None - an option so you can use in for comprehensions. None is the same as false
    */
   def canSee(wid: WID, au: Option[WikiUser], w: Option[WikiEntry])(implicit errCollector: VErrors): Option[Boolean]
 
@@ -26,9 +28,12 @@ trait WikiAuthorization {
    * can the user edit the topic
    *
    *  can pass admin.IgnoreErrors as an errCollector
+   *
+   * @return Some(true) or None - an option so you can use in for comprehensions. None is the same as false
    */
   def canEdit(wid: WID, u: Option[WikiUser], w: Option[WikiEntry], props: Option[Map[String, String]] = None)(implicit errCollector: VErrors): Option[Boolean]
 
+  /** extract wvis prop from wiki */
   protected def wvis(props: Option[Map[String, String]]): Option[String] =
     props.flatMap(p => p.get("wvis").orElse(p.get("visibility"))).map(_.asInstanceOf[String])
 }

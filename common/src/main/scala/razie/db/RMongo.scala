@@ -112,23 +112,23 @@ object RUpdate {
   import RMongo._
 
   /** update entity matched by map props */
-  def apply[A <: AnyRef](t: Map[String, Any], a: A)(implicit m: Manifest[A], txn: Txn = tx.auto) =
+  def apply[A <: AnyRef](t: Map[String, Any], a: A)(implicit m: Manifest[A], txn: Txn) =
     RazMongo(tbl(m)).update(t, grater[A].asDBObject(RMongo.auditUpdate(a)))
 
   /** update entity matched by map props */
-  def noAudit[A <: AnyRef](t: Map[String, Any], a: A)(implicit m: Manifest[A], txn: Txn = tx.auto) =
+  def noAudit[A <: AnyRef](t: Map[String, Any], a: A)(implicit m: Manifest[A], txn: Txn) =
     RazMongo(tbl(m)).update(t, grater[A].asDBObject(a))
 
   /** update entity matched by map props */
-  def noAudit[A <: AnyRef](tblName:String, t: Map[String, Any], a: A)(implicit m: Manifest[A], txn: Txn = tx.auto) =
+  def noAudit[A <: AnyRef](tblName:String, t: Map[String, Any], a: A)(implicit m: Manifest[A], txn: Txn) =
     RazMongo(tblName).update(t, grater[A].asDBObject(a))
 
   /** update matched on _id */
-  def apply[A <: { def _id: ObjectId }](a: A)(implicit m: Manifest[A], txn: Txn = tx.auto) =
+  def apply[A <: { def _id: ObjectId }](a: A)(implicit m: Manifest[A], txn: Txn) =
     RazMongo(tbl(m)).update(Map("_id" -> a._id), grater[A].asDBObject(RMongo.auditUpdate(a)))
 
   /** update matched on _id */
-  def noAudit[A <: { def _id: ObjectId }](a: A)(implicit m: Manifest[A], txn: Txn = tx.auto) =
+  def noAudit[A <: { def _id: ObjectId }](a: A)(implicit m: Manifest[A], txn: Txn) =
     RazMongo(tbl(m)).update(Map("_id" -> a._id), grater[A].asDBObject(a))
 }
 
@@ -136,19 +136,19 @@ object RUpdate {
 object RDelete {
   import RMongo._
 
-  def apply[A <: AnyRef](t: (String, Any)*)(implicit m: Manifest[A], txn: Txn = tx.auto) =
+  def apply[A <: AnyRef](t: (String, Any)*)(implicit m: Manifest[A], txn: Txn) =
     RazMongo(tbl(m)).remove(t.toMap)
 
-  def apply[A <: { def _id: ObjectId }](x: A)(implicit m: Manifest[A], txn: Txn = tx.auto) =
+  def apply[A <: { def _id: ObjectId }](x: A)(implicit m: Manifest[A], txn: Txn) =
     RazMongo(tbl(m)).remove(Map("_id" -> RMongo.auditDelete(x)._id))
 
-  def apply[A <: { def _id: ObjectId }] (tblName:String, x: A)(implicit m: Manifest[A], txn: Txn = tx.auto) =
+  def apply[A <: { def _id: ObjectId }] (tblName:String, x: A)(implicit m: Manifest[A], txn: Txn) =
     RazMongo(tblName).remove(Map("_id" -> RMongo.auditDelete(x)._id))
 
-  def apply (tblName:String, x: Map[String, Any]) (implicit txn: Txn = tx.auto) =
+  def apply (tblName:String, x: Map[String, Any]) (implicit txn: Txn) =
     RazMongo(tblName).remove(RMongo.auditDelete(x))
 
-  def noAudit[A <: { def _id: ObjectId }](x: A)(implicit m: Manifest[A], txn: Txn = tx.auto) =
+  def noAudit[A <: { def _id: ObjectId }](x: A)(implicit m: Manifest[A], txn: Txn) =
     RazMongo(tbl(m)).remove(Map("_id" -> x._id))
 }
 

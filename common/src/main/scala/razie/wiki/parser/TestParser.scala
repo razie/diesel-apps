@@ -18,8 +18,8 @@ import scala.Option.option2Iterable
 import scala.collection.mutable
 import razie.wiki.model._
 
-object Test extends App {
-  import com.tristanhunt.knockoff.DefaultDiscounter._
+object Test /*extends App*/ {
+//  import com.tristanhunt.knockoff.DefaultDiscounter._
 
   val csv1 =
     """

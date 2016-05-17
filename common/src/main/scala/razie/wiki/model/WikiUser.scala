@@ -17,10 +17,17 @@ abstract class WikiUser {
 
   def ename: String // make up a nice name: either first name or email or something
 
-  /** pages of category that I linked to */
+  /** pages of category that I linked to. Use wildcard '*' for all realms and all cats */
   def myPages (realm:String, cat: String) : List[Any]
 
   def css : Option[String] // "dark" vs "light" if there is a preference
+
+  /** check if the user has the given membership level.
+    *
+    * @param s suggested levels are: Member, Basic, Gold, Platinum
+    * @return
+    */
+  def hasMembershipLevel(s:String) : Boolean
 }
 
 /** user factory and utils */

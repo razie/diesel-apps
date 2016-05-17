@@ -69,6 +69,7 @@ object tx {
 
   def auto = local ("auto")
   def local (name:String="") : Txn = new Txn("local"+name)
+  implicit def txn = auto
 }
 
 /** wrap all db operation in this to get logging, timing and stats */

@@ -7,17 +7,19 @@
 package razie.wiki.dom
 
 import razie.diesel.{RDOM, RDomain}
-import razie.wiki.admin.WikiObservers
+import razie.wiki.admin.{WikiEvent, WikiObservers}
 import razie.wiki.model._
 
-/** DO NOT USE THIS PLEASE - it's in its very early stages
+/** encapsulates the knowledge to use the wiki-defined domain model
   *
-  * encapsulates the knowledge to use the wiki-defined domain model */
+  * extracts the domain from a reactor and activates it
+  */
 class WikiDomain (val realm:String, val wi:WikiInst) {
 
   final val WIKI_CAT = "wikiCategory"
 
   private var irdom : RDomain = null
+
   def rdom : RDomain = synchronized {
     if (irdom == null)
       irdom = Wikis(realm).pages("DslDomain").toList.flatMap(p=>WikiDomain.domFrom(p).toList).fold(toRdom(realm))(_ plus _.revise)
@@ -34,14 +36,14 @@ class WikiDomain (val realm:String, val wi:WikiInst) {
 
   /** parse categories into domain model */
   def toRdom(realm:String): RDomain = {
-    val diamonds = for (cat <- wi.categories if cat.contentTags.exists(t=>t._1.startsWith("diamond:"))) yield {
-      val x = cat.contentTags.find(t=>t._1.startsWith("diamond"))
+    val diamonds = for (cat <- wi.categories if cat.contentProps.exists(t=>t._1.startsWith("diamond:"))) yield {
+      val x = cat.contentProps.find(t=>t._1.startsWith("diamond"))
     }
 
     val classes = for (cat <- wi.categories) yield {
       val assocs =
         for (
-          t <- cat.contentTags if (t._1 startsWith "roles:");
+          t <- cat.contentProps if (t._1 startsWith "roles:");
           r <- t._2.split(",")
         ) yield {
         A("", cat.name, t._1.split(":")(1), "", r)
@@ -73,10 +75,10 @@ class WikiDomain (val realm:String, val wi:WikiInst) {
     rdom.assocs.filter(t=> t.a == aEnd && t.zRole == zRole).map(_.z)
 
   def needsOwner(cat: String) =
-    wi.category(cat).flatMap(_.contentTags.get("roles:" + "User")).exists(_.split(",").contains("Owner"))
+    wi.category(cat).flatMap(_.contentProps.get("roles:" + "User")).exists(_.split(",").contains("Owner"))
 
   def noAds(cat: String) =
-    wi.category(cat).flatMap(_.contentTags.get("noAds")).isDefined
+    wi.category(cat).flatMap(_.contentProps.get("noAds")).isDefined
 
   def needsParent(cat: String) =
     rdom.assocs.filter(t=> t.a == cat && t.zRole == "Parent").map(_.z)
@@ -117,10 +119,15 @@ object WikiDomain {//extends WikiDomain (Wikis.RK) {
   }
 
   WikiObservers mini {
-    case we:WikiEntry if we.category == "DslDomain" => {
+    case e@WikiEvent(_, "WikiEntry", _, Some(x), _, _) if x.asInstanceOf[WikiEntry].category == "DslDomain" => {
+      val we = x.asInstanceOf[WikiEntry]
+
       apply(we.realm).resetDom
     }
   }
+
+  def canCreateNew (realm:String, cat:String) = "User" != cat && "WikiLink" != cat
+  //todo can i create WIkiLink if I am admin?
 }
 
 

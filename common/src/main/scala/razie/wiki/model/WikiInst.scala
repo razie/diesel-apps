@@ -9,127 +9,28 @@ package razie.wiki.model
 import com.mongodb.DBObject
 import com.mongodb.casbah.Imports._
 import com.novus.salat._
-import play.api.mvc.Request
-import razie.db.{RazMongo, RMany}
+import razie.clog
 import razie.db.RazSalatContext._
-import razie.wiki.admin.{WikiObservers, WikiObserver}
+import razie.db.{RMany, RazMongo}
+import razie.wiki.admin.{WikiEvent, WikiObservers}
 import razie.wiki.dom.WikiDomain
-import razie.wiki.parser.{nWikiParser, WikiParserT}
-import razie.wiki.util.{IgnoreErrors, VErrors, DslProps, PlayTools}
+import razie.wiki.parser.WikiParserT
+import razie.wiki.util.DslProps
 import razie.wiki.{Services, WikiConfig}
 
-/** reactor management */
-object Reactors {
-  // reserved reactors
-  final val DFLT = WikiConfig.RK       // original, still decoupling code
-  final val WIKI = "wiki"              // main reactor
-  final val NOTES = WikiConfig.NOTES
-
-  final val ALIASES = Map ("www" -> "wiki")
-
-  /** lower case index - reactor names are insensitive */
-  val lowerCase = new collection.mutable.HashMap[String,String]()
-
-  //todo - scale... now all realms currently loaded in this node
-  lazy val reactors = {
-    val res = new collection.mutable.HashMap[String,Reactor]()
-
-    // load reserved reactors: rk and wiki first
-    val rk = Services.mkReactor(DFLT, None, None) // todo why not have a reactor entry for rk
-    res.put (DFLT, rk)
-    lowerCase.put(DFLT, DFLT)
-
-    res.put (NOTES, Services.mkReactor(NOTES, None, None)) // todo why not have a reactor entry for rk
-    lowerCase.put(NOTES, NOTES)
-
-    val wiki = Services.mkReactor(WIKI, Some(rk), None) // todo why not have a reactor entry for wiki
-    res.put (WIKI, wiki)
-    lowerCase.put(WIKI, WIKI)
-
-    // load all other reactors
-    rk.wiki.weTable("WikiEntry").find(Map("category" -> "Reactor")).map(grater[WikiEntry].asObject(_)).filter(x=>
-      !(Array(DFLT, NOTES, WIKI) contains x.name)).foreach {we=>
-      res.put (we.name, Services.mkReactor(we.name, Some(wiki), Some(we)))
-      lowerCase.put(we.name.toLowerCase, we.name)
-    }
-
-    res
-  }
-
-  def findWikiEntry(r:String) =
-    rk.wiki.weTable("WikiEntry").findOne(Map("category" -> "Reactor", "name" -> r)).map(grater[WikiEntry].asObject(_))
-
-  def reload(r:String): Unit = {
-    reactors.remove (r)
-    lowerCase.remove (r)
-    findWikiEntry(r).foreach{we=>
-      reactors.put (we.name, Services.mkReactor(we.name, Some(wiki), Some(we)))
-      lowerCase.put(we.name.toLowerCase, we.name)
-    }
-  }
-
-  def rk = reactors(DFLT)
-  def wiki = reactors(WIKI)
-
-  def add (realm:String, we:WikiEntry): Reactor = {
-    assert(! reactors.contains(realm), "Sorry, SITE_ERR: Reactor already active ???")
-    val r = Services.mkReactor(realm, reactors.get(WIKI), Some(we))
-    reactors.put(realm, r)
-    lowerCase.put(realm.toLowerCase, realm)
-    r
-  }
-
-  def contains (realm:String) = reactors.contains(realm)
-
-  def apply (realm:String = Wikis.RK) = reactors.getOrElse(realm, rk) // using RK as a fallback
-
-  // todo listen to updates and reload
-  lazy val fallbackProps = new DslProps(WID("Reactor", "wiki").r("wiki").page, "properties")
-
-  WikiObservers mini {
-    case we:WikiEntry if fallbackProps.we.exists(_.uwid == we.uwid) => {
-      fallbackProps.reload(we)
-    }
-  }
-
-}
-
-/** the basic element of reaction: an app or module... also a wiki instance */
-class Reactor (val realm:String, val fallback:Option[Reactor] = None, val we:Option[WikiEntry]) {
-  val wiki   : WikiInst   = new WikiInst(realm, fallback.map(_.wiki))
-  val domain : WikiDomain = new WikiDomain (realm, wiki)
-
-  /** Admin:UserHome if user or Admin:Home or Reactor:realm if nothing else is defined */
-  def mainPage(au:Option[WikiUser]) = {
-    val p = if(au.isDefined) WID("Admin", "UserHome").r(realm).page.map(_.wid) else None
-    p orElse WID("Admin", "Home").r(realm).page.map(_.wid) getOrElse WID("Reactor", realm).r(realm)
-  }
-
-  //todo fallback also in real time to rk, per prop
-  // todo listen to updates and reload
-  lazy val props = {
-    WID("Reactor", realm).r(realm).page.map{p=>
-      new DslProps(Some(p), "properties")
-    } getOrElse
-      Reactors.fallbackProps
-  }
-
-  WikiObservers mini {
-    case we:WikiEntry if props.we.exists(_.uwid == we.uwid) => {
-      props.reload(we)
-    }
-  }
-}
+import scala.collection.mutable.ListBuffer
 
 /** a wiki */
-class WikiInst (val realm:String, val fallback:Option[WikiInst]) {
+class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
   /** this is the actual parser to use - combine your own and set it here in Global */
   def mkParser : WikiParserT = new WikiParserCls(realm)
 
   class WikiParserCls(val realm:String) extends WikiParserT // default simple parser
 
-  val index  : WikiIndex  = new WikiIndex (realm, fallback.map(_.index))
-  
+  val index  : WikiIndex  = new WikiIndex (realm, fallBacks.map(_.index))
+
+  val mixins = new Mixins[WikiInst](fallBacks)
+
   val REALM = "realm" -> realm
 
   /** cache of categories - updated by the WikiIndex */
@@ -159,7 +60,7 @@ class WikiInst (val realm:String, val fallback:Option[WikiInst]) {
   def pageLabels(category: String) =
     table.find(Map(REALM, "category" -> category)) map (_.apply("label").toString)
 
-  // TODO optimize - cache labels...
+  // TODO optimize - cache labels... they can be changed by the page itself too...
   def label(wid: WID):String = /*wid.page map (_.label) orElse*/
     index.label(wid.name) orElse (ifind(wid) flatMap (_.getAs[String]("label"))) getOrElse wid.name
 
@@ -168,14 +69,16 @@ class WikiInst (val realm:String, val fallback:Option[WikiInst]) {
 
   /** get label from category definiition */
   def labelFor(wid: WID, action: String) =
-    category(wid.cat) flatMap (_.contentTags.get("label." + action))
+    category(wid.cat) flatMap (_.contentProps.get("label." + action))
 
   // this can't be further optimized - it SHOULD lookup the storage, to refresh stuff as well
   private def ifind(wid: WID) = {
     wid.parent.map {p=>
       weTable(wid.cat).findOne(Map(REALM, "category" -> wid.cat, "name" -> wid.name, "parent" -> p))
     } getOrElse {
-        weTable(wid.cat).findOne(Map(REALM, "category" -> wid.cat, "name" -> Wikis.formatName(wid.name)))
+        weTable(wid.cat).findOne(Map(REALM, "category" -> wid.cat, "name" -> Wikis.formatName(wid.name))) orElse
+      // todo obsolete this: there are still some old entries in the main table with cats that should be in the new tables
+        table.findOne(Map(REALM, "category" -> wid.cat, "name" -> Wikis.formatName(wid.name)))
     }
   }
 
@@ -195,12 +98,14 @@ class WikiInst (val realm:String, val fallback:Option[WikiInst]) {
   def find(wid: WID): Option[WikiEntry] =
     if(wid.cat.isEmpty && wid.parent.isEmpty) {
       // some categories are allowed without cat if there's just one of them by name
-      val wl = findAny(wid.name).filter(we=>Array("Blog", "Post").contains(we.wid.cat)).toList
-      if(wl.size == 1) Some(wl.head)
+      val wl = findAny(Wikis.formatName(wid.name)).toList
+      val wlf = wl.filter(we=>Array("Blog", "Post").contains(we.wid.cat))
+      if(wlf.size == 1) Some(wlf.head) // prefer blog/post over other categories
+      else if(wl.size == 1) Some(wl.head)
       else {
         val wll = wl.filter(_.wid.getRealm == "rk")
         if(wll.size == 1) Some(wll.head)
-        else None // don't want to randomly find what others define with same name...
+        else None // todo it was like this: // don't want to randomly find what others define with same name...
         //todo if someone else defines a blog/forum with same name, it will not find mine anymore - so MUST use REALMS
       }
     } else {
@@ -208,7 +113,8 @@ class WikiInst (val realm:String, val fallback:Option[WikiInst]) {
       if(wid.cat == "Category")
         category(wid.name)
       else
-      ifind(wid) orElse fallback.flatMap(_.ifind(wid)) map (grater[WikiEntry].asObject(_))
+//        ifind(wid) map (grater[WikiEntry].asObject(_)) orElse fallback.flatMap(_.find(wid))
+      ifind(wid) orElse mixins.first(_.ifind(wid)) map (grater[WikiEntry].asObject(_))
     }
 
   def find(uwid: UWID): Option[WikiEntry] = findById(uwid.cat, uwid.id)
@@ -216,9 +122,9 @@ class WikiInst (val realm:String, val fallback:Option[WikiInst]) {
   def find(category: String, name: String): Option[WikiEntry] = find(WID(category, name))
 
   /** find any topic with name - will look in PERSISTED tables as well until at least one found */
-  def findAny(name: String) = {
+  def findAny(name: String) : Iterator[WikiEntry] = {
     val w1 = table.find(Map(REALM, "name" -> name)) map (grater[WikiEntry].asObject(_))
-    if(w1.hasNext) w1
+    val res = if(w1.hasNext) w1
     else {
       var found:Option[DBObject]=None
       Wikis.PERSISTED.find {cat=>
@@ -228,13 +134,15 @@ class WikiInst (val realm:String, val fallback:Option[WikiInst]) {
       }
       found.map(grater[WikiEntry].asObject(_)).toIterator
     }
+    if(res.hasNext || fallBacks.isEmpty) res
+    else mixins.firstThat(_.findAny(name))(_.hasNext)(res)
   }
 
   def findAnyOne(name: String) =
     table.findOne(Map(REALM, "name" -> name)) map (grater[WikiEntry].asObject(_))
 
   def categories = cats.values
-  def category(cat: String) : Option[WikiEntry] = cats.get(cat).orElse(fallback.flatMap(_.category(cat)))
+  def category(cat: String) : Option[WikiEntry] = cats.get(cat).orElse(mixins.first(_.category(cat)))
 
   def refreshCat (we:WikiEntry): Unit = {
     cats.put(we.wid.name, we)
@@ -249,16 +157,19 @@ class WikiInst (val realm:String, val fallback:Option[WikiInst]) {
 
   /** can override in cat, fallback to reactor, fallback to what's here */
   def visibilityFor(cat: String, prop:String = VISIBILITY): Seq[String] =
-    cats.get(cat).flatMap(_.contentTags.get(prop)).orElse(
+    cats.get(cat).flatMap(_.contentProps.get(prop)).orElse(
       Reactors(realm).props.prop(prop)
     ).getOrElse(
       "Public,Private"
     ).split(",").toSeq
 
   /** see if any of the tags of a page are nav tags */
-  def navTagFor(pageTags: Seq[String]) = pageTags.map(tags.get).find(op=>op.isDefined && op.get.contentTags.contains("navTag"))
+  def navTagFor(pageTags: Seq[String]) = pageTags.map(tags.get).find(op=>op.isDefined && op.get.contentProps.contains("navTag"))
 
   /** look for and apply any formatting templates
+    *
+    * Formatting templates are used to re-format pages for display. They're used usually to decorate with functionality
+    * like menus, buttons etc
     *
     * @param wid
     * @param content

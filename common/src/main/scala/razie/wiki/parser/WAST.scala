@@ -7,10 +7,14 @@
 package razie.wiki.parser
 
 import razie.cdebug
-import razie.wiki.model.ILink
-import razie.wiki.model.WikiEntry
+import razie.wiki.model.{WikiUser, ILink, WikiEntry}
 
-/** wiki AST */
+/**
+ * wiki AST - abstract syntax tree.
+ * 1. Wikis are parsed in AST
+ * 2. then folded into markdown with a context
+ * 3. then markdown is turned into html via markdown parser
+ */
 object WAST {
   final val T_PREPROCESS = "pre"
   final val T_VIEW = "view"
@@ -22,22 +26,32 @@ object WAST {
     "wpath"->w.wid.wpath
   )).getOrElse(Map.empty)
 
-  /** normal context - same as VIEW */
-  def context         (we:Option[WikiEntry], ctx:Map[String,Any]=Map.empty) = new JMapFoldingContext(we, T_PREPROCESS, ctx ++ toMap(we))
-  /** context for view */
-  def contextView     (we:Option[WikiEntry], ctx:Map[String,Any]=Map.empty) = new JMapFoldingContext(we, T_VIEW, ctx ++ toMap(we))
-  /** special context for templates - template expressions are expanded only */
-  def contextTemplate (we:Option[WikiEntry], ctx:Map[String,Any]=Map.empty) = new JMapFoldingContext(we, T_TEMPLATE, ctx ++ toMap(we))
+  /** create a normal context - same as VIEW */
+  def context         (we:Option[WikiEntry], au:Option[WikiUser]=None, ctx:Map[String,Any]=Map.empty) =
+    new JMapFoldingContext(we, au, T_PREPROCESS, ctx ++ toMap(we))
+  /** create a context for view */
+  def contextView     (we:Option[WikiEntry], au:Option[WikiUser]=None, ctx:Map[String,Any]=Map.empty) =
+    new JMapFoldingContext(we, au, T_VIEW, ctx ++ toMap(we))
+  /** create a special context for templates - template expressions are expanded only */
+  def contextTemplate (we:Option[WikiEntry], au:Option[WikiUser]=None, ctx:Map[String,Any]=Map.empty) =
+    new JMapFoldingContext(we, au, T_TEMPLATE, ctx ++ toMap(we))
 
+  /** folding context base class */
   abstract class FoldingContext {
     def we:Option[WikiEntry]
+    def au:Option[WikiUser]
     def target:String
 
-    /** kind can be "$" or "$$" */
+    /** evaluate expressions in the folded content
+      * kind can be "$" or "$$"
+      *
+      * Expressions can be simple parm access like $name OR api.wix
+      */
     def eval (kind:String, expr:String) : String
   }
 
-  class JMapFoldingContext (val we:Option[WikiEntry], val target:String = T_VIEW, val ctx:Map[String,Any]=Map.empty) extends FoldingContext {
+  /** folding context using a map for the properties available to evaluate expressions */
+  class JMapFoldingContext (val we:Option[WikiEntry], val au:Option[WikiUser], val target:String = T_VIEW, val ctx:Map[String,Any]=Map.empty) extends FoldingContext {
     /** kind can be "$" or "$$" */
     def eval (kind:String, expr:String) : String =
       (if(kind == "$$" && target == T_TEMPLATE || kind == "$") ex(ctx, expr.split("\\.")) else None) getOrElse s"`{{$kind$expr}}`"
@@ -51,15 +65,15 @@ object WAST {
     } else None
   }
 
-  /** an AST node collects the result of a parser rule
+  /** an AST node collects the result of a parser rule - base trait for all AST node types
     *
     * @param s the HTML representation of this section
-    * @param tags the tags collected from this section, will be added to the page's tags
+    * @param tags the properties collected from this section, will be added to the page's tags
     * @param ilinks the links to other pages collected in this rule
     */
   trait PState {
     def s: String
-    def tags: Map[String, String]
+    def props: Map[String, String]
     def ilinks: List[ILink]
 
     /** composing AST elements */
@@ -88,10 +102,10 @@ object WAST {
   /** leaf AST node - final computed value
     *
     * @param s the string representation of this section
-    * @param tags the tags collected from this section, will be added to the page's tags
+    * @param props the tags collected from this section, will be added to the page's tags
     * @param ilinks the links to other pages collected in this rule
     */
-  case class SState(s: String, tags: Map[String, String] = Map.empty, ilinks: List[ILink] = List.empty) extends PState {
+  case class SState(s: String, props: Map[String, String] = Map.empty, ilinks: List[ILink] = List.empty) extends PState {
     if (ParserSettings.debugStates) cdebug << this.toString
 
     def this(s: String, ilinks: List[ILink]) = this(s, Map.empty, ilinks)
@@ -107,7 +121,7 @@ object WAST {
     if (ParserSettings.debugStates) cdebug << this.toString
 
     override def s: String = ???
-    override def tags: Map[String, String] = ???
+    override def props: Map[String, String] = ???
     override def ilinks: List[ILink] = ???
 
     /** optimize composiiotn of lists */
@@ -119,7 +133,7 @@ object WAST {
     override def ifold(current:SState, ctx:FoldingContext) : SState = {
       states.foldLeft(SState.EMPTY) {(a,b)=>
         val c = b.ifold(a, ctx)
-        SState(a.s + c.s, a.tags ++ c.tags, a.ilinks ++ c.ilinks)
+        SState(a.s + c.s, a.props ++ c.props, a.ilinks ++ c.ilinks)
       }
     }
     override def toString = s"LSTATE (${states.mkString})"
@@ -132,12 +146,12 @@ object WAST {
     if (ParserSettings.debugStates) cdebug << this.toString
 
     override def s: String = ???
-    override def tags: Map[String, String] = ???
+    override def props: Map[String, String] = ???
     override def ilinks: List[ILink] = ???
 
     override def ifold(current:SState, ctx:FoldingContext) : SState = {
       val c = mid.ifold(current, ctx)
-      SState(prefix + c.s + suffix, c.tags, c.ilinks)
+      SState(prefix + c.s + suffix, c.props, c.ilinks)
     }
     override def toString = s"RSTATE ($prefix, $mid, $suffix)"
     override def print (level:Int):String = ("--" * level) + s"RSTATE ($prefix, $suffix)" +  mid.print(level+1)
@@ -149,7 +163,7 @@ object WAST {
     if (ParserSettings.debugStates) cdebug << this.toString
 
     override def s: String = ???
-    override def tags: Map[String, String] = ???
+    override def props: Map[String, String] = ???
     override def ilinks: List[ILink] = ???
 
     override def ifold(current:SState, ctx:FoldingContext) : SState = f(current, ctx)

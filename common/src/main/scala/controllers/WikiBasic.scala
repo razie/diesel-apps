@@ -22,7 +22,7 @@ import model.CMDWID
   * browse tags
   * search
   */
-object WikiBasic extends Controller {
+object WikiBasic extends RazControllerBase {
   /** show a page */
   def showWid(cw: CMDWID, count: Int, realm: String) = Action { implicit request =>
     // 1. prep the wid
@@ -36,8 +36,8 @@ object WikiBasic extends Controller {
         Redirect(Wikis.w(wid))
       } getOrElse {
         // b. =================== found the page, render it ==================
-        we.preprocessed // just make sure it's processed (parsed)
-        val html = Wikis.format(wid, we.markup, wid.content.mkString, Some(we))
+        we.preprocess(wauth) // just make sure it's processed (parsed)
+        val html = Wikis.format(wid, we.markup, wid.content.mkString, Some(we), wauth)
         Ok(html + s"""<hr>| <a href="/wikie/edit/${wid.wpath}">Edit</a> | """).as("text/html")
       }
     } getOrElse
