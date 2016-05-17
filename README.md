@@ -1,4 +1,4 @@
-Cool Scala Wiki
+Cool Scala Markdown Wiki
 ===============
 
 Embedded Markdown Wiki: a wiki engine written in scala, which you can embed in any application, especially for play framework apps. It is a great match for collaborative, content-intensive websites.
