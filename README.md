@@ -41,6 +41,13 @@ Features:
 - history, revert to earlier versions
 - clone entire wiki locally for "development" and then push changes remotely
 - easy to organize and browse: search, by tags etc
+- classic wiki link syntax with customizable extensions
+- templating
+- authorization, authentication, different levels of visibility
+- [WikiPath](http://www.coolscala.com/w/rk/wiki/Admin:WikiPath), surfing the wiki content via built-in wiki-path capability
+- runs on the JVM
+- Java compatible and embedded/embeddable in any Java product (as separate micro-service or library)
+- mongoDB for storage, customizable persistance
 - etc
 
 Details
@@ -85,3 +92,10 @@ The other integration model, the idea that this was written for, is where your e
 
 Here's how to use the dark CSS for bootstrap: http://www.coolscala.com/wiki/Cool_Scala/Dark_skin_for_bootstrap
 
+## Domain Driven Wiki
+
+This started as a research into domain-driven wikis:
+
+- domain/category definintion
+- engine driven by the category: guides creation of topics, their properties and relationships
+- scala scripts - there is possibility to embed runnable scala and Javascript scripts in the wiki topics - these scripts are executed when the page is displayed and add complex behavior to the pages, such as displaying the current number of members in a club etc
