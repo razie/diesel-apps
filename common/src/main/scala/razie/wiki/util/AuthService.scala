@@ -18,7 +18,7 @@ import razie.wiki.model.WikiUser
  */
 trait AuthService[+U <: WikiUser] {
   /** clean the cache for current user - probably a profile change, should reload profile */
-  def cleanAuth(u: Option[WikiUser] = None)(implicit request: Request[_])
+  def cleanAuth(u: Option[WikiUser] = None)(implicit request: RequestHeader)
 
   /** clean the cache for given user - probably a profile change, should reload profile.
     * needed this for cluster auth. State is evil!
@@ -26,7 +26,7 @@ trait AuthService[+U <: WikiUser] {
   def cleanAuth2(u: WikiUser)
 
   /** authentication - find the user currently logged in */
-  def authUser(implicit request: Request[_]): Option[U]
+  def authUser(implicit request: RequestHeader): Option[U]
 
   def checkActive(au: WikiUser)(implicit errCollector: VErrors = IgnoreErrors): Option[Boolean]
 
@@ -34,7 +34,7 @@ trait AuthService[+U <: WikiUser] {
   def sign(content: String): String
 
   /** check that the signatures match - there's a trick here, heh */
-  def checkSignature(sign: String, signature: String): Boolean
+  def checkSignature(sign: String, signature: String, user:Option[WikiUser]): Boolean
 }
 
 /** sample user implementation */
@@ -43,6 +43,7 @@ case class MyUser(userName: String, email: String, _id: ObjectId = new ObjectId(
   def myPages(realm: String, cat: String): List[Any] = List.empty
   def css = Some("dark") // dark/light preferences
   def hasMembershipLevel(s:String) = false
+  def isActive = true
 }
 
 /** sample stub authentication */
@@ -50,7 +51,7 @@ object NoAuthService extends AuthService[MyUser] with Logging {
   val harry = MyUser("Harry", "harry@hogwarts.mag")
 
   /** clean the cache for current user - probably a profile change */
-  def cleanAuth(u: Option[WikiUser] = None)(implicit request: Request[_]) = {
+  def cleanAuth(u: Option[WikiUser] = None)(implicit request: RequestHeader) = {
   }
 
   /** clean the cache for given user - probably a profile change, should reload profile.
@@ -59,7 +60,7 @@ object NoAuthService extends AuthService[MyUser] with Logging {
   def cleanAuth2(u: WikiUser) = {}
 
   /** authentication - find the user currently logged in */
-  def authUser(implicit request: Request[_]): Option[MyUser] = {
+  def authUser(implicit request: RequestHeader): Option[MyUser] = {
     Some(harry)
   }
 
@@ -69,7 +70,7 @@ object NoAuthService extends AuthService[MyUser] with Logging {
   def sign(content: String): String = "EVERYTHING_GOES" // you MUST IMPLEMENT THIS, heh
 
   /** check that the signatures match - there's a trick here, heh */
-  def checkSignature(sign: String, signature: String): Boolean = sign == signature
+  def checkSignature(sign: String, signature: String, au:Option[WikiUser]): Boolean = sign == signature
 }
 
 

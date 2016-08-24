@@ -93,7 +93,7 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
 
   /** get textual content, unprocessed, of this object, if found */
   def content = section.map{s=>
-    page.flatMap(p=> p.sections.find(_.name == s) orElse p.templateSections.find(_.name == s)).map(_.content) getOrElse s"`[Section $s not found!]`"
+    page.flatMap(p=> p.sections.find(_.name == s) orElse p.templateSections.find(_.name == s)).map(_.content) getOrElse s"`[Section $s not found in $toString!]`"
   } orElse page.map(_.content)
 
   /** withRealm - convienience builder. Note that you can't override a category prefix */
@@ -137,7 +137,7 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
 
   /** cat with realm */
 //  def cats = if(realm.exists(_ != Wikis.RK)) (realm.get + "." + cat) else cat
-  def cats = if(realm.isDefined) (realm.get + "." + cat) else cat
+  def cats = if(realm.exists(_.length > 0)) (realm.get + "." + cat) else cat
 
   /** format into nice url */
   def wpath: String = parentWid.map(_.wpath + "/").getOrElse("") + (
@@ -171,7 +171,7 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
   /** use when coming from a known realm */
   def urlRelative (fromRealm:String) : String =
     (if(realm.isEmpty && fromRealm != Wikis.RK && Services.config.isLocalhost) s"/w/rk"
-    else realm.filter(_ != fromRealm /*|| Services.config.isLocalhost*/).map(r=>s"/w/$r").getOrElse("")) + "/wiki/" + wpathnocats
+    else realm.filter(_ != fromRealm || Services.config.isLocalhost).map(r=>s"/w/$r").getOrElse("")) + "/wiki/" + wpathnocats
   def ahref: String = "<a href=\"" + url + "\">" + toString + "</a>"
   def ahrefRelative: String = "<a href=\"" + urlRelative + "\">" + toString + "</a>"
   def ahrefNice: String = "<a href=\"" + urlRelative + "\">" + getLabel() + "</a>"
@@ -236,7 +236,7 @@ object WID {
 
       // TODO optimize this copy/paste later
       //todo if the name contains the sequence /debug this won't work - should check i.e. /debug$
-      Array("/xp/", "/xpl/", "/tag/").collectFirst {
+      Array("/xp/", "/xpl/", "/tag/", "/react/").collectFirst {
         case tag if path contains tag => splitIt (tag, path)
       } orElse
         Array("/rss.xml", "/debug").collectFirst {

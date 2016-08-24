@@ -18,11 +18,6 @@ import scala.Option.option2Iterable
 import scala.collection.mutable
 import razie.wiki.model._
 
-// todo remove this and refactor static access
-object nWikiParser extends  WikiParserT {
-  def realm =  Wikis.RK
-}
-
 object ParserSettings {
   /** debug the buildig of AST while pasing */
   var debugStates = false
@@ -33,10 +28,12 @@ object ParserSettings {
 
   //======================= forbidden html tags TODO it's easier to allow instead?
 
+  //todo form|input allowed?
+
   final val hok = "abbr|acronym|address|a|b|blockquote|br|div|dd|dl|dt|font|h1|h2|h3|h4|h5|h6|hr|i|img|li|p|pre|q|s|small|strike|strong|span|sub|sup|" +
-    "table|tbody|td|tfoot|th|thead|tr|ul|u"
+    "table|tbody|td|tfoot|th|thead|tr|ul|u|input|form"
   final val hnok = "applet|area|base|basefont|bdo|big|body|button|caption|center|cite|code|colgroup|col|" +
-    "del|dfn|dir|fieldset|form|frame|frameset|head|html|iframe|input|ins|isindex|kbd|" +
+    "del|dfn|dir|fieldset|frame|frameset|head|html|iframe|ins|isindex|kbd|" +
     "label|legend|link|map|menu|meta|noframes|noscript|object|ol|" +
     "optgroup|option|param|samp|script|select|style|textarea|title|tt|var"
 
@@ -109,6 +106,18 @@ trait WikiParserBase extends ParserCommons {
   def xstatic: PS = static ^^ { case x => x }
   def escaped: PS = "`" ~ opt(""".[^`]*""".r) ~ "`" ^^ { case a ~ b ~ c => a + b.mkString + c }
   def escaped1: PS = "``" ~ opt(""".*""".r) ~ "``" ^^ { case a ~ b ~ c => a + b.mkString + c }
+  def escaped2: PS = "```" ~ opt("js"|"scala"|"xml"|"html") ~ opt(CRLF1 | CRLF3 | CRLF2) ~ """(?s)[^`]*""".r ~ "```" ^^ {
+    case a ~ name ~ _ ~ b ~ c => {
+      RState(
+        "<pre><code>",
+        if (name != "xml" && name != "html") b
+        else {
+          Enc.escapeHtml(b)
+        },
+        "</code></pre>")
+//      a + b + c
+    }
+  }
 
   // ======================== static lines - not parsed
 

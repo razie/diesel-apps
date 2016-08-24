@@ -8,6 +8,7 @@ package razie.wiki.parser
 
 import org.bson.types.ObjectId
 import razie.wiki.dom.WikiDomain
+import razie.wiki.parser.WAST.FoldingContext
 import razie.wiki.{Services, Enc}
 import razie.{cdebug, cout, clog}
 
@@ -30,7 +31,6 @@ object SedWiki {
   val SEARCH = """search:?([^]]*)""".r
   val SEARCH2 = """q:?([^]]*)""".r
   val LIST = """list:?([^.]*\.)?([^]]*)""".r
-  val USERLIST = """userlist:?([^.]*\.)?([^]]*)""".r
   val ALIAS = """alias:([^\]]*)""".r
   val NORMAL = """(rk:)?([^|\]]*)([ ]*[|][ ]*)?([^]]*)?""".r
   val ROLE = """([^:]*::)?([^|\]]*)([ ]*[|][ ]*)?([^]]*)?""".r
@@ -57,28 +57,6 @@ object SedWiki {
           }.map(_._1).mkString(" ")
       },
       None)
-
-        //todo what the heck is this?
-      case USERLIST(newr,cat) => {
-        // TODO can't see more than 20-
-        val newRealm = if(newr == null || newr.isEmpty) realm else newr.substring(0,newr.length-1)
-        Some((
-          try {
-            val up = razie.NoStaticS.get[WikiUser]
-            val uw = up.toList.flatMap(_.myPages(newRealm, cat))
-            val upp = uw.map(_.asInstanceOf[{ def wid: WID }])
-//            s"<!-- ($realm : $newRealm) ${upp.map(_.wid.wpath).mkString} ..... ${upp.map(_.wid.realm).mkString} -->" +
-            "<ul>" +
-              upp.sortWith(_.wid.name < _.wid.name).take(20).map(_.wid).map { wid =>
-              Wikis.formatWikiLink(realm, wid, Wikis(realm).label(wid).toString, Wikis(realm).label(wid).toString, None)
-            }.map(_._1).map(x => "<li>" + x + "</li>").mkString(" ") + "</ul>"
-          } catch {
-            case e @ (_: Throwable) => {
-              println(e.toString);
-              "ERR Can't list userlist"
-            }
-          }, None))
-      }
 
       case ALIAS(wpath) => {
         val wid = WID.fromPath(wpath, realm)

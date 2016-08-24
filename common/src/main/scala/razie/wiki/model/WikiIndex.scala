@@ -92,13 +92,13 @@ class WikiIndex (val realm:String, val fallBacks : List[WikiIndex]) {
 
   /** update an entry - call AFTER the we is persisted */
   private def up(we: WikiEntry) {
-    parsed.put(we._id, PEntry(we.ilinks))
     if (we.wid.cat == "Category") {
       Wikis(realm).refreshCat(we)
       WikiDomain(realm).resetDom
     } else if (we.wid.cat == "Tag") {
       Wikis(realm).tags.put(we.wid.name, we)
     }
+    parsed.put(we._id, PEntry(we.ilinks))
   }
 
   def graph(oid: ObjectId) = synchronized {

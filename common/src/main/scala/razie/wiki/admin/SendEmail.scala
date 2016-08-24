@@ -164,6 +164,11 @@ object SendEmail extends razie.Logging {
   var curCount = 0;            // current sending queue size
   var state = STATE_OK
 
+  def setState (news:String) = {
+    Audit.logdb("EMAIL_STATE", s"from $state to $news")
+    state = news
+  }
+
   // todo improve to include port
   def getNodeId = {
     java.net.InetAddress.getLocalHost.getCanonicalHostName
@@ -178,13 +183,13 @@ object SendEmail extends razie.Logging {
 //      case id: ObjectId => ROne[EmailMsg](id).fold {curCount -= 1} (e => isend(e, new MailSession))
 
       case e: EmailMsg => {
-        Audit.logdb("ERR_EMAIL", "SOMEBODY SENT AN EMAIL DIRECTLY... find and kill "+e.toString)
+        Audit.logdb("ERR_EMAIL_PROC", "SOMEBODY SENT AN EMAIL DIRECTLY... find and kill "+e.toString)
 //        isend(e, new MailSession)
       }
 
       case mailSession: MailSession => {
         //todo decrement if maxed below, also if ok keep sending only until the first error
-        Audit.logdb("EMAIL_STATUS", "MAIL.process session ")
+        Audit.logdb("EMAIL_STATUS", s"MAIL.process session ${mailSession.emails.size} emails")
         try {
           if (state == STATE_OK) {
             curCount += mailSession.emails.size
@@ -194,7 +199,7 @@ object SendEmail extends razie.Logging {
               case e: EmailMsg if state != STATE_OK => curCount -= 1
             }
           } else {
-            Audit.logdb("ERR_EMAIL_MAXED", "EmailSender received messages while not OK, scheduling just one")
+            Audit.logdb("ERR_EMAIL_MAXED", s"EmailSender received ${mailSession.emails.size} messages while not OK, scheduling just one")
             mailSession.emails.lastOption.map(_._id).flatMap(id=>ROne[EmailMsg](id)).fold {} (e => isend(e, mailSession))
           }
         } finally {
@@ -205,16 +210,16 @@ object SendEmail extends razie.Logging {
 
       // check for messages to retry
       case sss @ CMD_TICK => {
-        Audit.logdb("EMAIL_STATUS", s"CMD_TICK EmailSender $sss state=$state")
+//        Audit.logdb("EMAIL_STATUS", s"CMD_TICK EmailSender $sss state=$state")
         resend
       }
 
-      // check for messages to retry
+      // resend all messages that were sent too many times
       case sss @ CMD_RESEND => {
-        // update all failed for resending once...
         val x = RMany[EmailMsg]().filter(_.sendCount >= EmailMsg.MAX_RETRY_COUNT).toList
         Audit.logdb("EMAIL_STATUS", s"CMD_RESEND EmailSender $sss state=$state resending "+x.size)
         x.foreach { g =>
+          // update all failed for resending once...
           g.copy(sendCount = EmailMsg.MAX_RETRY_COUNT - 1).updateNoAudit
         }
         resend
@@ -248,13 +253,29 @@ object SendEmail extends razie.Logging {
       }
     }
 
-    def resend = {
-      RMany[EmailMsg]().filter(_.shouldResend).grouped(50).foreach(g => {
-        val s = new MailSession()
-        s.emails = g.toList
-        emailSender ! s
-        Audit.logdb("EMAIL_STATUS", s"MAIL.resending EmailSender resent: ${s.emails.size}")
-      })
+    def resend : Unit = {
+      if(state != STATE_OK) {
+        // send just one ping - if successful, it will resend all
+        RMany[EmailMsg]().find(_.shouldResend).foreach(g => {
+          val s = new MailSession() {
+            override def close = {
+              if (state == STATE_OK) resend
+              super.close
+            }
+          }
+          s.emails = g :: Nil
+          emailSender ! s
+          Audit.logdb("EMAIL_STATUS", s"MAIL.resending.PING EmailSender resent: ${s.emails.size}")
+        })
+      } else {
+        // resend all
+        RMany[EmailMsg]().filter(_.shouldResend).grouped(50).foreach(g => {
+          val s = new MailSession()
+          s.emails = g.toList
+          emailSender ! s
+          Audit.logdb("EMAIL_STATUS", s"MAIL.resending EmailSender resent: ${s.emails.size}")
+        })
+      }
     }
 
     // upon start, reload ALL messages to send - whatever was not sent last time
@@ -291,22 +312,23 @@ object SendEmail extends razie.Logging {
             Audit.logdb("EMAIL_SENT", Seq("to:" + e.to, "from:" + e.from, "subject:" + e.subject).mkString("\n"))
             e.deleteNoAudit
 
-            if (state != STATE_OK)
-              resend // seems ok now: reload all messages that were waiting
+            // this is dealt with in resend - ping
+//            if (state != STATE_OK)
+//              resend // seems ok now: reload all messages that were waiting
 
-            state = STATE_OK // i can send messages for sure now, eh?
+            setState(STATE_OK) // i can send messages for sure now, eh?
           } catch {
             case mex: MessagingException => {
               e.copy(status = STATUS.OOPS, lastDtm = DateTime.now(), lastError = mex.toString).updateNoAudit
-              Audit.logdb("ERR_EMAIL",
+              Audit.logdb("ERR_EMAIL_SEND",
                 Seq("to:" + e.to, "from:" + e.from,
-                  "subject:" + e.subject, "html=" + e.html,
+                  "subject:" + e.subject, "html=" + e.html.take(100),
                   "EXCEPTION = " + mex.toString()).mkString("\n"))
               if (mex.toString contains "quota exceeded")
-                state = STATE_MAXED
+                setState(STATE_MAXED)
               else
-                state = STATE_BACKOFF
-              error("ERR_EMAIL", mex)
+                setState(STATE_BACKOFF)
+              error("ERR_EMAIL_SEND", mex)
             }
           } finally {
             curCount -= 1

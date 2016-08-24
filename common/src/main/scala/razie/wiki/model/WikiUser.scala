@@ -28,6 +28,8 @@ abstract class WikiUser {
     * @return
     */
   def hasMembershipLevel(s:String) : Boolean
+
+  def isActive : Boolean
 }
 
 /** user factory and utils */
@@ -40,6 +42,7 @@ trait WikiUsers {
 object NoWikiUsers extends WikiUsers {
   def findUserById(id: ObjectId) : Option [WikiUser] = Some(NoAuthService.harry)
   def findUserByUsername(uname: String) : Option [WikiUser] = Some(NoAuthService.harry)
+  def isActive = true
 }
 
 /** provide implementation in Global::beforeStart() */

@@ -20,6 +20,64 @@ import razie.wiki.{Services, WikiConfig}
 
 import scala.collection.mutable.ListBuffer
 
+/** caching oft-used pages (categories etc) */
+object WeCache {
+  var loading=false
+
+  def preload (we:WikiEntry) = {
+    pre += we
+    put(we, false)
+  }
+
+  def load() = {
+    if(!loading && pre.nonEmpty) {
+      loading=true
+      pre foreach update
+      pre.clear()
+    }
+  }
+
+  def put (we:WikiEntry, withDepy:Boolean=true) = synchronized {
+    cache.put(we.uwid, we)
+    if (we.category == "Category") {
+      val x:Map[String, WikiEntry] = icats.get(we.realm) getOrElse Map.empty
+      icats.put(we.realm, x + (we.name -> we))
+    }
+    if(withDepy)  {
+      we.included
+      depys.put(we.uwid, we.depys)
+    }
+  }
+
+  def update (we:WikiEntry): Unit = synchronized {
+    we.sections
+    val more = depys.get(we.uwid).toList.flatten
+    cache.put(we.uwid, we)
+    depys.put(we.uwid, we.depys)
+    more.foreach(u=>update(u.page.get))
+  }
+
+  def get (realm:String, cat:String, name:String) = synchronized {
+    load()
+    cache.find(t=> t._2.realm == realm && t._2.category == cat && t._2.name == name)
+  }
+
+  def list (realm:String, cat:String) = synchronized {
+    load()
+    cache.filter(t=> t._2.realm == realm && t._2.category == cat).values.toList
+  }
+
+  def cats (realm:String) = synchronized {
+    load()
+    icats.getOrElse(realm, Map.empty)
+  }
+
+  private var pre  = new ListBuffer[WikiEntry]()
+  private var icats  = new collection.mutable.HashMap[String,Map[String, WikiEntry]]()
+  private var cache = new collection.mutable.HashMap[UWID,WikiEntry]()
+  private var depys = new collection.mutable.HashMap[UWID,List[UWID]]()
+}
+
 /** a wiki */
 class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
   /** this is the actual parser to use - combine your own and set it here in Global */
@@ -34,8 +92,13 @@ class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
   val REALM = "realm" -> realm
 
   /** cache of categories - updated by the WikiIndex */
-  lazy val cats = new collection.mutable.HashMap[String,WikiEntry]() ++
-    (RMany[WikiEntry](REALM, "category" -> "Category") map (w=>(w.name,w))).toList
+  {
+    RMany[WikiEntry](REALM, "category" -> "Category") foreach (WeCache.preload _)
+  }
+
+  def cats = WeCache.cats(realm)
+//    new collection.mutable.HashMap[String,WikiEntry]() ++
+//    (RMany[WikiEntry](REALM, "category" -> "Category") map (w=>(w.name,w))).toList
 
   /** cache of tags - updated by the WikiIndex */
   lazy val tags = new collection.mutable.HashMap[String,WikiEntry]() ++
@@ -145,7 +208,7 @@ class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
   def category(cat: String) : Option[WikiEntry] = cats.get(cat).orElse(mixins.first(_.category(cat)))
 
   def refreshCat (we:WikiEntry): Unit = {
-    cats.put(we.wid.name, we)
+    WeCache.put(we)
 // scan all other realms that may [[include:: this category
 //    Reactors.reactors.values.filter(_.realm != realm).map{r=>
 //      if(r.wiki.cats contains we.wid.name)

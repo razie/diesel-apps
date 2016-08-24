@@ -30,7 +30,7 @@ import razie.db.tx.txn
 case class SecLink(
                     link: String,
                     host: Option[String] = None,
-                    onlyOnce: Boolean = true, // TODO use this somehow - not certain they're done though...
+                    maxCount: Int = 1, // TODO use this somehow - not certain they're done though...
                     expiry: DateTime = DateTime.now.plusHours(8),
                     count: Int = 0, // how many times it was done
                     lastDoneDtm: DateTime = DateTime.now,
@@ -39,7 +39,7 @@ case class SecLink(
 
   def id = _id.toString
 
-  def isDone = count > 0
+  def isDone = count >= maxCount
 
   private def create = RCreate(this)
 
@@ -68,6 +68,11 @@ object SecLink {
     // TODO play 20 workaround - remove this in play 2.1
     val iid = id.replaceAll(" ", "+")
 
-    ROne[SecLink](new ObjectId(iid))
+    // bad id causes exception
+    try {
+      ROne[SecLink](new ObjectId(iid))
+    } catch {
+      case t:Throwable => None
+    }
   }
 }

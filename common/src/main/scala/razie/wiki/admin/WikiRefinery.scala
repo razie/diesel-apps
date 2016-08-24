@@ -113,10 +113,12 @@ object WikiRefinery {
     }
   }
 
-  // the actual main callback
-  WikiObservers mini {
+  def init() = {
+    // the actual main callback
+    WikiObservers mini {
       case WikiEvent(_, "WikiEntry", _, Some(x), _, _) =>
         update(x.asInstanceOf[WikiEntry]) // todo lazy/async
+    }
   }
 }
 

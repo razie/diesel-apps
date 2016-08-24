@@ -96,26 +96,51 @@ object WikiDomain {//extends WikiDomain (Wikis.RK) {
   /** crawl all domain pieces and build a domain */
   def domFrom (we:WikiEntry) : Option[RDomain] = {
     we.preprocessed
+    val domList = we.cache.getOrElse(DOM_LIST, List[Any]()).asInstanceOf[List[Any]].reverse
+
     //    if(we.tags.contains(R_DOM) || we.tags.contains(DSL_DOM))
     Some(
-      we.cache.getOrElseUpdate("dom",
-        new RDomain("?",
-          we.cache.getOrElse(DOM_LIST, List[Any]()).asInstanceOf[List[Any]].collect {
+      we.cache.getOrElseUpdate("dom", {
+        var x=new RDomain("?",
+          domList.collect {
             case c:C => (c.name, c)
           }.toMap,
-          we.cache.getOrElse(DOM_LIST, List[Any]()).asInstanceOf[List[Any]].collect {
+          domList.collect {
             case c:A => c
           },
-          we.cache.getOrElse(DOM_LIST, List[Any]()).asInstanceOf[List[Any]].collect {
+          domList.collect {
             case c:D if !c.isInstanceOf[A] => c
           },
-          we.cache.getOrElse(DOM_LIST, List[Any]()).asInstanceOf[List[Any]].collect {
+          domList.collect {
             case o:O => (o.name, o)
+          }.toMap,
+          domList.collect {
+            case f:F => (f.name, f)
           }.toMap)
+        x.moreElements.appendAll(
+          domList.filter {e=>
+            !(e.isInstanceOf[A] ||
+              e.isInstanceOf[C] ||
+              e.isInstanceOf[D] ||
+              e.isInstanceOf[O] ||
+              e.isInstanceOf[F])
+        })
+
+        x
+      }
       )) collect {
       case d:RDomain => d
     }
     //    else None
+  }
+
+  /** crawl all domain pieces and build a domain */
+  def domFilter[T] (we:WikiEntry)(p:PartialFunction[Any,T]) : List[T] = {
+    we.preprocessed
+    //    if(we.tags.contains(R_DOM) || we.tags.contains(DSL_DOM))
+    we.cache.getOrElse(DOM_LIST, List[Any]()).asInstanceOf[List[Any]].reverse.collect {
+      case x if(p.isDefinedAt(x)) => p(x)
+    }
   }
 
   WikiObservers mini {

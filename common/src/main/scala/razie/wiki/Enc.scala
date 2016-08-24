@@ -75,6 +75,7 @@ object Enc {
     def apply() = { i }
   }
 
+  // escape html characters
   def escapeHtml (s:String) = s.replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("\"", "&quot;")
   def unescapeHtml (s:String) = s.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", "\"")
 }

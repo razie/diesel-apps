@@ -217,7 +217,7 @@ object Wikis extends Logging with Validation {
   }
 
   // TODO better escaping of all url chars in wiki name
-  def preprocess(wid: WID, markup: String, content: String) = markup match {
+  def preprocess(wid: WID, markup: String, content: String, page:Option[WikiEntry]) = markup match {
     case MD =>
       val t1 = System.currentTimeMillis
       implicit val errCollector = new VErrors()
@@ -237,7 +237,7 @@ object Wikis extends Logging with Validation {
       }
 
       // pre-mods
-      wid.page.map { x => c2 = razie.wiki.mods.WikiMods.modPreParsing(x, Some(c2)).getOrElse(c2) }
+      page.orElse(wid.page).map { x => c2 = razie.wiki.mods.WikiMods.modPreParsing(x, Some(c2)).getOrElse(c2) }
 
       val res = Reactors(wid.getRealm).wiki.mkParser apply c2
       val t2 = System.currentTimeMillis
@@ -266,13 +266,13 @@ object Wikis extends Logging with Validation {
       var content =
         (if(icontent == null || icontent.isEmpty) {
           if (wid.section.isDefined)
-            preprocess(wid, markup, noBadWords(wid.content.mkString))
+            preprocess(wid, markup, noBadWords(wid.content.mkString), we)
           else
             // use preprocessed cache
-            we.map(_.preprocessed).getOrElse(preprocess(wid, markup, noBadWords(icontent)))
+            we.map(_.preprocessed).getOrElse(preprocess(wid, markup, noBadWords(icontent), we))
         }
         else
-          preprocess(wid, markup, noBadWords(icontent))
+          preprocess(wid, markup, noBadWords(icontent), we)
         ).fold(WAST.context(we, user)).s
 
       // TODO index nobadwords when saving/loading page, in the WikiIndex
@@ -284,7 +284,7 @@ object Wikis extends Logging with Validation {
         try {
           // find the page with the scripts and call them
           val pageWithScripts = WID.fromPath(m group 2).flatMap(x => Wikis(x.getRealm).find(x)).orElse(we)
-          pageWithScripts.flatMap(_.scripts.find(_.name == (m group 3))).filter(_.checkSignature).map(s => runScript(s.content, "js", we, user))
+          pageWithScripts.flatMap(_.scripts.find(_.name == (m group 3))).filter(_.checkSignature(user)).map(s => runScript(s.content, "js", we, user))
         } catch { case _: Throwable => Some("!?!") }
       })
 
@@ -326,16 +326,6 @@ object Wikis extends Logging with Validation {
               res
             }
           }
-
-          // knockoff
-//          import com.tristanhunt.knockoff.DefaultDiscounter._
-//          val res = DTimer ("wikis.toXhtml for "+wid.name) {
-//            toXHTML(
-//              DTimer ("wikis.knockoff for "+wid.name) {
-//                knockoff(content)
-//              }
-//            ).toString
-//          }
 
           val res = DTimer ("wikis.mdhtml for "+wid.name) {
               val ast = DTimer ("wikis.mdast for "+wid.name) {
@@ -496,7 +486,7 @@ object Wikis extends Logging with Validation {
   // todo protect this from tresspassers
   def runScript(s: String, lang:String, page: Option[WikiEntry], au:Option[WikiUser]) = {
     // page preprocessed for, au or default to thread statics - the least reliable
-    val up = page.flatMap(_.ipreprocessed.flatMap(_._2)) orElse au orElse razie.NoStaticS.get[WikiUser]
+    val up = page.flatMap(_.ipreprocessed.flatMap(_._2)) orElse au //orElse razie.NoStaticS.get[WikiUser]
     //todo use au not up
     val q = razie.NoStaticS.get[QueryParms]
     Services.runScript(s, lang, page, up, q.map(_.q.map(t => (t._1, t._2.mkString))).getOrElse(Map()))
@@ -512,10 +502,9 @@ object Wikis extends Logging with Validation {
     */
   def template(wpath: String, parms:Map[String,String]) = {
     (for (
-      wid <- WID.fromPath(wpath).map(x=>if(x.realm.isDefined)x else x.r("wiki")); // templates are in wiki or rk
+      wid <- WID.fromPath(wpath).map(x=>if(x.realm.isDefined) x else x.r("wiki")); // templates are in wiki or rk
       c <- wid.content
     ) yield {
-//        val s1 = parms.foldLeft(c)((a,b)=>a.replaceAll("\\$\\{"+b._1+"\\}", b._2))
         val s1 = parms.foldLeft(c)((a,b)=>a.replaceAll("\\{\\{\\$\\$"+b._1+"\\}\\}", b._2))
         s1.replaceAll("\\{\\{`", "{{")//.replaceAll("\\{\\{`", "{{").replaceAll("\\{\\{`/section", "{{/section")
       }) getOrElse (

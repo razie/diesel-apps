@@ -140,6 +140,11 @@ Managers|10|Varia
 Board of Directors|2 hours per meeting - +20|Positions Available
 .|.|Secretary for this season and Treasurer for next season (can transition with existing Treasurer this year)
 """
+
+  object nWikiParser extends WikiParserT {
+    def realm =  Wikis.RK
+  }
+
   println(nWikiParser.apply(r1tabbug).s)
 
 }

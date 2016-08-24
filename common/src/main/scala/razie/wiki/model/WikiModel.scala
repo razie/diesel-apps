@@ -68,17 +68,24 @@ case class WikiEntry(
     } else None
   }
 
+  // what other pages I depend on
+  var depys: List[UWID] = Nil
+
   /** todo should use this version instead of content - this resolves includes */
   def included : String = {
     // todo this is not cached as the underlying page may change - need to pick up changes
     var done = false
+    var collecting = depys.isEmpty // should collect depys
 
       val INCLUDE = """(?<!`)\[\[include:([^\]]*)\]\]""".r
       val res1 = INCLUDE.replaceAllIn(content, { m =>
         val other = for (
           wid <- WID.fromPath(m.group(1));
           c <- wid.content // this I believe is optimized for categories
-        ) yield c
+        ) yield {
+            if(collecting) depys = wid.uwid.toList ::: depys
+            c
+          }
 
         done = true
         //regexp uses $ as a substitution, escape them before returning this subst string
@@ -152,6 +159,7 @@ case class WikiEntry(
     WikiEntryOld(this, reason).create
     RUpdate.noAudit[WikiEntry](Wikis(realm).weTables(wid.cat), Map("_id" -> newVer._id), newVer)
     Wikis.shouldFlag(name, label, content).map(auditFlagged(_))
+    Wikis(realm).index.update(this, newVer)
   }
 
   /** backup old version and update entry, update index */
@@ -171,7 +179,7 @@ case class WikiEntry(
   lazy val sections = findSections(included, PATT_SEC) ::: findSections(included, PATT_TEM)
 
   /** these are when used as a template - template sections do not resolve include */
-  lazy val templateSections = findSections(included, PATT_SEC) ::: findSections(content, PATT_TEM)
+  lazy val templateSections = findSections(included, PATT_TEM) ::: findSections(content, PATT_TEM)
 
   // this ((?>.*?(?=\{\{/))) means non-greedy lookahead
   //?s means DOTALL - multiline
@@ -205,7 +213,7 @@ case class WikiEntry(
   lazy val scripts = sections.filter(x => "def" == x.stype || "lambda" == x.stype)
 
   /** pre processed form - parsed and graphed. No context is used when parsing - only when folding this AST, so you can reuse the AST */
-  lazy val ast = Wikis.preprocess(this.wid, this.markup, Wikis.noBadWords(this.content))
+  lazy val ast = Wikis.preprocess(this.wid, this.markup, Wikis.noBadWords(this.content), Some(this))
 
   /** AST folded with a context */
   var ipreprocessed : Option[(SState, Option[WikiUser])] = None;
@@ -268,7 +276,7 @@ case class FieldDef(name: String, value: String, attributes: Map[String, String]
 case class WikiSection(original:String, parent: WikiEntry, stype: String, name: String, signature: String, content: String, args:Map[String,String] = Map.empty) {
   def sign = Services.auth.sign(content)
 
-  def checkSignature = Services.auth.checkSignature(sign, signature)
+  def checkSignature(au:Option[WikiUser]) = Services.auth.checkSignature(sign, signature, au)
 
   def wid = parent.wid.copy(section=Some(name))
 

@@ -9,11 +9,8 @@ package controllers
 import play.api.mvc.{Controller, _}
 import razie.wiki.Services
 import razie.wiki.util.Validation
-import razie.{Logging, NoStaticS}
+import razie.{Logging}
 import razie.wiki.model.WikiUser
-
-/** used as a threadlocal for the theme */
-case class DarkLight(css: String)
 
 /** common controller utilities */
 class RazControllerBase extends Controller with Logging with Validation {
@@ -21,7 +18,7 @@ class RazControllerBase extends Controller with Logging with Validation {
     /** authentication - find the user currently logged in */
   def wauth(implicit request: Request[_]): Option[WikiUser] = {
     val au = Services.auth.authUser (request)
-    au.foreach(u=> NoStaticS.put[WikiUser](u))
+//    au.foreach(u=> NoStaticS.put[WikiUser](u))
     au
   }
 
@@ -38,7 +35,7 @@ class RazControllerBase extends Controller with Logging with Validation {
 
 /** some views you have to provide for the flow */
 trait ViewService {
-  def utilMsg (msg:String, details:String, link:Option[String], user:Option[WikiUser], link2:Option[(String,String)]=None)(implicit request: Request[_]): play.api.mvc.Result
+  def utilMsg (msg:String, details:String, link:Option[String], user:Option[WikiUser], link2:Option[(String,String)]=None)(implicit request: RequestHeader): play.api.mvc.Result
 }
 
 object ViewService {
