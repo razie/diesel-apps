@@ -234,7 +234,7 @@ case class WikiEntry(
     res
   }
 
-  lazy val preprocessed = ipreprocessed.map(_._1).getOrElse(preprocess(None))
+  def preprocessed = ipreprocessed.map(_._1).getOrElse(preprocess(None))
 
   def grated = grater[WikiEntry].asDBObject(this)
 

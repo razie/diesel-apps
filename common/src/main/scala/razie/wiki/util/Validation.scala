@@ -21,7 +21,7 @@ case class Corr(err: String, action: Option[String] = None) {
 trait Validation extends Logging {
 
   final val cNoAuth = new Corr("Not logged in", """You need to <a href="/doe/join">log in or register</a> and then click the link again!"""); //cNoAuth;
-  final val cExpired = new Corr("token expired", "get another token")
+  final val cExpired = new Corr("request expired", "login and try again")
   final val cNoProfile = InternalErr("can't load the user profile")
   final def cNoPermission = InternalErr("No permission!")
   final val cNotVerified = new Corr("No permission", """You need to verify your email address!""")

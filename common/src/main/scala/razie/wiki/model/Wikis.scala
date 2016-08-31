@@ -269,7 +269,11 @@ object Wikis extends Logging with Validation {
             preprocess(wid, markup, noBadWords(wid.content.mkString), we)
           else
             // use preprocessed cache
-            we.map(_.preprocessed).getOrElse(preprocess(wid, markup, noBadWords(icontent), we))
+            we.flatMap(_.ipreprocessed.map(_._1)).orElse(
+              we.map(_.preprocess(user))
+            ).getOrElse(
+              preprocess(wid, markup, noBadWords(icontent), we)
+            )
         }
         else
           preprocess(wid, markup, noBadWords(icontent), we)

@@ -632,6 +632,8 @@ trait WikiParserT extends WikiParserMini with CsvParser {
       }
 
       val args = iargs.filter(_._1 != "caption")
+      val alt = iargs.toMap.get("caption").filter(_.contains("\"") == false).map(x=>"alt=\""+x+"\"").mkString
+      // no alt when contains links
       val caption = iargs.toMap.get("caption").map(x=>
         s"""
           |<div style="text-align: center;">
@@ -639,8 +641,8 @@ trait WikiParserT extends WikiParserMini with CsvParser {
           |</div>
         """.stripMargin) getOrElse ""
       skind match {
-        case "img" =>   SState(s"""<img src="$name" $width ${htmlArgs(args)} /><br>$caption<br>""")
-        case "photo" => SState(s"""<div style="text-align:center"><a href="$name"><img src="$name" $width ${htmlArgs(args)} ></a></div>$caption\n<br>""")
+        case "img" =>   SState(s"""<img src="$name" $width $alt ${htmlArgs(args)} /><br>$caption<br>""")
+        case "photo" => SState(s"""<div style="text-align:center"><a href="$name"><img src="$name" $width $alt ${htmlArgs(args)} ></a></div>$caption\n<br>""")
       }
     }
   }

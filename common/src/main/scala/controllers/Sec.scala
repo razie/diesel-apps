@@ -26,6 +26,6 @@ object Sec extends RazControllerBase {
       ds.done
       Redirect(ds.link)
     }) getOrElse
-      Msg2("Link is invalid/expired... " + errCollector.mkString, Some("/"))
+      Msg2("Link is invalid/expired... please contact <a href=\"/doe/support\">Support</a>. <br><small>" + errCollector.mkString+"</small>", Some("/"))
   }
 }
