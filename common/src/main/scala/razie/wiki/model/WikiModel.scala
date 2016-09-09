@@ -187,19 +187,27 @@ case class WikiEntry(
   private final val PATT_SEC =
     """(?s)\{\{\.*(section|def|lambda|dsl\.\w*)([: ])?([^:}]*)?(:)?([^}]*)?\}\}((?>.*?(?=\{\{/[^`])))\{\{/\.*(section|def|lambda|dsl\.\w*)?\}\}""".r
   private final val PATT_TEM =
-    """(?s)\{\{\.*(template)([: ])?([^:}]*)?(:)?([^}]*)?\}\}((?>.*?(?=\{\{/[^`])))\{\{/\.*(template)?\}\}""".r
+    """(?s)\{\{\.*(template)([: ])?([^ :}]*)?([: ])?([^}]*)?\}\}((?>.*?(?=\{\{/[^`])))\{\{/\.*(template)?\}\}""".r
 
   /** find the sections - used because for templating I don't want to reolves the includes */
   private def findSections (c:String, pat:scala.util.matching.Regex) = {
-    //todo use the wiki parser later modifiers to load the sections, not a separate parser here
+    // todo use the wiki parser later modifiers to load the sections, not a separate parser here
+    // todo IMPORTANT - can't quite do that: these are used WHILE parsing other elements... see WikiDomParser.pmsg
     val PATT2 = pat
 
-    (for (m <- pat.findAllIn(c)) yield {
-      val mm = PATT2.findFirstMatchIn(m).get
+    (for (m <- pat.findAllIn(c).matchData) yield {
+      val mm = PATT2.findFirstMatchIn(m.matched).get
       val signargs = mm.group(5).split(':')
       val args = if(signargs.length>1) AA(signargs(1)).toMap else Map.empty[String,String]
       val sign = signargs(0)
-      WikiSection(mm.source.toString, this, mm.group(1), mm.group(3), sign, mm.group(6), args)
+      val ws = WikiSection(mm.source.toString, this, mm.group(1), mm.group(3), sign, mm.group(6), args)
+      val ss = c.substring(0, m.start)
+      val t = ss.lines.toList
+      if(t.size > 0) {
+        ws.line = t.size+1
+        ws.col  = t.apply(t.size-1).length
+      }
+      ws
     }).toList
   }
 
@@ -274,6 +282,9 @@ case class FieldDef(name: String, value: String, attributes: Map[String, String]
 
 /** a section inside a wiki page */
 case class WikiSection(original:String, parent: WikiEntry, stype: String, name: String, signature: String, content: String, args:Map[String,String] = Map.empty) {
+  var line : Int = -1
+  var col  : Int = -1
+
   def sign = Services.auth.sign(content)
 
   def checkSignature(au:Option[WikiUser]) = Services.auth.checkSignature(sign, signature, au)

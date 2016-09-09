@@ -52,6 +52,7 @@ case class CAT(cat: String, realm:Option[String]) { // don't give realm a None d
 
 object CAT {
   def unapply (cat:String) : Option[CAT] = Some(apply(cat))
+
   def apply (cat:String) : CAT =
     if(cat.contains(".")) {
       val cs = cat.split("\\.")
@@ -186,8 +187,8 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
 }
 
 object WID {
-  /** do not require the category */
-  private final val NOCATS = Array("Blog", "Post", "xSite")
+  /** SEO optimization - WIDs in these categories do not require the category in wpath */
+  private final val NOCATS = Array("Blog", "Post")
 
   //cat:name#section
   private val REGEX = """([^/:\]]*[:])?([^#|\]]+)(#[^|\]]+)?""".r

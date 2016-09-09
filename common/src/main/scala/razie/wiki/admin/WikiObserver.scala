@@ -20,7 +20,13 @@ import scala.collection.mutable.ListBuffer
   * @param oldId optionally, if entity was renamed or moved or something, the old id
   * @tparam A the entity type
   */
-case class WikiEvent[A] (action:String, cls:String, id:String, @Ignore entity:Option[A]=None, @Ignore oldEntity:Option[A]=None, oldId:Option[String]=None)
+case class WikiEvent[A] (
+  action:String,
+  cls:String,
+  id:String,
+  @Ignore entity:Option[A]=None,
+  @Ignore oldEntity:Option[A]=None,
+  oldId:Option[String]=None)
 
 /** some constants */
 object WikiEvent {

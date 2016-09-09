@@ -80,11 +80,11 @@ trait WikiParserMini extends WikiParserBase with CsvParser {
         // this is an ilink with auto-props in the name/label
         // for now, reformat the link to allow props and collect them in the ILInk
         //        SedWiki(wikip2a, expand2 _, identity, p.get.s).map(x => SState(x._1, Map(), x._2.map(x => ILink(x.cat, x.name, x.label, p.get.tags, p.get.ilinks)).toList)).get // TODO something with the props
-        SedWiki(realm, identity, p.get.s).map(x => SState(x._1, Map(), x._2.map(x => ILink(x.wid, x.label, x.role, p.get.props, p.get.ilinks)).toList)).get // TODO something with the props
+        SedWiki(realm, identity, p.get.s).map(x => SState(x._1, Map(), x._2.map(x => ILink(x.wid, x.label, x.role, p.get.props, p.get.ilinks)).toList)).getOrElse(SState("")) // TODO something with the props
       } else {
         // this is a normal ilink
         //        SedWiki(wikip2a, expand2 _, Wikis.formatName _, name).map(x => SState(x._1, Map(), x._2.toList)).get
-        SedWiki(realm, Wikis.formatName _, name).map(x => SState(x._1, Map(), x._2.toList)).get
+        SedWiki(realm, Wikis.formatName _, name).map(x => SState(x._1, Map(), x._2.toList)).getOrElse(SState(""))
       }
     }
   }
@@ -510,7 +510,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
 
   // to not parse the content, use slines instead of lines
   /** {{section:name}}...{{/section}} */
-  def wikiPropSection: PS = "{{" ~> opt(".") ~ """section|template|properties""".r ~ "[: ]".r ~ """[^:}]*""".r ~ opt("[: ]".r ~ """[^}]*""".r) ~ "}}" ~ lines <~ ("{{/" ~ """section|template|properties""".r ~ "}}".r) ^^ {
+  def wikiPropSection: PS = "{{" ~> opt(".") ~ """section|template|properties""".r ~ "[: ]".r ~ """[^ :}]*""".r ~ opt("[: ]".r ~ """[^}]*""".r) ~ "}}" ~ lines <~ ("{{/" ~ """section|template|properties""".r ~ "}}".r) ^^ {
     case hidden ~ stype ~ _ ~ name ~ sig ~ _ ~ lines => {
       val signature = sig.map(_._2).getOrElse("")
       //todo complete this - sections to use AST as well

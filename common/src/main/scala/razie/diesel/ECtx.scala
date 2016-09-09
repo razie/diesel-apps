@@ -1,6 +1,7 @@
 package razie.diesel
 
 import razie.diesel.RDOM.P
+import razie.wiki.model.{WikiSection, WikiEntry}
 
 /*
  * a map like context of attribute values.
@@ -12,8 +13,14 @@ import razie.diesel.RDOM.P
 trait ECtx {
   def root: ECtx
   def base: Option[ECtx]
+  def hostname:String
 
   def domain: Option[RDomain]
+  def specs: List[WikiEntry]
+  def domain_= (x:Option[RDomain])
+  def specs_= (x : List[WikiEntry])
+
+  def findTemplate (ea:String) : Option[WikiSection]
 
   def exists(f: scala.Function1[P, scala.Boolean]): scala.Boolean
 
@@ -26,11 +33,28 @@ trait ECtx {
 // a context - LIST, use to see speed of list
 class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None) extends ECtx {
   var attrs: List[P] = Nil
-  var domain: Option[RDomain] = None
+  var _domain: Option[RDomain] = None
+  var _specs: List[WikiEntry] = Nil
+  var hostname:String = ""
+
+  def domain: Option[RDomain] = base.map(_.domain) getOrElse _domain
+  def specs: List[WikiEntry] = base.map(_.specs) getOrElse _specs
+
+  def domain_= (x:Option[RDomain])  = base.map(_.domain = x) getOrElse (_domain = x)
+  def specs_= (x : List[WikiEntry]) = base.map(_.specs = x) getOrElse (_specs = x)
+
+  def withSpecs(s: List[WikiEntry]) = {
+    specs = s ::: specs
+    this
+  }
 
   def withDomain(r: RDomain) = {
     domain = Some(r)
     this
+  }
+
+  def findTemplate (ea:String) : Option[WikiSection] = {
+    specs.flatMap(_.templateSections.filter(_.name == ea)).headOption
   }
 
   def apply(name: String): String = get(name).mkString

@@ -349,7 +349,7 @@ object Wikis extends Logging with Validation {
       }
     } catch {
       case e : Throwable => {
-        Audit.logdbWithLink("ERR_FORMATTING", wid.ahref, "[[ERROR FORMATTING]]: " + e.toString)
+        Audit.logdbWithLink("ERR_FORMATTING", wid.ahref, "[[ERROR FORMATTING]]: " + wid.wpath + " err: " + e.toString)
         log("[[ERROR FORMATTING]]: " + e.toString + "\n"+e.getStackTraceString)
         if(Services.config.isLocalhost) throw e
         "[[ERROR FORMATTING]] - sorry, dumb program here! The content is not lost: try editing this topic... also, please report this topic with the error and we'll fix it for you!"

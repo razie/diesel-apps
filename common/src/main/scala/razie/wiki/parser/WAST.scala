@@ -56,6 +56,7 @@ object WAST {
     def eval (kind:String, expr:String) : String =
       (if(kind == "$$" && target == T_TEMPLATE || kind == "$") ex(ctx, expr.split("\\.")) else None) getOrElse s"`{{$kind$expr}}`"
 
+    /** resolve a name a.b.c in a given context */
     private def ex (m:Map[String, Any], terms:Array[String]) : Option[String] =
       if(terms.size > 0 && m.contains(terms(0))) m(terms(0)) match {
         case m: Map[_, _] if terms.size>1 => ex(m.asInstanceOf[Map[String,Any]], terms.drop(1))

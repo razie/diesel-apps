@@ -14,6 +14,7 @@ object RDOM {
 
   def smap(s:String) (f:String=>String) =  if(s != null && s.length > 0) f(s) else ""
   def mks(l:List[_], pre:String, sep:String, post:String="", indent:String="") = if(l.size>0) pre + l.map(indent + _).mkString(sep) + post else ""
+  def span(s: String, k: String = "default") = s"""<span class="label label-$k">$s</span>"""
 
   class CM // abstract Class Member
 
@@ -27,7 +28,7 @@ object RDOM {
       mks(parms, " (", ", ", ") ") +
       mks(methods, "{<br>", "<br>", "<br>}", "&nbsp;&nbsp;")
 
-    def fullHtml = s"""class <b><a href="/wikie/show/Category:$name">$name</a></b> """ +
+    def fullHtml = span("class") + s""" <b><a href="/wikie/show/Category:$name">$name</a></b> """ +
       smap(typeParam) (" [" + _ + "]") +
       smap(archetype) (" &lt;" + _ + "&gt;") +
       smap(stereotypes) (" &lt;" + _ + "&gt;") +
@@ -46,7 +47,7 @@ object RDOM {
         smap(ttype) (":" + ref + _) +
         smap(multi)(identity) +
         smap(dflt) (s=> "=" + quot(s)) +
-        (if(dflt=="") expr.map(x=>smap(x.toString) ("=" + _)) else "")
+        (if(dflt=="") expr.map(x=>smap(x.toString) ("=" + _)).mkString else "")
 
     // todo refs for type, docs, position etc
     def toHtml =
@@ -54,7 +55,7 @@ object RDOM {
         smap(ttype) (":" + ref + _) +
         smap(multi)(identity) +
         smap(dflt) (s=> "=" + quot(s)) +
-        (if(dflt=="") expr.map(x=>smap(x.toString) ("=" + _)) else "")
+        (if(dflt=="") expr.map(x=>smap(x.toString) ("=" + _)).mkString else "")
   }
 
   /** represents a parameter match expression */
@@ -76,7 +77,7 @@ object RDOM {
 
   /** a function / method */
   case class F (name:String, parms:List[P], ttype:String, script:String="", body:List[EXEC]=List.empty) extends CM {
-    override def toString = s"  def <b>$name</b> " +
+    override def toString = "   "+  span("def:") + s" <b>$name</b> " +
       mks(parms, " (", ", ", ") ") +
       smap(ttype) (":" + _)
   }
