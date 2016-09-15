@@ -5,9 +5,9 @@ Reusable bits:
 ### Secure links
 
 Emailling secure links to users (reset password etc).
-Class: razie.wiki.admin.SecLink
-Controller: controllers.Sec
-Routes:
+- Class: razie.wiki.admin.SecLink
+- Controller: controllers.Sec
+- Routes:
     GET            /doe/sec/$what<.*>                   @controllers.Sec.doeSec(what:String)
 
 Sample:
