@@ -29,14 +29,14 @@ object MyBuild extends Build {
     "com.razie"          %% "scripster-core"     % ("0.9.1") // +V.snap)
     )
 
-  lazy val root = Project("coolscala", file(".")).enablePlugins(play.PlayScala).settings(
+  lazy val root = Project("diesel", file(".")).enablePlugins(play.PlayScala).settings(
     defaultSettings:_*
                   ) aggregate (common, core) dependsOn (common, core)
 
-  lazy val common = Project("coolscala-common", file("common")).enablePlugins(play.PlayScala).settings(
+  lazy val common = Project("diesel-common", file("common")).enablePlugins(play.PlayScala).settings(
     (defaultSettings ++ Seq(libraryDependencies ++= appDependencies)) :_*
                   )
-  lazy val core = Project("coolscala-core", file("core")).enablePlugins(play.PlayScala).settings(
+  lazy val core = Project("diesel-core", file("core")).enablePlugins(play.PlayScala).settings(
     (defaultSettings ++ Seq(libraryDependencies ++= appDependencies)) :_*
                   ) dependsOn(common)
 
