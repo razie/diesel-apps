@@ -1,39 +1,35 @@
 Sample razwiki usage
 =====================================
 
-To run this, just install mongo, create a database, say "razwiki" with a user and populate a single page, say Admin:Hello.
+To run this, just install scala, play and mongo, create a database with a user and populate a single page, say Admin:Hello (we'll do that on startup so it's easy).
 
-Pass the following properties on startup:
+The following properties are hardcoded:
 
 - rk.mongohost  =localhost
 - rk.mongodb    =wikireactor
-- rk.mongouser  =mongousername
-- rk.mongopass  =mongopassword
-
-Then point a browser to the following url: http://localhost:9000/wiki/Admin:Hello
+- rk.mongouser  =user
+- rk.mongopass  =password
 
 Detailed build instructions
 ====================
+
+Install Scala 2.11.8
+
+Install Play 2.4
+
+Install sbt 0.11.8
+
+Clone this repository
 
 Install mongodb
 
 Start mongodb
 
 Create a database
+- use wikireactor
+- db.movie.insert({"name":"tutorials point"})
+- db.addUser({user:"user",pwd:"password",roles:["readWrite", "dbAdmin"]})
 
+Then just run play in the main directory samples/sample1
 
-Install SCala
-
-Install Play
-
-Install sbt
-
-Clone this repository
-
-
-Code to look at
-====================
-
-app/Global.scala to see how to initialize the wiki engine (persistence and parser).
-conf/routes to see the basic routes
-
+Then point a browser to the following url: http://localhost:9000
