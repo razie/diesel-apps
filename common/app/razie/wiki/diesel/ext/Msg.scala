@@ -157,6 +157,10 @@ case class EMap(cls: String, met: String, attrs: Attrs) {
     } else Nil
   }
 
+  def asMsg = EMsg("", cls, met, attrs.map{p=>
+    P (p.name, p.ttype, p.ref, p.multi, p.dflt)
+  })
+
   override def toString = cls + "." + met + " " + attrs.mkString
 }
 
@@ -202,7 +206,7 @@ case class EMsg(arch:String, entity: String, met: String, attrs: List[RDOM.P], r
     )
 
   // if this was an instance and you know of a spec
-  private def first: String = spec.map(_.first).getOrElse(
+  def first: String = spec.map(_.first).getOrElse(
     kspan("msg:", resolved, spec.flatMap(_.pos)) + span(stype, "info")
   )
 

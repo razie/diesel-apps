@@ -74,6 +74,8 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
   lazy val grated     = grater[WID].asDBObject(this)
   lazy val findParent = parent flatMap (p => Wikis(getRealm).find(p))
   lazy val parentWid  = parent flatMap (p => WikiIndex.withIndex(getRealm) { index => index.find { case (a, b, c) => c == p }.map(_._2) }) orElse (findParent map(_.wid))
+
+  /** find a parent of the given category */
   def parentOf(category:String) = {
     def f (p:Option[WID]) = if(p.isEmpty) None else p.filter(_.cat == category).orElse(p.flatMap(_.parentWid))
     f(parentWid)

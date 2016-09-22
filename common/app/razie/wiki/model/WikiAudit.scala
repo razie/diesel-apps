@@ -44,7 +44,9 @@ case class WikiAudit(
     page.map(_.wid.wpathFull).getOrElse(wpath),
     page,
     oldPage,
-    oldPage.map(_.wid.wpathFull).orElse(oldWpath))
+    oldPage.map(_.wid.wpathFull).orElse(oldWpath),
+    node.mkString
+  )
 }
 
 /** audit codes */

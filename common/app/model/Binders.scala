@@ -11,13 +11,12 @@ import play.api.mvc.QueryStringBindable
 import razie.wiki.Enc
 import razie.wiki.model._
 
-/** binders for codec path objects in play */
+/** binders for codec path objects in play, String to CMDWID/WID and back */
 object Binders {
 
   implicit def widPathBindable =
     new PathBindable[WID] {
       def bind(key: String, value: String): Either[String, WID] = {
-//        Log.debug ("BINDER "+value)
         WID.fromPath(Enc.fromUrl(value)).map(Right(_)).getOrElse(Left("Oh-Uh"))
       }
       def unbind(key: String, wid: WID): String =
@@ -43,7 +42,6 @@ object Binders {
   implicit def cmwidPathBindable =
     new PathBindable[CMDWID] {
       def bind(key: String, value: String): Either[String, CMDWID] = {
-//        Log.debug ("BINDER "+value)
         WID.cmdfromPath(Enc.fromUrl(value)).map(Right(_)).getOrElse(Left("Oh-Uh"))
       }
       def unbind(key: String, wid: CMDWID): String =
@@ -65,30 +63,4 @@ object Binders {
     def unbind(key: String, wid: CMDWID) =
       key+"=" +Enc.toUrl(wid.wid.get.wpathFull)
    }
-
-//  implicit def widQueryStringBindable(implicit sBinder: QueryStringBindable[String]) = new QueryStringBindable[razie.wiki.model.WID] {
-//    def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, razie.wiki.model.WID]] = {
-//      for {
-//        cat  <- sBinder.bind(key + ".cat", params)
-//        name <- sBinder.bind(key + ".name", params)
-//        section <- sBinder.bind(key + ".section", params)
-//      } yield {
-//        val p = sBinder.bind(key + ".p", params)
-//        (cat, name) match {
-//          case (Right(c), Right(n)) => p match {
-//            case Some(Right(pp)) => Right(WID(c, n, Some(new ObjectId(pp)), section.fold((x=>None), Some(_))))
-//            case _ => Right(WID(c, n, None, section.fold((x=>None), Some(_))))
-//          }
-//          case _ => Left("Unable to bind bounds")
-//        }
-//      }
-//    }
-//
-//    def unbind(key: String, wid: razie.wiki.model.WID) =
-//      key+".cat=" + wid.cat + "&" +
-//      key+".name=" + wid.name + "&" +
-//      key+".section=" + wid.section + "&" +
-//      wid.parent.map(pp=>key+".p=" + pp.toString).getOrElse("")
-//   }
-
 }

@@ -1,7 +1,5 @@
 package razie.wiki.util
 
-import play.api.mvc.Request
-import razie.OR._
 import razie.wiki.WikiConfig
 import razie.wiki.model._
 

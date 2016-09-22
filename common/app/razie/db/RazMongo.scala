@@ -26,13 +26,16 @@ package object RazSalatContext {
   */
 abstract class SI[T >: Null] (what:String) {
   private var idb : T = null
-  /** set the database to use */
+
+  /** set the instance to use */
   def setInstance (adb:T) = {
-    if(idb != null) throw new IllegalStateException(what+" instance already initialized... ")
+    if(idb != null)
+      throw new IllegalStateException(what+" instance already initialized... ")
     idb = prep(adb)
   }
   def getInstance = {
-    if(idb == null) throw new IllegalStateException(what+" NOT initialized...")
+    if(idb == null)
+      throw new IllegalStateException(what+" NOT initialized...")
     idb
   }
 
@@ -60,6 +63,10 @@ object RazMongo extends SI[MongoDB] ("MongoDB") {
 
   def collectionNames = db.collectionNames filter (!_.startsWith("system."))
 
+  /** this is the main factory for db tables
+    *
+    * todo you need a way to overwrite this to use another persistance
+    */
   def apply(table: String) = new RazMongoTable(table)
 
   /** wrap all access to the DB object  - potentially use rk as a store */
@@ -84,7 +91,11 @@ object RazMongo extends SI[MongoDB] ("MongoDB") {
     def save(o:DBObject):Unit
   }
 
-  /** wrap all access to the DB object */
+  /** wrap all access to the DB object
+    *
+    * if you want to use something else for storage,
+    * overwrite this class and the factory RazMongo.apply
+    */
   class RazMongoTable(val name: String) extends RazTable {
     lazy val m = db(name)
     type CursorType = m.CursorType

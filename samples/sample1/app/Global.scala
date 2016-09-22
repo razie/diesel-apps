@@ -43,8 +43,8 @@ object Global extends WithFilters {
     }
 
     // OPTIONAL - customize the reactor/wiki/parser
-    Services.mkReactor = { (realm, fallBack) =>
-      new MyReactor(realm)
+    Services.mkReactor = { (realm, fallBacks, we)=>
+      new MyReactor(realm, fallBacks, we)
     }
 
     // create the default page
@@ -63,17 +63,17 @@ This is a sample first page. Try to create a new page: [[Admin:Sample1-1]].
 }
 
 /** OPTIONAL: my own reactor - customize the customizables */
-class MyReactor(realm: String) extends Reactor(realm) {
+class MyReactor (realm:String, fallBacks:List[Reactor], we:Option[WikiEntry]) extends Reactor (realm, Nil, we) {
 
   /** my wiki - used to compose my own parser */
-  class MyWikiInst(realm: String) extends WikiInst(realm, None) {
+  class MyWikiInst (realm:String, fallBacks:List[WikiInst]) extends WikiInst(realm, fallBacks) {
     class MyWikiParserCls(val realm: String) extends WikiParserT {
     }
 
     override def mkParser = new MyWikiParserCls(realm)
   }
 
-  override val wiki: WikiInst = new MyWikiInst(realm)
+  override val wiki: WikiInst = new MyWikiInst(realm, Nil)
 }
 
 

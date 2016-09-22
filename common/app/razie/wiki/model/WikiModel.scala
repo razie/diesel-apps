@@ -9,13 +9,13 @@ package razie.wiki.model
 import com.mongodb.casbah.Imports._
 import com.novus.salat._
 import org.joda.time.DateTime
+import razie.base.Audit
 import razie.wiki.parser.WAST.SState
 import razie.{cdebug, AA, Log}
 import razie.db.RazSalatContext._
 import razie.db._
 import razie.wiki.Services
 import razie.wiki.parser.WAST
-import razie.wiki.admin.Audit
 
 import scala.collection.mutable.ListBuffer
 
@@ -125,7 +125,7 @@ case class WikiEntry(
   // todo trying to avoid parsing it just to get the label
   def getLabel = if(content contains "label") contentProps.getOrElse("label", label) else label
   def getDescription = contentProps.getOrElse("meta.description", getFirstParagraph.mkString)
-  def getFirstParagraph = content.linesIterator.find(s => !s.trim.isEmpty && !".{".contains(s.trim.charAt(0)))
+  def getFirstParagraph = content.lines.find(s => !s.trim.isEmpty && !".{".contains(s.trim.charAt(0)))
   def wordCount = content.count(_ == ' ')
 
   def visibility = props.get(PROP_VISIBILITY).getOrElse(Visibility.PUBLIC)
@@ -185,7 +185,7 @@ case class WikiEntry(
   //?s means DOTALL - multiline
   // format: {{stype[ :]name:signature}}
   private final val PATT_SEC =
-    """(?s)\{\{\.*(section|def|lambda|dsl\.\w*)([: ])?([^:}]*)?(:)?([^}]*)?\}\}((?>.*?(?=\{\{/[^`])))\{\{/\.*(section|def|lambda|dsl\.\w*)?\}\}""".r
+    """(?s)\{\{\.*(section|def|lambda|inline|dsl\.\w*)([: ])?([^:}]*)?(:)?([^}]*)?\}\}((?>.*?(?=\{\{/[^`])))\{\{/\.*(section|def|lambda|inline|dsl\.\w*)?\}\}""".r
   private final val PATT_TEM =
     """(?s)\{\{\.*(template)([: ])?([^ :}]*)?([: ])?([^}]*)?\}\}((?>.*?(?=\{\{/[^`])))\{\{/\.*(template)?\}\}""".r
 
@@ -194,6 +194,10 @@ case class WikiEntry(
     // todo use the wiki parser later modifiers to load the sections, not a separate parser here
     // todo IMPORTANT - can't quite do that: these are used WHILE parsing other elements... see WikiDomParser.pmsg
     val PATT2 = pat
+
+    val x = pat replaceSomeIn (c, { m =>
+      None
+    })
 
     (for (m <- pat.findAllIn(c).matchData) yield {
       val mm = PATT2.findFirstMatchIn(m.matched).get
@@ -212,13 +216,13 @@ case class WikiEntry(
   }
 
   /** pattern for all sections requiring signing - (?s) means multi-line */
-  val PATTSIGN = """(?s)\{\{(template|def|lambda):([^:}]*)(:REVIEW[^}]*)\}\}((?>.*?(?=\{\{/)))\{\{/(template|def|lambda)?\}\}""".r //?s means DOTALL - multiline
+  val PATTSIGN = """(?s)\{\{(template|def|lambda|inline):([^:}]*)(:REVIEW[^}]*)\}\}((?>.*?(?=\{\{/)))\{\{/(template|def|lambda|inline)?\}\}""".r //?s means DOTALL - multiline
 
   /** find a section */
   def section(stype: String, name: String) = sections.find(x => x.stype == stype && x.name == name)
 
   /** scripts are just a special section */
-  lazy val scripts = sections.filter(x => "def" == x.stype || "lambda" == x.stype)
+  lazy val scripts = sections.filter(x => "def" == x.stype || "lambda" == x.stype || "inline" == x.stype)
 
   /** pre processed form - parsed and graphed. No context is used when parsing - only when folding this AST, so you can reuse the AST */
   lazy val ast = Wikis.preprocess(this.wid, this.markup, Wikis.noBadWords(this.content), Some(this))

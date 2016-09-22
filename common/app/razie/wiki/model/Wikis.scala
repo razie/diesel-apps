@@ -10,12 +10,12 @@ import com.mongodb.DBObject
 import com.mongodb.casbah.Imports._
 import com.novus.salat._
 import controllers.{VErrors, Validation}
+import razie.base.Audit
 import razie.{cdebug, Logging}
 import razie.db.{RMany, RazMongo}
 import razie.db.RazSalatContext._
 import razie.wiki.{Enc, WikiConfig, Services}
 import razie.wiki.parser.{WAST, ParserSettings}
-import razie.wiki.admin.{Audit}
 
 /** wiki factory and utils */
 object Wikis extends Logging with Validation {
@@ -284,13 +284,28 @@ object Wikis extends Logging with Validation {
       // run scripts
       val S_PAT = """`\{\{(call):([^#}]*)#([^}]*)\}\}`""".r
 
+      try {
       content = S_PAT replaceSomeIn (content, { m =>
         try {
           // find the page with the scripts and call them
           val pageWithScripts = WID.fromPath(m group 2).flatMap(x => Wikis(x.getRealm).find(x)).orElse(we)
-          pageWithScripts.flatMap(_.scripts.find(_.name == (m group 3))).filter(_.checkSignature(user)).map(s => runScript(s.content, "js", we, user))
-        } catch { case _: Throwable => Some("!?!") }
+          pageWithScripts.flatMap(_.scripts.find(_.name == (m group 3))).filter(_.checkSignature(user)).map{s=>
+            if("inline" == s.stype) {
+              s"""<script>
+                |${s.content}
+                |</script>
+              """.stripMargin
+            } else
+              runScript(s.content, "js", we, user)
+        }
+        } catch {
+          case t: Throwable => {
+            log("exception in script", t)
+            Some("`!?!`")
+          }
+        }
       })
+      } catch { case t: Throwable => log("exception in script", t); } // sometimes the pattern itself blows
 
       // TODO this is experimental
 //      val E_PAT = """`\{\{(e):([^}]*)\}\}`""".r
@@ -419,6 +434,18 @@ object Wikis extends Logging with Validation {
   }
 
   /** main formatting function
+    *
+    * @param wid - the wid being formatted
+    * @param markup - markup language being formatted
+    * @param icontent - the content being formatted or "" if there is a WikiEntry being formatted
+    * @param we - optional page for context for formatting
+    * @return
+    */
+  def format(we: WikiEntry, user:Option[WikiUser]) : String = {
+    format (we.wid, we.markup, "", Some(we), user)
+  }
+
+  /** main formatting function
    *
    * @param wid - the wid being formatted
    * @param markup - markup language being formatted
@@ -426,7 +453,7 @@ object Wikis extends Logging with Validation {
    * @param we - optional page for context for formatting
    * @return
    */
-  def format(wid: WID, markup: String, icontent: String, we: Option[WikiEntry], user:Option[WikiUser]) = {
+  def format(wid: WID, markup: String, icontent: String, we: Option[WikiEntry], user:Option[WikiUser]) : String = {
     if (JSON == wid.cat || JSON == markup || XML == wid.cat || XML == markup)
       formatJson(wid, markup, icontent, we)
     else {

@@ -22,9 +22,12 @@ object ParserSettings {
   /** debug the buildig of AST while pasing */
   var debugStates = false
 
-  Services.configCallback {() => Services.config.sitecfg("ParserSettings.debugStates").foreach{s=>
-    debugStates = s.toBoolean
-  }}
+  WikiObservers mini {
+    case x:WikiConfigChanged =>
+      Services.config.sitecfg("ParserSettings.debugStates").foreach { s =>
+        debugStates = s.toBoolean
+      }
+  }
 
   //======================= forbidden html tags TODO it's easier to allow instead?
 

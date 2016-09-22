@@ -17,13 +17,10 @@ case class Corr(err: String, action: Option[String] = None) {
   def apply (moreInfo:String) = Corr (s"$err ($moreInfo)", action)
 }
 
-/** void error collector */
-object IgnoreErrors extends VErrors with Logging {
-  override def add (s: Corr) = { debug ("IGNORING error: " + s); s }
-  override def add (s: String) = { debug ("IGNORING error: " + s); s }
-}
-
-/** common validation utilities - utilities and constants for errors/corrections and so on. mix into your controllers to get these */
+/** common validation utilities - utilities and constants for errors/corrections and so on. mix into your controllers to get these
+  *
+  * this is meant to be mixed into controllers
+  * */
 trait Validation extends Logging {
 
   final val cNoAuth = new Corr("Not logged in", """You need to log in or register and then click the link again!"""); //cNoAuth;
@@ -38,12 +35,8 @@ trait Validation extends Logging {
     "This is a club-members only topic and you are not a club member",
     """You need to request membership in this club <a href="/wikie/linkuser/Club:%s?wc=0">%s</a>!""".format(clubName,clubName))
 
-  def cNotCoach (clubName:String) = new Corr(
-    "This is only for coaches of club "+clubName,
-    "")
-
   def cNotAdmin (clubName:String) = new Corr(
-      "This is an admin operation and you are not a club admin",
+      s"This is an admin operation and you are not a club admin [$clubName]",
       "")
 
   def cNoQuotaUpdates = new Corr(
@@ -93,7 +86,7 @@ trait Validation extends Logging {
   }
   def vEmail: Constraint[String] = Constraint[String]("constraint.emailFormat") { o =>
     if (o.length > 0 && !o.matches("[^@]+@[^@]+\\.[^@]+") || o.contains(" ") || o.contains("\t"))
-      Invalid(ValidationError("re-type the email, please")) else Valid
+      Invalid(ValidationError("invalid email")) else Valid
   }
 
   def vldSpec(s: String) = !(s.contains('<') || s.contains('>'))
@@ -109,4 +102,11 @@ class VErrors(var err: List[Corr] = Nil) {
 
   def mkString = err.mkString("<br>")
 }
+
+/** void error collector */
+object IgnoreErrors extends VErrors with Logging {
+  override def add (s: Corr) = { debug ("IGNORING error: " + s); s }
+  override def add (s: String) = { debug ("IGNORING error: " + s); s }
+}
+
 

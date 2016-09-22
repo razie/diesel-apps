@@ -7,16 +7,17 @@
 package razie.wiki.model
 
 import org.bson.types.ObjectId
-import razie.db.{RTable, RCreate, ROne, RUpdate}
+import razie.db._
 import razie.db.tx.txn
 
 /** keep track of view counts, per wiki page id */
 @RTable
 case class WikiCount (
   pid: ObjectId,
-  count: Long = 1
+  count: Long = 1,
+  _id:ObjectId = new ObjectId()
 //todo add thumbup, thumbdown
-  ) {
+  ) extends REntity[WikiCount] {
   def inc = {
     //todo optimize use upsert
     WikiCount.findOne (pid) map (p=>

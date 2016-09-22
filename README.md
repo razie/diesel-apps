@@ -62,7 +62,7 @@ This is not your average markdown wiki... you can use it to create complete webs
 Details
 ==========
 
-See the [http://www.wikireactor.com/engine]
+See the [http://www.dieselapps.com/engine]
 
 What's a wiki domain engine? Well, more than a plain wiki engine... read some of this wiki engine's features here: http://www.racerkidz.com/wiki/Admin:Wiki_Engine - it's got quite a bit of functionality I'm exploring... including:
 

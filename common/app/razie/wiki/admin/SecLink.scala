@@ -28,14 +28,13 @@ import razie.db.tx.txn
  */
 @RTable
 case class SecLink(
-                    link: String,
-                    host: Option[String] = None,
-                    maxCount: Int = 1, // TODO use this somehow - not certain they're done though...
-                    expiry: DateTime = DateTime.now.plusHours(8),
-                    count: Int = 0, // how many times it was done
-                    lastDoneDtm: DateTime = DateTime.now,
-                    _id: ObjectId = new ObjectId()) {
-  //extends REntity[DoSec] {
+  link: String,
+  host: Option[String] = None,
+  maxCount: Int = 1, // TODO use this somehow - not certain they're done though...
+  expiry: DateTime = DateTime.now.plusHours(8),
+  count: Int = 0, // how many times it was done
+  lastDoneDtm: DateTime = DateTime.now,
+  _id: ObjectId = new ObjectId()) {
 
   def id = _id.toString
 

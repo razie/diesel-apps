@@ -10,9 +10,9 @@ import com.mongodb.casbah.Imports._
 import com.novus.salat.grater
 import org.bson.types.ObjectId
 import org.joda.time.DateTime
+import razie.base.Audit
 import razie.db._
 import razie.db.RazSalatContext.ctx
-import razie.wiki.admin.Audit
 
 import scala.collection.mutable.ListBuffer
 import razie.db.tx.txn

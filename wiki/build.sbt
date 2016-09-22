@@ -29,3 +29,8 @@ libraryDependencies ++= Seq(
     "com.razie"          %% "scripster-core"     % "0.9.1"//-SNAPSHOT"
 )
 
+unmanagedSourceDirectories in Compile += baseDirectory.value / "../common/app"
+
+sourceDirectories in (Compile, TwirlKeys.compileTemplates) := Seq((sourceDirectory in Compile).value)
+
+

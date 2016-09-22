@@ -4,11 +4,11 @@
  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
  */
-package razie.wiki.admin
-
-import razie.base.Auditor
+package razie.base
 
 /**
+ * fairly generic website audit service.
+ *
  * many operations are audited - this is strait in the log files, as well as the logdb() audit facility.
  * Audited events are supposed to end up somewhere special or even notify someone etc
  *
@@ -50,7 +50,7 @@ trait AuditService extends Auditor with razie.Logging {
   def unauthorized(details: String) { audit(logdb(ERR_UNAUTHORIZED, many(details))) }
 }
 
-/** sample stub audit service */
+/** sample stub audit service - no database backup */
 class NoAuditService extends AuditService {
   /** log a db opreation - this method you need to provide */
   def logdb(what: String, details: Any*): String = {

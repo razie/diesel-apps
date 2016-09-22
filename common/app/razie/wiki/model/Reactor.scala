@@ -12,7 +12,6 @@ import com.novus.salat._
 import razie.clog
 import razie.db.RazSalatContext._
 import razie.db.RazMongo
-import razie.wiki.model.WikiObservers
 import razie.wiki.dom.WikiDomain
 import razie.wiki.util.DslProps
 import razie.wiki.{Services, WikiConfig}

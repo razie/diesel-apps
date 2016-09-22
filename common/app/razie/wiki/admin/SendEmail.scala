@@ -15,6 +15,7 @@ import akka.actor.{Actor, Props}
 import org.bson.types.ObjectId
 import org.joda.time.DateTime
 import play.libs.Akka
+import razie.base.Audit
 import razie.db.{RMany, ROne, REntity, RTable}
 import razie.wiki.Services
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -165,13 +166,13 @@ object SendEmail extends razie.Logging {
   var state = STATE_OK
 
   def setState (news:String) = {
-    Audit.logdb("EMAIL_STATE", s"from $state to $news")
+    if(state != news) Audit.logdb("EMAIL_STATE", s"from $state to $news")
     state = news
   }
 
   // todo improve to include port
   def getNodeId = {
-    java.net.InetAddress.getLocalHost.getCanonicalHostName
+    Services.config.node
   }
 
   /** email sender - also acts on a timer for retries

@@ -30,12 +30,13 @@ object Autosave {
   def find(name:String, userId : Option[ObjectId]) =
     userId.flatMap(uid=>
       ROne[Autosave]("name" -> name, "userId" -> userId)
-    ).orElse(
-      ROne[Autosave]("name" -> name)
     ).map(_.contents)
 
-  def OR(name:String, userId: ObjectId, c:Map[String,String]) = find(name, userId).getOrElse(c)
+  /** find or default - will not save the default */
+  def OR(name:String, userId: ObjectId, c:Map[String,String]) =
+    find(name, userId).getOrElse(c)
 
+  /** create or update */
   def set(name:String, userId: ObjectId, c:Map[String,String]) =
     ROne[Autosave]("name" -> name, "userId" -> userId).map(_.copy(contents=c).update).getOrElse(Autosave(name, userId, c).create)
 }

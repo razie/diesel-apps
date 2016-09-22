@@ -11,6 +11,17 @@ import controllers.{IgnoreErrors, VErrors}
 
 import scala.collection.mutable.ListBuffer
 
+/** just a syntax marker for events -
+  *
+  * find usages to find all types of events that are sent through the handlers
+  * */
+trait WikiEventBase {
+  def node : String
+}
+
+/** an event that the configuration changed */
+class WikiConfigChanged (val node:String="") extends WikiEventBase
+
 /** a generic event refering to an entity
   *
   * @param action what happened to it - use constants below. Extensions must start with prefiex per example
@@ -28,7 +39,8 @@ case class WikiEvent[A] (
   @Ignore entity    :Option[A]=None,
   @Ignore oldEntity :Option[A]=None,
   oldId             :Option[String]=None,
-  node              :Option[String] = None)
+  node              :String = ""
+  ) extends WikiEventBase
 
 /** some constants */
 object WikiEvent {
@@ -40,33 +52,46 @@ object WikiEvent {
 }
 
 /**
- * simple notification observers attempt - should really move to an actor implementation
-  *
-  * todo this is not thread safe
-  */
+ * implement to get before/after notifications of certain events
+ */
 trait WikiObserver {
-  def before[A](event: WikiEvent[A])(implicit errCollector: VErrors = IgnoreErrors): Boolean = { true }
-  def after[A](event: WikiEvent[A])(implicit errCollector: VErrors = IgnoreErrors): Unit = { }
+  /** before is invoked before the event and can block the occurence of the event */
+  def before(event: WikiEventBase)(implicit errCollector: VErrors = IgnoreErrors): Boolean = { true }
+  /** invoked after the event, different cluster node perhaps */
+  def after(event: WikiEventBase)(implicit errCollector: VErrors = IgnoreErrors): Unit = { }
 }
 
-/** listen to and observe wiki entities being updated */
+/** listen to and observe wiki entities being updated
+  *
+  * todo this is not thread safe
+  * */
 object WikiObservers {
   val notifieds = new ListBuffer[WikiObserver]()
 
   def add(n: WikiObserver) = notifieds append n
 
-  def mini(upd: PartialFunction[WikiEvent[_], Unit]) = {
+  /** add an event handler
+    *
+    * Events are everything of interest:
+    * - most events are derived from WikiEventBase
+    * - wiki topic changes
+    * - configuration changes
+    * - etc
+    *
+    * Your handler needs to be prepared to handle the events on separte threads.
+    */
+  def mini(upd: PartialFunction[WikiEventBase, Unit]) = {
     add(new WikiObserver {
-      override def after[A](event: WikiEvent[A])(implicit errCollector: VErrors = IgnoreErrors): Unit = {
+      override def after(event: WikiEventBase)(implicit errCollector: VErrors = IgnoreErrors): Unit = {
         if (upd.isDefinedAt(event)) upd(event)
       }
     })
   }
 
-  def before[A](event: WikiEvent[A])(implicit errCollector: VErrors = IgnoreErrors): Boolean = {
+  def before(event: WikiEventBase)(implicit errCollector: VErrors = IgnoreErrors): Boolean = {
     notifieds.foldLeft(true)((x, y) => x && y.before(event)(errCollector))
   }
-  def after[A](event: WikiEvent[A])(implicit errCollector: VErrors = IgnoreErrors): Unit = {
+  def after(event: WikiEventBase)(implicit errCollector: VErrors = IgnoreErrors): Unit = {
 //    val xx = notifieds.map(_.getClass.getCanonicalName) // debug
     notifieds foreach (_.after(event)(errCollector))
   }

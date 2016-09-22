@@ -454,11 +454,11 @@ trait WikiParserT extends WikiParserMini with CsvParser {
             SState("""<a class="badge badge-warning" href="http://www.racerkidz.com">RacerKidz</a>""")
         }
         case "wiki" =>
-          SState("""<a class="badge badge-warning" href="http://www.wikireactor.com">WikiReactor</a>""")
+          SState("""<a class="badge badge-warning" href="http://wiki.dieselapps.com">DieselApps</a>""")
         case "ski" =>
           SState("""<a class="badge badge-warning" href="http://www.effectiveskiing.com">EffectiveSkiing</a>""")
         case _ =>
-          SState("""<a class="badge badge-warning" href="http://www.wikireactor.com">WikiReactor</a>""")
+          SState("""<a class="badge badge-warning" href="http://www.dieselapps.com">DieselApps</a>""")
       }
     }
   }

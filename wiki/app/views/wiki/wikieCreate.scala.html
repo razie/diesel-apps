@@ -1,0 +1,15 @@
+@**************
+
+**************@
+@(cat:String)(implicit stok:controllers.StateOk)
+
+@stok.title("Creating a "+cat)
+
+@helper.form(action=routes.Wikie.addWithName(cat), 'class->"well form-inline") {
+  Name: <input type="text" class="input-xlarge" name="name" placeholder="Name">
+
+  <button type="submit" class="btn btn-default">Create Now!</button>
+  }
+
+<hr>
+

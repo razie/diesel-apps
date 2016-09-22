@@ -152,7 +152,12 @@ object RDelete {
     RazMongo(tbl(m)).remove(Map("_id" -> x._id))
 }
 
-/** base class for entities - provides most common DB ops automatically */
+/** base class for entities - provides most common DB ops automatically
+  *
+  * case class T(a,b) extends REntity[T]
+  * new T (a,b).create
+  *
+  */
 class REntity[T <: { def _id: ObjectId }](implicit m: Manifest[T]) { this: T =>
   // had to copy this
   implicit def toroa(id: ObjectId) = new RMongo.as(id)

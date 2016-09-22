@@ -20,9 +20,9 @@ import scala.collection.mutable
  * create a property file rk.properties and include in classpath,
  * containing the properties below
  *
- *   *****************************************************************
- *   ************* you can access this via Services.config ***********
- *   *****************************************************************
+ * *****************************************************************
+ * ************* you can access this via Services.config ***********
+ * *****************************************************************
  */
 abstract class WikiConfig {
   // load properties from system or from a file rk.properties
@@ -45,6 +45,7 @@ abstract class WikiConfig {
 
   final val rk = System.getProperty("rk.home", props.getProperty("rk.home"))
   final val hostport = props.getProperty("rk.hostport")
+  final val node = props.getProperty("rk.node", hostport)//java.net.InetAddress.getLocalHost.getCanonicalHostName)
   final val safeMode = props.getProperty("rk.safemode")
   final val analytics = true; //props.getProperty("rk.analytics").toBoolean
   val noads = props.getProperty("rk.noads").toBoolean
@@ -176,7 +177,7 @@ class SampleConfig extends WikiConfig {
   private var ireservedNames = List[String]()
 
   def reloadUrlMap {
-    println("========================== RELOADING URL MAP ==============================")
+    println("========================== SAMPLE RELOADING URL MAP ==============================")
 
     val props = ""
 
@@ -197,7 +198,8 @@ class SampleConfig extends WikiConfig {
         xconfig.get(pre).map(_.put(prop, u._2))
     }
 
-    Services.configCallbacks foreach (_())
+    // todo should fire this event
+    // Services ! new WikiConfigChanged
 
     irobotUserAgents = sitecfg("robots.useragents").toList.flatMap(s=>s.split("[;,]"))
     ireservedNames = sitecfg("reserved.names").toList.flatMap(s=>s.split("[;,]"))
