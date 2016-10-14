@@ -9,6 +9,7 @@ package razie.db
 import com.mongodb.DBObject
 import com.mongodb.casbah.{MongoDB, MongoCollection}
 import com.novus.salat.{Context, NeverTypeHint}
+import org.joda.time.DateTime
 import scala.util.Try
 import com.mongodb.casbah.Imports._
 
@@ -56,7 +57,7 @@ object RazMongo extends SI[MongoDB] ("MongoDB") {
   protected override def prep(adb:MongoDB) = {adb}
 
   /** important during the upgrades themselves - you can't recursively use db */
-  def withDb[B](d: MongoCollection, reason:String="?")(f: MongoCollection => B) =
+  def withDb[B](d: MongoCollection, reason:String="-")(f: MongoCollection => B) =
     dbop(s"withDb ${d.name} reason=$reason") {
       f(d);
     }
@@ -68,6 +69,17 @@ object RazMongo extends SI[MongoDB] ("MongoDB") {
     * todo you need a way to overwrite this to use another persistance
     */
   def apply(table: String) = new RazMongoTable(table)
+
+  def findUpgrade (name:String) = apply("Ver").findOne(Map("name" -> name))
+  def didUpgrade (name:String) = {
+    apply("Ver") += Map("name" -> name, "dtm" -> DateTime.now)
+  }
+  def upgradeMaybe (name:String, prereq : Array[String])(body : => Unit) = {
+    if(! findUpgrade(name).isDefined) {
+      body
+      didUpgrade(name)
+    }
+  }
 
   /** wrap all access to the DB object  - potentially use rk as a store */
   trait RazTable {

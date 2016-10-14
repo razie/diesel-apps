@@ -9,6 +9,8 @@ package razie.wiki.dom
 import razie.diesel.dom._
 import razie.wiki.model._
 
+import scala.collection.mutable.ListBuffer
+
 /** encapsulates the knowledge to use the wiki-defined domain model
   *
   * extracts the domain from a reactor and activates it
@@ -21,7 +23,7 @@ class WikiDomain (val realm:String, val wi:WikiInst) {
 
   def rdom : RDomain = synchronized {
     if (irdom == null)
-      irdom = Wikis(realm).pages("DslDomain").toList.flatMap(p=>WikiDomain.domFrom(p).toList).fold(toRdom(realm))(_ plus _.revise)
+      irdom = Wikis(realm).pages("DslDomain").toList.flatMap(p=>WikiDomain.domFrom(p).toList).fold(toRdom)(_ plus _.revise)
     irdom
   }
 
@@ -34,20 +36,36 @@ class WikiDomain (val realm:String, val wi:WikiInst) {
   def isWikiCategory(cat: String): Boolean = rdom.classes.values.exists(c=> c.name == cat && c.stereotypes.contains(WIKI_CAT))
 
   /** parse categories into domain model */
-  def toRdom(realm:String): RDomain = {
+  def toRdom : RDomain = {
     val diamonds = for (cat <- wi.categories if cat.contentProps.exists(t=>t._1.startsWith("diamond:"))) yield {
       val x = cat.contentProps.find(t=>t._1.startsWith("diamond"))
     }
 
-    val classes = for (cat <- wi.categories) yield {
+    // inherit and linearize classes in mixins
+    val allClasses = new ListBuffer[WikiEntry]()
+    allClasses appendAll wi.categories
+    wi.fallBacks.foreach(
+      _.categories.foreach(c=>
+        if(!allClasses.exists(_.name == c.name)) allClasses.append(c)
+      )
+    )
+
+    val classes = for (cat <- allClasses) yield {
       val assocs =
         for (
           t <- cat.contentProps if (t._1 startsWith "roles:");
           r <- t._2.split(",")
         ) yield {
-        A("", cat.name, t._1.split(":")(1), "", r)
+          A("", cat.name, t._1.split(":")(1), "", r)
+        }
+      val base =
+        for (
+          t <- cat.contentProps if (t._1 startsWith "dom.base");
+          r <- t._2.split(",")
+        ) yield {
+        r
       }
-      C(cat.name, "", WIKI_CAT, Nil, "", Nil, Nil, assocs.toList)
+      C(cat.name, "", WIKI_CAT, base.toList, "", Nil, Nil, assocs.toList)
     }
 
     var x = new RDomain(realm, classes.map(c=>(c.name, c)).toMap, classes.flatMap(_.assocs).toList, List.empty, Map.empty)
@@ -80,7 +98,20 @@ class WikiDomain (val realm:String, val wi:WikiInst) {
     wi.category(cat).flatMap(_.contentProps.get("noAds")).isDefined
 
   def needsParent(cat: String) =
-    rdom.assocs.filter(t=> t.a == cat && t.zRole == "Parent").map(_.z)
+    rdom.assocs.filter(t=> t.a == cat && t.zRole == "Parent" && !Array("User", "Person").contains(t.z)).map(_.z)
+
+  def isA(what: String, cat:String) : Boolean =
+    what == cat || rdom.classes.get(cat).toList.flatMap(_.base).foldLeft(false)((a,b) => a || isA(what, b))
+
+  // todo optimize
+  def dtree(base: String) : List[String] =
+    (base :: rdom.classes.values.filter(_.base contains base).toList.flatMap(x=>dtree(x.name))).distinct
+
+  def roles(a: String, z:String) : List[String] = {
+    val mine = rdom.classes.get(a).toList.flatMap(_.assocs).filter(_.z == z).map(_.zRole)
+    if(mine.isEmpty) rdom.classes.get(a).toList.flatMap(_.base).foldLeft(List.empty[String])((a,b) => a ++ roles(b, z))
+    else mine
+  }
 
 }
 
@@ -100,7 +131,7 @@ object WikiDomain {//extends WikiDomain (Wikis.RK) {
     //    if(we.tags.contains(R_DOM) || we.tags.contains(DSL_DOM))
     Some(
       we.cache.getOrElseUpdate("dom", {
-        var x=new RDomain("?",
+        var x=new RDomain("-",
           domList.collect {
             case c:C => (c.name, c)
           }.toMap,

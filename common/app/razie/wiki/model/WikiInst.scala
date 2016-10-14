@@ -9,7 +9,7 @@ package razie.wiki.model
 import com.mongodb.DBObject
 import com.mongodb.casbah.Imports._
 import com.novus.salat._
-import razie.clog
+import razie.{cdebug, clog}
 import razie.db.RazSalatContext._
 import razie.db.{RMany, RazMongo}
 import razie.wiki.dom.WikiDomain
@@ -25,9 +25,13 @@ import scala.collection.mutable.ListBuffer
   * */
 object WeCache {
   var loading=false
+  var maxRecs = 500
 
   private var pre  = new ListBuffer[WikiEntry]()
-  private var icats  = new collection.mutable.HashMap[String,Map[String, WikiEntry]]()
+
+  // special extra cache of categories per realm
+  private var icats = new collection.mutable.HashMap[String,Map[String, WikiEntry]]()
+
   private var cache = new collection.mutable.HashMap[UWID,WikiEntry]()
   private var depys = new collection.mutable.HashMap[UWID,List[UWID]]()
 
@@ -37,7 +41,7 @@ object WeCache {
     put(we, false)
   }
 
-  /** at the end of starting up - process preloaded wikis */
+  /** lazy, at the end of starting up - process preloaded wikis */
   def load() = {
     if(!loading && pre.nonEmpty) {
       loading=true
@@ -50,6 +54,7 @@ object WeCache {
   def put (we:WikiEntry, withDepy:Boolean=true) = synchronized {
     cache.put(we.uwid, we)
     if (we.category == "Category") {
+      // categories sit also in the special icats
       val x:Map[String, WikiEntry] = icats.get(we.realm) getOrElse Map.empty
       icats.put(we.realm, x + (we.name -> we))
     }
@@ -83,6 +88,11 @@ object WeCache {
     icats.getOrElse(realm, Map.empty)
   }
 
+  def passthrough (ObjectId:String) = synchronized {
+    load()
+//    icats.getOrElse(realm, Map.empty)
+  }
+
 }
 
 /** a wiki instance. corresponds to one reactor/realm
@@ -107,8 +117,6 @@ class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
   }
 
   def cats = WeCache.cats(realm)
-//    new collection.mutable.HashMap[String,WikiEntry]() ++
-//    (RMany[WikiEntry](REALM, "category" -> "Category") map (w=>(w.name,w))).toList
 
   /** cache of tags - updated by the WikiIndex */
   lazy val tags = new collection.mutable.HashMap[String,WikiEntry]() ++
@@ -147,14 +155,43 @@ class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
   def labelFor(wid: WID, action: String) =
     category(wid.cat) flatMap (_.contentProps.get("label." + action))
 
+  import play.api.cache._
+  import play.api.Play.current
+
   // this can't be further optimized - it SHOULD lookup the storage, to refresh stuff as well
   private def ifind(wid: WID) = {
     wid.parent.map {p=>
       weTable(wid.cat).findOne(Map(REALM, "category" -> wid.cat, "name" -> wid.name, "parent" -> p))
     } getOrElse {
-        weTable(wid.cat).findOne(Map(REALM, "category" -> wid.cat, "name" -> Wikis.formatName(wid.name))) orElse
-      // todo obsolete this: there are still some old entries in the main table with cats that should be in the new tables
-        table.findOne(Map(REALM, "category" -> wid.cat, "name" -> Wikis.formatName(wid.name)))
+      if (Services.config.cacheDb) {
+        Cache.getAs[DBObject](wid.wpath+".db").orElse {
+          cdebug << "WIKI_CACHED DB-" + wid.wpath
+          val n = weTable(wid.cat).findOne(Map(REALM, "category" -> wid.cat, "name" -> Wikis.formatName(wid.name)))
+          n.filter(x => !Wikis.PERSISTED.contains(wid.cat)).map {
+            // only for main wikis with no parents
+            // todo can refine this logic further
+            Cache.set(wid.wpath + ".db", _, 300) // 10 minutes
+          }
+          n
+        }
+      } else {
+        weTable(wid.cat).findOne(Map(REALM, "category" -> wid.cat, "name" -> Wikis.formatName(wid.name)))
+      }
+    }
+  }
+
+  WikiObservers mini {
+    case ev@WikiEvent(action, "WikiEntry", _, entity, _, _, _) => {
+      action match {
+        case WikiAudit.UPD_RENAME => {
+          val oldWid = ev.oldId.flatMap(WID.fromPath)
+          Wikis.clearCache(oldWid.get)
+          }
+        case a if WikiAudit.isUpd(a) => {
+          val wid = WID.fromPath(ev.id)
+          Wikis.clearCache(wid.get)
+        }
+      }
     }
   }
 
@@ -162,9 +199,14 @@ class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
   def findById(id: String) = find(new ObjectId(id))
   // TODO optimize
   def find(id: ObjectId) =
-    (table.findOne(Map("_id" -> id)) orElse (Wikis.PERSISTED.find {cat=>
-      weTable(cat).findOne(Map("_id" -> id)).isDefined
-    } flatMap {s:String=>weTable(s).findOne(Map("_id" -> id))})) map (grater[WikiEntry].asObject(_))
+    (
+      table.findOne(Map("_id" -> id)) orElse (
+        Wikis.PERSISTED.find {cat=>
+          weTable(cat).findOne(Map("_id" -> id)).isDefined
+        } flatMap {s:String=>
+          weTable(s).findOne(Map("_id" -> id))})
+      ) map (grater[WikiEntry].asObject(_)
+    )
 
   def findById(cat:String, id: String):Option[WikiEntry] = findById(cat, new ObjectId(id))
 
@@ -250,7 +292,7 @@ class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
     * @param wid
     * @param content
     * @param which one of html|json
-    * @return
+    * @return the new content, with the templates applied
     */
   def applyTemplates (wid:WID, content:String, which:String) = {
     val wpath=wid.wpath

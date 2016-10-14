@@ -10,7 +10,10 @@ import com.mongodb.casbah.Imports.ObjectId
 import org.joda.time.DateTime
 import razie.db._
 
-/** register an IP address to be banned */
+/** register an IP address to be banned
+  *
+  * todo complete mechanism
+  */
 @RTable
 case class BannedIp (
     ip:String,

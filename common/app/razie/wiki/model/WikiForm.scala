@@ -37,11 +37,10 @@ case class WikiForm(we: WikiEntry) {
     }
   }
 
-  def hasFormData = we.content.contains("section:formData}}")
   def formState = we.fields.get(FormStatus.FORM_STATE).map(_.value)
-  def canEdit = we.fields.get(FormStatus.FORM_STATE).exists(Array(FormStatus.EDITING, FormStatus.CREATED) contains _.value)
-  def canBeApproved = we.fields.get(FormStatus.FORM_STATE).exists(_.value == FormStatus.SUBMITTED)
-  def canBeRejected = we.fields.get(FormStatus.FORM_STATE).exists(_.value == FormStatus.APPROVED)
+  def canEdit = formState.exists(Array(FormStatus.EDITING, FormStatus.CREATED) contains _)
+  def canBeApproved = formState.exists(_ == FormStatus.SUBMITTED)
+  def canBeRejected = formState.exists(_ == FormStatus.APPROVED)
   def formData = we.section("section", "formData")
   def formDataJson = we.section("section", "formData").map(s => razie.Snakk.jsonParsed(s.content))
   def fields = we.fields

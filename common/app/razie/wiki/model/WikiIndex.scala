@@ -53,6 +53,7 @@ class WikiIndex (val realm:String, val fallBacks : List[WikiIndex]) {
   val mixins = new Mixins[WikiIndex](fallBacks)
 
   private lazy val actualIndex = {
+    /** the index is (name, (WID, ID)*)* with multiple WIDs per name */
     val t = new TripleIdx[String, WID, ObjectId]()
     // load it the first time
     Wikis(realm).foreach { db =>
@@ -115,7 +116,7 @@ class WikiIndex (val realm:String, val fallBacks : List[WikiIndex]) {
     oldw.uwid.foreach(oldUwid=>
       idx.put(neww.name, neww, oldUwid.id)
     )
-    lower.remove(oldw.name)
+    lower.remove(oldw.name.toLowerCase)
     lower.put(neww.name.toLowerCase(), neww.name)
     labels.remove(oldw.name)
     neww.page.foreach(newPage=>
@@ -181,10 +182,14 @@ class WikiIndex (val realm:String, val fallBacks : List[WikiIndex]) {
   }
 
   // TODO what's the best way to optimize this - at least track stats and optimize when painful
-  def getOptions(str: String, cnt:Int) : List[String] = withIndex { idx =>
+  // cat can be a comma-sep-list
+  def getOptions(cat:String, str: String, cnt:Int) : List[String] = withIndex { idx =>
     GlobalData.wikiOptions += 1
-    val temp = lower.filterKeys(_.contains(str)).map(_._2)
-    temp.take(cnt).toList //::: fallBack.map(_.getOptions(str, cnt-temp.size)).getOrElse(Nil)
+    val temp = lower.filterKeys(_.contains(str))
+    val CATS = cat.split(", ")
+    val x = if(cat != "") temp.filter(x=>idx.get1k(x._2).exists(x=>CATS.contains(x.cat))) else temp
+    val y = x.take(cnt)
+    y.map(_._2).toList //::: fallBack.map(_.getOptions(str, cnt-temp.size)).getOrElse(Nil)
   }
 
   /** get list of wids that matches the name */

@@ -16,9 +16,14 @@ import razie.db.{RMany, RazMongo}
 import razie.db.RazSalatContext._
 import razie.wiki.{Enc, WikiConfig, Services}
 import razie.wiki.parser.{WAST, ParserSettings}
+import play.api.cache._
+import play.api.Play.current
 
 /** wiki factory and utils */
 object Wikis extends Logging with Validation {
+  final val EVENTS = Array("Event", "Training", "Race")
+  def isEvent(cat:String) = "Race" == cat || "Event" == cat || "Training" == cat
+
   //todo per realm
   /** these categories are persisted in their own tables */
   final val PERSISTED = Array("Item", "Event", "Training", "Note", "Entry", "Form",
@@ -32,6 +37,7 @@ object Wikis extends Logging with Validation {
   final val RK = WikiConfig.RK
   final val DFLT = RK // todo replace with RK
 
+  def domain (realm:String = RK) = WikiReactors(realm).domain
   def apply (realm:String = RK) = WikiReactors(realm).wiki
   def rk = WikiReactors(RK).wiki
   def dflt = WikiReactors(WikiReactors.WIKI).wiki
@@ -39,7 +45,8 @@ object Wikis extends Logging with Validation {
   def fromGrated[T <: AnyRef](o: DBObject)(implicit m: Manifest[T]) = grater[T](ctx, m).asObject(o)
 
   // TODO refactor convenience
-  def find(wid: WID): Option[WikiEntry] = apply(wid.getRealm).find(wid)
+  def find(wid: WID): Option[WikiEntry] =
+    apply(wid.getRealm).find(wid)
 
   // TODO find by ID is bad, no - how to make it work across wikis ?
   /** @deprecated optimize with realm */
@@ -61,9 +68,11 @@ object Wikis extends Logging with Validation {
     }
     else rk.category(cat)
 
-  def linksFrom(from: UWID) = RMany[WikiLink]("from" -> from.grated)
+//  def linksFrom(from: UWID) = RMany[WikiLink]("from" -> from.grated)
+  def linksFrom(to: UWID) = RMany[WikiLink]("from.cat" -> to.cat, "from.id" -> to.id)
 
-  def linksTo(to: UWID) = RMany[WikiLink]("to" -> to.grated)
+//  def linksTo(to: UWID) = RMany[WikiLink]("to" -> to.grated)
+  def linksTo(to: UWID) = RMany[WikiLink]("to.cat" -> to.cat, "to.id" -> to.id)
 
   def childrenOf(parent: UWID) =
     RMany[WikiLink]("to" -> parent.grated, "how" -> "Child").map(_.from)
@@ -110,7 +119,8 @@ object Wikis extends Logging with Validation {
 
 
 
-  private def iformatName(name: String, pat: String, pat2: String = "") = name.replaceAll(pat, "_").replaceAll(pat2, "").replaceAll("_+", "_").replaceFirst("_$", "")
+  private def iformatName(name: String, pat: String, pat2: String = "") =
+    name.replaceAll(pat, "_").replaceAll(pat2, "").replaceAll("_+", "_").replaceFirst("_$", "")
 
   /** format a simple name - try NOT to use this */
   //  def formatName(name: String): String = iformatName(name, """[ &?,;/:{}\[\]]""")
@@ -139,7 +149,7 @@ object Wikis extends Logging with Validation {
 
     val bigName = Wikis.apply(r).index.getForLower(name.toLowerCase())
     if (bigName.isDefined || wid.cat.matches("User")) {
-      var newwid = Wikis.apply(r).index.getWids(bigName.get).headOption getOrElse wid.copy(name=bigName.get)
+      var newwid = Wikis.apply(r).index.getWids(bigName.get).headOption.map(_.copy(section=wid.section)) getOrElse wid.copy(name=bigName.get)
 //      var newwid = wid.copy(name=bigName.get)
       var u = Services.config.urlmap(newwid.formatted.urlRelative(curRealm))
 
@@ -230,14 +240,20 @@ object Wikis extends Logging with Validation {
         c2 = c2.replaceAll("""\[\[\../""", """[[%s""".format(wid.parentWid.map(wp => wp.realm.map(_ + ".").mkString + wp.cat + ":" + wp.name + "/").getOrElse(""))) // siblings topics
 
       // TODO stupid - 3 levels of include...
-      include(wid, c2).map { c2 = _ }.flatMap { x =>
+      include(wid, c2).map {x=>
+        page.map(_.cacheable = false) // simple dirty if includes, no depy to manage
+        c2 = x
+      }.flatMap { x =>
         include(wid, c2).map { c2 = _ }.flatMap { x =>
           include(wid, c2).map { c2 = _ }
         }
       }
 
       // pre-mods
-      page.orElse(wid.page).map { x => c2 = razie.wiki.mods.WikiMods.modPreParsing(x, Some(c2)).getOrElse(c2) }
+      page.orElse(wid.page).map {x=>
+        // WikiMods will dirty the we.cacheable if needed
+        c2 = razie.wiki.mods.WikiMods.modPreParsing(x, Some(c2)).getOrElse(c2)
+      }
 
       val res = WikiReactors(wid.getRealm).wiki.mkParser apply c2
       val t2 = System.currentTimeMillis
@@ -247,11 +263,12 @@ object Wikis extends Logging with Validation {
     case TEXT => WAST.SState(content.replaceAll("""\[\[([^]]*)\]\]""", """[[\(1\)]]"""))
     case JSON | XML | JS | SCALA => WAST.SState(content)
 
-    case _ => WAST.SState("UNKNOWN MARKUP " + markup + " - " + content)
+    case _ => WAST.SState("UNKNOWN_MARKUP " + markup + " - " + content)
   }
 
   /** html for later */
-  def propLater (id:String, url:String) = s"""<script async>$$("#$id").load("$url");</script>"""
+  def propLater (id:String, url:String) =
+    s"""<script async>$$("#$id").load("$url");</script>"""
 
   /** partial formatting function
     *
@@ -279,6 +296,9 @@ object Wikis extends Logging with Validation {
           preprocess(wid, markup, noBadWords(icontent), we)
         ).fold(WAST.context(we, user)).s
 
+      // apply md templates first
+      content = Wikis(wid.getRealm).applyTemplates(wid, content, "md")
+
       // TODO index nobadwords when saving/loading page, in the WikiIndex
       // TODO have a pre-processed and formatted page index I can use - for non-scripted pages, refreshed on save
       // run scripts
@@ -286,6 +306,7 @@ object Wikis extends Logging with Validation {
 
       try {
       content = S_PAT replaceSomeIn (content, { m =>
+        we.map(_.cacheable = false)
         try {
           // find the page with the scripts and call them
           val pageWithScripts = WID.fromPath(m group 2).flatMap(x => Wikis(x.getRealm).find(x)).orElse(we)
@@ -322,6 +343,7 @@ object Wikis extends Logging with Validation {
       val XP_PAT = """`\{\{\{(xp[l]*):([^}]*)\}\}\}`""".r
 
       content = XP_PAT replaceSomeIn (content, { m =>
+        we.map(_.cacheable = false)
         try {
           we.map(x => runXp(m group 1, x, m group 2))
         } catch { case _: Throwable => Some("!?!") }
@@ -331,7 +353,10 @@ object Wikis extends Logging with Validation {
       we.map { x => content = new WForm(x).formatFields(content) }
 
       // pre-mods
-      we.map { x => content = razie.wiki.mods.WikiMods.modPreHtml(x, Some(content)).getOrElse(content) }
+      we.map {x =>
+        // we don't mark cacheable false - the WikiMods does that
+        content = razie.wiki.mods.WikiMods.modPreHtml(x, Some(content)).getOrElse(content)
+      }
 
       markup match {
         case MD => {
@@ -352,7 +377,7 @@ object Wikis extends Logging with Validation {
                 parser.parse(content);
               }
 
-            val renderer = org.commonmark.html.HtmlRenderer.builder().build();
+            val renderer = org.commonmark.renderer.html.HtmlRenderer.builder().build();
             renderer.render(ast);  // "<p>This is <em>Sparta</em></p>\n"
           }
 
@@ -360,12 +385,12 @@ object Wikis extends Logging with Validation {
         }
         case TEXT => content
         case JSON | XML | JS | SCALA => content
-        case _ => "UNKNOWN MARKUP " + markup + " - " + content
+        case _ => "UNKNOWN_MARKUP " + markup + " - " + content
       }
     } catch {
       case e : Throwable => {
         Audit.logdbWithLink("ERR_FORMATTING", wid.ahref, "[[ERROR FORMATTING]]: " + wid.wpath + " err: " + e.toString)
-        log("[[ERROR FORMATTING]]: " + e.toString + "\n"+e.getStackTraceString)
+        log("[[ERROR FORMATTING]]: ", e)
         if(Services.config.isLocalhost) throw e
         "[[ERROR FORMATTING]] - sorry, dumb program here! The content is not lost: try editing this topic... also, please report this topic with the error and we'll fix it for you!"
       }
@@ -445,6 +470,20 @@ object Wikis extends Logging with Validation {
     format (we.wid, we.markup, "", Some(we), user)
   }
 
+  def clearCache(wid:WID) = {
+    Array(
+      wid,
+      wid.copy(parent=None, section=None),
+      wid.copy(realm = None, section=None),
+      wid.copy(realm = None, parent=None, section=None),
+      wid.copy(realm = None, parent=None, section=None, cat="")
+    ).foreach {wid=>
+      Cache.remove(wid.wpath+".db")
+      Cache.remove(wid.wpath+".formatted")
+      Cache.remove(wid.wpath+".page")
+    }
+  }
+
   /** main formatting function
    *
    * @param wid - the wid being formatted
@@ -457,7 +496,26 @@ object Wikis extends Logging with Validation {
     if (JSON == wid.cat || JSON == markup || XML == wid.cat || XML == markup)
       formatJson(wid, markup, icontent, we)
     else {
-      var res = format1(wid, markup, icontent, we, user)
+      var res = {
+        val cacheFormatted = Services.config.cacheFormat
+
+        if(cacheFormatted &&
+          we.exists(_.cacheable) &&
+          (icontent == null || icontent == "") &&
+          wid.section.isEmpty) {
+
+          Cache.getAs[String](we.get.wid.wpath+".formatted").map{x=>
+            clog << "WIKI_CACHED "+wid.wpath
+            x
+          }.getOrElse {
+            val n = format1(wid, markup, icontent, we, user)
+            if(we.exists(_.cacheable)) // format can change cacheable
+              Cache.set(we.get.wid.wpath+".formatted", n, 300) // 10 miuntes
+            n
+          }
+        } else
+          format1(wid, markup, icontent, we, user)
+      }
 
       // mark the external links
       val sup = "" //"""<sup>&nbsp;<b style="color:darkred">^</b></sup>""")

@@ -71,7 +71,7 @@ class WikiWrapper(val wid:WID) extends WWrapper(wid.cat) {
 
   def mkLink = ILink (wid, w.map(_.label).getOrElse(wid.name))
 
-  override def toString = "WikiWrapper(" + wid + ")"
+  override def toString = this.getClass.getSimpleName+"(" + wid + ")"
 
   override def page : Option[WikiEntry] = w
 }
@@ -122,14 +122,21 @@ object WikiXpSolver extends XpSolver[WWrapper] {
   }
 
   override def getAttr(o: T, attr: String): String = {
+    def p(o: WikiWrapper) = o.w.flatMap(we=>
+      if("date" == attr)
+        we.props.get(attr).orElse(we.attr(attr)) // dates are now props, old for old events
+      else
+        we.attr(attr).orElse(we.sections.find(_.name == attr).map(_.content))
+      ).orElse(
+        if("content" == attr) o.w.map(_.content)
+        else if("wpath" == attr) o.w.map(_.wid.wpathFull)
+        else None
+      ).getOrElse("")
+
     if(WikiPath.debug) println("-getAttr ("+o.toString+") ("+attr+")")
     val ret = o match {
-      case o: IWikiWrapper => o.tags.get(attr).getOrElse("")
-            case o: WikiWrapper  => o.w.flatMap(we=>
-              we.contentProps.get(attr).orElse(we.sections.find(_.name == attr).map(_.content))
-            ).orElse(
-                if("content" == attr) o.w.map(_.content) else None
-              ).getOrElse("")
+      case o: IWikiWrapper => o.tags.get(attr).getOrElse(p(o))
+      case o: WikiWrapper  => p(o)
       case _               => null
     }
     ret.toString

@@ -71,6 +71,11 @@ case class WikiEntry(
   // what other pages I depend on
   var depys: List[UWID] = Nil
 
+  // set during parsing and folding - false if page has any user-specific elements
+  // any scripts or such will make this false
+  // this is very pessimistic right now for safety issues: even a whiff of non-static content will turn this off
+  var cacheable: Boolean = true
+
   /** todo should use this version instead of content - this resolves includes */
   def included : String = {
     // todo this is not cached as the underlying page may change - need to pick up changes
@@ -256,6 +261,13 @@ case class WikiEntry(
   /** tags collected during parsing of the content, with some static tags like url,label etc */
   def contentProps = preprocessed.props
 
+  /** attributes are props perhaps overriden in content */
+  def attr(name:String) : Option[String] =
+    // optimized to not parse if it's not in content
+    if(ipreprocessed.isDefined) contentProps.get(name).orElse(props.get(name))
+    else if(content contains name) contentProps.get(name).orElse(props.get(name))
+    else props.get(name)
+
   /** all the links from this page to others, based on parsed content */
   def ilinks = preprocessed.ilinks
 
@@ -265,10 +277,13 @@ case class WikiEntry(
   final val AUDIT_NOTE_CREATED = "NOTE_CREATED"
   final val AUDIT_NOTE_UPDATED = "NOTE_UPDATED"
 
-  /** field definitions contained - added to when accessing the form */
+  /** field definitions as parsed
+    * fields are rendered in WForm
+    */
   var fields = new scala.collection.mutable.HashMap[String, FieldDef]()
   lazy val form = new WikiForm(this)
   def formRole = this.props.get(FormStatus.FORM_ROLE)
+  def formState = this.props.get(FormStatus.FORM_STATE).orElse(form.formState)
 
   /** other parsing artifacts to be used by knowledgeable modules.
     * Parsers can put stuff in here. */
@@ -305,6 +320,7 @@ object WikiEntry {
   final val PROP_OWNER: String = "owner"
 
   def grated(o: DBObject) = grater[WikiEntry].asObject(o)
+
 }
 
 /** old wiki entries - a copy of each older version is archived when udpated or deleted */

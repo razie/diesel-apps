@@ -1,0 +1,122 @@
+@***
+creates the navigation bar
+***@
+@(user:Option[razie.wiki.model.WikiUser], realm:String=razie.wiki.model.Wikis.RK, mobile:Boolean = false, barTitle: String="Bar Title", logo:Option[String]=None, url:Option[String]=Some("/"), isSite:Boolean=false, club:String="")(implicit stok: controllers.StateOk)
+@import razie.wiki.Services
+@import razie.wiki.model.Wikis
+
+@web()=@{stok.request.flatMap(x=>model.Website.apply(x)) getOrElse model.Website.dflt}
+
+@css() = @{
+  stok.css
+}
+
+@searchUrl()=@{
+  if(Services.config.isLocalhost) s"http://${Services.config.hostport}/we/$realm/search"
+  else s"/wikie/search"
+}
+
+@if(Services.config.getTheme(stok.au, stok.request).contains("light")) {
+  <nav class="navbar navbar-fixed-top navbar-inverse">
+    @*<nav class="navbar navbar-fixed-top navbar-default">*@
+  } else {
+  <nav class="navbar navbar-fixed-top navbar-inverse">
+  }
+
+@*<div class="navbar-inner">*@
+<div class="container" style="margin-left: 0px; margin-right : 0px ; width:auto">
+    <!-- Brand and toggle get grouped for better mobile display -->
+  <div class="navbar-header">
+    <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+      <span class="sr-only">Toggle navigation</span>
+      <span class="icon-bar"></span>
+      <span class="icon-bar"></span>
+      <span class="icon-bar"></span>
+    </button>
+
+
+    @if(!Services.config.isLocalhost) {
+      @web().navBrand.fold {
+        <a class="navbar-brand" style="padding: 8px 20px 5px; margin-left: -20px;" href="@url.getOrElse("http://"+Services.config.hostport)">
+          <img class="" src="@logo.orElse(web().logo).getOrElse(routes.Assets.at("images/racerKids-small.gif"))" height="32" width="152" alt="RacerKidz logo"/>
+        </a>
+      } {b=>
+        @Html(b)
+      }
+    }
+  </div>
+
+    <!-- Collect the nav links, forms, and other content for toggling -->
+  <div class="navbar-collapse collapse" id="navbar">
+    <ul class="nav navbar-nav navbar-left">
+
+    @if(!isSite) {
+      <li class="divider-vertical"></li>
+      @web().navMenu.map{t=>
+          @if(t._1.startsWith("badge")) {
+            <span id="nav-@t._1"></span>
+            <script async="">$("#nav-@t._1").load("@t._2");</script>
+          } else {
+            <li><a href="@t._2">@Html(t._1)</a></li>
+          }
+      }
+    }
+    </ul>
+
+    <ul class="nav navbar-nav pull-right">
+    @user match {
+      case Some(joe) => {
+        <li class="dropdown">
+          <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+            @if(Services.config.getTheme(stok.au, stok.request).contains("light")) {
+              <i class="icon-lock"></i>
+            } else {
+              <i class="icon-lock icon-white"></i>
+            }
+            @joe.ename <span class="caret"></span>
+          </a>
+          <ul class="dropdown-menu" role="menu">
+            <li><a href="@routes.Profile.doeHelp"><i class="icon-edit"></i> Preferences</a></li>
+            <li><a href="@mod.msg.routes.Messaging.doePM"><i class="icon-edit"></i> Messages</a></li>
+
+            @if(stok.au.exists(u=> u.hasPerm(model.Perm.codeMaster) || u.isAdmin)) {
+              <li><a href="/wiki/Reactor:@realm"><i class="icon-edit"></i> Admin</a></li>
+            }
+
+            @if(!web().navrMenu.isEmpty) {
+              <li class="divider"></li>
+              @web().navrMenu.map{t=>
+                <li><a href="@t._2">@t._1</a></li>
+              }
+            }
+
+            @if(stok.au.exists(u=> u.hasPerm(model.Perm.codeMaster) || u.isAdmin)) {
+              <li><a href="/sfiddle/play3/js">SFiddle</a></li>
+              <li><a href="/sfiddle/playinbrowser/js">JS-Fiddle</a></li>
+              <li><a href="/sfiddle/playDsl/js">DSL-Fiddle</a></li>
+              <li><a href="/diesel/fiddle/playDom/@web().reactor">Diesel-Fiddle</a></li>
+            }
+
+            <li class="divider"></li>
+
+            <li><a href="/do/signout"><i class="icon-off"></i> Sign out</a></li>
+          </ul>
+        </li>
+      }
+
+      case None => {
+        <li><a href="@web().join">Login</a></li>
+      }
+    }
+    </ul>
+
+    <form class="navbar-form pull-right" role="search" action="@searchUrl()" method="GET">
+      <input type="text" class="form-control search-query" style="padding: 4px 4px 4px 4px; height: 26px; margin-top: 5px"
+      placeholder="Search" id="q" name="q" title="Search box"/>
+    </form>
+
+
+  </div>
+</div><!-- /.navbar-collapse -->
+</nav>
+

@@ -1,0 +1,5 @@
+@(pageTitle: String = "")(implicit stok:controllers.StateOk)
+
+@htmlHead(pageTitle, Some(stok))(Map.empty, stok.au, stok.request)
+@navbar(stok.au, stok.realm)
+

@@ -13,6 +13,6 @@ import razie.wiki.model.WID
   * i.e. for x/cat:name/xp/path - the wid is can:name, cmd is xp and rest is path
   */
 case class CMDWID(wpath: Option[String], wid: Option[WID], cmd: String, rest: String) {
-  def hasGoodWid = wid.exists(w=>WID.UNKNOWN.cat != w.cat && WID.UNKNOWN.name != w.name )
+  def hasGoodWid = wid.exists(!_.isEmpty)
 }
 

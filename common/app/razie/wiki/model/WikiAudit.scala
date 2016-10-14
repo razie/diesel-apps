@@ -68,5 +68,7 @@ object WikiAudit {
   final val UPD_LIKE = "update.LIKE"
 
   final val DELETE_WIKI = "delete.wiki"
+
+  def isUpd(s:String) = s.startsWith("create.") || s.startsWith("update.") || s.startsWith("delete.")
 }
 

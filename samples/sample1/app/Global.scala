@@ -7,22 +7,19 @@ import com.mongodb.casbah.Imports.ObjectId
 import com.mongodb.casbah.MongoConnection
 
 import play.api.Application
-import play.api.mvc.WithFilters
+import play.api.mvc.{Request, WithFilters}
 import razie.db.RTable
 import razie.db.RazMongo
 import razie.wiki.Services
 import razie.wiki.WikiConfig
-import razie.wiki.model.Reactor
-import razie.wiki.model.WID
-import razie.wiki.model.WikiEntry
-import razie.wiki.model.WikiInst
-import razie.wiki.model.Wikis
+import razie.wiki.model._
 import razie.wiki.parser.WikiParserT
 
 /** customize some global handling errors */
 object Global extends WithFilters {
   override def beforeStart(app: Application) {
     Services.config = new WikiConfig {
+      override def getTheme (user:Option[WikiUser], request:Option[Request[_]]) = "light"
       override def reloadUrlMap = {}
     }
 

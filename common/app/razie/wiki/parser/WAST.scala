@@ -159,16 +159,26 @@ object WAST {
     override def printHtml (level:Int):String = s"RSTATE ($prefix, $suffix)" +  "<ul><li>"+mid.printHtml(level+1)+"</ul>"
   }
 
-  /** lazy AST node - value computed when they're folded */
-  case class LazyState(f:(SState, FoldingContext) => SState)  extends PState {
+  /** lazy AST node - value computed when they're folded.
+    *
+    * By default a lazy state will cause a non cacheable wiki
+    */
+  case class LazyState(f:(SState, FoldingContext) => SState) extends PState {
+    var dirty = true
+
     if (ParserSettings.debugStates) cdebug << this.toString
 
     override def s: String = ???
     override def props: Map[String, String] = ???
     override def ilinks: List[ILink] = ???
 
-    override def ifold(current:SState, ctx:FoldingContext) : SState = f(current, ctx)
+    override def ifold(current:SState, ctx:FoldingContext) : SState = {
+      if(dirty) ctx.we.map(_.cacheable = false)
+      f(current, ctx)
+    }
     override def toString =  s"LazySTATE ()"
+
+    def cacheOk = {this.dirty=false; this}
   }
 
   implicit def toSState(s: String) : PState = SState(s)

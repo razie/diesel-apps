@@ -22,8 +22,6 @@ object WForm {
 
 /** wraper with form utils */
 class WForm(val we: WikiEntry) {
-  def isFormSpec = false
-
   /** format form fields as a content section
     *
     * this assumes the content is just an `[[include:...]]`
@@ -42,34 +40,56 @@ class WForm(val we: WikiEntry) {
 
     var res = FIELDS replaceSomeIn (content, { m =>
       try {
-        Some {
           val name = m group 2
           val f = we.form.fields.get(name)
           val t = f.flatMap(_.attributes.get("type")).getOrElse("text")
-          val other = f.map(_.attributes.filter(t => t._1 != "type" && t._1 != "choices").foldLeft("")((s, t) => s + " " + t._1 + "=\"" + t._2 + "\"")).getOrElse("")
+          val other = f.map(_.attributes.filter(t =>
+            t._1 != "label" &&
+            t._1 != "type" &&
+            t._1 != "choices"
+          ).foldLeft("")((s, t) => s + " " + t._1 + "=\"" + t._2 + "\"")).getOrElse("")
 
-          f.flatMap(_.attributes.get("type")) match {
-            case Some("select") => {
-              val choices = (f.flatMap(_.attributes.get("choices"))).toList.flatMap(_.split("\\|")).map(
+          var res = f.flatMap(_.attributes.get("label")).map{l=>
+            s"""  <div class="form-group">
+               |<label for="$name" class="control-label">$l</label>""".stripMargin
+          }.mkString
+
+          res += {
+            f.flatMap(_.attributes.get("type")) match {
+              case Some("select") => {
+                val choices = (f.flatMap(_.attributes.get("choices"))).toList.flatMap(_.split("\\|")).map(
                   v=>if(v.contains(";")) v.split(";") else Array(v,v)
-                  ).map(
+                ).map(
                   a => "<option value=\"" +a(0) + "\" " + (if (f.get.value == a(0)) "selected>" else ">") + a(1) + "</option>").mkString
-              s"<select $ro name=$name $other>$choices</select>"
-            }
-            case _ => {
-              val checked = if (f.exists(_.value == "y")) "checked" else ""
-              if (t == "textarea" || t == "memo")
-                s"""<textarea $ro type="$t" name="$name" $other>${f.map(_.value).getOrElse("?")}</textarea>"""
-              else if (t == "checkbox") {
-                s"""<input $ro type="$t" name="$name" value="y" $checked $other></input>"""
-              } else if (t == "date") {
-                // <a href="#" class="btn btn-mini btn-info" title="Internet explorer likes yyyy-mm-dd format while other browsers like dd-mm-yyyy">?</a>"""
-                s"""<input $ro type="text" name="$name" value="${f.map(_.value).getOrElse("?")}" $other></input>"""
-              } else
-                s"""<input $ro type="$t" name="$name" value="${f.map(_.value).getOrElse("?")}" $other></input>"""
+                s"<select $ro name=$name $other>$choices</select>"
+              }
+              case _ => {
+                val checked = if (f.exists(_.value == "y")) "checked" else ""
+                if (t == "textarea" || t == "memo")
+                  s"""<textarea $ro type="$t" name="$name" $other>${f.map(_.value).getOrElse("?")}</textarea>"""
+                else if (t == "note") {
+                  // notes can be inserted as needed - with a popup
+                  val v = f.map(_.value).getOrElse("")
+                  val glyph = "glyphicon-list-alt"
+                  s"""<div><div style="display:inline-block"><a href="#" class="btn btn-warning btn-xs" title="Edit note" onclick="return weFormEditNote('wikiForm-${we._id.toString}','$name');"><span class="glyphicon $glyph"></span></a></div>"""+
+                    s"""&nbsp;<div  style="display:inline-block" name="${name}-holder">$v</div>"""+
+                    s"""<input type="text" name="${name}" hidden value="$v"></input></div>"""
+                } else if (t == "checkbox") {
+                  s"""<input $ro type="$t" name="$name" value="y" $checked $other></input>"""
+                } else if (t == "date") {
+                  // <a href="#" class="btn btn-mini btn-info" title="Internet explorer likes yyyy-mm-dd format while other browsers like dd-mm-yyyy">?</a>"""
+                  s"""<input $ro type="text" name="$name" value="${f.map(_.value).getOrElse("?")}" $other></input>"""
+                } else
+                  s"""<input $ro type="$t" name="$name" value="${f.map(_.value).getOrElse("?")}" $other></input>"""
+              }
             }
           }
-        }
+
+          res += f.flatMap(_.attributes.get("label")).map{l=>
+            s"""  </div>"""
+          }.mkString
+
+          Some (res)
       } catch { case _: Throwable => Some("!?!") }
     })
 

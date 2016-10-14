@@ -1,0 +1,49 @@
+@**************
+default layout 9/3 with ads, top and bottom
+**************@
+@(content: Html, msg: Seq[(String, String)])(implicit stok: controllers.StateOk)
+
+@htmlHead(stok._title, Some(stok), None)(Map.empty, stok.au, stok.request)
+@navbar(stok.au, stok.realm)
+
+<!-- reactorLayout -->
+<div class="container" style="margin-top : 15 px">
+  <div class="row">
+    <div class="col-sm-9">
+
+      @if(stok.msg.nonEmpty) {
+        @notes.notesmsgDiv("notesmsg")
+        @notes.notesmsgShow("notesmsg", stok.msg)
+      }
+
+      @content
+
+      <hr>
+        @htmlFooter(ads = stok.website.adsAtBottom &&
+            (stok.au.isEmpty || stok.website.adsForUsers) &&
+            !stok.au.exists(_.isUnder13),
+          false,
+          stok.realm,
+          stok.request)
+
+    </div> <!-- /col-sm-9 -->
+
+    <div class="col-sm-3">
+      @stok.website.rightTop.map { rt =>
+        @wiki.wikiFrag(rt, None, true)
+      }
+
+      @if(stok.website.adsAtBottom) {
+        @addRight()
+      }
+
+      @if(stok.website.rightTop.isEmpty) {
+        @wiki.wikiFrag(razie.wiki.model.WID("Admin", "Right").r(stok.realm), None, true)
+      }
+    </div>
+
+  </div> <!-- row -->
+</div> <!-- /container -->
+
+@htmlBottom(false, stok.request)
+

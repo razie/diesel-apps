@@ -8,7 +8,10 @@ package razie.wiki.admin
 
 import org.joda.time.DateTime
 
-/** current ops data is updated here */
+/** current ops data is updated here
+  *
+  * not nice, poor man's JMX
+  */
 object GlobalData {
   //todo use proper JMX istead
 
@@ -24,6 +27,6 @@ object GlobalData {
 
   val startedDtm = DateTime.now
 
-  var clusterStatus : String = "?"
+  var clusterStatus : String = "-"
 }
 

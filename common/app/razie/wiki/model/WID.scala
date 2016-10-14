@@ -8,7 +8,9 @@ package razie.wiki.model
 
 import com.mongodb.casbah.Imports._
 import com.novus.salat._
+import org.bson.types.ObjectId
 import razie.base.data.TripleIdx
+import razie.clog
 import razie.db.RazSalatContext._
 import razie.wiki.{Services}
 import model.CMDWID
@@ -25,7 +27,7 @@ case class UWID(cat: String, id:ObjectId, realm:Option[String]=None) {
     } orElse Wikis(getRealm).findById(cat, id).map(_.wid)
   }
   /** force finding or building a surrogate wid */
-  lazy val wid = findWid orElse Some(WID(cat, id.toString)) // used in too many places to refactor properly
+  lazy val wid = findWid orElse Some(WID(cat, id.toString).copy(realm=realm)) // used in too many places to refactor properly
   def nameOrId = wid.map(_.name).getOrElse(id.toString)
   lazy val grated = grater[UWID].asDBObject(this) //.copy(realm=None)) // todo I erase the realm for backwards compatibility
   lazy val page = Wikis(getRealm).find(this)
@@ -71,21 +73,39 @@ object CAT {
 case class WID(cat: String, name: String, parent: Option[ObjectId] = None, section: Option[String] = None, realm:Option[String]=None) {
   override def toString = "[[" + wpath + "]]"
 
-  lazy val grated     = grater[WID].asDBObject(this)
+  lazy val grated = grater[WID].asDBObject(this)
   lazy val findParent = parent flatMap (p => Wikis(getRealm).find(p))
-  lazy val parentWid  = parent flatMap (p => WikiIndex.withIndex(getRealm) { index => index.find { case (a, b, c) => c == p }.map(_._2) }) orElse (findParent map(_.wid))
+  lazy val parentWid = parent flatMap (p => WikiIndex.withIndex(getRealm) { index => index.find { case (a, b, c) => c == p }.map(_._2) }) orElse (findParent map (_.wid))
 
   /** find a parent of the given category */
-  def parentOf(category:String) = {
-    def f (p:Option[WID]) = if(p.isEmpty) None else p.filter(_.cat == category).orElse(p.flatMap(_.parentWid))
+  def parentOf(category: String=>Boolean) = {
+    def f(p: Option[WID]) = if (p.isEmpty) None else p.filter(x=>category(x.cat)).orElse(p.flatMap(_.parentWid))
     f(parentWid)
   }
 
   /** find the page for this, if any - respects the NOCATS */
   lazy val page = {
-    if(cat.isEmpty) findId flatMap Wikis(getRealm).find // special for NOCATS
-    else Wikis(getRealm).find(this)
-   }
+    val w = if (Services.config.cacheWikis) {
+      import play.api.cache._
+      import play.api.Play.current
+
+      Cache.getAs[WikiEntry](this.wpath+".page").map { x =>
+        clog << "WIKI_CACHED FULL-" + this.wpath
+        x
+      }
+    } else None
+
+    w.orElse {
+      if (cat.isEmpty)
+        findId flatMap Wikis(getRealm).find // special for NOCATS
+      else
+        Wikis(getRealm).find(this)
+    }
+  }
+
+  def isEmpty = cat=="?" && name=="?" || cat=="-" && name=="-"
+
+  def domain = Wikis.domain(getRealm)
 
   /** should this entry be indexed in memory */
   def shouldIndex = !(Wikis.PERSISTED contains cat)
@@ -99,17 +119,23 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
   } orElse page.map(_.content)
 
   /** withRealm - convienience builder. Note that you can't override a category prefix */
-  def r(r:String) = if(CAT.unapply(cat).flatMap(_.realm).isDefined) this else this.copy(realm = Some(r))
+  def r(r:String) =
+    if(CAT.unapply(cat).flatMap(_.realm).isDefined) this
+    else this.copy(realm = Some(r))
 //  def r(r:String) = if(Wikis.DFLT == r || CAT.unapply(cat).flatMap(_.realm).isDefined) this else this.copy(realm = Some(r))
 
   /** if wid has no realm, should get the realm or the default - note taht the CAT prefix rules */
   def getRealm = realm orElse CAT.unapply(cat).flatMap(_.realm) getOrElse Wikis.DFLT
 
   /** find the ID for this page, if any - respects the NOCATS */
-  def findId  = findCatId().map(_._2)
+  def findId  =
+    if(ObjectId.isValid(name)) Some(new ObjectId(name))
+    else findCatId().map(_._2)
   def findCat = findCatId().map(_._1)
 
-  def findId  (curRealm:String) = findCatId(curRealm).map(_._2)
+  def findId  (curRealm:String) =
+    if(ObjectId.isValid(name)) Some(new ObjectId(name))
+    else findCatId(curRealm).map(_._2)
   def findCat (curRealm:String) = findCatId(curRealm).map(_._1)
 
   private def findCatId(curRealm:String="") = {
@@ -117,14 +143,35 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
       if(! cat.isEmpty)
         idx.get2(name, this).map((cat, _))
       else {
-        // try the nocats
-        idx.get1k(name).filter(x=>WID.NOCATS.contains(x.cat)).headOption.flatMap(x=>idx.get2(name, x)).map((cat, _))
+        // get by name and see if cat we found is NOCATS
+        idx.get1k(name).filter(x=>
+          WID.NOCATS.contains(x.cat)
+        ).headOption.flatMap(x=>
+          idx.get2(name, x)).map((cat, _)
+        )
         //todo maybe forget this branch and enhance equals to look at nocats ?
       }
     }
+
+    //todo performance of these is horrendous
     // first current realm
-    if(curRealm.isEmpty)
-      WikiIndex.withIndex(getRealm)(q) orElse Wikis.find(this).map(x=>(x.category, x._id))
+    if(curRealm.isEmpty) {
+      CAT.unapply(cat).flatMap(_.realm).map{r=>
+        // was there a
+        WikiIndex.withIndex(r)(q) orElse Wikis.find(this).map(x=>(x.category, x._id))
+      } getOrElse {
+        // try all indexes real quick
+        var y : Option[(String, ObjectId)] = None
+        WikiReactors.reactors.map(_._2.wiki.index).find{x=>
+          x.withIndex(q).map{catid=>
+            y = Some(catid)
+            y
+          }.isDefined
+        }
+
+        y orElse Wikis.find(this).map(x=>(x.category, x._id))
+      }
+    }
     else
       WikiIndex.withIndex(curRealm)(q) orElse WikiIndex.withIndex(getRealm)(q) orElse Wikis.find(this).map(x=>(x.category, x._id))
   }
@@ -132,7 +179,10 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
   /** some topics don't use cats */
   override def equals (other:Any) = other match {
     case o: WID =>
-      this.cat == o.cat && this.name == o.name && this.getRealm == o.getRealm
+      this.cat == o.cat && this.name == o.name &&
+        (this.getRealm == o.getRealm ||
+          this.realm.isEmpty ||
+          o.realm.isEmpty)
     case _ => false
   }
   def uwid = findCatId() map {x=>UWID(x._1, x._2, realm)}
@@ -163,8 +213,11 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
         WikiReactors(realm.get).websiteProps.prop("domain").get
       else
         //todo current realm
-        Services.config.hostport + realm.map(r => s"/w/$r").getOrElse("")
-    } + "/wiki/" + wpathnocats
+        Services.config.hostport /* + realm.map(r => s"/w/$r").getOrElse("")*/
+    } + "/wiki/" + {
+      if(realm.isDefined) wpath
+      else wpathnocats
+    }
   }
 
   //todo this is stupid
@@ -172,11 +225,21 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
 
   /** use when coming from a known realm */
   def urlRelative (fromRealm:String) : String =
-    (if(realm.isEmpty && fromRealm != Wikis.RK && Services.config.isLocalhost) s"/w/rk"
-    else realm.filter(_ != fromRealm || Services.config.isLocalhost).map(r=>s"/w/$r").getOrElse("")) + "/wiki/" + wpathnocats
+//    (
+//      if(realm.isEmpty && fromRealm != Wikis.RK && Services.config.isLocalhost) s"/w/rk"
+//      else realm.filter(_ != fromRealm || Services.config.isLocalhost).map(r=>s"/w/$r").getOrElse("")
+//      else realm.filter(x=>/*x != fromRealm ||*/ Services.config.isLocalhost).map(r=>s"/w/$r").getOrElse("")
+//     ""
+//    )
+  "/wiki/" + {
+    if(realm.exists(_ != fromRealm)) wpath
+    else wpathnocats
+  }
+
+
   def ahref: String = "<a href=\"" + url + "\">" + toString + "</a>"
-  def ahrefRelative: String = "<a href=\"" + urlRelative + "\">" + toString + "</a>"
-  def ahrefNice: String = "<a href=\"" + urlRelative + "\">" + getLabel() + "</a>"
+  def ahrefRelative (fromRealm:String=Wikis.RK): String = "<a href=\"" + urlRelative(fromRealm) + "\">" + toString + "</a>"
+  def ahrefNice (fromRealm:String=Wikis.RK): String = "<a href=\"" + urlRelative(fromRealm) + "\">" + getLabel() + "</a>"
 
   /** helper to get a label, if defined or the default provided */
   //todo labels should not be in domain but in index...
@@ -200,13 +263,27 @@ object WID {
   private def widFromSeg(a: Array[String], curRealm:String = "") = {
     val w = a.map { x =>
       x match {
-        case REGEX(c, n, s) => WID(
-          (if (c == null) "" else c.replaceFirst("[^.]+\\.", "")).replaceFirst(":", ""),
-          n,
-          None,
-          Option(s).filter(_.length > 1).map(_.substring(1)),
-          if(c != null && c.contains(".")) Some(c.replaceFirst("\\..*", "")) else None)
-        case _ => UNKNOWN
+        case REGEX(c, n, s) => {
+          val cat =
+            if (c == null) ""
+            else c.replaceFirst("[^.]+\\.", "").replaceFirst(":", "")
+          val name =
+            if(n==null) ""
+            else if(cat.length <= 0) n.replaceFirst("[^.]+\\.", "")
+            else n
+          WID(
+            cat,
+            name,
+            None,
+            Option(s).filter(_.length > 1).map(_.substring(1)),
+            if(c != null && c.contains("."))
+              Some(c.replaceFirst("\\..*", ""))
+            else if(cat.length <= 0 && n != null && n.contains("."))
+              // only if cat is not specified
+              Some(n.replaceFirst("\\..*", ""))
+            else None)
+        }
+        case _ => empty
       }
     }
     val res = w.foldLeft[Option[WID]](None)((x, y) => Some(WID(y.cat, y.name, x.flatMap(_.findId(curRealm)), y.section,
@@ -251,7 +328,5 @@ object WID {
     }
   }
 
-  final val NONE = WID("?", "?")
-  final val UNKNOWN = WID("?", "?")
-  final val empty = NONE;
+  final val empty = WID("-", "-")
 }

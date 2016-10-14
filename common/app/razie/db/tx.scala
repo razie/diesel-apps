@@ -15,7 +15,9 @@ import com.novus.salat.annotations._
 /** playing with "transactions" i.e. a set of related db ops
   *
   * they are audited and timed in the log automatically
-  * */
+  *
+  * otherwise, this is not really useful right now
+  */
 class Txn (val name: String, val xid:String = System.currentTimeMillis().toString) {
   clog << "DB.TX.START "+name
 
@@ -40,10 +42,10 @@ class Txn (val name: String, val xid:String = System.currentTimeMillis().toStrin
   *
   * since Mongo doens't do transactions, that's all this is for now
   *
-  * todo it seems fairly simple to implement rollbacks with a JSON commit log, at some point.
+  * todo it seems fairly simple to implement rollbacks with a JSON document commit log, at some point.
   */
 object tx {
-  def apply[A](f: Txn => A) : A = { apply("?")(f) }
+  def apply[A](f: Txn => A) : A = { apply("-")(f) }
 
   def apply[A] (name: String) (f: Txn => A) : A = {
     val txn = new Txn(name)
@@ -68,7 +70,7 @@ object tx {
 
 /** wrap all db operation in this to get logging, timing and stats */
 object dbop {
-  def apply[A](f: => A): A = this.apply("?")(f)
+  def apply[A](f: => A): A = this.apply("-")(f)
 
   def apply[A](name: String)(f: => A): A = {
     val ba = new RBeforeAft(name)

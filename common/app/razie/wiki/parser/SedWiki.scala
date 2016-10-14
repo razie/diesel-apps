@@ -49,8 +49,11 @@ object SedWiki {
         val newRealm = if(newr == null || newr.isEmpty) realm else newr.substring(0,newr.length-1)
         if(cat == "Domain")
           WikiDomain(newRealm).rdom.classes.values.take(50).toList.sortWith(_.name < _.name).map { c =>
-            Wikis.formatWikiLink(realm, WID("Category", c.name).r(newRealm), c.name, c.name, None)
-          }.map(_._1).mkString(" ")
+            val x = Wikis.formatWikiLink(realm, WID("Category", c.name).r(newRealm), c.name, c.name, None)._1
+            //emphasize the ones defined in this realm vs inherited from mixins
+            if(Wikis(newRealm).cats.contains(c.name)) s"<b>$x</b>"
+            else x
+          }.mkString(" ")
         else
           Wikis(newRealm).pageNames(cat).take(50).toList.sortWith(_ < _).map { p =>
             Wikis.formatWikiLink(realm, WID(cat, p).r(newRealm), p, p, None)

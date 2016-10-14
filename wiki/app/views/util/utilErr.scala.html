@@ -1,0 +1,15 @@
+@(msg:String, next:String)(implicit req:controllers.RazRequest)
+
+
+  <div class="well">
+    <h1 >Hopa!</h1>
+    <br>
+    <h2 style="color:red">@msg</h2>
+    <br>
+    <a class="btn btn-primary btn-lg" href="@next">Continue</a>
+  </div>
+
+@razie.wiki.model.WID("Admin","Unauthorized").page.map{p=>
+  @Html(razie.wiki.model.Wikis.format(p, None))
+}
+

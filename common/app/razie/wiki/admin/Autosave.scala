@@ -21,12 +21,18 @@ case class Autosave(
   override def delete(implicit txn: Txn) = RDelete.noAudit[Autosave](this)
 }
 
+/** autosave utils */
 object Autosave {
 
-  def delete(name:String, userId: ObjectId) = ROne[Autosave]("name" -> name, "userId" -> userId).map(_.delete)
+  /** create or update */
+  def set(name:String, userId: ObjectId, c:Map[String,String]) =
+    ROne[Autosave]("name" -> name, "userId" -> userId).map(_.copy(contents=c).update).getOrElse(Autosave(name, userId, c).create)
 
-  def find(name:String, userId: ObjectId) = ROne[Autosave]("name" -> name, "userId" -> userId).map(_.contents)
+  /** each user has its own draft */
+  def find(name:String, userId: ObjectId) =
+    ROne[Autosave]("name" -> name, "userId" -> userId).map(_.contents)
 
+  /** each user has its own draft */
   def find(name:String, userId : Option[ObjectId]) =
     userId.flatMap(uid=>
       ROne[Autosave]("name" -> name, "userId" -> userId)
@@ -36,7 +42,5 @@ object Autosave {
   def OR(name:String, userId: ObjectId, c:Map[String,String]) =
     find(name, userId).getOrElse(c)
 
-  /** create or update */
-  def set(name:String, userId: ObjectId, c:Map[String,String]) =
-    ROne[Autosave]("name" -> name, "userId" -> userId).map(_.copy(contents=c).update).getOrElse(Autosave(name, userId, c).create)
+  def delete(name:String, userId: ObjectId) = ROne[Autosave]("name" -> name, "userId" -> userId).map(_.delete)
 }

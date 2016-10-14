@@ -1,0 +1,21 @@
+@***************
+display a message with navigation (next)
+***************@
+@(msg: String, details: String, next: Option[String], au: Option[razie.wiki.model.WikiUser], cancel: Option[(String, String)] = None)(implicit stok: controllers.RazRequest)
+  @import model.Website.realm
+
+
+  <h3>
+  @Html(razie.wiki.model.Wikis.format(razie.wiki.model.WID.empty, razie.wiki.model.Wikis.MD, msg, None, au))
+  </h3>
+  @Html(razie.wiki.model.Wikis.format(razie.wiki.model.WID.empty, razie.wiki.model.Wikis.MD, details, None, au))
+
+  <br>
+
+  @next.map { n =>
+    <a class="btn btn-primary btn-lg" href="@n">Continue</a>
+  }
+  @cancel.map { n =>
+    <a class="btn btn-lg btn-danger" href="@n._2">@n._1</a>
+  }
+

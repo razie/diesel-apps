@@ -183,7 +183,6 @@ trait WikiParserMini extends WikiParserBase with CsvParser {
       // default to widgets
       if(Wikis(realm).index.containsName("widget_" + name.toLowerCase()))
         SState(
-          // todo cache this
           Wikis(realm).find(WID("Admin", "widget_" + name.toLowerCase())).map(_.content).map { c =>
             //            (List(("WIDGET_ARGS", value)) ::: args).foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
             (List(("WIDGET_ARGS", value)) ).foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
@@ -208,7 +207,6 @@ trait WikiParserMini extends WikiParserBase with CsvParser {
       // default to widgets
       if(Wikis(realm).index.containsName("widget_" + name.toLowerCase()))
         SState(
-          // todo cache this
           Wikis(realm).find(WID("Admin", "widget_" + name.toLowerCase())).map(_.content).map { c =>
             List(("WIDGET_ARGS", value)).foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
           } getOrElse "")
@@ -621,6 +619,13 @@ trait WikiParserT extends WikiParserMini with CsvParser {
   /** map nvp to html tag attrs */
   private def htmlArgs (args:List[(String,String)]) = args.foldLeft(""){(c, a) => s""" $c ${a._1}="${a._2}" """}
 
+  def getCaption(iargs:List[(String,String)], align:String="center"):String = iargs.toMap.get("caption").map(x=>
+    s"""
+       |<div style="text-align: $align;">
+       |<small style="align:$align">$x</small>
+       |</div>
+        """.stripMargin) getOrElse ""
+
   def wikiPropImg: PS = "{{" ~> "img|photo".r ~ opt("""\.icon|\.small|\.medium|\.large""".r) ~ """[: ]+""".r ~ """[^} ]*""".r ~ optargs <~ "}}" ^^ {
     case skind ~ stype ~ _ ~ name ~ iargs => {
       val width = stype match {
@@ -633,13 +638,8 @@ trait WikiParserT extends WikiParserMini with CsvParser {
 
       val args = iargs.filter(_._1 != "caption")
       val alt = iargs.toMap.get("caption").filter(_.contains("\"") == false).map(x=>"alt=\""+x+"\"").mkString
+      val caption = getCaption(iargs)
       // no alt when contains links
-      val caption = iargs.toMap.get("caption").map(x=>
-        s"""
-          |<div style="text-align: center;">
-          |<small style="align:center">$x</small>
-          |</div>
-        """.stripMargin) getOrElse ""
       skind match {
         case "img" =>   SState(s"""<img src="$name" $width $alt ${htmlArgs(args)} /><br>$caption<br>""")
         case "photo" => SState(s"""<div style="text-align:center"><a href="$name"><img src="$name" $width $alt ${htmlArgs(args)} ></a></div>$caption\n<br>""")
@@ -652,6 +652,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
   }
 
   private def wpVideo (what:String, url:String, args:List[(String,String)]) = {
+    val caption = getCaption(args, "left")
     what match {
       case "video" => {
         val yt1 = """http[s]?://youtu.be/([^?]+)(\?t=.*)?""".r
@@ -662,17 +663,17 @@ trait WikiParserT extends WikiParserMini with CsvParser {
         url match {
           case yt1(a, g1) => {
             if(g1 == null) { // no time info
-              SState(xt(a))
+              SState(xt(a)+s"<br>$caption<br>")
             } else {
               // turn 1m1s into 61
               val ts = """\?t=([0-9]+m)?([0-9]+s)?""".r
               val ts(g2,g3) = g1
               val sec = (if(g2 == null) 0 else g2.substring(0,g2.length-1).toInt * 60) + (if(g3 == null) 0 else g3.substring(0,g3.length-1).toInt)
-              SState(xt(a, Option(if(sec == 0) null else sec.toString)))
+              SState(xt(a, Option(if(sec == 0) null else sec.toString))+s"<br>$caption<br>")
             }
           }
-          case yt2(a) => SState(xt(a))
-          case vm3(a) => SState(vm(a))
+          case yt2(a) => SState(xt(a)+s"<br>$caption<br>")
+          case vm3(a) => SState(vm(a)+s"<br>$caption<br>")
           case _ => SState("""{{Unsupported video source - please report to support: <a href="%s">url</a>}}""".format(url))
         }
       }
@@ -680,7 +681,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
         val yt1 = """(.*)""".r
         def xt(id: String) = """<a href="%s">Slideshow</a><br>""".format(id)
         url match {
-          case yt1(a) => SState(xt(a))
+          case yt1(a) => SState(xt(a)+s"<br>$caption<br>")
           case _ => SState("""{{Unsupported slideshow source - please report to support: %s}}""".format(url))
         }
       }
@@ -736,7 +737,9 @@ trait WikiParserT extends WikiParserMini with CsvParser {
 
   private def wikiPropXp: PS = "{{" ~> """xpl?""".r ~ """[: ]""".r ~ """[^}]*""".r <~ "}}" ^^ {
     case what ~ _ ~ path => {
-      SState(s"""`{{{$what:$path}}}`""", Map())
+      LazyState { (current, ctx) =>
+        SState( s"""`{{{$what:$path}}}`""", Map())
+      }
       // can't expand this during parsing as it will recursively mess up XP
       //      LazyState {(current, we) =>
       //        val html =

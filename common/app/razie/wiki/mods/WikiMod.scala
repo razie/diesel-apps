@@ -71,7 +71,10 @@ object WikiMods {//extends WikiDomain (Wikis.RK) {
     * */
   def modPreParsing (we:WikiEntry, content:Option[String]) : Option[String] =
     mods.values.foldLeft(content){(a,b)=>
-      if(b.isInterested(we)) b.modPreParsing(we, a) else a
+      if(b.isInterested(we)) {
+        we.cacheable = false
+        b.modPreParsing(we, a)
+      } else a
     }
 
   /** modify the content of the page before MARKDOWN formatting for rendering (but after internal formatting and parsing)
@@ -85,14 +88,20 @@ object WikiMods {//extends WikiDomain (Wikis.RK) {
     * */
   def modPreHtml (we:WikiEntry, content:Option[String]) : Option[String] =
     mods.values.foldLeft(content){(a,b)=>
-      if(b.isInterested(we)) b.modPreHtml(we, a) else a
+      if(b.isInterested(we)) {
+        we.cacheable = false
+        b.modPreHtml(we, a)
+      } else a
     }
 
   /** modify the resulting html of formatting the page
     * @return the new html */
   def modPostHtml (we:WikiEntry, html:String) : String =
     mods.values.foldLeft(html) {(a,b)=>
-      if(b.isInterested(we)) b.modPostHtml(we, a) else a
+      if(b.isInterested(we)) {
+        we.cacheable = false
+        b.modPostHtml(we, a)
+      } else a
     }
 }
 

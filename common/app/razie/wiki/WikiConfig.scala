@@ -11,6 +11,7 @@ import java.util.Properties
 import com.google.inject.Singleton
 import play.api.mvc.Request
 import razie.clog
+import razie.wiki.model.WikiUser
 import razie.wiki.util.PlayTools
 import scala.collection.mutable
 
@@ -48,7 +49,7 @@ abstract class WikiConfig {
   final val node = props.getProperty("rk.node", hostport)//java.net.InetAddress.getLocalHost.getCanonicalHostName)
   final val safeMode = props.getProperty("rk.safemode")
   final val analytics = true; //props.getProperty("rk.analytics").toBoolean
-  val noads = props.getProperty("rk.noads").toBoolean
+  val noads = props.getProperty("rk.noads", isLocalhost.toString).toBoolean
   final val forcephone = props.getProperty("rk.forcephone").toBoolean
 
   final val mongodb = props.getProperty("rk.mongodb")
@@ -56,10 +57,15 @@ abstract class WikiConfig {
   final val mongouser = props.getProperty("rk.mongouser")
   final val mongopass = props.getProperty("rk.mongopass")
 
+  final val cacheWikis = props.getProperty("rk.cachewikis", "false").toBoolean
+  final val cacheFormat = props.getProperty("rk.cacheformat", "false").toBoolean
+  final val cacheDb = props.getProperty("rk.cachedb", "false").toBoolean
+
   /** when running on localhost, simulate this host */
   def simulateHost = props.getProperty("rk.simulateHost")
 
   def SUPPORT = sitecfg("support").getOrElse("support@racerkidz.com")
+  def SUPPORT2 = sitecfg("support").getOrElse("support@effectiveskiing.com")
 
   def isLocalhost = "localhost:9000" == hostport
 
@@ -125,8 +131,8 @@ abstract class WikiConfig {
     }
   }
 
-  /** pre-configured user types */
-  def userTypes(implicit request: Request[_])  = {
+  /** deprecated - use Website.usetTypes instead */
+  def userTypes  = {
 //    if(realm == WikiConfig.NOTES)
 //       TODO configure these
 //      List("Individual", "Organization")
@@ -154,6 +160,27 @@ abstract class WikiConfig {
 
   /** override to implement the actual configuration loading */
   def reloadUrlMap: Unit
+
+  final val clusterMode = props.getProperty("rk.cluster", "no")
+
+  final val CONNECTED = props.getProperty("rk.connected", "connected")
+
+  def getTheme (user:Option[WikiUser], request:Option[Request[_]]) : String
+  // no request available
+  def isLight(au:Option[WikiUser], request:Option[Request[_]]=None) =
+    getTheme (au, request) contains "light"
+  // todo remove this - relies on statics
+  def oldisLight = isLight(None, None)
+
+  def robotUserAgents = irobotUserAgents
+  protected var irobotUserAgents = List[String]()
+
+  def trustedSites = itrustedSites
+  protected var itrustedSites = List[String]()
+
+  def reservedNames = ireservedNames
+  protected var ireservedNames = List[String]()
+
 }
 
 object WikiConfig {
@@ -161,20 +188,14 @@ object WikiConfig {
   final val NOTES = "notes"
 
   // parse a properties looking thing
-  def parsep(content: String) = (content.split("\r\n")) filter (!_.startsWith("#")) map (_.split("=", 2)) filter (_.size == 2) map (x => (x(0), x(1)))
+  def parsep(content: String) = (content.split("\r*\n")) filter (!_.startsWith("#")) map (_.split("=", 2)) filter (_.size == 2) map (x => (x(0), x(1)))
+
 }
 
 /** sample config - use for testing for instance. Before beginning a test, do Services.config = SampleConfig */
 @Singleton()
 class SampleConfig extends WikiConfig {
-  def robotUserAgents = irobotUserAgents
-  private var irobotUserAgents = List[String]()
-
-  def trustedSites = itrustedSites
-  private var itrustedSites = List[String]()
-
-  def reservedNames = ireservedNames
-  private var ireservedNames = List[String]()
+  override def getTheme (user:Option[WikiUser], request:Option[Request[_]]) = "light"
 
   def reloadUrlMap {
     println("========================== SAMPLE RELOADING URL MAP ==============================")
