@@ -117,6 +117,13 @@ object Wikis extends Logging with Validation {
       s == JS || s == XML || s == JSON || s == SCALA
   }
 
+  def formFor (we:WikiEntry) = {
+    we.attr("wiki.form") orElse Wikis(we.realm).category(we.category).flatMap(_.attr("inst.form"))
+  }
+
+  def templateFor (we:WikiEntry) = {
+    we.attr("wiki.template") orElse Wikis(we.realm).category(we.category).flatMap(_.attr("inst.template"))
+  }
 
 
   private def iformatName(name: String, pat: String, pat2: String = "") =
@@ -140,9 +147,19 @@ object Wikis extends Logging with Validation {
   /** format an even more complex name
     * @param rk force links back to RK main or leave them
     */
-  def formatWikiLink(curRealm:String, wid: WID, nicename: String, label: String, role:Option[String], hover: Option[String] = None, rk: Boolean = false) = {
+  def formatWikiLink(curRealm:String, wid: WID, nicename: String, label: String, role:Option[String], hover: Option[String] = None, rk: Boolean = false, max:Int = -1) = {
     val name = formatName(wid.name)
     val title = hover.map("title=\"" + _ + "\"") getOrElse ("")
+
+    def trim(s:String) = {
+      if(max < 0) s
+      else {
+        if(s.length > max) s.substring(0, max-3)+"..."
+        else s
+      }
+    }
+
+    val tlabel = trim(label)
 
     val r = wid.realm.getOrElse(curRealm)
     // all pages wihtout realm are assumed in current realm
@@ -155,16 +172,16 @@ object Wikis extends Logging with Validation {
 
       if (rk && (u startsWith "/")) u = "http://" + Services.config.rk + u
 
-      (s"""<a href="$u" title="$title">$label</a>""", Some(ILink(newwid, label, role)))
+      (s"""<a href="$u" title="$title">$tlabel</a>""", Some(ILink(newwid, label, role)))
     } else if (rk) {
       val sup = "" //"""<sup><b style="color:red">^</b></sup></a>"""
-      (s"""<a href="http://${Services.config.rk}${wid.formatted.urlRelative}" title="$title">$label$sup</a>""" ,
+      (s"""<a href="http://${Services.config.rk}${wid.formatted.urlRelative}" title="$title">$tlabel$sup</a>""" ,
         Some(ILink(wid, label, role)))
     } else {
       // topic not found in index - hide it from google
       val prefix = if(wid.realm.isDefined && wid.getRealm != curRealm) s"/we/${wid.getRealm}" else "/wikie"
       val plusplus = if(Wikis.PERSISTED.contains(wid.cat)) "" else """<sup><b style="color:red">++</b></sup>"""
-      (s"""<a href="$prefix/show/${wid.wpath}" title="%s">$label$plusplus</a>""".format
+      (s"""<a href="$prefix/show/${wid.wpath}" title="%s">$tlabel$plusplus</a>""".format
         (hover.getOrElse("Missing page")),
         Some(ILink(wid, label, role)))
     }
@@ -178,46 +195,68 @@ object Wikis extends Logging with Validation {
     else None
   }
 
-  private def include(wid:WID, c2: String)(implicit errCollector: VErrors): Option[String] = {
+  private def include(wid:WID, c2: String, we:Option[WikiEntry]=None, firstTime:Boolean=false)(implicit errCollector: VErrors): Option[String] = {
+    // todo this is not cached as the underlying page may change - need to pick up changes
     var done = false
+    var collecting = we.exists(_.depys.isEmpty) // should collect depys
+
     val res = try {
       val INCLUDE = """(?<!`)\[\[include(WithSection)?:([^\]]*)\]\]""".r
-      val res1 = INCLUDE.replaceAllIn(c2, { m =>
+      var res1 = INCLUDE.replaceAllIn(c2, { m =>
         val content = for (
           iwid <- WID.fromPath(m.group(2)).map(w=> if(w.realm.isDefined) w else w.r(wid.getRealm)) orErr ("bad format for page");
           c <- (if(m.group(1) == null) iwid.content else iwid.findSection.map(_.original)) orErr s"content for ${iwid.wpath} not found"
-        ) yield c
+        ) yield {
+            if(collecting && we.isDefined)
+              we.get.depys = iwid.uwid.toList ::: we.get.depys
+            c
+          }
 
         done = true
         //regexp uses $ as a substitution
         content.map(_.replaceAll("\\$", "\\\\\\$")).getOrElse("`[ERR Can't include $1 " + errCollector.mkString + "]`")
       })
 
-      val TEMPLATE = """(?<!`)\[\[template:([^\]]*)\]\]""".r
-      TEMPLATE.replaceAllIn(res1, { m =>
-        done = true
-        //todo this is parse-ahead, maybe i can make it lazy?
-        val parms = WikiForm.parseFormData(c2)
-        val content = template (m.group(1), Map()++parms)
-        //regexp uses $ as a substitution
-        content.replaceAll("\\$", "\\\\\\$")
-      })
+      if(!res1.contains("{{.wiki.noTemplate")) {
+        var hadTemplate = false
+        val TEMPLATE = """(?<!`)\{\{\.?wiki.template[: ]*([^\}]*)\}\}""".r
+        res1 = TEMPLATE.replaceAllIn(res1, { m =>
+          done = true
+          hadTemplate = true
+          //todo this is parse-ahead, maybe i can make it lazy?
+          val parms = WikiForm.parseFormData(c2)
+          val content = template(m.group(1), Map() ++ parms)
+          //regexp uses $ as a substitution
+          content.replaceAll("\\$", "\\\\\\$")
+        })
+
+        if (firstTime && !hadTemplate && wid.cat != "Category" && wid.cat != "Reactor")
+          Wikis(wid.getRealm).category(wid.cat).flatMap(_.attr("inst.template")).map { t =>
+            done = true
+            val parms = WikiForm.parseFormData(c2)
+            val content = template(t, Map() ++ parms)
+
+            res1 = content + "\n\n" + res1
+          }
+      }
+
+     res1
     } catch {
       case s: Throwable => log("Error: ", s); "`[ERR Can't process an include]`"
     }
     if (done) Some(res) else None
   }
 
-  def preprocessIncludes(wid: WID, markup: String, content: String) = markup match {
+  def preprocessIncludes(wid: WID, markup: String, content: String, page:Option[WikiEntry]=None) = markup match {
     case MD =>
       implicit val errCollector = new VErrors()
 
       var c2 = content
 
       // TODO stupid - 3 levels of include...
-      include(wid, c2).map { c2 = _ }.flatMap { x =>
-        include(wid, c2).map { c2 = _ }.flatMap { x =>
-          include(wid, c2).map { c2 = _ }
+      include(wid, c2, page, true).map { c2 = _ }.flatMap { x =>
+        include(wid, c2, page, false).map { c2 = _ }.flatMap { x =>
+          include(wid, c2, page, false).map { c2 = _ }
         }
       }
 
@@ -240,12 +279,12 @@ object Wikis extends Logging with Validation {
         c2 = c2.replaceAll("""\[\[\../""", """[[%s""".format(wid.parentWid.map(wp => wp.realm.map(_ + ".").mkString + wp.cat + ":" + wp.name + "/").getOrElse(""))) // siblings topics
 
       // TODO stupid - 3 levels of include...
-      include(wid, c2).map {x=>
+      include(wid, c2, page, true).map {x=>
         page.map(_.cacheable = false) // simple dirty if includes, no depy to manage
         c2 = x
       }.flatMap { x =>
-        include(wid, c2).map { c2 = _ }.flatMap { x =>
-          include(wid, c2).map { c2 = _ }
+        include(wid, c2, page, false).map { c2 = _ }.flatMap { x =>
+          include(wid, c2, page, false).map { c2 = _ }
         }
       }
 
@@ -310,15 +349,18 @@ object Wikis extends Logging with Validation {
         try {
           // find the page with the scripts and call them
           val pageWithScripts = WID.fromPath(m group 2).flatMap(x => Wikis(x.getRealm).find(x)).orElse(we)
-          pageWithScripts.flatMap(_.scripts.find(_.name == (m group 3))).filter(_.checkSignature(user)).map{s=>
+          val y=pageWithScripts.flatMap(_.scripts.find(_.name == (m group 3))).filter(_.checkSignature(user)).map{s=>
             if("inline" == s.stype) {
+              val wix = api.wix(we, user, Map.empty, "")
               s"""<script>
+                |${wix.jsonBrowser}\n
                 |${s.content}
                 |</script>
               """.stripMargin
             } else
               runScript(s.content, "js", we, user)
         }
+          y.map(_.replaceAll("\\$", "\\\\\\$"))
         } catch {
           case t: Throwable => {
             log("exception in script", t)
@@ -470,6 +512,22 @@ object Wikis extends Logging with Validation {
     format (we.wid, we.markup, "", Some(we), user)
   }
 
+  WikiObservers mini {
+    case ev@WikiEvent(action, "WikiEntry", _, entity, _, _, _) => {
+      action match {
+        case WikiAudit.UPD_RENAME => {
+          val oldWid = ev.oldId.flatMap(WID.fromPath)
+          Wikis.clearCache(oldWid.get)
+        }
+        case a if WikiAudit.isUpd(a) => {
+          val wid = WID.fromPath(ev.id)
+          Wikis.clearCache(wid.get)
+        }
+        case _ => {}
+      }
+    }
+  }
+
   def clearCache(wid:WID) = {
     Array(
       wid,
@@ -594,7 +652,19 @@ object Wikis extends Logging with Validation {
       wid <- WID.fromPath(wpath).map(x=>if(x.realm.isDefined) x else x.r("wiki")); // templates are in wiki or rk
       c <- wid.content
     ) yield {
-        val s1 = parms.foldLeft(c)((a,b)=>a.replaceAll("\\{\\{\\$\\$"+b._1+"\\}\\}", b._2))
+        var extraParms = Map.empty[String,String]
+        val TIF = """(?s)\{\{\.*(tif)([: ])?([^ :}]*)([ :]+)?([^}]+)?\}\}((?>.*?(?=\{\{/[^`])))\{\{/\.*tif\}\}""".r
+        var res = TIF.replaceAllIn(c, { m =>
+          if(parms.get(m.group(3)).exists(_.length > 0)) "$6"
+          else if(m.group(5) != null) { // default value
+            extraParms = extraParms + (m.group(3) -> m.group(5))
+            "$6"
+          } else ""
+        })
+
+        val s1 = (parms ++ extraParms).foldLeft(res){(a,b)=>
+          a.replaceAll("\\{\\{\\$\\$"+b._1+"\\}\\}", b._2)
+        }
         s1.replaceAll("\\{\\{`", "{{")//.replaceAll("\\{\\{`", "{{").replaceAll("\\{\\{`/section", "{{/section")
       }) getOrElse (
       "No content template for: " + wpath + "\n\nAttributes:\n\n" + parms.map{t=>s"* ${t._1} = ${t._2}\n"}.mkString

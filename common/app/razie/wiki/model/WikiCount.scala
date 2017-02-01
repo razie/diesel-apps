@@ -7,8 +7,11 @@
 package razie.wiki.model
 
 import org.bson.types.ObjectId
+import razie.clog
 import razie.db._
 import razie.db.tx.txn
+import play.api.cache._
+import play.api.Play.current
 
 /** keep track of view counts, per wiki page id */
 @RTable
@@ -18,24 +21,40 @@ case class WikiCount (
   _id:ObjectId = new ObjectId()
 //todo add thumbup, thumbdown
   ) extends REntity[WikiCount] {
+
   def inc = {
     //todo optimize use upsert
-    WikiCount.findOne (pid) map (p=>
-      RUpdate noAudit (Map("pid" -> pid), p.copy(count=p.count+1))
-      ) orElse {
+    WikiCount.findOne (pid) map {p=>
+      val newone = p.copy(count=p.count+1)
+      RUpdate noAudit (Map("pid" -> pid), newone)
+      Cache.set("count."+pid.toString, newone, 300) // 10 miuntes
+    } orElse {
       RCreate noAudit this
+      Cache.set("count."+pid.toString, this, 300) // 10 miuntes
       None
     }
   }
+
   def set (newCount:Long) = {
     //todo optimize use upsert
-    WikiCount.findOne (pid) foreach (p=>
-      RUpdate (Map("pid" -> pid), p.copy(count=newCount))
-    )
+    WikiCount.findOne (pid) foreach {p=>
+      val newone = p.copy(count=newCount)
+      RUpdate (Map("pid" -> pid), newone)
+      Cache.set("count."+pid.toString, newone, 300) // 10 miuntes
+    }
   }
 }
 
 /** wiki factory and utils */
 object WikiCount {
-  def findOne(pid: ObjectId) = ROne[WikiCount] ("pid" -> pid)
+  def findOne(pid: ObjectId) = {
+    Cache.getAs[WikiCount]("count."+pid.toString).map { x =>
+      Some(x)
+    }.getOrElse {
+      val x = ROne[WikiCount] ("pid" -> pid)
+      x.map(x=>Cache.set("count."+x.pid.toString, x, 300)) // 10 miuntes
+      x
+    }
+  }
 }
+

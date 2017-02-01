@@ -17,6 +17,7 @@ import scala.collection.mutable.ListBuffer
 import scala.util.Try
 import scala.util.matching.Regex.Match
 import scala.util.parsing.combinator.RegexParsers
+import scala.util.parsing.combinator.token.Tokens
 import scala.Option.option2Iterable
 import scala.collection.mutable
 import razie.wiki.model._
@@ -25,7 +26,7 @@ import razie.wiki.model._
   *
   * i.e. you jsut want to parse the DomParser rules
   */
-trait WikiParserMini extends WikiParserBase with CsvParser {
+trait WikiParserMini extends WikiParserBase with CsvParser with Tokens {
 
   import WAST._
 
@@ -55,12 +56,12 @@ trait WikiParserMini extends WikiParserBase with CsvParser {
     case ol ~ l => ol.toList ::: l
   }
 
-  def optline: PS = opt(escaped2 | dotProps | line) ^^ { case o => o.map(identity).getOrElse(SState.EMPTY) }
+  def optline: PS = opt(escaped2 | dotProps | videoUrlOnaLine | line) ^^ { case o => o.map(identity).getOrElse(SState.EMPTY) }
 
   private def TSNB : PS = "^THISSHALTNOTBE$" ^^ { case x => SState(x) }
   private def blocks : PS = moreBlocks.fold(TSNB)((x,y) => x | y)
 
-  def lines: PS = rep((blocks ~ CRLF2) | (optline ~ (CRLF1 | CRLF3 | CRLF2))) ~ opt(escaped2 | dotProps | line) ^^ {
+  def lines: PS = rep((blocks ~ CRLF2) | (optline ~ (CRLF1 | CRLF3 | CRLF2))) ~ opt(escaped2 | dotProps | videoUrlOnaLine | line) ^^ {
     case l ~ c =>
       l.map(t => t._1 match {
         // just optimizing to reduce the number of resulting elements
@@ -122,12 +123,79 @@ trait WikiParserMini extends WikiParserBase with CsvParser {
   //    case http ~ url ~ None => """[%s](%s)""".format(url, http.getOrElse("")+url)
   //  }
 
+  // if url is on a line, maybe it's a youtube vid and will expand.
+  // use lookahead for newline with regex
+  private def videoUrlOnaLine: PS = not("""[\[(]""".r) ~> """http[s]?://""".r ~ """[^\s\]]+\s*(?=[\r\n])""".r  ^^ {
+    case http ~ urlx => {
+      val url = urlx.trim
+      // auto expand videos
+      val yt1 = """http[s]?://youtu.be/([^?]+)(\?t=.*)?""".r
+      val yt2 = """http[s]?://www.youtube.com/watch?.*v=([^?&]+).*""".r
+      val vm3 = """http[s]?://vimeo.com/([^?&]+)""".r
+
+      if(
+        (http+url).matches(yt1.regex) ||
+          (http+url).matches(yt2.regex) ||
+          (http+url).matches(vm3.regex)
+      ) wpVideo("video", http+url, Nil)
+      else
+        SState(s"""<a href="$http$url">$http$url</a>""")
+    }
+  }
 
   /** simplify url - don't require markup for urls so http://xxx works */
   private def linkUrl: PS = not("""[\[(]""".r) ~> """http[s]?://""".r ~ """[^\s\]]+""".r ^^ {
-    //    case http ~ url => s"""[$http$url]($http$url)"""
-    case http ~ url => s"""<a href="$http$url">$http$url</a>"""
+    case http ~ url =>
+      SState(s"""<a href="$http$url">$http$url</a>""")
   }
+
+  protected def wpVideo (what:String, url:String, args:List[(String,String)]) = {
+    val caption = getCaption(args, "left")
+    what match {
+      case "video" => {
+        val yt1 = """http[s]?://youtu.be/([^?]+)(\?t=.*)?""".r
+        val yt2 = """http[s]?://www.youtube.com/watch?.*v=([^?&]+).*""".r
+        val vm3 = """http[s]?://vimeo.com/([^?&]+)""".r
+        val vp4 = """http[s]?://videopress.com/v/([^?&]+)""".r
+        def xt(id: String, time:Option[String] = None) = s"""<iframe width="560" height="315" src="http://www.youtube.com/embed/$id${time.map(x=>"?start="+x).mkString}" frameborder="0" allowfullscreen></iframe>"""//.format(id)
+        def vm(id: String) = """<iframe src="//player.vimeo.com/video/%s" width="500" height="281" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>""".format(id)
+        def vp(id: String) = s"""<iframe width="560" height="315" src="https://videopress.com/embed/$id" frameborder="0" allowfullscreen></iframe>
+          <script src="https://videopress.com/videopress-iframe.js"></script>"""
+        url match {
+          case yt1(a, g1) => {
+            if(g1 == null) { // no time info
+              SState(xt(a)+s"<br>$caption<br>")
+            } else {
+              // turn 1m1s into 61
+              val ts = """\?t=([0-9]+m)?([0-9]+s)?""".r
+              val ts(g2,g3) = g1
+              val sec = (if(g2 == null) 0 else g2.substring(0,g2.length-1).toInt * 60) + (if(g3 == null) 0 else g3.substring(0,g3.length-1).toInt)
+              SState(xt(a, Option(if(sec == 0) null else sec.toString))+s"<br>$caption<br>")
+            }
+          }
+          case yt2(a) => SState(xt(a)+s"<br>$caption<br>")
+          case vm3(a) => SState(vm(a)+s"<br>$caption<br>")
+          case vp4(a) => SState(vp(a)+s"<br>$caption<br>")
+          case _ => SState("""{{Unsupported video source - please report to support: <a href="%s">url</a>}}""".format(url))
+        }
+      }
+      case "slideshow" => {
+        val yt1 = """(.*)""".r
+        def xt(id: String) = """<a href="%s">Slideshow</a><br>""".format(id)
+        url match {
+          case yt1(a) => SState(xt(a)+s"<br>$caption<br>")
+          case _ => SState("""{{Unsupported slideshow source - please report to support: %s}}""".format(url))
+        }
+      }
+    }
+  }
+
+  def getCaption(iargs:List[(String,String)], align:String="center"):String = iargs.toMap.get("caption").map(x=>
+    s"""
+       |<div style="text-align: $align;">
+       |<small style="align:$align">$x</small>
+       |</div>
+        """.stripMargin) getOrElse ""
 
   private def hr: PS = """^---+""".r ~> opt("div:" ~> ".*") ^^ {
     case div => "<hr>"
@@ -562,17 +630,18 @@ trait WikiParserT extends WikiParserMini with CsvParser {
     }
   }
 
-  def wikiPropVisible: PS = "{{" ~> "visible[: ]".r ~> "[^ }]+".r ~ " *\\}\\}".r ~ lines <~ ("{{/" ~ """visible""".r ~ " *}}".r) ^^ {
-    case expr ~ _ ~ lines => {
+  def wikiPropVisible: PS = "{{" ~> "visible[: ]".r ~> "[^ }:]+".r ~ " *".r ~ opt("[^}]+".r) ~ " *\\}\\}".r ~ lines <~ ("{{/" ~ """visible""".r ~ " *}}".r) ^^ {
+    case expr ~ _ ~ attrs ~ _ ~ lines => {
       LazyState {(current, ctx) =>
         ctx.we.map { we =>
+          var desc = attrs.map("("+ _ +")").getOrElse("<small>("+lines.fold(ctx).s.split("(?s)\\s+").size +" words)</small>")
           if(ctx.au.exists(_.hasMembershipLevel(expr)))
             SState(
               s"""{{div class="alert alert-success"}}""" + s"<b>Member-only content/discussion begins</b> ($expr)" + s"{{/div}}" +
               lines.fold(ctx).s
             )
           else if(expr != "Moderator")
-            SState(s"""{{div class="alert alert-danger"}}""" + s"<b>Member-only content avilable</b> - to see more on this topic, you need to login. ($expr)" + s"{{/div}}")
+            SState(s"""{{div class="alert alert-danger"}}""" + s"<b>Member-only content avilable <i>$desc</i></b>. <br>To see more on this topic, you need a membership. ($expr)" + s"{{/div}}")
           else
             SState.EMPTY
         } getOrElse {
@@ -619,13 +688,6 @@ trait WikiParserT extends WikiParserMini with CsvParser {
   /** map nvp to html tag attrs */
   private def htmlArgs (args:List[(String,String)]) = args.foldLeft(""){(c, a) => s""" $c ${a._1}="${a._2}" """}
 
-  def getCaption(iargs:List[(String,String)], align:String="center"):String = iargs.toMap.get("caption").map(x=>
-    s"""
-       |<div style="text-align: $align;">
-       |<small style="align:$align">$x</small>
-       |</div>
-        """.stripMargin) getOrElse ""
-
   def wikiPropImg: PS = "{{" ~> "img|photo".r ~ opt("""\.icon|\.small|\.medium|\.large""".r) ~ """[: ]+""".r ~ """[^} ]*""".r ~ optargs <~ "}}" ^^ {
     case skind ~ stype ~ _ ~ name ~ iargs => {
       val width = stype match {
@@ -649,43 +711,6 @@ trait WikiParserT extends WikiParserMini with CsvParser {
 
   private def wikiPropVideo: PS = "{{" ~> ("video" | "slideshow") ~ """[: ]""".r ~ """[^} ]*""".r ~ optargs <~ "}}" ^^ {
     case what ~ _ ~ url ~ args => wpVideo(what, url, args)
-  }
-
-  private def wpVideo (what:String, url:String, args:List[(String,String)]) = {
-    val caption = getCaption(args, "left")
-    what match {
-      case "video" => {
-        val yt1 = """http[s]?://youtu.be/([^?]+)(\?t=.*)?""".r
-        val yt2 = """http[s]?://www.youtube.com/watch?.*v=([^?&]+).*""".r
-        val vm3 = """http[s]?://vimeo.com/([^?&]+)""".r
-        def xt(id: String, time:Option[String] = None) = s"""<iframe width="560" height="315" src="http://www.youtube.com/embed/$id${time.map(x=>"?start="+x).mkString}" frameborder="0" allowfullscreen></iframe>"""//.format(id)
-        def vm(id: String) = """<iframe src="//player.vimeo.com/video/%s" width="500" height="281" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>""".format(id)
-        url match {
-          case yt1(a, g1) => {
-            if(g1 == null) { // no time info
-              SState(xt(a)+s"<br>$caption<br>")
-            } else {
-              // turn 1m1s into 61
-              val ts = """\?t=([0-9]+m)?([0-9]+s)?""".r
-              val ts(g2,g3) = g1
-              val sec = (if(g2 == null) 0 else g2.substring(0,g2.length-1).toInt * 60) + (if(g3 == null) 0 else g3.substring(0,g3.length-1).toInt)
-              SState(xt(a, Option(if(sec == 0) null else sec.toString))+s"<br>$caption<br>")
-            }
-          }
-          case yt2(a) => SState(xt(a)+s"<br>$caption<br>")
-          case vm3(a) => SState(vm(a)+s"<br>$caption<br>")
-          case _ => SState("""{{Unsupported video source - please report to support: <a href="%s">url</a>}}""".format(url))
-        }
-      }
-      case "slideshow" => {
-        val yt1 = """(.*)""".r
-        def xt(id: String) = """<a href="%s">Slideshow</a><br>""".format(id)
-        url match {
-          case yt1(a) => SState(xt(a)+s"<br>$caption<br>")
-          case _ => SState("""{{Unsupported slideshow source - please report to support: %s}}""".format(url))
-        }
-      }
-    }
   }
 
   // todo more humane name

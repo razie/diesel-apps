@@ -65,7 +65,7 @@ case class Comment (
   parentId: Option[ObjectId], // in reply to...
   content: String,
   link: Option[String],
-  kind: Option[String], // text/video/photo
+  kind: Option[String], // text/video/photo/resource
   likes: List[String]=List.empty, // list of usernames that liked it
   dislikes: List[String]=List.empty, // list of usernames that liked it
   crDtm: DateTime = DateTime.now(),

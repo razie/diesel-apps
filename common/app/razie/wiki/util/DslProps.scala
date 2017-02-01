@@ -26,6 +26,7 @@ class DslProps (val we:Option[WikiEntry], section:String, extra:Seq[(String,Stri
 
   override def toString = propSeq.mkString
 
+  // todo avoid reload, swap the entire class and use VAL instead of DEF in Website - stop parsing stuff all the time
   def reload(we:WikiEntry): Unit = {
     ipropSeq = extra ++ (we.section("section", section).toArray flatMap (ws=>WikiConfig.parsep(ws.content)))
     iprops = ipropSeq.toMap[String,String]

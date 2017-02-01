@@ -12,20 +12,14 @@ object RDOM {
 
   /** represents a Class */
   case class C (name:String, archetype:String, stereotypes:String, base:List[String], typeParam:String, parms:List[P]=Nil, methods:List[F]=Nil, assocs:List[A]=Nil) {
-    override def toString = s"""class <b><a href="/wikie/show/Category:$name">$name</a></b> """ +
-      smap(typeParam) (" [" + _ + "]") +
-      smap(archetype) (" &lt;" + _ + "&gt;") +
-      smap(stereotypes) (" &lt;" + _ + "&gt;") +
-      (if(base.exists(_.size>0)) "extends " else "") + base.map("<b>" + _ + "</b>").mkString +
-      mks(parms, " (", ", ", ") ") +
-      mks(methods, "{<br>", "<br>", "<br>}", "&nbsp;&nbsp;")
+    override def toString = fullHtml
 
-    def fullHtml = span("class") + s""" <b><a href="/wikie/show/Category:$name">$name</a></b> """ +
+    def fullHtml = span("class::") + s""" <b><a href="/wikie/show/Category:$name">$name</a></b> """ +
       smap(typeParam) (" [" + _ + "]") +
       smap(archetype) (" &lt;" + _ + "&gt;") +
       smap(stereotypes) (" &lt;" + _ + "&gt;") +
       (if(base.exists(_.size>0)) "extends " else "") + base.map("<b>" + _ + "</b>").mkString +
-      mks(parms, " (<br>", ",<br> ", ") ", "&nbsp;&nbsp;") +
+      mks(parms, " (", ", ", ") ", "&nbsp;&nbsp;") +
       mks(methods, "{<br><hr>", "<br>", "<br><hr>}", "&nbsp;&nbsp;")
   }
 

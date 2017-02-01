@@ -180,21 +180,6 @@ class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
     }
   }
 
-  WikiObservers mini {
-    case ev@WikiEvent(action, "WikiEntry", _, entity, _, _, _) => {
-      action match {
-        case WikiAudit.UPD_RENAME => {
-          val oldWid = ev.oldId.flatMap(WID.fromPath)
-          Wikis.clearCache(oldWid.get)
-          }
-        case a if WikiAudit.isUpd(a) => {
-          val wid = WID.fromPath(ev.id)
-          Wikis.clearCache(wid.get)
-        }
-      }
-    }
-  }
-
   // TODO find by ID is bad, no - how to make it work across wikis ?
   def findById(id: String) = find(new ObjectId(id))
   // TODO optimize
@@ -296,30 +281,32 @@ class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
     */
   def applyTemplates (wid:WID, content:String, which:String) = {
     val wpath=wid.wpath
-    category(wid.cat).flatMap(_.section("template", which)).fold(content) { sec =>
-      sec.signature match {
-        case "interpolated" => {
-          content
+    var res = content
+      res = category(wid.cat).flatMap(_.section("template", which)).fold(content) { sec =>
+        sec.signature match {
+          case "interpolated" => {
+            content
+          }
+          case "uppercase" => {
+            sec.content.
+              replaceAllLiterally("NAME", wid.name).
+              replaceAllLiterally("REALM", wid.getRealm).
+              replaceAllLiterally("WPATH", wpath).
+              replaceAllLiterally("CONTENT", content)
+            // todo important to have COTENT at the end so it doenst replace inside it
+          }
+          case _ => {
+            sec.content.
+              replaceAllLiterally("{{$$name}}", wid.name).
+              replaceAllLiterally("{{$$realm}}", wid.getRealm).
+              replaceAllLiterally("{{$$wpath}}", wpath).
+              replaceAllLiterally("{{$$content}}", content)
+            // it is important to have $$content at the end so it doenst replace inside it
+            //todo use the ast folding with T_TEMPLATE
+          }
         }
-        case "uppercase" => {
-          sec.content.
-            replaceAllLiterally("NAME", wid.name).
-            replaceAllLiterally("REALM", wid.getRealm).
-            replaceAllLiterally("WPATH", wpath).
-            replaceAllLiterally("CONTENT", content)
-          // todo important to have COTENT at the end so it doenst replace inside it
-        }
-        case _ => {
-          sec.content.
-            replaceAllLiterally("{{$$name}}", wid.name).
-            replaceAllLiterally("{{$$realm}}", wid.getRealm).
-            replaceAllLiterally("{{$$wpath}}", wpath).
-            replaceAllLiterally("{{$$content}}", content)
-          // it is important to have $$content at the end so it doenst replace inside it
-          //todo use the ast folding with T_TEMPLATE
       }
-      }
-    }
+    res
   }
 }
 

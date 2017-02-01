@@ -10,6 +10,7 @@ import org.bson.types.ObjectId
 import com.mongodb.casbah.Imports._
 import com.novus.salat._
 import com.novus.salat.annotations._
+import org.joda.time.DateTime
 import razie.base.Auditor
 import razie.db.RazSalatContext._
 
@@ -86,6 +87,13 @@ object RMany {
 
   def raw[A <: AnyRef](t: (String, Any)*)(implicit m: Manifest[A]) =
     RazMongo(tbl(m)).find(t.toMap)
+
+  def sortLimit[A <: AnyRef](query: Map[String, Any], sortby:Map[String,Any], limit:Int = -1)(implicit m: Manifest[A]) =
+    (if(limit < 0)
+      RazMongo(tbl(m)).find(query)
+    else
+      RazMongo(tbl(m)).find(query).sort(sortby).limit(limit)
+    ).toList.map(grater[A].asObject(_))
 }
 
 /* count/find many mongo items */
@@ -162,6 +170,7 @@ class REntity[T <: { def _id: ObjectId }](implicit m: Manifest[T]) { this: T =>
   // had to copy this
   implicit def toroa(id: ObjectId) = new RMongo.as(id)
 
+  def toJsonNice = razie.js.tojsons(razie.js.parse(toJson))
   def toJson = grater[T].asDBObject(this).toString
   def grated = grater[T].asDBObject(this)
 
@@ -171,5 +180,19 @@ class REntity[T <: { def _id: ObjectId }](implicit m: Manifest[T]) { this: T =>
   def createNoAudit(implicit txn: Txn = tx.auto) = RCreate.noAudit[T](this)
   def deleteNoAudit(implicit txn: Txn = tx.auto) = RDelete.noAudit[T](this)
   def updateNoAudit(implicit txn: Txn = tx.auto) = RUpdate.noAudit[T](this)
+
+  def trash(by:String)(implicit txn: Txn = tx.auto) = {
+    WikiTrash(RMongo.tbl(m), grated, by, txn.id).create
+    RDelete.noAudit[T](this)
+  }
 }
+
+  /** wiki entries are trashed when deleted - a copy of each older version when udpated or deleted
+    *
+    * todo some ways to recover them
+    * */
+  @RTable
+  case class WikiTrash(table:String, entry: DBObject, by:String, txnId:String, date:DateTime=DateTime.now, _id: ObjectId = new ObjectId()) {
+    def create (implicit txn:Txn) = RCreate.noAudit[WikiTrash](this)
+  }
 

@@ -9,7 +9,7 @@
 
 @title() = @{
   if(pageTitle.length==0)
-    stok.map(_._title).getOrElse(props.flatMap(_.title) getOrElse ("RacerKidz"))
+    stok.map(_._title).getOrElse(props.flatMap(_.title) getOrElse ("Wiki"))
   else pageTitle
 }
 
@@ -35,11 +35,11 @@
       @if(page.isDefined) {
         @** i should be conservative and default to rk **@
           <!-- page -->
-        <link rel="canonical" href="@hostName/wiki/@page.get.wid.wpath" />
+        <link rel="canonical" href="@hostNameForRealm/@page.get.wid.canonpath" />
       }
     }
 
-@hostName=@{
+@hostNameForRealm=@{
   WikiReactors(page.get.wid.getRealm).websiteProps.prop("url").getOrElse("http://www.racerkidz.com")
 }
 
@@ -266,7 +266,7 @@ code .comment              { color: gray }
 #}
 
 pre {
-  background-color: #191919;
+  background-color: black;
   white-space: pre-wrap;
   word-wrap: break-word;
   color: #DDDDDD

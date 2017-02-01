@@ -27,6 +27,8 @@ import razie.db._
 import razie.Snakk
 import razie.db.RMongo.as
 import razie.db.tx.txn
+import controllers.Club
+import razie.wiki.dom.WikiDomain
 
 import scala.collection.mutable
 
@@ -142,9 +144,17 @@ case class User(
 
   def isActive = status == 'a'
   def isSuspended = status == 's'
+  def isMod = isAdmin || hasPerm(Perm.Moderator)
   def isAdmin = hasPerm(Perm.adminDb) || hasPerm(Perm.adminWiki)
   def isClub = roles contains UserType.Organization.toString
   def isUnder13 = DateTime.now.year.get - yob <= 12
+
+  /** is this a group admin for a group the page belongs to ? */
+  def canAdmin (we:WikiEntry) : Boolean = isAdmin ||
+    we.wid.parentOf(WikiDomain(we.realm).isA("Club", _)).flatMap(Club.apply).exists(_.isClubAdmin(this))
+
+  /** is this a group admin for a group the page belongs to ? */
+  def canAdmin (wid:WID) : Boolean = isAdmin || wid.page.exists(canAdmin)
 
   /** Harry is a default suspended account you can use for demos */
   def isHarry = id == "4fdb5d410cf247dd26c2a784"
@@ -182,10 +192,12 @@ case class User(
 
   /** the wikis I linked to */
   lazy val wikis = RMany[UserWiki]("userId" -> _id).toList
-//  lazy val clubs = RMany[UserWiki]("userId" -> _id.filter(), "uwid.cat" -> "Club").toList
-  lazy val clubs = RMany[UserWiki]("userId" -> _id).filter(uw=>Wikis.domain(uw.uwid.getRealm).isA("Club", uw.uwid.cat)).toList
+  lazy val clubs =
+    wikis.filter(uw=>Wikis.domain(uw.uwid.getRealm).isA("Club", uw.uwid.cat)).toList
 
-  def isLinkedTo(uwid:UWID) = (ROne[UserWiki]("uwid" -> uwid.grated, "userId" -> _id) orElse ROne[UserWiki]("uwid.cat" -> uwid.cat, "uwid.id" -> uwid.id, "userId" -> _id)).toList
+  // perf issue - checked for each user logged in
+  def isLinkedTo(uwid:UWID) =
+    wikis.filter(uw=>uw.uwid.cat==uwid.cat && uw.uwid.id == uwid.id)
 
   /** pages of category that I linked to */
   def pages(realm:String, cat: String*) = wikis.filter{w=>
@@ -426,9 +438,9 @@ object Users {
   //todo optimize this - cache some users?
   /** display name of user with id, for comments etc */
   def nameOf(uid: ObjectId): String = {
-    Cache.getAs[String](uid.toString + ".name").getOrElse {
+    Cache.getAs[String](uid.toString + ".username").getOrElse {
       val n = ROne.raw[User]("_id" -> uid).fold("???")(_.apply("userName").toString)
-      Cache.set(uid.toString + ".name", n, 600) // 10 miuntes
+      Cache.set(uid.toString + ".username", n, 600) // 10 miuntes
       n
     }
   }

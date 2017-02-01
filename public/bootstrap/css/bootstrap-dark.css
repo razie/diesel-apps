@@ -221,6 +221,10 @@ textarea {
   }
 }
 
+panel {
+  background-color: #272b30;
+}
+
 body {
   margin: 0;
   font-family: "Verdana", Verdana, Arial, sans-serif;

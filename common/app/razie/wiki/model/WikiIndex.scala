@@ -13,7 +13,7 @@ import razie.wiki.dom.WikiDomain
 
 import scala.collection.mutable.{ListBuffer, HashMap}
 
-/** generic mixin - wiki domains and indexes accept mixins */
+/** generic instance mixin - wiki domains and indexes accept mixins */
 class Mixins[A <: {def mixins:Mixins[A]}] (val l:List[A]) {
   val flatten = {
     var seen = new ListBuffer[A]()
@@ -52,16 +52,24 @@ class WikiIndex (val realm:String, val fallBacks : List[WikiIndex]) {
 
   val mixins = new Mixins[WikiIndex](fallBacks)
 
-  private lazy val actualIndex = {
+  /** the index is (name, (WID, ID)*)* with multiple WIDs per name */
+  private lazy val actualIndex : TripleIdx[String, WID, ObjectId] = load
+
+  /** load it the first time */
+  private def load = {
+    // todo should this be sync'd ?
     /** the index is (name, (WID, ID)*)* with multiple WIDs per name */
     val t = new TripleIdx[String, WID, ObjectId]()
-    // load it the first time
+
+    // avoid parsing each
     Wikis(realm).foreach { db =>
       val iw = WID(
         db.as[String]("category"),
         db.as[String]("name"),
         if (db.containsField("parent")) Some(db.as[ObjectId]("parent")) else None,
-        None).r(db.as[String]("realm"))
+        None
+      ).r(db.as[String]("realm"))
+
       // RK is just one other realm
       val w = if(iw.realm.isDefined) iw else iw.r(Wikis.RK)
       t.put(w.name, w, db.as[ObjectId]("_id"))
@@ -69,12 +77,12 @@ class WikiIndex (val realm:String, val fallBacks : List[WikiIndex]) {
       labels.put(w.name, db.as[String]("label"))
 
       if (db.containsField("tags")) {
-      val tags2 = db.as[Seq[String]]("tags")
-      if(tags2 != null) {
-        tags2.foreach { t =>
-          usedTags.put(t, "")
+        val tags2 = db.as[Seq[String]]("tags")
+        if(tags2 != null) {
+          tags2.foreach { t =>
+            usedTags.put(t, "")
+          }
         }
-      }
       }
     }
     t

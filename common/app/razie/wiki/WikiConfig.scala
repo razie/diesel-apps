@@ -69,6 +69,8 @@ abstract class WikiConfig {
 
   def isLocalhost = "localhost:9000" == hostport
 
+  def isDebugMode = isLocalhost
+
   //-------------- special admin/configuration pages
 
   /** if there is an external favorite canonical URL for this WPATH
@@ -180,7 +182,6 @@ abstract class WikiConfig {
 
   def reservedNames = ireservedNames
   protected var ireservedNames = List[String]()
-
 }
 
 object WikiConfig {
@@ -188,8 +189,8 @@ object WikiConfig {
   final val NOTES = "notes"
 
   // parse a properties looking thing
-  def parsep(content: String) = (content.split("\r*\n")) filter (!_.startsWith("#")) map (_.split("=", 2)) filter (_.size == 2) map (x => (x(0), x(1)))
-
+  def parsep(content: String) =
+    (content.split("\r*\n")) filter (!_.startsWith("#")) map (_.split("=", 2)) filter (_.size == 2) map (x => (x(0), x(1)))
 }
 
 /** sample config - use for testing for instance. Before beginning a test, do Services.config = SampleConfig */
@@ -205,7 +206,6 @@ class SampleConfig extends WikiConfig {
     for (c <- Array(SITECFG, TOPICRED, USERTYPES, BANURLS)) {
       val urlmaps = Some(Seq(props) flatMap WikiConfig.parsep)
       val xurlmap = (urlmaps.map(se => mutable.HashMap[String, String](se: _*)))
-      println("========================== RELOADING URL MAP ==============================")
       xurlmap.map(xconfig.put(c, _))
     }
 
@@ -226,6 +226,5 @@ class SampleConfig extends WikiConfig {
     ireservedNames = sitecfg("reserved.names").toList.flatMap(s=>s.split("[;,]"))
     itrustedSites = sitecfg("trusted.sites").toList.flatMap(s=>s.split("[;,]"))
   }
-
 }
 

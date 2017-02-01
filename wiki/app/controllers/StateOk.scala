@@ -23,9 +23,24 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
 
   def showBottomAd(yes:Boolean) = {bottomAd = yes}
 
+  lazy val form = request.flatMap(_.asInstanceOf[Request[AnyContent]].body.asFormUrlEncoded)
   lazy val query = request.map(_.queryString.map(t=>(t._1, t._2.mkString))).getOrElse(Map.empty)
-  def formParms = request.flatMap(_.asInstanceOf[Request[AnyContent]].body.asFormUrlEncoded.map(_.collect { case (k, v) => (k, v.head) })).get
-  def formParm(name:String) = request.map(_.asInstanceOf[Request[AnyContent]].body.asFormUrlEncoded.get.get(name).map(_.mkString).mkString).mkString
+
+  def formParms = form.map(_.collect { case (k, v) => (k, v.head) }).get
+  def formParm(name:String) = form.flatMap(_.get(name)).map(_.mkString).mkString
+
+  def fParm(name:String)=
+    form.flatMap(_.getOrElse(name, Seq.empty).headOption)
+
+  // from query or body
+  def fqParm(name:String, dflt:String) =
+    query.get(name).orElse(fParm(name)).getOrElse(dflt)
+
+  def fqhParm(name:String) =
+    query.get(name).orElse(fParm(name)).orElse(request.map(_.headers.get(name)))
+
+  def fqhoParm(name:String, dflt:String) =
+    query.get(name).orElse(fParm(name)).orElse(request.map(_.headers.get(name))).getOrElse(dflt)
 
   /** set the title of this page */
   def title(s:String) = {
@@ -104,10 +119,38 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
   }
 
   /** use for old templates with embedded layout OR plaint text */
+  def noLayout (content: => Html) =
+    Res.Ok (content)
+
   def noLayout (content: StateOk => Html) =
     Res.Ok (content(this))
 
-  def website = Website.gets(this)
+  val website = Website.gets(this)
+
+  /** should show bottom ads */
+  def showBottomAds (page:Option[WikiEntry]) = {
+    this.website.adsAtBottom &&
+      (this.au.isEmpty || this.website.adsForUsers ||
+        !this.website.noadsForPerms.foldLeft(false)((a,b)=>a || this.au.exists(_.hasPerm(Perm(b))))) &&
+      !page.exists(_.contentProps.contains("noAds")) &&
+      !page.exists(_.content.matches( """(?s).*\{\{ad[:}].*\{\{ad[:}].*""")) &&
+      !this.au.exists(_.isUnder13)
+  }
+
+  /** should show side ads - either adsOnSide is explicitely defined or else inherit adsAtBottom */
+  def showSideAds (page:Option[WikiEntry]) = {
+    (if(this.website.prop("adsOnSide").isDefined) website.adsOnSide else website.adsAtBottom) &&
+      (this.au.isEmpty || this.website.adsForUsers ||
+        !this.website.noadsForPerms.foldLeft(false)((a,b)=>a || this.au.exists(_.hasPerm(Perm(b))))) &&
+      !page.exists(_.contentProps.contains("noAds")) &&
+      !page.exists(_.content.matches( """(?s).*\{\{ad[:}].*\{\{ad[:}].*""")) &&
+      !this.au.exists(_.isUnder13)
+  }
+
+  /** prepare a WID - add current realm if missing */
+  def prepWid (wid:WID) =
+    if(wid.realm.isDefined) wid else wid.r(realm)
+
 }
 
 /** trying some type foolery - pass this off as a Request[_] as well and proxy to original */

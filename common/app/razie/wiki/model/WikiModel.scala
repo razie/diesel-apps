@@ -11,7 +11,7 @@ import com.novus.salat._
 import org.joda.time.DateTime
 import razie.base.Audit
 import razie.wiki.parser.WAST.SState
-import razie.{cdebug, AA, Log}
+import razie.{AA, Log, cdebug}
 import razie.db.RazSalatContext._
 import razie.db._
 import razie.wiki.Services
@@ -78,26 +78,8 @@ case class WikiEntry(
 
   /** todo should use this version instead of content - this resolves includes */
   def included : String = {
-    // todo this is not cached as the underlying page may change - need to pick up changes
-    var done = false
-    var collecting = depys.isEmpty // should collect depys
-
-      val INCLUDE = """(?<!`)\[\[include:([^\]]*)\]\]""".r
-      val res1 = INCLUDE.replaceAllIn(content, { m =>
-        val other = for (
-          wid <- WID.fromPath(m.group(1));
-          c <- wid.content // this I believe is optimized for categories
-        ) yield {
-            if(collecting) depys = wid.uwid.toList ::: depys
-            c
-          }
-
-        done = true
-        //regexp uses $ as a substitution, escape them before returning this subst string
-        other.map(_.replaceAll("\\$", "\\\\\\$")).getOrElse("`[ERR Can't include $1]`")
-      })
-
-    if(done) res1 else content
+    val x = Wikis.preprocessIncludes(wid, markup, content, Some(this))
+    x
   }
 
   def wid  = WID(category, name, parent, None, if(realm == Wikis.RK) None else Some(realm))
@@ -121,6 +103,7 @@ case class WikiEntry(
   def findParent = parent flatMap (p => Wikis(realm).find(p))
 
   def isReserved = props.get(PROP_RESERVED).exists(_ == "yes")
+  def isDraft = props.contains("draft")
 
   def isPrivate = "User" == category || (props.exists(e => PROP_OWNER == e._1))
   def isOwner(id: String) = ("User" == category && name == id) || (props.exists(e => PROP_OWNER == e._1 && id == e._2))
@@ -154,14 +137,14 @@ case class WikiEntry(
   }
 
   /** backup old version and update entry, update index */
-  def update(newVer: WikiEntry, reason:Option[String] = None)(implicit txn:Txn) = {
+  def update(newVer: WikiEntry, reason:Option[String] = None)(implicit txn:Txn=tx.auto) = {
     val uname = WikiUsers.impl.findUserById(newVer.by).map(_.userName).getOrElse(newVer.by.toString)
     if(uname != "Razie")
       Audit.logdbWithLink(
         if(wid.cat=="Note") AUDIT_NOTE_UPDATED else AUDIT_WIKI_UPDATED,
         newVer.wid.urlRelative,
         s"""BY $uname - $category : $name ver ${newVer.ver}""")
-    WikiEntryOld(this, reason).create
+    if(!isDraft || !newVer.isDraft) WikiEntryOld(this, reason).create
     RUpdate.noAudit[WikiEntry](Wikis(realm).weTables(wid.cat), Map("_id" -> newVer._id), newVer)
     Wikis.shouldFlag(name, label, content).map(auditFlagged(_))
     Wikis(realm).index.update(this, newVer)
@@ -190,7 +173,7 @@ case class WikiEntry(
   //?s means DOTALL - multiline
   // format: {{stype[ :]name:signature}}
   private final val PATT_SEC =
-    """(?s)\{\{\.*(section|def|lambda|inline|dsl\.\w*)([: ])?([^:}]*)?(:)?([^}]*)?\}\}((?>.*?(?=\{\{/[^`])))\{\{/\.*(section|def|lambda|inline|dsl\.\w*)?\}\}""".r
+    """(?s)\{\{\.*(section|def|lambda|inline|dfiddle|dsl\.\w*)([: ])?([^:}]*)?(:)?([^}]*)?\}\}((?>.*?(?=\{\{/[^`])))\{\{/\.*(section|def|lambda|inline|dfiddle|dsl\.\w*)?\}\}""".r
   private final val PATT_TEM =
     """(?s)\{\{\.*(template)([: ])?([^ :}]*)?([: ])?([^}]*)?\}\}((?>.*?(?=\{\{/[^`])))\{\{/\.*(template)?\}\}""".r
 
@@ -221,7 +204,7 @@ case class WikiEntry(
   }
 
   /** pattern for all sections requiring signing - (?s) means multi-line */
-  val PATTSIGN = """(?s)\{\{(template|def|lambda|inline):([^:}]*)(:REVIEW[^}]*)\}\}((?>.*?(?=\{\{/)))\{\{/(template|def|lambda|inline)?\}\}""".r //?s means DOTALL - multiline
+  val PATTSIGN = """(?s)\{\{(\.?)(template|def|lambda|inline):([^:}]*)(:REVIEW[^}]*)\}\}((?>.*?(?=\{\{/)))\{\{/(template|def|lambda|inline)?\}\}""".r //?s means DOTALL - multiline
 
   /** find a section */
   def section(stype: String, name: String) = sections.find(x => x.stype == stype && x.name == name)
@@ -329,12 +312,4 @@ case class WikiEntryOld(entry: WikiEntry, reason:Option[String], _id: ObjectId =
   def create (implicit txn:Txn) = RCreate.noAudit[WikiEntryOld](this)
 }
 
-/** wiki entries are trashed when deleted - a copy of each older version when udpated or deleted
-  *
-  * todo some ways to recover them
-  * */
-@RTable
-case class WikiTrash(table:String, entry: DBObject, by:String, txnId:String, date:DateTime=DateTime.now, _id: ObjectId = new ObjectId()) {
-  def create (implicit txn:Txn) = RCreate.noAudit[WikiTrash](this)
-}
 

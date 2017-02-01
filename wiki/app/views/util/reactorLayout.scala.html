@@ -6,7 +6,7 @@ default layout 9/3 with ads, top and bottom
 @htmlHead(stok._title, Some(stok), None)(Map.empty, stok.au, stok.request)
 @navbar(stok.au, stok.realm)
 
-<!-- reactorLayout -->
+<!-- layout reactorLayout -->
 <div class="container" style="margin-top : 15 px">
   <div class="row">
     <div class="col-sm-9">
@@ -19,9 +19,7 @@ default layout 9/3 with ads, top and bottom
       @content
 
       <hr>
-        @htmlFooter(ads = stok.website.adsAtBottom &&
-            (stok.au.isEmpty || stok.website.adsForUsers) &&
-            !stok.au.exists(_.isUnder13),
+        @htmlFooter(ads = stok.showBottomAds(None),
           false,
           stok.realm,
           stok.request)
@@ -33,7 +31,7 @@ default layout 9/3 with ads, top and bottom
         @wiki.wikiFrag(rt, None, true)
       }
 
-      @if(stok.website.adsAtBottom) {
+      @if(stok.showSideAds(None)) {
         @addRight()
       }
 

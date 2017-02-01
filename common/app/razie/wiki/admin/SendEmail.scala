@@ -37,6 +37,7 @@ case class EmailMsg(
   senderNode: Option[String] = None,
   lastDtm: DateTime = DateTime.now(),
   _id: ObjectId = new ObjectId()) extends REntity[EmailMsg] {
+
   def shouldResend = (EmailMsg.RESEND contains status) && (sendCount < EmailMsg.MAX_RETRY_COUNT)
 }
 
@@ -64,22 +65,31 @@ object EmailMsg {
  */
 class MailSession(implicit mailSession: Option[Session] = None) {
   var emails: scala.List[EmailMsg] = Nil // collecting messages here to be sent at end
+  var website : Option[String] = None
+
+  var needsGmail = false
+
+  //in case you serve multiple websites - which one is in this session?
+  // there are subject and reply email that may differ
+  def forWebsite (s:Option[String]) = { website=s; this}
 
   // use local session
   lazy val session = mailSession getOrElse SendEmail.mkSession(
-    emails.headOption.exists(_.isNotification), // let's do notifications for now
+    true, //!needsGmail, //emails.headOption.exists(_.isNotification), // let's do notifications for now
     false
   )
   private var transport:Option[Transport] = None;
 
   var count = 0;
 
+  /** exceptions are caught outside of this - see call site */
   def send (msg:MimeMessage) = {
     // todo I assume it has at least one recipient
     try {
       if(transport.isEmpty)
         transport=Some(session.getTransport(msg.getAllRecipients()(0)))
       if(!transport.get.isConnected) {
+        clog << "EMAIL_CONNECT"
         transport.get.connect()
         Audit.logdb("EMAIL_STATUS", "MAIL.CONNECT status="+transport.map(_.isConnected).mkString)
       }
@@ -91,7 +101,10 @@ class MailSession(implicit mailSession: Option[Session] = None) {
   }
 
   def close = {
-    if(transport.isDefined && transport.get.isConnected) transport.get.close()
+    if(transport.isDefined && transport.get.isConnected) {
+      clog << "EMAIL_CLOSE"
+      transport.get.close()
+    }
     Audit.logdb("EMAIL_STATUS", "MAIL.CLOSE status="+transport.map(_.isConnected).mkString + " sent "+count +" emails")
   }
 }
@@ -108,7 +121,9 @@ object SendEmail extends razie.Logging {
   // should be lazy because of akka's bootstrap
   lazy val emailSender = Akka.system.actorOf(Props[EmailSender], name = "EmailSender")
 
-  def init = {emailSender.path} // initialize lazy
+  def init = {
+    emailSender.path
+  } // initialize lazy
 
   // set from Global, with your actual user/pass/email server combo
   var mkSession : (Boolean, Boolean) => javax.mail.Session = {(test:Boolean,debug:Boolean)=>
@@ -163,16 +178,30 @@ object SendEmail extends razie.Logging {
     res
   }
 
+  /**
+   * collects all emails in session and spawns thread at end of session to send them asynchornously.
+   *
+   * sent emails are audited as well as failures
+   */
+  def withSession[C](web:Option[String])(body: (MailSession) => C): C = {
+    implicit val mailSession = (new MailSession).forWebsite(web)
+    val res = body(mailSession)
+
+    emailSender ! mailSession // spawn sender
+
+    res
+  }
+
   val STATE_OK      = "ok" // all ok
   val STATE_MAXED   = "maxed" // last sending resulted in too many emails - should wait a bit
   val STATE_BACKOFF = "backoff" // last sending resulted in some error - backoff for a bit
   val STATE_BACKEDOFF = "backedoff" // last sending resulted in some error - backoff for a bit
 
-  val CMD_TICK = "CMD_TICK"        // it tries to resed on a TICK every now and then
-  val CMD_RESEND = "CMD_RESEND"    // admin command sent somehow
-  val CMD_SEND10 = "CMD_SEND10"    // admin
-  val CMD_STOPEMAILS = "CMD_STOPEMAILS"    //
-  val CMD_RESTARTED = "CMD_RESTARTED"        // when process restarted - see what was in progress
+  val CMD_TICK = "MAIL_CMD_TICK"        // it tries to resed on a TICK every now and then
+  val CMD_RESEND = "MAIL_CMD_RESEND"    // admin command sent somehow
+  val CMD_SEND10 = "MAIL_CMD_SEND10"    // admin
+  val CMD_STOPEMAILS = "MAIL_CMD_STOPEMAILS"    //
+  val CMD_RESTARTED = "MAIL_CMD_RESTARTED"        // when process restarted - see what was in progress
 
   var curCount = 0;            // current sending queue size
   var state = STATE_OK
@@ -196,31 +225,53 @@ object SendEmail extends razie.Logging {
 
     def receive = {
       case e: EmailMsg => {
-        Audit.logdb("ERR_EMAIL_PROC", "SOMEBODY SENT AN EMAIL DIRECTLY... find and kill "+e.toString)
+        Audit.logdb("ERR_EMAIL_PROC", "SOMEBODY SENT AN EMAIL DIRECTLY... find and kill " + e.toString)
       }
 
       case mailSession: MailSession => {
         //todo decrement if maxed below, also if ok keep sending only until the first error
-        Audit.logdb("EMAIL_STATUS", s"MAIL.process session ${mailSession.emails.size} emails")
-        try {
-          if (state == STATE_OK) {
-            curCount += mailSession.emails.size
-            mailSession.emails.reverse.collect {
-              // reuse session but on first failure, stop sending
-              case e: EmailMsg if state == STATE_OK => isend(e, mailSession)
-              case e: EmailMsg if state != STATE_OK => curCount -= 1
-            }
-          } else {
-            if(System.currentTimeMillis() - lastBackoff > 50000) {
-              Audit.logdb("EMAIL_STATUS", s"EmailSender received ${mailSession.emails.size} messages while not OK, scheduling just one")
-              mailSession.emails.lastOption.map(_._id).flatMap(id=>ROne[EmailMsg](id)).fold {} (e => isend(e, mailSession))
-            } else {
-              Audit.logdb("EMAIL_STATUS", s"EmailSender received ${mailSession.emails.size} messages while not OK, NONE attempted")
-            }
+        Audit.logdb("EMAIL_STATUS", s"$state MAIL.process session ${mailSession.emails.size} emails")
+        // 1. does it need gmail for hotmail?
+        def needs(s: String) = s.contains("hotmail.com") || s.contains("live.com") || s.contains("outlook.com") || s.contains("live.ca") || s.contains("hotmail.ca")
+        val mcount = mailSession.emails.count(e => needs(e.to))
+        if (mcount != 0 && mcount != mailSession.emails.size) {
+          // split in two sessions
+          val m1 = new MailSession
+          val m2 = new MailSession
+
+          mailSession.emails.collect {
+            case e if needs(e.to) => m1.emails = e :: m1.emails
+            case e => m2.emails = e :: m2.emails
           }
-        } finally {
-          mailSession.close
-          maybeBackoff
+
+          m1.needsGmail = true
+
+          emailSender ! m1 // spawn sender
+          emailSender ! m2 // spawn sender
+        } else {
+          mailSession.needsGmail = mailSession.emails.count(e => needs(e.to)) == mailSession.emails.size
+          // 2. see about sending it
+          try {
+            if (state == STATE_OK) {
+              curCount += mailSession.emails.size
+              mailSession.emails.reverse.collect {
+                // reuse session but on first failure, stop sending
+                case e: EmailMsg if state == STATE_OK => isend(e, mailSession)
+                case e: EmailMsg if state != STATE_OK => curCount -= 1
+              }
+            } else {
+              if (System.currentTimeMillis() - lastBackoff > 15000) {
+                // don't send another test email sooner than half min
+                Audit.logdb("EMAIL_STATUS", s"$state EmailSender received ${mailSession.emails.size} messages while not OK, scheduling just one")
+                mailSession.emails.lastOption.map(_._id).flatMap(id => ROne[EmailMsg](id)).fold {}(e => isend(e, mailSession))
+              } else {
+                Audit.logdb("EMAIL_STATUS", s"$state EmailSender received ${mailSession.emails.size} messages while not OK, NONE attempted")
+              }
+            }
+          } finally {
+            mailSession.close
+            maybeBackoff
+          }
         }
       }
 
@@ -234,7 +285,7 @@ object SendEmail extends razie.Logging {
         val cnt = 10 - RMany[EmailMsg]().filter(_.shouldResend).size
 
         val x = RMany[EmailMsg]().filter(_.sendCount >= EmailMsg.MAX_RETRY_COUNT).take(cnt).toList
-        Audit.logdb("EMAIL_STATUS", s"CMD_RESEND EmailSender $sss state=$state updating "+x.size)
+        Audit.logdb("EMAIL_STATUS", s"$state CMD_RESEND EmailSender $sss state=$state updating "+x.size)
         x.foreach { g =>
           // update all failed for resending once...
           g.copy(sendCount = EmailMsg.MAX_RETRY_COUNT - 1).updateNoAudit
@@ -266,7 +317,7 @@ object SendEmail extends razie.Logging {
 
       // INIT - upon restart check for messages to retry that were being sent from this node
       case ssss @ (CMD_RESTARTED) => {
-        clog << s"EmailSender $ssss state=$state"
+        Audit.logdb("EMAIL_STATUS", s"$ssss state=$state")
           RMany[EmailMsg]().filter(x=> x.status == STATUS.SENDING && (x.senderNode.isEmpty || x.senderNode.exists(_ == getNodeId))).grouped(50).foreach(g => {
             val gg = g.toList.map { ie =>
               // reset the messages to oops from sending
@@ -277,14 +328,14 @@ object SendEmail extends razie.Logging {
             val s = new MailSession()
             s.emails = gg
             emailSender ! s
-            clog << s"EmailSender resent: ${s.emails.size}"
+            Audit.logdb("EMAIL_STATUS", s"EmailSender resent: ${s.emails.size}")
           })
         }
     }
 
     def maybeBackoff: Unit = {
       if (state == STATE_BACKOFF) {
-        Audit.logdb("EMAIL_STATUS", "MAIL.backing off")
+        Audit.logdb("EMAIL_STATUS", s"$state MAIL.backing off")
         Akka.system.scheduler.scheduleOnce(
           Duration.create(1, TimeUnit.MINUTES),
           this.self,
@@ -295,6 +346,7 @@ object SendEmail extends razie.Logging {
     }
 
     def resend (howmany:Int = -1) : Unit = {
+      clog << "EMAIL_RESEND"
       if(state == STATE_OK) {
         // resend all
         (if(howmany > 0)
@@ -305,7 +357,7 @@ object SendEmail extends razie.Logging {
           val s = new MailSession()
           s.emails = g.toList
           emailSender ! s
-          Audit.logdb("EMAIL_STATUS", s"MAIL.resending EmailSender resent: ${s.emails.size}")
+          Audit.logdb("EMAIL_STATUS", s"$state MAIL.resending EmailSender resent: ${s.emails.size}")
         })
       } else if(System.currentTimeMillis() - lastBackoff > 50000) {
         // send just one ping - if successful, it will resend all
@@ -318,19 +370,20 @@ object SendEmail extends razie.Logging {
           }
           s.emails = g :: Nil
           emailSender ! s
-          Audit.logdb("EMAIL_STATUS", s"MAIL.resending.PING EmailSender resent: ${s.emails.size}")
+          Audit.logdb("EMAIL_STATUS", s"$state MAIL.resending.PING EmailSender resent: ${s.emails.size}")
         })
       }
     }
 
     // upon start, reload ALL messages to send - whatever was not sent last time
     override def preStart(): Unit = {
-      Akka.system.scheduler.schedule(
+      clog << "RESTARTING EMAIL sender"
+      context.system.scheduler.schedule(
         Duration.create(30, TimeUnit.SECONDS),
         Duration.create(30, TimeUnit.MINUTES),
         this.self,
         CMD_TICK)
-      Akka.system.scheduler.scheduleOnce(
+      context.system.scheduler.scheduleOnce(
         Duration.create(10, TimeUnit.SECONDS),
         this.self,
         CMD_RESTARTED)
@@ -352,18 +405,29 @@ object SendEmail extends razie.Logging {
           try {
             val message: MimeMessage = mkMsg(e, mailSession)
 
-            mailSession.send(message);
+            clog << "EMAIL_SENDING: " + Seq("to:" + e.to, "from:" + e.from, "subject:" + e.subject).mkString("\n")
 
-            Audit.logdb("EMAIL_SENT", Seq("to:" + e.to, "from:" + e.from, "subject:" + e.subject).mkString("\n"))
+            // todo one way to speed it up is to send one email to many people instead of individualized emails
+            val t1 = System.currentTimeMillis()
+            mailSession.send(message);
+            var t2 = System.currentTimeMillis()
+            val dur = t2-t1
+
+            Audit.logdb("EMAIL_SENT", state + " "+dur+"msec"+Seq(" to:" + e.to, "from:" + e.from, "subject:" + e.subject, "body:" + e.html).mkString("\n"))
             e.deleteNoAudit
 
-            // this is dealt with in resend - ping
-//            if (state != STATE_OK)
-//              resend // seems ok now: reload all messages that were waiting
-
-            setState(STATE_OK) // i can send messages for sure now, eh?
+            if(dur > 30000) {
+              Audit.logdb("EMAIL_STATUS", "sending slowing down, closing connection")
+              setState(STATE_BACKEDOFF)
+              Akka.system.scheduler.scheduleOnce(
+                Duration.create(50, TimeUnit.SECONDS),
+                this.self,
+                CMD_TICK)
+            } else {
+              setState(STATE_OK) // i can send messages for sure now, eh?
+            }
           } catch {
-            case mex: MessagingException => {
+            case mex: Throwable => {
               e.copy(status = STATUS.OOPS, lastDtm = DateTime.now(), lastError = mex.toString).updateNoAudit
               Audit.logdb("ERR_EMAIL_SEND",
                 Seq("to:" + e.to, "from:" + e.from,
@@ -372,8 +436,10 @@ object SendEmail extends razie.Logging {
               if (mex.toString contains "quota exceeded") {
                 Audit.logdb("ERR_EMAIL_MAXED", mex.toString)
                 setState(STATE_MAXED)
-              } else
+              } else {
                 setState(STATE_BACKOFF)
+                Audit.logdb("ERR_EMAIL_BACKING OFF", mex.toString)
+              }
               error("ERR_EMAIL_SEND", mex)
             }
           } finally {

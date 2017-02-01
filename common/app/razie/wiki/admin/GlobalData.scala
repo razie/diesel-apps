@@ -8,7 +8,7 @@ package razie.wiki.admin
 
 import org.joda.time.DateTime
 
-/** current ops data is updated here
+/** current ops data is updated here from all over - you can inspect this in a page
   *
   * not nice, poor man's JMX
   */

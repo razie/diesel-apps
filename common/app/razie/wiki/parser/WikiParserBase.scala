@@ -109,7 +109,7 @@ trait WikiParserBase extends ParserCommons {
   def xstatic: PS = static ^^ { case x => x }
   def escaped: PS = "`" ~ opt(""".[^`]*""".r) ~ "`" ^^ { case a ~ b ~ c => a + b.mkString + c }
   def escaped1: PS = "``" ~ opt(""".*""".r) ~ "``" ^^ { case a ~ b ~ c => a + b.mkString + c }
-  def escaped2: PS = "```" ~ opt("js"|"scala"|"xml"|"html") ~ opt(CRLF1 | CRLF3 | CRLF2) ~ """(?s)[^`]*""".r ~ "```" ^^ {
+  def escaped2: PS = "```" ~ opt("js"|"scala"|"xml"|"html"|"diesel") ~ opt(CRLF1 | CRLF3 | CRLF2) ~ """(?s)[^`]*""".r ~ "```" ^^ {
     case a ~ name ~ _ ~ b ~ c => {
       RState(
         "<pre><code>",

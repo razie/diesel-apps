@@ -94,7 +94,8 @@ object WikiRefinery {
     val updated = index.get(we.uwid.id).toList.flatMap(_.toList).toList.map {wre=>
       // refine the
       wre.wr.map(_.uwid).foreach { u=>
-        wre.wr = (wre refine u)._2
+        val newuwid = u.copy() // need to refresh all the lazies
+        wre.wr = (wre refine newuwid)._2
       }
 
       // clean index

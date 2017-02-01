@@ -12,17 +12,34 @@ import scala.collection.mutable
 
 /**
  * mods can mess with wikis. can add/interpret properties, filter html etc
+ *
+ * There is a mod wiki and a mod prop.
+ * The modProp can tranform sections/tags while the modWiki transforms all wiki
   */
 trait WikiMod {
   /** the name of the mod */
   def modName:String
-  /** the wiki properties recognied by the mod */
-  def modProps:Seq[String]
-  /** is mod interested in topic */
+
+  /** is mod interested in topic - you could look at tags, props or content
+    *
+    * note that for modProp you don't need to be interested
+    */
   def isInterested (we:WikiEntry) : Boolean
 
-  /** modify a prop */
-  def modProp (prop:String, value:String, we:Option[WikiEntry]) : String
+  /** the wiki properties recognied by the mod - this is used by the parser and filtered through here.
+    *
+    * The idea is to allow you to define your own properties that you handle
+    *
+    * Note that for modProp you don't need to be interested
+    */
+  def modProps:Seq[String]
+
+  /** modify a prop - during parsing, if you recognize this property, you can transform its value
+    *
+    * The idea is to allow you to define your own properties that you handle - i.e. a JSON formatter or
+    * the on.snow modules for mod.book
+    */
+  def modProp (prop:String, value:String, we:Option[WikiEntry]) : String = value
 
   /** modify the content of the page before parsing - you shouldn't really use this !
     * @return None if no changed are desired
@@ -49,6 +66,14 @@ trait WikiMod {
   /** modify the resulting html of formatting the page
     * @return the new html */
   def modPostHtml (we:WikiEntry, html:String) : String = html
+
+  /** special actions available for this wiki?
+    *
+    * main actions are "edit", "view" - which you could overwrite
+    *
+    * @return more special actions, map(name,lavel,URL)
+    */
+  def modActions (we:WikiEntry) : List[(String,String,String)] = List.empty
 }
 
 object WikiMods {//extends WikiDomain (Wikis.RK) {
@@ -103,5 +128,19 @@ object WikiMods {//extends WikiDomain (Wikis.RK) {
         b.modPostHtml(we, a)
       } else a
     }
+
+  /** special actions available for this wiki?
+    *
+    * @return more special actions, map(name,label,URL)
+    */
+  def modActions (we:WikiEntry) : List[(String,String,String)] =
+    mods.values.foldLeft(List.empty[(String,String,String)]) {(a,b)=>
+      if(b.isInterested(we)) {
+        we.cacheable = false
+        val ac = b.modActions(we)
+        ac ::: a.filterNot(tt=>ac.exists(_._1 == tt._1))
+      } else a
+    }
+
 }
 

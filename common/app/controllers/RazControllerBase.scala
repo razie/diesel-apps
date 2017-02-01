@@ -21,13 +21,13 @@ class RazControllerBase extends Controller with Logging with Validation {
   }
 
   /** result is a page to display this message and optionally continue to another page */
-  def Msg2(msg: String, page: Option[String], u: Option[WikiUser] = None)(implicit request: Request[_]): play.api.mvc.Result = {
-    ViewService.impl.utilMsg(msg, "", page, if (u.isDefined) u else wauth)
+  def Msg2(msg: String, link: Option[String], u: Option[WikiUser] = None)(implicit request: Request[_]): play.api.mvc.Result = {
+    ViewService.impl.utilMsg(msg, "", link, if (u.isDefined) u else wauth)
   }
 
   /** result a page to display this message and optionally continue to another page */
-  def Msg3(msg: String, page: Option[String], pageNO: Option[(String, String)], u: Option[WikiUser] = None)(implicit request: Request[_]): play.api.mvc.Result = {
-    ViewService.impl.utilMsg(msg, "", page, if (u.isDefined) u else wauth, pageNO)
+  def Msg3(msg: String, link: Option[String], pageNO: Option[(String, String)], u: Option[WikiUser] = None)(implicit request: Request[_]): play.api.mvc.Result = {
+    ViewService.impl.utilMsg(msg, "", link, if (u.isDefined) u else wauth, pageNO)
   }
 }
 

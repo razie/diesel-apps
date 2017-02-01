@@ -6,6 +6,8 @@
  */
 package razie.base
 
+import razie.Log
+
 /**
  * fairly generic website audit service.
  *
@@ -56,7 +58,7 @@ class NoAuditService extends AuditService {
   def logdb(what: String, details: Any*): String = {
     val d = details.mkString(",")
     val s = what + " " + d
-    razie.Log.audit(s)
+    Log.audit(s)
     s
   }
 
@@ -64,7 +66,7 @@ class NoAuditService extends AuditService {
   def logdbWithLink(what: String, link: String, details: Any*) = {
     val d = details.mkString(",")
     val s = what + " " + d
-    razie.Log.audit(s)
+    Log.audit(s)
     s
   }
 }

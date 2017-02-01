@@ -11,6 +11,7 @@ import razie.wiki.util.{DslProps, PlayTools}
  * Multihosting - website settings - will collect website properties from the topic if it has a 'website' section
  */
 class Website (we:WikiEntry, extra:Seq[(String,String)] = Seq()) extends DslProps(Some(we), "website", extra) {
+  def label:String = this prop "label" OR name
   def name:String = this prop "name" OR "-"
   def title = this prop "title"
   def url:String = this prop "url" OR "-"
@@ -19,6 +20,7 @@ class Website (we:WikiEntry, extra:Seq[(String,String)] = Seq()) extends DslProp
   def homePage:Option[WID] = this wprop "home"
   def userHomePage:Option[WID] = this wprop "userHome"
 
+  def notifyList:Option[WID] = this wprop "notifyList"
   def footer:Option[WID] = this wprop "footer"
 
   /** blog URL - can be http://xxx or CAT:NAME */
@@ -46,7 +48,9 @@ class Website (we:WikiEntry, extra:Seq[(String,String)] = Seq()) extends DslProp
 
   def adsOnList = this bprop "adsOnList" OR true
   def adsAtBottom = this bprop "adsAtBottom" OR true
+  def adsOnSide = this bprop "adsOnSide" OR true
   def adsForUsers = this bprop "adsForUsers" OR true
+  def noadsForPerms = (this prop "noAdsForPerms").map(_.split(",")) OR Array.empty[String]
 
   def rightTop:Option[WID] = this wprop "rightTop"
   def rightBottom:Option[WID] = this wprop "rightBottom"

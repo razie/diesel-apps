@@ -13,7 +13,7 @@ case class Autosave(
   name: String,
   userId: ObjectId,
   contents: Map[String,String],
-  crDtm: DateTime = DateTime.now,
+  updDtm: DateTime = DateTime.now,
   _id: ObjectId = new ObjectId()) extends REntity[Autosave] {
 
   override def create(implicit txn: Txn) = RCreate.noAudit[Autosave](this)

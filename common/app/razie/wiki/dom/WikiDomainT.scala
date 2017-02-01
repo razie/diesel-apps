@@ -4,12 +4,15 @@
  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
  */
-package razie.wiki.util
+package razie.wiki.dom
 
-/**
- * moved to snakked - import razie.js
- *
- * see https://github.com/razie/snakked/blob/master/core/src/main/scala/razie/js.scala
- */
+import razie.diesel.dom._
+import razie.diesel.ext.EVal
+import razie.wiki.model._
 
-object  js {}
+import scala.collection.mutable.ListBuffer
+
+trait WikiDomainT {
+}
+
+

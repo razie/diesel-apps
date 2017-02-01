@@ -61,12 +61,18 @@ class WForm(val we: WikiEntry) {
                   v=>if(v.contains(";")) v.split(";") else Array(v,v)
                 ).map(
                   a => "<option value=\"" +a(0) + "\" " + (if (f.get.value == a(0)) "selected>" else ">") + a(1) + "</option>").mkString
-                s"<select $ro name=$name $other>$choices</select>"
+                s"""<select $ro name=$name $other autocomplete="off">$choices</select>"""
+                //autocomplete off is a trick for firefox not using selected...
+                // http://stackoverflow.com/questions/4831848/firefox-ignores-option-selected-selected
               }
               case _ => {
                 val checked = if (f.exists(_.value == "y")) "checked" else ""
                 if (t == "textarea" || t == "memo")
-                  s"""<textarea $ro type="$t" name="$name" $other>${f.map(_.value).getOrElse("?")}</textarea>"""
+                  s"""
+                     |<textarea $ro type="$t" name="$name" $other>
+                     |${f.map(_.value).getOrElse("?")}
+                     |</textarea>
+                     |""".stripMargin
                 else if (t == "note") {
                   // notes can be inserted as needed - with a popup
                   val v = f.map(_.value).getOrElse("")
@@ -116,9 +122,9 @@ class WForm(val we: WikiEntry) {
             newData.put(n, v.replaceAll(SPEC, ""))
           }
 
-          if (v.length > 200) {
-            errors += n -> "Too long - max 200"
-            newData.put(n, v.substring(0, 199))
+          if (v.length > 2000) {
+            errors += n -> "Too long - max 2000"
+            newData.put(n, v.substring(0, 1999))
           }
 
           val f = we.form.fields.get(n)

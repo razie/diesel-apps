@@ -107,4 +107,3 @@ class REntityAction (entity:REntity[_], action:REAction) {
   }
 }
 
-

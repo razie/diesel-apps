@@ -54,13 +54,26 @@ creates the navigation bar
       <li class="divider-vertical"></li>
       @web().navMenu.map{t=>
           @if(t._1.startsWith("badge")) {
-            <span id="nav-@t._1"></span>
+            <li>
+              <span id="nav-@t._1"></span>
+            </li>
             <script async="">$("#nav-@t._1").load("@t._2");</script>
           } else {
-            <li><a href="@t._2">@Html(t._1)</a></li>
+            <li>
+              <a href="@t._2">@Html(t._1)</a>
+            </li>
           }
       }
     }
+      @stok.au.map(_._id).flatMap(mod.cart.Cart.find).map {cart=>
+        <li>
+          <a href="/doe/cart">
+            <span class="badge" style="background-color: red" title="cart items">
+              <span class="glyphicon glyphicon-shopping-cart"> </span>
+              @cart.items.size</span>
+          </a>
+        </li>
+      }
     </ul>
 
     <ul class="nav navbar-nav pull-right">

@@ -20,7 +20,7 @@ trait WikiEventBase {
 }
 
 /** an event that the configuration changed */
-class WikiConfigChanged (val node:String="") extends WikiEventBase
+case class WikiConfigChanged (val node:String="") extends WikiEventBase
 
 /** a generic event refering to an entity
   *

@@ -27,7 +27,10 @@ object RkReactors {
     ) {
       // extract reactor
       val r = h.substring(0, h.indexOf('.')).toLowerCase
-      WikiReactors.lowerCase.get(WikiReactors.ALIASES.getOrElse(r, r))
+      WikiReactors.lowerCase.get(WikiReactors.ALIASES.getOrElse(r, r)) orElse {
+        // maybe it was not loaded yet
+        WikiReactors.allReactors.find(_._1.toLowerCase == r).map(_._1)
+      }
     } else {
       // try to find one that has a website section with this url
       // todo keep parsing the webiste section all the time

@@ -16,7 +16,7 @@ package razie.base
  */
 trait Auditor {
 
-  /** log a db opreation - this method you need to provide */
+  /** log a db operation - this method you need to provide */
   def logdb(what: String, details: Any*): String
 
   /** log a db operation with a link to the thing being audited */

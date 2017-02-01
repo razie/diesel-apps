@@ -31,8 +31,8 @@ trait Validation extends Logging {
   final val cDemoAccount = new Corr("This is a demo account", """You need to <a href="/do/signout">logout</a> and create your own account!""")
   final val cAccountNotActive = new Corr("This account is not active", """create a <a href="/doe/support?desc=Account+inactive">support request</a> to re-activate!""")
 
-  def cNotMember (clubName:String) = new Corr(
-    "This is a club-members only topic and you are not a club member",
+  def cNotMember (clubName:String, role:String="member") = new Corr(
+    "This is a club-members only topic and you are not a club member. Role="+role,
     """You need to request membership in this club <a href="/wikie/linkuser/Club:%s?wc=0">%s</a>!""".format(clubName,clubName))
 
   def cNotAdmin (clubName:String) = new Corr(

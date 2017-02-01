@@ -44,6 +44,7 @@ case class WikiForm(we: WikiEntry) {
   def formData = we.section("section", "formData")
   def formDataJson = we.section("section", "formData").map(s => razie.Snakk.jsonParsed(s.content))
   def fields = we.fields
+  def canEditBy(uid:String) = canEdit && we.isOwner(uid)
 }
 
 /** form utilities */

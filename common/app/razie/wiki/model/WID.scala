@@ -131,13 +131,19 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
   def findId  =
     if(ObjectId.isValid(name)) Some(new ObjectId(name))
     else findCatId().map(_._2)
+
+  /** find the category, if missing */
   def findCat = findCatId().map(_._1)
 
+  /** find the ID for this page, if any - respects the NOCATS */
   def findId  (curRealm:String) =
     if(ObjectId.isValid(name)) Some(new ObjectId(name))
     else findCatId(curRealm).map(_._2)
+
+  /** find the category, if missing */
   def findCat (curRealm:String) = findCatId(curRealm).map(_._1)
 
+  /** find the proper category and ID for this wid (name, or name and cat etc) */
   private def findCatId(curRealm:String="") = {
     def q = {idx: TripleIdx[String, WID, ObjectId] =>
       if(! cat.isEmpty)
@@ -154,9 +160,10 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
     }
 
     //todo performance of these is horrendous
+    //todo i should ignore curRealm if I have my own
     // first current realm
     if(curRealm.isEmpty) {
-      CAT.unapply(cat).flatMap(_.realm).map{r=>
+      realm.orElse(CAT.unapply(cat).flatMap(_.realm)).map{r=>
         // was there a
         WikiIndex.withIndex(r)(q) orElse Wikis.find(this).map(x=>(x.category, x._id))
       } getOrElse {
@@ -194,6 +201,7 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
   /** format into nice url */
   def wpath: String = parentWid.map(_.wpath + "/").getOrElse("") + (
     if (cat != null && cat.length > 0 && !WID.NOCATS.contains(cat)) (cats + ":") else "") + name + (section.map("#" + _).getOrElse(""))
+
   /** this one used for simple cats with /w/:realm */
   def wpathnocats: String = parentWid.map(_.wpath + "/").getOrElse("") + (
     if (cat != null && cat.length > 0 && !WID.NOCATS.contains(cat)) (cat + ":") else "") + name + (section.map("#" + _).getOrElse(""))
@@ -201,6 +209,7 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
   /** full categories allways, with realm prefix if not RK */
   def wpathFull: String = parentWid.map(_.wpath + "/").getOrElse("") + (
     if (cat != null && cat.length > 0 ) (cats + ":") else "") + name + (section.map("#" + _).getOrElse(""))
+
   def formatted = this.copy(name=Wikis.formatName(this))
 //  def url: String = "http://" + Services.config.hostport + (realm.filter(_ != Wikis.RK).map(r=>s"/w/$r").getOrElse("")) + "/wiki/" + wpathnocats
 
@@ -214,9 +223,9 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
       else
         //todo current realm
         Services.config.hostport /* + realm.map(r => s"/w/$r").getOrElse("")*/
-    } + "/wiki/" + {
-      if(realm.isDefined) wpath
-      else wpathnocats
+    } + "/" + {
+      if(realm.isDefined) "wiki/" + wpath
+      else canonpath //wpathnocats
     }
   }
 
@@ -225,17 +234,17 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
 
   /** use when coming from a known realm */
   def urlRelative (fromRealm:String) : String =
-//    (
-//      if(realm.isEmpty && fromRealm != Wikis.RK && Services.config.isLocalhost) s"/w/rk"
-//      else realm.filter(_ != fromRealm || Services.config.isLocalhost).map(r=>s"/w/$r").getOrElse("")
-//      else realm.filter(x=>/*x != fromRealm ||*/ Services.config.isLocalhost).map(r=>s"/w/$r").getOrElse("")
-//     ""
-//    )
-  "/wiki/" + {
-    if(realm.exists(_ != fromRealm)) wpath
-    else wpathnocats
+  "/" + {
+    if(realm.exists(_ != fromRealm)) "wiki/" + wpath
+    else canonpath //wpathnocats
   }
 
+  /** canonical path - may be different from wpath */
+  def canonpath =
+    if(parent.isEmpty && WID.PATHCATS.contains(cat))
+      s"$cat/$name" + (section.map("#" + _).getOrElse(""))
+    else
+      s"wiki/$wpathnocats"
 
   def ahref: String = "<a href=\"" + url + "\">" + toString + "</a>"
   def ahrefRelative (fromRealm:String=Wikis.RK): String = "<a href=\"" + urlRelative(fromRealm) + "\">" + toString + "</a>"
@@ -253,7 +262,8 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
 /** wid utils */
 object WID {
   /** SEO optimization - WIDs in these categories do not require the category in wpath */
-  private final val NOCATS = Array("Blog", "Post")
+  final val NOCATS = Array("Blog", "Post")
+  final val PATHCATS = Array("Club", "Pro", "School", "Talk", "Topic", "Session", "Drill", "Pathway")// timid start to shift to /cat/name
 
   //cat:name#section
   private val REGEX = """([^/:\]]*[:])?([^#|\]]+)(#[^|\]]+)?""".r
@@ -327,6 +337,30 @@ object WID {
         Some(CMDWID(Some(path), widFromSeg(path split "/"), "", ""))
     }
   }
+
+  final val wikip2 = """\[\[alias:([^\]]*)\]\]"""
+  final val wikip2r = wikip2.r
+
+  /** is this just an alias?
+    *
+    * an alias is a topic that only contains the alias markup: [[alias:xxx]]
+    */
+  def alias (content:String) : Option[WID] = {
+    if (wikip2r.findFirstMatchIn(content).isDefined) {
+//    if (content.matches(wikip2)) {
+      val wikip2r(wpath) = content
+      WID.fromPath(wpath)
+    } else None
+  }
+
+  /** is this just an alias?
+    *
+    * an alias is a topic that only contains the alias markup: [[alias:xxx]]
+    *
+    * todo is it faster to check startsWith and then pattern?
+    */
+  def isAlias (content:String) : Boolean =
+    content.startsWith("[[alias:") && wikip2r.findFirstMatchIn(content).isDefined
 
   final val empty = WID("-", "-")
 }
