@@ -18,7 +18,7 @@ import com.novus.salat.annotations._
   *
   * otherwise, this is not really useful right now
   */
-class Txn (val name: String, val xid:String = System.currentTimeMillis().toString) {
+class Txn (val name: String, val user:String, val xid:String = System.currentTimeMillis().toString) {
   clog << "DB.TX.START "+name
 
   def add(s: String, ss: String) {}
@@ -45,10 +45,8 @@ class Txn (val name: String, val xid:String = System.currentTimeMillis().toStrin
   * todo it seems fairly simple to implement rollbacks with a JSON document commit log, at some point.
   */
 object tx {
-  def apply[A](f: Txn => A) : A = { apply("-")(f) }
-
-  def apply[A] (name: String) (f: Txn => A) : A = {
-    val txn = new Txn(name)
+  def apply[A] (name: String, user:String) (f: Txn => A) : A = {
+    val txn = new Txn(name, user)
     val res : A = try {
       f(txn)
     } catch {
@@ -63,8 +61,9 @@ object tx {
     res
   }
 
-  def auto = local ("auto")
-  def local (name:String="") : Txn = new Txn("local"+name)
+  def auto = local ("auto", "?")
+  def local (name:String, user:String) : Txn = new Txn("local"+name, user)
+  def t (name:String, user:String) : Txn = new Txn(name, user)
   implicit def txn = auto
 }
 

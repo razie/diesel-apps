@@ -16,6 +16,9 @@ import services.{ApplicationTimer, AtomicCounter, Counter}
 class WikiModule extends AbstractModule {
 
   override def configure() = {
+
+    razie.Log.log("WikiModule.configure");
+
     // Use the system clock as the default implementation of Clock
     bind(classOf[Clock]).toInstance(Clock.systemDefaultZone)
     // Ask Guice to create an instance of ApplicationTimer when the

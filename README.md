@@ -24,7 +24,7 @@ Versions and technologies
 
 You can embedd this in any Java or Scala project. Here are a few websites built on top of this wiki engine:
 
-- https://www.nofolders.net - an online note taking application
+- http://notes.razie.com - an online note taking application
 - http://www.effectiveskiing.com - online ski teaching app
 - http://www.coolscala.com and http://www.enduroschool.com - blogs
 - http://www.racerkidz.com - a sports wiki with calendar and forms extensions, club membership etc

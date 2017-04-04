@@ -15,17 +15,12 @@ import org.joda.time.DateTime
 import com.novus.salat._
 import com.novus.salat.annotations._
 import razie.db.RazSalatContext._
-import java.net.URLEncoder
 import razie.Log
 import controllers.Maps
 import razie.wiki.Services
-import scala.annotation.StaticAnnotation
 import razie.wiki.model._
-import razie.wiki.admin.MailSession
 import com.mongodb.DBObject
 import razie.db._
-import razie.Snakk
-import razie.db.RMongo.as
 import razie.db.tx.txn
 import controllers.Club
 import razie.wiki.dom.WikiDomain

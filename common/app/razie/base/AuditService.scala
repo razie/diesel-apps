@@ -6,7 +6,7 @@
  */
 package razie.base
 
-import razie.Log
+import razie.{Log, Logging}
 
 /**
  * fairly generic website audit service.
@@ -70,3 +70,5 @@ class NoAuditService extends AuditService {
     s
   }
 }
+
+

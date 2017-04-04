@@ -48,13 +48,13 @@ object RMongo extends SI[Auditor] ("RMongo.Auditor") with razie.Logging {
   def aud = getInstance
 
   /** audit creation of an entity */
-  def auditCreate[T](entity: T): T = { audit(aud.logdb(ENTITY_CREATE, entity.toString)); entity }
-  def auditCreatenoaudit[T](entity: T): T = { audit(ENTITY_CREATE + " " + entity.toString); entity }
+  def auditCreate[T](entity: T)(implicit txn: Txn): T = { audit(aud.logdb(ENTITY_CREATE, s"User: ${txn.user}, txn: ${txn.name}", entity.toString)); entity }
+  def auditCreatenoaudit[T](entity: T)(implicit txn: Txn): T = { audit(ENTITY_CREATE + " " + entity.toString); entity }
   /** audit update of an entity */
-  def auditUpdate[T](entity: T): T = { audit(aud.logdb(ENTITY_UPDATE, entity.toString)); entity }
-  def auditUpdatenoaudit[T](entity: T): T = { audit(ENTITY_UPDATE + " " + entity.toString); entity }
+  def auditUpdate[T](entity: T)(implicit txn: Txn): T = { audit(aud.logdb(ENTITY_UPDATE, s"User: ${txn.user}, txn: ${txn.name}", entity.toString)); entity }
+  def auditUpdatenoaudit[T](entity: T)(implicit txn: Txn): T = { audit(ENTITY_UPDATE + " " + entity.toString); entity }
   /** audit delete of an entity */
-  def auditDelete[T](entity: T): T = { audit(aud.logdb(ENTITY_DELETE, entity.toString)); entity }
+  def auditDelete[T](entity: T)(implicit txn: Txn): T = { audit(aud.logdb(ENTITY_DELETE, s"User: ${txn.user}, txn: ${txn.name}", entity.toString)); entity }
 
   final val ENTITY_CREATE = "ENTITY_CREATE"
   final val ENTITY_UPDATE = "ENTITY_UPDATE"
@@ -108,10 +108,10 @@ object RCount {
 object RCreate {
   import RMongo._
 
-  def apply[A <: AnyRef](t: A)(implicit m: Manifest[A], txn: Txn = tx.auto) =
+  def apply[A <: AnyRef](t: A)(implicit m: Manifest[A], txn: Txn) =
     RazMongo(tbl(m)) += grater[A].asDBObject(RMongo.auditCreate(t))
 
-  def noAudit[A <: AnyRef](t: A)(implicit m: Manifest[A], txn: Txn = tx.auto) =
+  def noAudit[A <: AnyRef](t: A)(implicit m: Manifest[A], txn: Txn) =
     RazMongo(tbl(m)) += grater[A].asDBObject(RMongo.auditCreatenoaudit(t))
 }
 
@@ -174,14 +174,14 @@ class REntity[T <: { def _id: ObjectId }](implicit m: Manifest[T]) { this: T =>
   def toJson = grater[T].asDBObject(this).toString
   def grated = grater[T].asDBObject(this)
 
-  def create(implicit txn: Txn = tx.auto) = RCreate[T](this)
-  def delete(implicit txn: Txn = tx.auto) = RDelete[T](this)
-  def update(implicit txn: Txn = tx.auto) = RUpdate[T](this)
-  def createNoAudit(implicit txn: Txn = tx.auto) = RCreate.noAudit[T](this)
-  def deleteNoAudit(implicit txn: Txn = tx.auto) = RDelete.noAudit[T](this)
-  def updateNoAudit(implicit txn: Txn = tx.auto) = RUpdate.noAudit[T](this)
+  def create(implicit txn: Txn) = RCreate[T](this)
+  def delete(implicit txn: Txn) = RDelete[T](this)
+  def update(implicit txn: Txn) = RUpdate[T](this)
+  def createNoAudit(implicit txn: Txn) = RCreate.noAudit[T](this)
+  def deleteNoAudit(implicit txn: Txn) = RDelete.noAudit[T](this)
+  def updateNoAudit(implicit txn: Txn) = RUpdate.noAudit[T](this)
 
-  def trash(by:String)(implicit txn: Txn = tx.auto) = {
+  def trash(by:String)(implicit txn: Txn) = {
     WikiTrash(RMongo.tbl(m), grated, by, txn.id).create
     RDelete.noAudit[T](this)
   }

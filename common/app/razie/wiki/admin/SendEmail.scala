@@ -16,8 +16,9 @@ import org.bson.types.ObjectId
 import org.joda.time.DateTime
 import play.libs.Akka
 import razie.base.Audit
-import razie.db.{RMany, ROne, REntity, RTable}
+import razie.db._
 import razie.wiki.Services
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import razie.clog
@@ -39,6 +40,10 @@ case class EmailMsg(
   _id: ObjectId = new ObjectId()) extends REntity[EmailMsg] {
 
   def shouldResend = (EmailMsg.RESEND contains status) && (sendCount < EmailMsg.MAX_RETRY_COUNT)
+
+  override def createNoAudit(implicit txn: Txn=tx.auto): Unit = super.createNoAudit(txn)
+  override def updateNoAudit(implicit txn: Txn=tx.auto): Unit = super.updateNoAudit(txn)
+  override def deleteNoAudit(implicit txn: Txn=tx.auto): Unit = super.deleteNoAudit(txn)
 }
 
 /** email statics */
@@ -107,6 +112,7 @@ class MailSession(implicit mailSession: Option[Session] = None) {
     }
     Audit.logdb("EMAIL_STATUS", "MAIL.CLOSE status="+transport.map(_.isConnected).mkString + " sent "+count +" emails")
   }
+
 }
 
 /** the email sender - saves emails in DB and sends them asynchronously, retrying in certain cases */

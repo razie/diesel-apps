@@ -48,7 +48,7 @@ class WikiIndex (val realm:String, val fallBacks : List[WikiIndex]) {
   private val lower = HashMap[String, String]() // for lowercase
   private val labels = HashMap[String, String]() // quick label lookup
 
-  val usedTags = HashMap[String, String]() // tags used in all pages
+  lazy val usedTags = HashMap[String, String]() // tags used in all pages
 
   val mixins = new Mixins[WikiIndex](fallBacks)
 

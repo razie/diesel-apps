@@ -32,7 +32,7 @@ object BannedIps {
   def isBanned(ip:Option[String]) = ip.map(all.contains(_)).getOrElse(false)
 
   def ban(ip:String, reason:String) = {
-    BannedIp(ip, reason).create
+    BannedIp(ip, reason).create(tx.auto)
     all += ip -> ""
   }
 }

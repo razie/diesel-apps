@@ -1,5 +1,7 @@
 package razie.diesel.dom
 
+import razie.diesel.dom.Expr
+
 /**
  * simple, neutral domain model representation: class/object/function
  *

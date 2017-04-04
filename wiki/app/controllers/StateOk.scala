@@ -29,7 +29,7 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
   def formParms = form.map(_.collect { case (k, v) => (k, v.head) }).get
   def formParm(name:String) = form.flatMap(_.get(name)).map(_.mkString).mkString
 
-  def fParm(name:String)=
+  def fParm(name:String) : Option[String] =
     form.flatMap(_.getOrElse(name, Seq.empty).headOption)
 
   // from query or body
@@ -151,10 +151,12 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
   def prepWid (wid:WID) =
     if(wid.realm.isDefined) wid else wid.r(realm)
 
+  /** username, if any */
+  def userName = au.map(_.userName).getOrElse("")
 }
 
 /** trying some type foolery - pass this off as a Request[_] as well and proxy to original */
-class RazRequest (realm:String, au:Option[User], val ireq:Request[_]) extends StateOk (
+class RazRequest (realm:String, au:Option[User], val ireq:Request[_], name:String="") extends StateOk (
   realm,
   au orElse Services.auth.authUser(ireq).asInstanceOf[Option[User]],
   Some(ireq))
@@ -187,6 +189,11 @@ class RazRequest (realm:String, au:Option[User], val ireq:Request[_]) extends St
   def version : scala.Predef.String = ireq.version
   def remoteAddress : scala.Predef.String = ireq.remoteAddress
   def secure : scala.Boolean = ireq.secure
+
+  /** default transaction per request */
+  lazy val txn = razie.db.tx.t(
+    (if(name.length > 0) name else req.path),
+    au.map(_.userName).getOrElse("?"))
 
 //  override def id : scala.Long = ireq.id
 //  override def tags : scala.Predef.Map[scala.Predef.String, scala.Predef.String] = ireq.tags
