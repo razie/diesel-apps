@@ -161,7 +161,11 @@ class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
   // this can't be further optimized - it SHOULD lookup the storage, to refresh stuff as well
   private def ifind(wid: WID) = {
     wid.parent.map {p=>
-      weTable(wid.cat).findOne(Map(REALM, "category" -> wid.cat, "name" -> wid.name, "parent" -> p))
+      // todo could simplify onle name unique in parent, no cat needed?
+      if(wid.cat.isEmpty)
+        weTable(wid.cat).findOne(Map(REALM, "name" -> wid.name, "parent" -> p))
+      else
+        weTable(wid.cat).findOne(Map(REALM, "category" -> wid.cat, "name" -> wid.name, "parent" -> p))
     } getOrElse {
       if (Services.config.cacheDb) {
         Cache.getAs[DBObject](wid.wpath+".db").orElse {

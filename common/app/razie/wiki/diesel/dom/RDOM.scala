@@ -1,7 +1,5 @@
 package razie.diesel.dom
 
-import razie.diesel.dom.Expr
-
 /**
  * simple, neutral domain model representation: class/object/function
  *
@@ -26,8 +24,11 @@ object RDOM {
   }
 
   /** represents a parameter/member/attribute */
-  case class P (name:String, ttype:String, ref:String, multi:String, dflt:String, expr:Option[Expr]=None) extends CM {
-    def this (name:String, dflt:String) = this(name,"","","",dflt)
+  case class P (name:String, dflt:String, ttype:String="", ref:String="", multi:String="", expr:Option[Expr]=None) extends CM {
+
+    /** current calculated value if any or the expression */
+    def valExpr = if(dflt.nonEmpty || expr.isEmpty) CExpr(dflt, ttype) else expr.get
+
     override def toString =
       s"$name" +
         smap(ttype) (":" + ref + _) +
@@ -45,20 +46,24 @@ object RDOM {
   }
 
   /** represents a parameter match expression */
-  case class PM (name:String, ttype:String, ref:String, multi:String, op:String, dflt:String, expr:String = "") extends CM {
+  case class PM (name:String, ttype:String, ref:String, multi:String, op:String, dflt:String, expr:Option[Expr] = None) extends CM {
+
+    /** current calculated value if any or the expression */
+    def valExpr = if(dflt.nonEmpty || expr.isEmpty) CExpr(dflt, ttype) else expr.get
+
     override def toString =
       s"$name" +
         smap(ttype) (":" + ref + _) +
         smap(multi)(identity) +
-        smap(dflt) (s=> op + quot(s)) //+
-    //      (if(dflt=="") expr.map(x=>smap(x.toString) ("=" + _)) else "")
+        smap(dflt) (s=> op + quot(s)) +
+        (if(dflt=="") expr.map(x=>smap(x.toString) (" " + op +" "+ _)).mkString else "")
 
     def toHtml =
       s"<b>$name</b>" +
       smap(ttype) (":" + ref + _) +
       smap(multi)(identity) +
-      smap(dflt) (s=> op + quot(s)) //+
-//      (if(dflt=="") expr.map(x=>smap(x.toString) ("=" + _)) else "")
+      smap(dflt) (s=> op + quot(s)) +
+        (if(dflt=="") expr.map(x=>smap(x.toString) (" <b>"+op +"</b> "+ _)).mkString else "")
   }
 
   /** a function / method */

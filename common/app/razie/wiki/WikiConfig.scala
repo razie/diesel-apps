@@ -61,6 +61,9 @@ abstract class WikiConfig {
   final val cacheFormat = props.getProperty("rk.cacheformat", "false").toBoolean
   final val cacheDb = props.getProperty("rk.cachedb", "false").toBoolean
 
+  // preload these reactors - comma separated. make sure rk,notes,wiki are included in order
+  final val preload = props.getProperty("rk.preload", "rk,notes,wiki,ski")
+
   /** when running on localhost, simulate this host */
   def simulateHost = props.getProperty("rk.simulateHost")
 

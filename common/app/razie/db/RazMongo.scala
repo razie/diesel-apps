@@ -24,6 +24,10 @@ package object RazSalatContext {
 /** SingletonInstance - our model for pre-configured singleton instances
   *
   * todo use some injection library of some kind
+  *
+  * Your final singletons extend this, such as RMongo extends SI[xxx]
+  *
+  * Singletons are initialized by someone on startup (i.e. injection)
   */
 abstract class SI[T >: Null] (what:String) {
   private var idb : T = null

@@ -8,9 +8,9 @@ package razie.wiki.util
 
 import controllers.{IgnoreErrors, VErrors}
 import org.bson.types.ObjectId
-import play.api.mvc.{RequestHeader, Request}
+import play.api.mvc.{Request, RequestHeader}
 import razie.Logging
-import razie.wiki.model.WikiUser
+import razie.wiki.model.{Perm, WikiUser}
 
 /**
  * Authentication: need to provide an authentication service
@@ -45,6 +45,9 @@ case class MyUser(userName: String, email: String, _id: ObjectId = new ObjectId(
   def css = Some("dark") // dark/light preferences
   def hasMembershipLevel(s:String) = false
   def isActive = true
+  def isSuspended = false
+
+  def hasPerm(p: Perm) : Boolean = false
 }
 
 /** sample stub authentication */

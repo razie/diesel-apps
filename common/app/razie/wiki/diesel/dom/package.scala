@@ -12,6 +12,7 @@ package object dom {
   val ARCH_ENTITY = "Entity"
   val ARCH_MI = "MI"
 
+  /** like an Option from plain strings */
   def smap(s:String) (f:String=>String) =  if(s != null && s.length > 0) f(s) else ""
   def mks(l:List[_], pre:String, sep:String, post:String="", indent:String="") = if(l.size>0) pre + l.map(indent + _).mkString(sep) + post else ""
   def span(s: String, k: String = "default") = s"""<span class="label label-$k">$s</span>"""

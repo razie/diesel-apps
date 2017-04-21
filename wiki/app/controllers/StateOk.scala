@@ -33,14 +33,14 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
     form.flatMap(_.getOrElse(name, Seq.empty).headOption)
 
   // from query or body
-  def fqParm(name:String, dflt:String) =
+  def fqParm(name:String, dflt:String) : String =
     query.get(name).orElse(fParm(name)).getOrElse(dflt)
 
-  def fqhParm(name:String) =
-    query.get(name).orElse(fParm(name)).orElse(request.map(_.headers.get(name)))
+  def fqhParm(name:String) : Option[String] =
+    query.get(name).orElse(fParm(name)).orElse(request.flatMap(_.headers.get(name)))
 
-  def fqhoParm(name:String, dflt:String) =
-    query.get(name).orElse(fParm(name)).orElse(request.map(_.headers.get(name))).getOrElse(dflt)
+  def fqhoParm(name:String, dflt:String) : String =
+    query.get(name).orElse(fParm(name)).orElse(request.flatMap(_.headers.get(name))).getOrElse(dflt)
 
   /** set the title of this page */
   def title(s:String) = {

@@ -37,7 +37,9 @@ case class WikiEntry(
   parent: Option[ObjectId] = None,
   props: Map[String, String] = Map.empty, // properties - can be supplemented in the content
   likes: List[String]=List.empty,         // list of usernames that liked it
-  dislikes: List[String]=List.empty,      // list of usernames that liked it
+  dislikes: List[String]=List.empty,         // list of usernames that liked it
+  likeCount: Int=0,      // list of usernames that liked it
+  dislikeCount: Int=0,      // list of usernames that liked it
   crDtm: DateTime = DateTime.now,
   updDtm: DateTime = DateTime.now,
   _id: ObjectId = new ObjectId()) {
@@ -147,7 +149,9 @@ case class WikiEntry(
     if(!isDraft || !newVer.isDraft) WikiEntryOld(this, reason).create
     RUpdate.noAudit[WikiEntry](Wikis(realm).weTables(wid.cat), Map("_id" -> newVer._id), newVer)
     Wikis.shouldFlag(name, label, content).map(auditFlagged(_))
-    Wikis(realm).index.update(this, newVer)
+
+    // this is done async from WikiEvent. if sync here it will cause problems
+//    Wikis(realm).index.update(this, newVer)
   }
 
   /** backup old version and update entry, update index */

@@ -1,6 +1,7 @@
 @***
 creates the navigation bar
 ***@
+@import razie.wiki.model.Perm
 @(user:Option[razie.wiki.model.WikiUser], realm:String=razie.wiki.model.Wikis.RK, mobile:Boolean = false, barTitle: String="Bar Title", logo:Option[String]=None, url:Option[String]=Some("/"), isSite:Boolean=false, club:String="")(implicit stok: controllers.StateOk)
 @import razie.wiki.Services
 @import razie.wiki.model.Wikis
@@ -92,7 +93,7 @@ creates the navigation bar
             <li><a href="@routes.Profile.doeHelp"><i class="icon-edit"></i> Preferences</a></li>
             <li><a href="@mod.msg.routes.Messaging.doePM"><i class="icon-edit"></i> Messages</a></li>
 
-            @if(stok.au.exists(u=> u.hasPerm(model.Perm.codeMaster) || u.isAdmin)) {
+            @if(stok.au.exists(u=> u.hasPerm(Perm.codeMaster) || u.isAdmin)) {
               <li><a href="/wiki/Reactor:@realm"><i class="icon-edit"></i> Admin</a></li>
             }
 
@@ -103,7 +104,7 @@ creates the navigation bar
               }
             }
 
-            @if(stok.au.exists(u=> u.hasPerm(model.Perm.codeMaster) || u.isAdmin)) {
+            @if(stok.au.exists(u=> u.hasPerm(Perm.codeMaster) || u.isAdmin)) {
               <li><a href="/sfiddle/play3/js">SFiddle</a></li>
               <li><a href="/sfiddle/playinbrowser/js">JS-Fiddle</a></li>
               <li><a href="/sfiddle/playDsl/js">DSL-Fiddle</a></li>

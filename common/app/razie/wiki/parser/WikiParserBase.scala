@@ -149,15 +149,19 @@ trait WikiParserBase extends ParserCommons {
 
   // ======================== args
 
-  // simple value - i.e. no name, a default argument
-  protected def arg0 = "[^},]*".r ^^ { case v => ("ARG0", v) }
+  def ws = whiteSpace
+
+  def ows = opt(whiteSpace)
+
+  // todo NOT WORKING - if used in optargs generates continuous loop... simple value - i.e. no name, a default argument
+  protected def arg0 = "[^ :=,}]*".r <~ not("\\s*=".r) ^^ { case v => (v, "") }
   // simple x=y
-  protected def arg = "[^:=,}]*".r ~ "=" ~ "[^},]*".r ^^ { case n ~ _ ~ v => (n, v) }
+  protected def arg = "[^ :=,}]*".r ~ "=" ~ "[^},]*".r ^^ { case n ~ _ ~ v => (n, v) }
   // if contains comma, use ""
 //  protected def arg2 = "[^:=,}]*".r ~ "=\"" ~ "[^\"]*".r <~ "\"" ^^ { case n ~ _ ~ v => (n, v) }
-  protected def arg2 = "[^:=,}]*".r ~ "=\"" ~ "([^\"=\\\\]*(?:\\\\.[^\"=\\\\]*)*)".r <~ "\"" ^^ { case n ~ _ ~ v => (n, v.replaceAll("\\\\\"", "\"").replaceAll("\\\\=", "=")) }
+  protected def arg2 = "[^ :=,}]*".r ~ "=\"" ~ "([^\"=\\\\]*(?:\\\\.[^\"=\\\\]*)*)".r <~ "\"" ^^ { case n ~ _ ~ v => (n, v.replaceAll("\\\\\"", "\"").replaceAll("\\\\=", "=")) }
 
-  protected def optargs : Parser[List[(String,String)]] = opt("[: ]".r ~ rep((arg2 | arg) <~ opt(","))) ^^ {
+  protected def optargs : Parser[List[(String,String)]] = opt("[: ]".r ~ rep((arg2 | arg ) <~ opt(","))) ^^ {
     case Some(_ ~ l) => l
     case None => List()
   }

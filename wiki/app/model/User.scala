@@ -61,36 +61,6 @@ case class UserGroup(
 
 case class Location(city: String, state: String, country: String) {}
 
-case class Perm(s: String) {
-  def plus = "+" + this.s
-  def minus = "-" + this.s
-}
-
-/** permissions */
-object Perm {
-  val adminDb = Perm("adminDb") // god - can fix users etc
-  val adminWiki = Perm("adminWiki") // can administer wiki - edit categories/reserved pages etc
-  val uWiki = Perm("uWiki") // can update wiki
-  val uProfile = Perm("uProfile")
-  val eVerified = Perm("eVerified")
-  val apiCall = Perm("apiCall") // special users that can make api calls
-  val domFiddle = Perm("domFiddle") // can create services in eithe scala or JS
-  val codeMaster = Perm("codeMaster") // can create services in eithe scala or JS
-
-  // membership level (paid etc)
-  val Member = Perm("Member") // not paid account - this is not actually needed in the profile - if au then member
-  val Basic = Perm("Basic") // paid account
-  val Gold = Perm("Gold") // paid account
-  val Platinum = Perm("Platinum") // paid account
-  val Moderator = Perm("Moderator") // paid account
-
-  implicit def tos(p: Perm): String = p.s
-
-  val all: Seq[String] = Seq(adminDb, adminWiki, uWiki, uProfile, eVerified, apiCall, codeMaster,
-    "cCategory", "uCategory", "uReserved",
-    Basic, Gold, Platinum, Moderator, domFiddle
-  )
-}
 
 /** a person that may or may not have an account - or user group */
 trait TPersonInfo {
@@ -137,10 +107,10 @@ case class User(
 
   def tasks = Users.findTasks(_id)
 
-  def isActive = status == 'a'
-  def isSuspended = status == 's'
-  def isMod = isAdmin || hasPerm(Perm.Moderator)
-  def isAdmin = hasPerm(Perm.adminDb) || hasPerm(Perm.adminWiki)
+  override def isActive = status == 'a'
+  override def isSuspended = status == 's'
+//  def isMod = isAdmin || hasPerm(Perm.Moderator)
+//  def isAdmin = hasPerm(Perm.adminDb) || hasPerm(Perm.adminWiki)
   def isClub = roles contains UserType.Organization.toString
   def isUnder13 = DateTime.now.year.get - yob <= 12
 

@@ -22,7 +22,8 @@ import play.api.Play.current
 /** wiki factory and utils */
 object Wikis extends Logging with Validation {
   final val EVENTS = Array("Event", "Training", "Race")
-  def isEvent(cat:String) = "Race" == cat || "Event" == cat || "Training" == cat
+
+  def isEvent(cat: String) = "Race" == cat || "Event" == cat || "Training" == cat
 
   //todo per realm
   /** these categories are persisted in their own tables */
@@ -37,9 +38,12 @@ object Wikis extends Logging with Validation {
   final val RK = WikiConfig.RK
   final val DFLT = RK // todo replace with RK
 
-  def domain (realm:String = RK) = WikiReactors(realm).domain
-  def apply (realm:String = RK) = WikiReactors(realm).wiki
+  def domain(realm: String = RK) = WikiReactors(realm).domain
+
+  def apply(realm: String = RK) = WikiReactors(realm).wiki
+
   def rk = WikiReactors(RK).wiki
+
   def dflt = WikiReactors(WikiReactors.WIKI).wiki
 
   def fromGrated[T <: AnyRef](o: DBObject)(implicit m: Manifest[T]) = grater[T](ctx, m).asObject(o)
@@ -51,27 +55,30 @@ object Wikis extends Logging with Validation {
   // TODO find by ID is bad, no - how to make it work across wikis ?
   /** @deprecated optimize with realm */
   def findById(id: String) = find(new ObjectId(id))
+
   /** @deprecated optimize with realm */
   def find(id: ObjectId) =
-    WikiReactors.reactors.foldLeft(None.asInstanceOf[Option[WikiEntry]])((a,b) => a orElse b._2.wiki.find(id))
+    WikiReactors.reactors.foldLeft(None.asInstanceOf[Option[WikiEntry]])((a, b) => a orElse b._2.wiki.find(id))
+
   /** @deprecated optimize with realm */
-  def findById(cat:String, id: String):Option[WikiEntry] = findById(cat, new ObjectId(id))
+  def findById(cat: String, id: String): Option[WikiEntry] = findById(cat, new ObjectId(id))
+
   /** @deprecated optimize with realm */
-  def findById(cat:String, id: ObjectId): Option[WikiEntry] =
-    WikiReactors.reactors.foldLeft(None.asInstanceOf[Option[WikiEntry]])((a,b) => a orElse b._2.wiki.findById(cat, id))
+  def findById(cat: String, id: ObjectId): Option[WikiEntry] =
+    WikiReactors.reactors.foldLeft(None.asInstanceOf[Option[WikiEntry]])((a, b) => a orElse b._2.wiki.findById(cat, id))
 
   /** @deprecated use realm */
   def category(cat: String) =
-    if(cat.contains(".")) {
+    if (cat.contains(".")) {
       val cs = cat.split("\\.")
       apply(cs(0)).category(cs(1))
     }
     else rk.category(cat)
 
-//  def linksFrom(from: UWID) = RMany[WikiLink]("from" -> from.grated)
+  //  def linksFrom(from: UWID) = RMany[WikiLink]("from" -> from.grated)
   def linksFrom(to: UWID) = RMany[WikiLink]("from.cat" -> to.cat, "from.id" -> to.id)
 
-//  def linksTo(to: UWID) = RMany[WikiLink]("to" -> to.grated)
+  //  def linksTo(to: UWID) = RMany[WikiLink]("to" -> to.grated)
   def linksTo(to: UWID) = RMany[WikiLink]("to.cat" -> to.cat, "to.id" -> to.id)
 
   def childrenOf(parent: UWID) =
@@ -80,26 +87,26 @@ object Wikis extends Logging with Validation {
   def linksFrom(from: UWID, role: String) =
     RMany[WikiLink]("from" -> from.grated, "how" -> role)
 
-//  def linksTo(to: UWID, role: String) =
-//    RMany[WikiLink]("to.cat" -> to.cat, "to.id"->to.id, "how" -> role)
-//
+  //  def linksTo(to: UWID, role: String) =
+  //    RMany[WikiLink]("to.cat" -> to.cat, "to.id"->to.id, "how" -> role)
+  //
   // not taking realm into account...
-  def linksTo(cat:String, to: UWID, role: String) =
-    RMany[WikiLink]("from.cat" -> cat, "to.cat" -> to.cat, "to.id"->to.id, "how" -> role)
+  def linksTo(cat: String, to: UWID, role: String) =
+  RMany[WikiLink]("from.cat" -> cat, "to.cat" -> to.cat, "to.id" -> to.id, "how" -> role)
 
   // leave these vvvvvvvvvvvvvvvvvvvvvvvvvv
 
-  def label(wid: WID):String = /*wid.page map (_.label) orElse*/
+  def label(wid: WID): String = /*wid.page map (_.label) orElse*/
     apply(wid.getRealm).label(wid)
 
-  def label(wid: UWID):String = /*wid.page map (_.label) orElse*/
-    wid.wid.map(x=>label(x)).getOrElse(wid.nameOrId)
+  def label(wid: UWID): String = /*wid.page map (_.label) orElse*/
+    wid.wid.map(x => label(x)).getOrElse(wid.nameOrId)
 
   // leave these ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    
-   //todo refactor in own utils  vvv
-    
+
+  //todo refactor in own utils  vvv
+
   final val MD = "md"
   final val TEXT = "text"
   final val JS = "js"
@@ -109,19 +116,19 @@ object Wikis extends Logging with Validation {
 
   /** helper to deal with the different markups */
   object markups {
-    final val list = Seq(MD->"Markdown", TEXT->"Text", JSON->"JSON", XML->"XML", JS->"JavaScript", SCALA->"Scala") // todo per reator type - hackers like stuff
+    final val list = Seq(MD -> "Markdown", TEXT -> "Text", JSON -> "JSON", XML -> "XML", JS -> "JavaScript", SCALA -> "Scala") // todo per reator type - hackers like stuff
 
-    def contains (s:String) = list.exists(_._1 == s)
+    def contains(s: String) = list.exists(_._1 == s)
 
-    def isDsl (s:String) =
+    def isDsl(s: String) =
       s == JS || s == XML || s == JSON || s == SCALA
   }
 
-  def formFor (we:WikiEntry) = {
+  def formFor(we: WikiEntry) = {
     we.attr("wiki.form") orElse Wikis(we.realm).category(we.category).flatMap(_.attr("inst.form"))
   }
 
-  def templateFor (we:WikiEntry) = {
+  def templateFor(we: WikiEntry) = {
     we.attr("wiki.template") orElse Wikis(we.realm).category(we.category).flatMap(_.attr("inst.template"))
   }
 
@@ -133,7 +140,8 @@ object Wikis extends Logging with Validation {
   //  def formatName(name: String): String = iformatName(name, """[ &?,;/:{}\[\]]""")
 
   /** these are the safe url characters. I also included ',which are confusing many sites */
-  val SAFECHARS = """[^0-9a-zA-Z\$\-_\.()',]""" // DO NOT TOUCH THIS PATTERN!
+  val SAFECHARS =
+    """[^0-9a-zA-Z\$\-_\.()',]""" // DO NOT TOUCH THIS PATTERN!
 
   def formatName(name: String): String = iformatName(name, SAFECHARS, "") // DO NOT TOUCH THIS PATTERN!
 
@@ -145,16 +153,17 @@ object Wikis extends Logging with Validation {
       formatName(wid.name)
 
   /** format an even more complex name
+    *
     * @param rk force links back to RK main or leave them
     */
-  def formatWikiLink(curRealm:String, wid: WID, nicename: String, label: String, role:Option[String], hover: Option[String] = None, rk: Boolean = false, max:Int = -1) = {
+  def formatWikiLink(curRealm: String, wid: WID, nicename: String, label: String, role: Option[String], hover: Option[String] = None, rk: Boolean = false, max: Int = -1) = {
     val name = formatName(wid.name)
     val title = hover.map("title=\"" + _ + "\"") getOrElse ("")
 
-    def trim(s:String) = {
-      if(max < 0) s
+    def trim(s: String) = {
+      if (max < 0) s
       else {
-        if(s.length > max) s.substring(0, max-3)+"..."
+        if (s.length > max) s.substring(0, max - 3) + "..."
         else s
       }
     }
@@ -166,8 +175,8 @@ object Wikis extends Logging with Validation {
 
     val bigName = Wikis.apply(r).index.getForLower(name.toLowerCase())
     if (bigName.isDefined || wid.cat.matches("User")) {
-      var newwid = Wikis.apply(r).index.getWids(bigName.get).headOption.map(_.copy(section=wid.section)) getOrElse wid.copy(name=bigName.get)
-//      var newwid = wid.copy(name=bigName.get)
+      var newwid = Wikis.apply(r).index.getWids(bigName.get).headOption.map(_.copy(section = wid.section)) getOrElse wid.copy(name = bigName.get)
+      //      var newwid = wid.copy(name=bigName.get)
       var u = Services.config.urlmap(newwid.formatted.urlRelative(curRealm))
 
       if (rk && (u startsWith "/")) u = "http://" + Services.config.rk + u
@@ -175,13 +184,15 @@ object Wikis extends Logging with Validation {
       (s"""<a href="$u" title="$title">$tlabel</a>""", Some(ILink(newwid, label, role)))
     } else if (rk) {
       val sup = "" //"""<sup><b style="color:red">^</b></sup></a>"""
-      (s"""<a href="http://${Services.config.rk}${wid.formatted.urlRelative}" title="$title">$tlabel$sup</a>""" ,
+      (
+        s"""<a href="http://${Services.config.rk}${wid.formatted.urlRelative}" title="$title">$tlabel$sup</a>""",
         Some(ILink(wid, label, role)))
     } else {
       // topic not found in index - hide it from google
-      val prefix = if(wid.realm.isDefined && wid.getRealm != curRealm) s"/we/${wid.getRealm}" else "/wikie"
-      val plusplus = if(Wikis.PERSISTED.contains(wid.cat)) "" else """<sup><b style="color:red">++</b></sup>"""
-      (s"""<a href="$prefix/show/${wid.wpath}" title="%s">$tlabel$plusplus</a>""".format
+      val prefix = if (wid.realm.isDefined && wid.getRealm != curRealm) s"/we/${wid.getRealm}" else "/wikie"
+      val plusplus = if (Wikis.PERSISTED.contains(wid.cat)) "" else """<sup><b style="color:red">++</b></sup>"""
+      (
+        s"""<a href="$prefix/show/${wid.wpath}" title="%s">$tlabel$plusplus</a>""".format
         (hover.getOrElse("Missing page")),
         Some(ILink(wid, label, role)))
     }
@@ -195,7 +206,7 @@ object Wikis extends Logging with Validation {
     else None
   }
 
-  private def include(wid:WID, c2: String, we:Option[WikiEntry]=None, firstTime:Boolean=false)(implicit errCollector: VErrors): Option[String] = {
+  private def include(wid: WID, c2: String, we: Option[WikiEntry] = None, firstTime: Boolean = false)(implicit errCollector: VErrors): Option[String] = {
     // todo this is not cached as the underlying page may change - need to pick up changes
     var done = false
     var collecting = we.exists(_.depys.isEmpty) // should collect depys
@@ -204,20 +215,20 @@ object Wikis extends Logging with Validation {
       val INCLUDE = """(?<!`)\[\[include(WithSection)?:([^\]]*)\]\]""".r
       var res1 = INCLUDE.replaceAllIn(c2, { m =>
         val content = for (
-          iwid <- WID.fromPath(m.group(2)).map(w=> if(w.realm.isDefined) w else w.r(wid.getRealm)) orErr ("bad format for page");
-          c <- (if(m.group(1) == null) iwid.content else iwid.findSection.map(_.original)) orErr s"content for ${iwid.wpath} not found"
+          iwid <- WID.fromPath(m.group(2)).map(w => if (w.realm.isDefined) w else w.r(wid.getRealm)) orErr ("bad format for page");
+          c <- (if (m.group(1) == null) iwid.content else iwid.findSection.map(_.original)) orErr s"content for ${iwid.wpath} not found"
         ) yield {
-            if(collecting && we.isDefined)
-              we.get.depys = iwid.uwid.toList ::: we.get.depys
-            c
-          }
+          if (collecting && we.isDefined)
+            we.get.depys = iwid.uwid.toList ::: we.get.depys
+          c
+        }
 
         done = true
         //regexp uses $ as a substitution
         content.map(_.replaceAll("\\$", "\\\\\\$")).getOrElse("`[ERR Can't include $1 " + errCollector.mkString + "]`")
       })
 
-      if(!res1.contains("{{.wiki.noTemplate")) {
+      if (!res1.contains("{{.wiki.noTemplate")) {
         var hadTemplate = false
         val TEMPLATE = """(?<!`)\{\{\.?wiki.template[: ]*([^\}]*)\}\}""".r
         res1 = TEMPLATE.replaceAllIn(res1, { m =>
@@ -240,23 +251,29 @@ object Wikis extends Logging with Validation {
           }
       }
 
-     res1
+      res1
     } catch {
       case s: Throwable => log("Error: ", s); "`[ERR Can't process an include]`"
     }
     if (done) Some(res) else None
   }
 
-  def preprocessIncludes(wid: WID, markup: String, content: String, page:Option[WikiEntry]=None) = markup match {
+  def preprocessIncludes(wid: WID, markup: String, content: String, page: Option[WikiEntry] = None) = markup match {
     case MD =>
       implicit val errCollector = new VErrors()
 
       var c2 = content
 
       // TODO stupid - 3 levels of include...
-      include(wid, c2, page, true).map { c2 = _ }.flatMap { x =>
-        include(wid, c2, page, false).map { c2 = _ }.flatMap { x =>
-          include(wid, c2, page, false).map { c2 = _ }
+      include(wid, c2, page, true).map {
+        c2 = _
+      }.flatMap { x =>
+        include(wid, c2, page, false).map {
+          c2 = _
+        }.flatMap { x =>
+          include(wid, c2, page, false).map {
+            c2 = _
+          }
         }
       }
 
@@ -266,44 +283,57 @@ object Wikis extends Logging with Validation {
   }
 
   // TODO better escaping of all url chars in wiki name
-  def preprocess(wid: WID, markup: String, content: String, page:Option[WikiEntry]) = markup match {
-    case MD =>
-      val t1 = System.currentTimeMillis
-      implicit val errCollector = new VErrors()
+  def preprocess(wid: WID, markup: String, content: String, page: Option[WikiEntry]) = {
+    try {
+      markup match {
+        case MD =>
+          val t1 = System.currentTimeMillis
+          implicit val errCollector = new VErrors()
 
-      var c2 = content
+          var c2 = content
 
-      if (c2 contains "[[./")
-        c2 = content.replaceAll("""\[\[\./""", """[[%s/""".format(wid.realm.map(_ + ".").mkString + wid.cat + ":" + wid.name)) // child topics
-      if (c2 contains "[[../")
-        c2 = c2.replaceAll("""\[\[\../""", """[[%s""".format(wid.parentWid.map(wp => wp.realm.map(_ + ".").mkString + wp.cat + ":" + wp.name + "/").getOrElse(""))) // siblings topics
+          if (c2 contains "[[./")
+            c2 = content.replaceAll("""\[\[\./""", """[[%s/""".format(wid.realm.map(_ + ".").mkString + wid.cat + ":" + wid.name)) // child topics
+          if (c2 contains "[[../")
+            c2 = c2.replaceAll("""\[\[\../""", """[[%s""".format(wid.parentWid.map(wp => wp.realm.map(_ + ".").mkString + wp.cat + ":" + wp.name + "/").getOrElse(""))) // siblings topics
 
-      // TODO stupid - 3 levels of include...
-      include(wid, c2, page, true).map {x=>
-        page.map(_.cacheable = false) // simple dirty if includes, no depy to manage
-        c2 = x
-      }.flatMap { x =>
-        include(wid, c2, page, false).map { c2 = _ }.flatMap { x =>
-          include(wid, c2, page, false).map { c2 = _ }
-        }
+          // TODO stupid - 3 levels of include...
+          include(wid, c2, page, true).map { x =>
+            page.map(_.cacheable = false) // simple dirty if includes, no depy to manage
+            c2 = x
+          }.flatMap { x =>
+            include(wid, c2, page, false).map {
+              c2 = _
+            }.flatMap { x =>
+              include(wid, c2, page, false).map {
+                c2 = _
+              }
+            }
+          }
+
+          // pre-mods
+          page.orElse(wid.page).map { x =>
+            // WikiMods will dirty the we.cacheable if needed
+            c2 = razie.wiki.mods.WikiMods.modPreParsing(x, Some(c2)).getOrElse(c2)
+          }
+
+          val res = WikiReactors(wid.getRealm).wiki.mkParser apply c2
+          val t2 = System.currentTimeMillis
+          cdebug << s"wikis.preprocessed ${t2 - t1} millis for ${wid.name}"
+          res
+
+        case TEXT => WAST.SState(content.replaceAll("""\[\[([^]]*)\]\]""", """[[\(1\)]]"""))
+        case JSON | XML | JS | SCALA => WAST.SState(content)
+
+        case _ => WAST.SState("UNKNOWN_MARKUP " + markup + " - " + content)
       }
-
-      // pre-mods
-      page.orElse(wid.page).map {x=>
-        // WikiMods will dirty the we.cacheable if needed
-        c2 = razie.wiki.mods.WikiMods.modPreParsing(x, Some(c2)).getOrElse(c2)
-      }
-
-      val res = WikiReactors(wid.getRealm).wiki.mkParser apply c2
-      val t2 = System.currentTimeMillis
-      cdebug << s"wikis.preprocessed ${t2 - t1} millis for ${wid.name}"
-      res
-
-    case TEXT => WAST.SState(content.replaceAll("""\[\[([^]]*)\]\]""", """[[\(1\)]]"""))
-    case JSON | XML | JS | SCALA => WAST.SState(content)
-
-    case _ => WAST.SState("UNKNOWN_MARKUP " + markup + " - " + content)
+    } catch {
+      case t: Throwable =>
+        razie.base.Audit.logdb("EXCEPTION_PARSING - " + wid.wpath + " " + t.getLocalizedMessage())
+        WAST.SState("EXCEPTION_PARSING " + markup + " - " + t.getLocalizedMessage() + " - " + content)
+    }
   }
+
 
   /** html for later */
   def propLater (id:String, url:String) =

@@ -564,16 +564,6 @@ trait WikiParserT extends WikiParserMini with CsvParser {
     }
   }
 
-  //todo what was this for? - it's not used
-  private def wikiPropFieldVal: PS = "{{" ~> "fval:" ~> "[^:]+".r ~ optargs <~ "}}" ^^ {
-    case name ~ args => {
-      SState(
-        Wikis(realm).find(WID("Admin", "widget_" + name)).map(_.content).map { c =>
-          args.foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
-        } getOrElse "")
-    }
-  }
-
   // to not parse the content, use slines instead of lines
   /** {{section:name}}...{{/section}} */
   def wikiPropSection: PS = "{{" ~> opt(".") ~ """section|template|properties""".r ~ "[: ]".r ~ """[^ :}]*""".r ~ opt("[: ]".r ~ """[^}]*""".r) ~ "}}" ~ lines <~ ("{{/" ~ """section|template|properties""".r ~ "}}".r) ^^ {

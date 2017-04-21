@@ -42,58 +42,27 @@ object WikiReactors {
 
     // load reserved reactors: rk and wiki first
 
-    val weRk = RazMongo(Wikis.TABLE_NAME).findOne(Map("category" -> "Reactor", "name" -> "rk")).map(grater[WikiEntry].asObject(_))
-    val rk = Services.mkReactor(RK, Nil, weRk)
-    res.put (RK, rk)
-    lowerCase.put(RK, RK)
+    var toload = Services.config.preload.split(",")
 
-    val weNotes = RazMongo(Wikis.TABLE_NAME).findOne(Map("category" -> "Reactor", "name" -> "notes")).map(grater[WikiEntry].asObject(_))
-    res.put (NOTES, Services.mkReactor(NOTES, Nil, weNotes)) // todo why not have a reactor entry for rk
-    lowerCase.put(NOTES, NOTES)
+    // list all reactors to be loaded and pre-fetch wikis
+    //todo with large numbers this will leak
+    RazMongo(Wikis.TABLE_NAME).find(Map("category" -> "Reactor")).map(
+      grater[WikiEntry].asObject(_)).toList.foreach(
+      we=>allReactors.put(we.name, we))
 
-    val weWiki = RazMongo(Wikis.TABLE_NAME).findOne(Map("category" -> "Reactor", "name" -> "wiki")).map(grater[WikiEntry].asObject(_))
-    val wiki = Services.mkReactor(WIKI, List(rk), weWiki)
-    res.put (WIKI, wiki)
-    lowerCase.put(WIKI, WIKI)
-
-    rk.wiki.weTable("WikiEntry").find(Map("category" -> "Reactor")).map(grater[WikiEntry].asObject(_)).filter(x=>
-      !(Array(RK, NOTES, WIKI) contains x.name)).toList.foreach(we=>allReactors.put(we.name, we))
+    // load the basic reactors ahead of everyone that might depend on them
+    if(toload contains RK) loadReactor(RK)
+    if(toload contains NOTES) { // todo does not have a wiki - damn, can't use loadReactor
+        res.put (NOTES, Services.mkReactor(NOTES, Nil, None))
+        lowerCase.put(NOTES, NOTES)
+    }
+    if(toload contains WIKI) loadReactor(WIKI)
 
     // todo this will create issues such that for a while after startup things are weird
     razie.Threads.fork {
-      loadReactor("ski")
+      // the basic were already loaded, will be ignored
+      Services.config.preload.split(",").foreach(loadReactor)
     }
-
-//    if(false) razie.Threads.fork {
-      // load all other reactors... linearize mixins and load in order
-//      val toLoad = rk.wiki.weTable("WikiEntry").find(Map("category" -> "Reactor")).map(grater[WikiEntry].asObject(_)).filter(x=>
-//        !(Array(RK, NOTES, WIKI) contains x.name)).to[ListBuffer]
-//      val max = toLoad.size
-//      var curr = 0
-
-      // lazy depys
-//      while (curr < max && !toLoad.isEmpty) {
-//        curr += 1
-//        val copy = toLoad.toList
-//        toLoad.clear()
-
-        // load
-//        copy.foreach {we=>
-//          val mixins = new DslProps(Some(we), "website").prop("mixins").getOrElse("wiki").split(',')
-//          if(mixins.foldLeft(true){(a,b)=> a && lowerCase.contains(b.toLowerCase)}) {
-//            clog << "LOADING REACTOR " + we.wid.name
-//            res.put (we.name, Services.mkReactor(we.name, mixins.toList.map(x=> res.get(x).get), Some(we)))
-//            lowerCase.put(we.name.toLowerCase, we.name)
-//          } else {
-//            clog << s"NEED TO LOAD LATER REACTOR ${we.wid.name} depends on ${mixins.mkString(",")}"
-//            toLoad += we
-//          }
-//        }
-//      }
-//    }
-
-    //      reactors = res
-    //    }
   }
 
   /** lazy load a reactor */
@@ -114,9 +83,13 @@ object WikiReactors {
       val copy = toLoad.toList
       toLoad.clear()
 
-      // load
+      // todo smarter linearization of mixins
       copy.foreach {we=>
-        val mixins = new DslProps(Some(we), "website").prop("mixins").getOrElse("wiki").split(',')
+        val mixins = new DslProps(Some(we), "website").prop("mixins").map(_.split(",")).getOrElse{
+          // the basic cannot depend on anyone other than what they want
+          if(Array(RK,NOTES,WIKI) contains we.name) Array.empty[String] else Array("wiki")
+        }
+
         if(mixins.foldLeft(true){(a,b)=> a && lowerCase.contains(b.toLowerCase)}) {
           clog << "LOADING REACTOR " + we.wid.name
           res.put (we.name, Services.mkReactor(we.name, mixins.toList.map(x=> res.get(x).get), Some(we)))

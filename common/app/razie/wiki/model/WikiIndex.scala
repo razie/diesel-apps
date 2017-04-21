@@ -230,16 +230,27 @@ object WikiIndex {
     Wikis(realm).index.withIndex(f)
 
   WikiObservers mini {
-    case ev@WikiEvent(action, "WikiEntry", _, entity, _, _, _) => {
+    case ev@WikiEvent(action, "WikiEntry", _, entity, oldEntity, _, _) => {
       val wid = WID.fromPath(ev.id).get
       val index = Wikis(wid.getRealm).index
       val oldWid = ev.oldId.flatMap(WID.fromPath)
 
       action match {
-        case WikiAudit.UPD_RENAME =>
-          index.update(wid, oldWid.get)
+
+        case WikiAudit.UPD_RENAME => {
+          val swe = entity.asInstanceOf[Option[WikiEntry]]
+          val oswe = oldEntity.asInstanceOf[Option[WikiEntry]]
+
+          // on local node, update directly
+          if(swe.isDefined && oswe.isDefined)
+            index.update(oswe.get, swe.get)
+          else
+            index.update(wid, oldWid.get)
+        }
+
         case WikiAudit.DELETE_WIKI =>
           if (wid.shouldIndex) index.delete(wid, new ObjectId(ev.oldId.mkString))
+
         case _ => {
           val swe = entity.asInstanceOf[Option[WikiEntry]]
           if (swe.exists(_.wid.shouldIndex)) {

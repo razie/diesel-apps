@@ -6,8 +6,8 @@
  */
 package razie.wiki.parser
 
-import razie.cdebug
-import razie.wiki.model.{WikiUser, ILink, WikiEntry}
+import razie.{Audit, cdebug}
+import razie.wiki.model.{ILink, WikiEntry, WikiUser}
 
 /**
  * wiki AST - abstract syntax tree.
@@ -82,12 +82,18 @@ object WAST {
 
     /** lazy unfolding of AST tree */
     def fold(ctx:FoldingContext) : SState = {
-      if(ParserSettings.debugStates) {
-        cdebug << "======================= F O L D ========================="
-        cdebug << print (1)
-        cdebug << "======================= F O L D I N G ========================="
+      try {
+        if (ParserSettings.debugStates) {
+          cdebug << "======================= F O L D ========================="
+          cdebug << print(1)
+          cdebug << "======================= F O L D I N G ========================="
+        }
+        ifold(SState.EMPTY, ctx)
+      } catch {
+        case t: Throwable =>
+          razie.base.Audit.logdb("EXCEPTION_PARSING.folding - " + ctx.we.map(_.wid.wpath) + " " + t.getLocalizedMessage())
+          WAST.SState("EXCEPTION_PARSING.folding - " + t.getLocalizedMessage())
       }
-      ifold (SState.EMPTY, ctx)
     }
     def ifold(current:SState, ctx:FoldingContext) : SState
 
