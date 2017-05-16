@@ -33,9 +33,9 @@ object ParserSettings {
 
   //todo form|input allowed?
 
-  final val hok = "abbr|acronym|address|a|b|blockquote|br|div|dd|dl|dt|font|h1|h2|h3|h4|h5|h6|hr|i|img|li|p|pre|q|s|small|strike|strong|span|sub|sup|" +
+  final val hok = "abbr|acronym|address|a|b|blockquote|br|button|caption|div|dd|dl|dt|font|h1|h2|h3|h4|h5|h6|hr|i|img|li|p|pre|q|s|small|strike|strong|span|sub|sup|" +
     "table|tbody|td|tfoot|th|thead|tr|ul|u|input|form|textarea|select|label"
-  final val hnok = "applet|area|base|basefont|bdo|big|body|button|caption|center|cite|code|colgroup|col|" +
+  final val hnok = "applet|area|base|basefont|bdo|big|body|center|cite|code|colgroup|col|" +
     "del|dfn|dir|fieldset|frame|frameset|head|html|iframe|ins|isindex|kbd|" +
     "legend|link|map|menu|meta|noframes|noscript|object|ol|" +
     "optgroup|option|param|samp|script|style|title|tt|var"
@@ -112,7 +112,7 @@ trait WikiParserBase extends ParserCommons {
   def escaped2: PS = "```" ~ opt("js"|"scala"|"xml"|"html"|"diesel") ~ opt(CRLF1 | CRLF3 | CRLF2) ~ """(?s)[^`]*""".r ~ "```" ^^ {
     case a ~ name ~ _ ~ b ~ c => {
       RState(
-        "<pre><code>",
+        s"""<pre><code language="${name.mkString}">""",
         if (name != "xml" && name != "html") b
         else {
           Enc.escapeHtml(b)

@@ -15,17 +15,14 @@ import razie.wiki.model.WikiUser
 import razie.wiki.util.PlayTools
 import scala.collection.mutable
 
-/**
- * configuration for the core wiki engine - some come from a property file and some from special admin pages
- *
- * create a property file rk.properties and include in classpath,
- * containing the properties below
- *
- * *****************************************************************
- * ************* you can access this via Services.config ***********
- * *****************************************************************
- */
-abstract class WikiConfig {
+object WikiConfig {
+  final val RK = "rk"
+  final val NOTES = "notes"
+
+  // parse a properties looking thing
+  def parsep(content: String) =
+    (content.split("\r*\n")) filter (!_.startsWith("#")) map (_.split("=", 2)) filter (_.size == 2) map (x => (x(0), x(1)))
+
   // load properties from system or from a file rk.properties
   val props = {
     val p = new Properties();
@@ -43,6 +40,20 @@ abstract class WikiConfig {
     clog << "================ rk.properties ==================\n" + p.toString
     p
   }
+}
+
+/**
+ * configuration for the core wiki engine - some come from a property file and some from special admin pages
+ *
+ * create a property file rk.properties and include in classpath,
+ * containing the properties below
+ *
+ * *****************************************************************
+ * ************* you can access this via Services.config ***********
+ * *****************************************************************
+ */
+abstract class WikiConfig {
+  import WikiConfig.props
 
   final val rk = System.getProperty("rk.home", props.getProperty("rk.home"))
   final val hostport = props.getProperty("rk.hostport")
@@ -67,8 +78,8 @@ abstract class WikiConfig {
   /** when running on localhost, simulate this host */
   def simulateHost = props.getProperty("rk.simulateHost")
 
-  def SUPPORT = sitecfg("support").getOrElse("support@racerkidz.com")
-  def SUPPORT2 = sitecfg("support").getOrElse("support@effectiveskiing.com")
+  // todo is only used for auth on the support email when sending - to configure password per reactor
+  def SUPPORT = "support@racerkidz.com"
 
   def isLocalhost = "localhost:9000" == hostport
 
@@ -185,15 +196,6 @@ abstract class WikiConfig {
 
   def reservedNames = ireservedNames
   protected var ireservedNames = List[String]()
-}
-
-object WikiConfig {
-  final val RK = "rk"
-  final val NOTES = "notes"
-
-  // parse a properties looking thing
-  def parsep(content: String) =
-    (content.split("\r*\n")) filter (!_.startsWith("#")) map (_.split("=", 2)) filter (_.size == 2) map (x => (x(0), x(1)))
 }
 
 /** sample config - use for testing for instance. Before beginning a test, do Services.config = SampleConfig */

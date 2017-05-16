@@ -175,7 +175,7 @@ case class WikiEntry(
 
   // this ((?>.*?(?=\{\{/))) means non-greedy lookahead
   //?s means DOTALL - multiline
-  // format: {{stype[ :]name:signature}}
+  // format: {{stype[ :]name:signature}}content
   private final val PATT_SEC =
     """(?s)\{\{\.*(section|def|lambda|inline|dfiddle|dsl\.\w*)([: ])?([^:}]*)?(:)?([^}]*)?\}\}((?>.*?(?=\{\{/[^`])))\{\{/\.*(section|def|lambda|inline|dfiddle|dsl\.\w*)?\}\}""".r
   private final val PATT_TEM =
@@ -193,7 +193,7 @@ case class WikiEntry(
 
     (for (m <- pat.findAllIn(c).matchData) yield {
       val mm = PATT2.findFirstMatchIn(m.matched).get
-      val signargs = mm.group(5).split(':')
+      val signargs = mm.group(5).split("[: ]")
       val args = if(signargs.length>1) AA(signargs(1)).toMap else Map.empty[String,String]
       val sign = signargs(0)
       val ws = WikiSection(mm.source.toString, this, mm.group(1), mm.group(3), sign, mm.group(6), args)
@@ -211,7 +211,7 @@ case class WikiEntry(
   val PATTSIGN = """(?s)\{\{(\.?)(template|def|lambda|inline):([^:}]*)(:REVIEW[^}]*)\}\}((?>.*?(?=\{\{/)))\{\{/(template|def|lambda|inline)?\}\}""".r //?s means DOTALL - multiline
 
   /** find a section */
-  def section(stype: String, name: String) = sections.find(x => x.stype == stype && x.name == name)
+  def section (stype: String, name: String) = sections.find(x => x.stype == stype && x.name == name)
 
   /** scripts are just a special section */
   lazy val scripts = sections.filter(x => "def" == x.stype || "lambda" == x.stype || "inline" == x.stype)
@@ -277,8 +277,8 @@ case class WikiEntry(
   //todo move the fields and form stuff here
   val cache = new scala.collection.mutable.HashMap[String, Any]()
 
-  def linksFrom = RMany[WikiLink] ("from" -> this.uwid.grated)
-  def linksTo = RMany[WikiLink] ("to" -> this.uwid.grated)
+  def linksFrom = RMany[WikiLink] ("from.id" -> this.uwid.id)
+  def linksTo = RMany[WikiLink] ("to.id" -> this.uwid.id)
 }
 
 /** a form field definition */

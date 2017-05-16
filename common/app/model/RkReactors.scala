@@ -19,8 +19,7 @@ object RkReactors {
   /** for the host REACTOR.dslapps.com - see if there is a known reactor for that */
   def forHost (h:String) : Option[String] = {
     // auto-websites of type REACTOR.coolscala.com
-    if (h.endsWith(".coolscala.com") ||
-      h.endsWith(".wikireactor.com") ||
+    if (
       h.endsWith(".dslcloud.com") ||    /* the testing website */
       h.endsWith(".dslapps.com") ||
       h.endsWith(".dieselapps.com")

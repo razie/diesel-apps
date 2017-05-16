@@ -2,24 +2,17 @@
 the footer of every page...
 **************@
 @(ads:Boolean=false, isSite:Boolean=false, realm:String=razie.wiki.model.Wikis.RK, request:Option[Request[_]]=None)(implicit stok:controllers.StateOk)
-@import _root_.razie.wiki.Services
 
-@web()=@{request.orElse(stok.request).flatMap(x=>model.Website.apply(x)) getOrElse model.Website.dflt}
+@web()=@{request.flatMap(x=>model.Website.apply(x)).getOrElse(stok.website)}
 
-<footer>
-  <p>
+<footer id="footerCopyright">
+  <p><small style="color:gray;">
     @web().copyright.map{x=>
       @Html(x)
     }.getOrElse{
-        &copy; <a href="http://www.dieselapps.com">DieselApps</a>, 2012-2016
+        &copy; Copyright <a href="http://www.dieselapps.com">DieselApps</a>, 2012-2017, all rights reserved.
     }
-    @***
-    | <small>(<a href="/mobile/1">Mobile</a>
-    | <a href="/mobile/0">Desktop</a>
-    )</small>
-    ***@
-
-  </p>
+  </small></p>
 
 @stok.showBottomAd(ads)
 

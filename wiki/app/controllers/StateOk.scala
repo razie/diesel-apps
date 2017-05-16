@@ -1,11 +1,10 @@
 package controllers
 
 import model._
-import play.api.data.validation.{Constraint, Invalid, Valid, ValidationError}
 import play.api.mvc._
 import play.twirl.api.Html
-import razie.wiki.model._
 import razie.wiki.Services
+import razie.wiki.model._
 
 import scala.collection.mutable
 
@@ -21,7 +20,11 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
   var stuff : List[String] = List() // keep temp status for this request
   var bottomAd : Boolean = false
 
+  lazy val errCollector = new VErrors()
+
   def showBottomAd(yes:Boolean) = {bottomAd = yes}
+
+  def isLocalhost = request.exists(_.host.startsWith("localhost:"))
 
   lazy val form = request.flatMap(_.asInstanceOf[Request[AnyContent]].body.asFormUrlEncoded)
   lazy val query = request.map(_.queryString.map(t=>(t._1, t._2.mkString))).getOrElse(Map.empty)
@@ -125,7 +128,7 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
   def noLayout (content: StateOk => Html) =
     Res.Ok (content(this))
 
-  val website = Website.gets(this)
+  val website = Website.get(this.request.get)
 
   /** should show bottom ads */
   def showBottomAds (page:Option[WikiEntry]) = {
@@ -174,7 +177,6 @@ class RazRequest (realm:String, au:Option[User], val ireq:Request[_], name:Strin
   //  lazy val au =
 
   lazy val stok = this //new controllers.StateOk(Seq(), realm, au, Some(request))
-  lazy val errCollector = new VErrors()
 
   def session = ireq.session
   def flash = ireq.flash

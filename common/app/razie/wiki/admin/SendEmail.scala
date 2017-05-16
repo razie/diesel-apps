@@ -68,15 +68,15 @@ object EmailMsg {
  *
  * you get one with SendEmail.withSession and when closed, it will spawn a thread to send the emails collected during...
  */
-class MailSession(implicit mailSession: Option[Session] = None) {
+class BaseMailSession(implicit mailSession: Option[Session] = None) {
   var emails: scala.List[EmailMsg] = Nil // collecting messages here to be sent at end
-  var website : Option[String] = None
+  var realm : Option[String] = None
 
   var needsGmail = false
 
   //in case you serve multiple websites - which one is in this session?
   // there are subject and reply email that may differ
-  def forWebsite (s:Option[String]) = { website=s; this}
+  def withRealm (s:Option[String]) = { realm=s; this}
 
   // use local session
   lazy val session = mailSession getOrElse SendEmail.mkSession(
@@ -153,21 +153,17 @@ object SendEmail extends razie.Logging {
   }
 
   /**
-   * send an email - just added to the session
+    * todo inline
    */
   def send(to: String, from: String, subject: String, html: String, bcc: Seq[String] = Seq.empty)(implicit mailSession: MailSession) {
-    val e = new EmailMsg(to, from, subject, html, false, bcc)
-    mailSession.emails = e :: mailSession.emails
-    e.createNoAudit
+    mailSession.send(to,from,subject,html,bcc)
   }
 
   /**
-   * send an email - just added to the session. note that there is no special handling of notifications for now
+   * todo inline
    */
   def notif(to: String, from: String, subject: String, html: String, bcc: Seq[String] = Seq.empty)(implicit mailSession: MailSession) {
-    val e = new EmailMsg(to, from, subject, html, true, bcc)
-    mailSession.emails = e :: mailSession.emails
-    e.createNoAudit
+    mailSession.notif(to,from,subject,html,bcc)
   }
 
   /**
@@ -175,23 +171,9 @@ object SendEmail extends razie.Logging {
    *
    * sent emails are audited as well as failures
    */
-  def withSession[C](body: (MailSession) => C): C = {
-    implicit val mailSession = new MailSession
-    val res = body(mailSession)
-
-    emailSender ! mailSession // spawn sender
-
-    res
-  }
-
-  /**
-   * collects all emails in session and spawns thread at end of session to send them asynchornously.
-   *
-   * sent emails are audited as well as failures
-   */
-  def withSession[C](web:Option[String])(body: (MailSession) => C): C = {
-    implicit val mailSession = (new MailSession).forWebsite(web)
-    val res = body(mailSession)
+  def withSession[C](realm:String="rk")(body: (MailSession) => C): C = {
+    implicit val mailSession = (new MailSession).withRealm(Some(realm)).asInstanceOf[MailSession]
+    val res = body(mailSession) // supposed to collect emails in the session
 
     emailSender ! mailSession // spawn sender
 

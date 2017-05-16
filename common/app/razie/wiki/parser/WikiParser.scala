@@ -464,7 +464,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
     }
   }
 
-  private def wikiPropRoles: PS = "{{roles" ~> """[: ]""".r ~> """[^:]*""".r ~ ":".r ~ """[^}]*""".r <~ "}}" ^^ {
+  private def wikiPropRoles: PS = "{{roles" ~> """[: ]+""".r ~> """[^:]*""".r ~ "[: ]+".r ~ """[^}]*""".r <~ "}}" ^^ {
     case cat ~ _ ~ how => {
       val r = if(Wikis.RK == realm) "Category" else realm+".Category"
       val cats = "<b>"+parseW2(s"[[$r:$cat | $cat]]").s+"</b>"
@@ -561,7 +561,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
         }
         SState("`{{{f:%s}}}`".format(name))
       }
-    }
+    }.cacheOk
   }
 
   // to not parse the content, use slines instead of lines
@@ -576,7 +576,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
         }
         hidden.map(x => SState.EMPTY) getOrElse
           RState(s"`{{$stype $name:$signature}}`<br>", lines, s"<br>`{{/$stype}}` ").fold(ctx)
-      }
+      }.cacheOk
     }
   }
 
@@ -591,7 +591,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
 //  }
 
   /** {{alert.color}}...{{/alert}} */
-  def wikiPropAlert: PS = "{{" ~> "alert[: ]".r ~> """green|blue|yellow|red|black""".r ~ " *".r ~ opt("[^}]+".r) ~ " *\\}\\}".r ~ lines <~ ("{{/" ~ """alert""".r ~ " *}}".r) ^^ {
+  def wikiPropAlert: PS = "{{" ~> "alert[: ]+".r ~> """green|blue|yellow|red|black""".r ~ " *".r ~ opt("[^}]+".r) ~ " *\\}\\}".r ~ lines <~ ("{{/" ~ """alert""".r ~ " *}}".r) ^^ {
     case stype ~ _ ~ attrs ~ _ ~ lines => {
       val color = stype match {
         case "green" => "success"
@@ -671,7 +671,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
       LazyState {(current, ctx) =>
         val html = Some(Wikis.hrefTag(ctx.we.get.wid, name, name))
         SState(html.get)
-      }
+      }.cacheOk
     }
   }
 
@@ -715,7 +715,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
   def wikiPropCode: PS = "{{" ~> """code""".r ~ "[: ]".r ~ """[^:}]*""".r ~ "}}" ~ opt(CRLF1 | CRLF3 | CRLF2) ~ slines <~ "{{/code}}" ^^ {
     case stype ~ _ ~ name ~ _ ~ crlf ~ lines => {
       RState(
-        "<pre><code>",
+        s"""<pre><code language="$name">""",
         if(name != "xml" && name != "html") lines else {
           Enc.escapeHtml(lines.s)
         },

@@ -6,12 +6,10 @@
  */
 package razie.wiki.model
 
+import com.novus.salat.annotations._
 import org.bson.types.ObjectId
 import org.joda.time.DateTime
-import razie.db.{RTable, RCreate, Txn, tx}
-import com.novus.salat._
-import com.novus.salat.annotations._
-import razie.db.RazSalatContext._
+import razie.db.{RCreate, RTable, Txn, tx}
 
 /**
  * auditing events on wiki pages, like edits, views etc
@@ -36,6 +34,7 @@ case class WikiAudit(
   node:Option[String] = None,
   crDtm: DateTime = DateTime.now,
   _id: ObjectId = new ObjectId()) {
+
   def create(implicit txn: Txn = tx.auto) = RCreate noAudit this
 
   def toEvent = WikiEvent(

@@ -82,10 +82,10 @@ object Wikis extends Logging with Validation {
   def linksTo(to: UWID) = RMany[WikiLink]("to.cat" -> to.cat, "to.id" -> to.id)
 
   def childrenOf(parent: UWID) =
-    RMany[WikiLink]("to" -> parent.grated, "how" -> "Child").map(_.from)
+    RMany[WikiLink]("to.id" -> parent.id, "how" -> "Child").map(_.from)
 
   def linksFrom(from: UWID, role: String) =
-    RMany[WikiLink]("from" -> from.grated, "how" -> role)
+    RMany[WikiLink]("from.id" -> from.id, "how" -> role)
 
   //  def linksTo(to: UWID, role: String) =
   //    RMany[WikiLink]("to.cat" -> to.cat, "to.id"->to.id, "how" -> role)
@@ -558,8 +558,9 @@ object Wikis extends Logging with Validation {
     }
   }
 
-  def clearCache(wid:WID) = {
-    Array(
+  def clearCache(wids : WID*) = {
+    wids.foreach(wid=>
+      Array(
       wid,
       wid.copy(parent=None, section=None),
       wid.copy(realm = None, section=None),
@@ -569,7 +570,7 @@ object Wikis extends Logging with Validation {
       Cache.remove(wid.wpath+".db")
       Cache.remove(wid.wpath+".formatted")
       Cache.remove(wid.wpath+".page")
-    }
+    })
   }
 
   /** main formatting function
@@ -593,7 +594,7 @@ object Wikis extends Logging with Validation {
           wid.section.isEmpty) {
 
           Cache.getAs[String](we.get.wid.wpath+".formatted").map{x=>
-            clog << "WIKI_CACHED "+wid.wpath
+            clog << "WIKI_CACHED FRM-"+wid.wpath
             x
           }.getOrElse {
             val n = format1(wid, markup, icontent, we, user)
@@ -695,7 +696,8 @@ object Wikis extends Logging with Validation {
         val s1 = (parms ++ extraParms).foldLeft(res){(a,b)=>
           a.replaceAll("\\{\\{\\$\\$"+b._1+"\\}\\}", b._2)
         }
-        s1.replaceAll("\\{\\{`", "{{")//.replaceAll("\\{\\{`", "{{").replaceAll("\\{\\{`/section", "{{/section")
+      s1.replaceAll("\\{\\{`", "{{").replaceAll("\\[\\[`", "[[")
+      //.replaceAll("\\{\\{`", "{{").replaceAll("\\{\\{`/section", "{{/section")
       }) getOrElse (
       "No content template for: " + wpath + "\n\nAttributes:\n\n" + parms.map{t=>s"* ${t._1} = ${t._2}\n"}.mkString
       )

@@ -36,7 +36,6 @@ creates the navigation bar
     </button>
 
 
-    @if(!Services.config.isLocalhost) {
       @web().navBrand.fold {
         <a class="navbar-brand" style="padding: 8px 20px 5px; margin-left: -20px;" href="@url.getOrElse("http://"+Services.config.hostport)">
           <img class="" src="@logo.orElse(web().logo).getOrElse(routes.Assets.at("images/racerKids-small.gif"))" height="32" width="152" alt="RacerKidz logo"/>
@@ -44,7 +43,6 @@ creates the navigation bar
       } {b=>
         @Html(b)
       }
-    }
   </div>
 
     <!-- Collect the nav links, forms, and other content for toggling -->
@@ -54,16 +52,27 @@ creates the navigation bar
     @if(!isSite) {
       <li class="divider-vertical"></li>
       @web().navMenu.map{t=>
-          @if(t._1.startsWith("badge")) {
-            <li>
-              <span id="nav-@t._1"></span>
-            </li>
-            <script async="">$("#nav-@t._1").load("@t._2");</script>
+        @if(! t._1.startsWith("user.") || stok.au.isDefined) {
+          @defining(if(t._1.startsWith("user.")) t._1.replaceFirst("user.", "") else t._1) {label=>
+            @if(label.startsWith("badge")) {
+              <li id="nav-@label">
+              </li>
+<script async="">
+function update_@label () {
+  $("#nav-@label").load("@t._2");
+  @if(label.startsWith("badgeRefresh")) {
+  setTimeout(update_@label, 1000);
+  }
+}
+update_@{label}();
+</script>
           } else {
             <li>
-              <a href="@t._2">@Html(t._1)</a>
+              <a href="@t._2">@Html(label)</a>
             </li>
           }
+          }
+        }
       }
     }
       @stok.au.map(_._id).flatMap(mod.cart.Cart.find).map {cart=>
@@ -76,21 +85,25 @@ creates the navigation bar
         </li>
       }
     </ul>
+@**
 
+    =================================   user preferences and menu
+
+**@
     <ul class="nav navbar-nav pull-right">
     @user match {
       case Some(joe) => {
         <li class="dropdown">
           <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
             @if(Services.config.getTheme(stok.au, stok.request).contains("light")) {
-              <i class="icon-lock"></i>
+              <span class="glyphicon glyphicon-lock"></span>
             } else {
-              <i class="icon-lock icon-white"></i>
+              <span class="glyphicon glyphicon-lock"></span>
             }
             @joe.ename <span class="caret"></span>
           </a>
           <ul class="dropdown-menu" role="menu">
-            <li><a href="@routes.Profile.doeHelp"><i class="icon-edit"></i> Preferences</a></li>
+            <li><a href="@routes.ProfileUpd.doeHelp"><i class="icon-edit"></i> Preferences</a></li>
             <li><a href="@mod.msg.routes.Messaging.doePM"><i class="icon-edit"></i> Messages</a></li>
 
             @if(stok.au.exists(u=> u.hasPerm(Perm.codeMaster) || u.isAdmin)) {
@@ -105,10 +118,17 @@ creates the navigation bar
             }
 
             @if(stok.au.exists(u=> u.hasPerm(Perm.codeMaster) || u.isAdmin)) {
+              <li class="divider"></li>
               <li><a href="/sfiddle/play3/js">SFiddle</a></li>
               <li><a href="/sfiddle/playinbrowser/js">JS-Fiddle</a></li>
               <li><a href="/sfiddle/playDsl/js">DSL-Fiddle</a></li>
-              <li><a href="/diesel/fiddle/playDom/@web().reactor">Diesel-Fiddle</a></li>
+              <li><a href="/diesel/fiddle/playDom">Diesel-Fiddle</a></li>
+            }
+
+            @if(stok.au.exists(u=> u.isAdmin)) {
+              <li class="divider"></li>
+            <li><a href="/razadmin/difflist/@stok.realm/www.racerkidz.com">Diffs</a></li>
+              <li><a href="/razadmin/difflist/all/www.racerkidz.com">Diffs-all</a></li>
             }
 
             <li class="divider"></li>
@@ -123,12 +143,34 @@ creates the navigation bar
       }
     }
     </ul>
+    @**
 
+    =================================   search
+
+    **@
     <form class="navbar-form pull-right" role="search" action="@searchUrl()" method="GET">
       <input type="text" class="form-control search-query" style="padding: 4px 4px 4px 4px; height: 26px; margin-top: 5px"
       placeholder="Search" id="q" name="q" title="Search box"/>
     </form>
+    @**
 
+    ====================== in localhost mode, quick access to switch current reactor
+
+    **@
+    @if(Services.config.isLocalhost) {
+      <ul class="nav navbar-nav pull-right">
+        <li class="dropdown">
+          <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false" style="color:red;font-weight:bold;font-size: small" title="localhost: current reactor">
+            @stok.realm <span class="caret"></span>
+          </a>
+          <ul class="dropdown-menu" role="menu">
+            @stok.au.toList.flatMap(_.ownedPages(realm, "Reactor")).map(r=>(r, Wikis(r.name).count)).sortWith(_._2 > _._2).map{t=>
+              <li><a href="/wikie/switchRealm/@t._1.name">@t._1.name</a></li>
+            }
+         </ul>
+       </li>
+      </ul>
+    }
 
   </div>
 </div><!-- /.navbar-collapse -->

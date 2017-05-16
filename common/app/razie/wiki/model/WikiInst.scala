@@ -133,8 +133,11 @@ class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
   // ================== methods from Wikis
 
   /** EXPENSIVE - find pages with category */
-  def pages(category: String) =
-    weTable(category).find(Map(REALM, "category" -> category)) map (grater[WikiEntry].asObject(_))
+  def pages(category: String) : Iterator[WikiEntry] =
+    if("*" == category)
+      weTable(category).find(Map(REALM)) map (grater[WikiEntry].asObject(_))
+    else
+      weTable(category).find(Map(REALM, "category" -> category)) map (grater[WikiEntry].asObject(_))
 
   /** find pages with category */
   def pageNames(category: String) =
@@ -169,7 +172,7 @@ class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
     } getOrElse {
       if (Services.config.cacheDb) {
         Cache.getAs[DBObject](wid.wpath+".db").orElse {
-          cdebug << "WIKI_CACHED DB-" + wid.wpath
+          clog << "WIKI_CACHED DB-" + wid.wpath
           val n = weTable(wid.cat).findOne(Map(REALM, "category" -> wid.cat, "name" -> Wikis.formatName(wid.name)))
           n.filter(x => !Wikis.PERSISTED.contains(wid.cat)).map {
             // only for main wikis with no parents

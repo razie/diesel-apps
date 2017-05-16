@@ -232,6 +232,7 @@ object WikiIndex {
   WikiObservers mini {
     case ev@WikiEvent(action, "WikiEntry", _, entity, oldEntity, _, _) => {
       val wid = WID.fromPath(ev.id).get
+      val realm = wid.getRealm
       val index = Wikis(wid.getRealm).index
       val oldWid = ev.oldId.flatMap(WID.fromPath)
 
@@ -246,6 +247,7 @@ object WikiIndex {
             index.update(oswe.get, swe.get)
           else
             index.update(wid, oldWid.get)
+          WikiDomain(realm).resetDom
         }
 
         case WikiAudit.DELETE_WIKI =>

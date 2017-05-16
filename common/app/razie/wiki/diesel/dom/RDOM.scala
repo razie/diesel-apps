@@ -23,8 +23,19 @@ object RDOM {
       mks(methods, "{<br><hr>", "<br>", "<br><hr>}", "&nbsp;&nbsp;")
   }
 
+  /** create a P with the best guess for type */
+  def typified (n:String, s:Any) = {
+    s match {
+      case i: Int => P(n, i.toString, WTypes.NUMBER)
+      case _ => {
+        if (s.toString.trim.startsWith("{")) P(n, s.toString, WTypes.JSON)
+        else P(n, s.toString)
+      }
+    }
+  }
+
   /** represents a parameter/member/attribute */
-  case class P (name:String, dflt:String, ttype:String="", ref:String="", multi:String="", expr:Option[Expr]=None) extends CM {
+  case class P (name:String, dflt:String, ttype:String="", ref:String="", multi:String="", expr:Option[Expr]=None) extends CM with razie.diesel.ext.CanHtml {
 
     /** current calculated value if any or the expression */
     def valExpr = if(dflt.nonEmpty || expr.isEmpty) CExpr(dflt, ttype) else expr.get
@@ -33,37 +44,37 @@ object RDOM {
       s"$name" +
         smap(ttype) (":" + ref + _) +
         smap(multi)(identity) +
-        smap(dflt) (s=> "=" + quot(s)) +
+        smap(dflt) (s=> "=" + (if("Number" == ttype) s else quot(s))) +
         (if(dflt=="") expr.map(x=>smap(x.toString) ("=" + _)).mkString else "")
 
     // todo refs for type, docs, position etc
-    def toHtml =
+    override def toHtml =
       s"<b>$name</b>" +
         smap(ttype) (":" + ref + _) +
         smap(multi)(identity) +
-        smap(dflt) (s=> "=" + quot(s)) +
-        (if(dflt=="") expr.map(x=>smap(x.toString) ("=" + _)).mkString else "")
+        smap(dflt) (s=> "=" + tokenValue(if("Number" == ttype) s else quot(s))) +
+        (if(dflt=="") expr.map(x=>smap(x.toHtml) ("=" + _)).mkString else "")
   }
 
   /** represents a parameter match expression */
-  case class PM (name:String, ttype:String, ref:String, multi:String, op:String, dflt:String, expr:Option[Expr] = None) extends CM {
+  case class PM (name:String, ttype:String, ref:String, multi:String, op:String, dflt:String, expr:Option[Expr] = None) extends CM with razie.diesel.ext.CanHtml {
 
     /** current calculated value if any or the expression */
     def valExpr = if(dflt.nonEmpty || expr.isEmpty) CExpr(dflt, ttype) else expr.get
 
     override def toString =
       s"$name" +
-        smap(ttype) (":" + ref + _) +
+        (if(ttype!="String") smap(ttype) (":" + ref + _) else "") +
         smap(multi)(identity) +
-        smap(dflt) (s=> op + quot(s)) +
+        smap(dflt) (s=> op + (if("Number" == ttype) s else quot(s))) +
         (if(dflt=="") expr.map(x=>smap(x.toString) (" " + op +" "+ _)).mkString else "")
 
-    def toHtml =
+    override def toHtml =
       s"<b>$name</b>" +
-      smap(ttype) (":" + ref + _) +
+        (if(ttype!="String") smap(ttype) (":" + ref + _) else "") +
       smap(multi)(identity) +
-      smap(dflt) (s=> op + quot(s)) +
-        (if(dflt=="") expr.map(x=>smap(x.toString) (" <b>"+op +"</b> "+ _)).mkString else "")
+      smap(dflt) (s=> op + tokenValue(if("Number" == ttype) s else quot(s))) +
+        (if(dflt=="") expr.map(x=>smap(x.toHtml) (" <b>"+op +"</b> "+ _)).mkString else "")
   }
 
   /** a function / method */

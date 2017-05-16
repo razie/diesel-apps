@@ -6,12 +6,10 @@
  */
 package razie.wiki
 
-import com.google.inject.Inject
 import controllers.{NoWikiAuthorization, WikiAuthorization}
-import razie.base.{NoAuditService, AuditService, Auditor}
-import razie.db.{RazMongo, UpgradeDb}
+import razie.db.RazMongo
 import razie.wiki.model._
-import razie.wiki.util.{NoAuthService, AuthService}
+import razie.wiki.util.{AuthService, NoAuthService}
 
 /** central point of customization - aka service registry
   *
@@ -39,7 +37,7 @@ object Services {
 
   def noInitSample = {
     /** connect to your database, with your connection properties, clustered or not etc */
-    import com.mongodb.casbah.{MongoConnection, MongoDB}
+    import com.mongodb.casbah.MongoConnection
     RazMongo.setInstance {
       MongoConnection("") apply ("")
     }
