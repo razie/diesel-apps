@@ -1,4 +1,16 @@
-Diesel Apps - Markdown Wiki
+
+Diesel Hydra
+============
+
+There are three components to DSL Hydra:
+
+1. A Markdown Wiki - the basis for configuration, text-first
+2. Extensible DSL - we can extend the wiki with DSL
+3. Diesel RX - the microservices workbench module
+
+See it in action at [DieselApps.com](http://www.dieselapps.com).
+
+Markdown Wiki
 ===========================
 
 Embedded Markdown Wiki engine, extensible via scripting, code and DSL.
@@ -33,3 +45,4 @@ Details
 See the http://www.dieselapps.com/engine
 
 See details on the [wiki](WIKI.md).
+
