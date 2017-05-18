@@ -172,6 +172,8 @@ case class User(
 
   def myPages(realm:String, cat: String) = pages (realm, cat)
 
+  lazy val ownedReactors = ownedPages("rk", "Reactor").toList
+
   def ownedPages(realm:String, cat: String) =
     Wikis(realm).weTable(cat).find(Map("props.owner" -> id, "category" -> cat)) map {o=>
       WID(cat, o.getAs[String]("name").get).r(o.getAs[String]("realm").get)

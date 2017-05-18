@@ -57,14 +57,17 @@ creates the navigation bar
             @if(label.startsWith("badge")) {
               <li id="nav-@label">
               </li>
-<script async="">
+<script async>
 function update_@label () {
   $("#nav-@label").load("@t._2");
   @if(label.startsWith("badgeRefresh")) {
   setTimeout(update_@label, 1000);
   }
 }
-update_@{label}();
+
+$(window).load (function() {
+  update_@{label}();
+});
 </script>
           } else {
             <li>
@@ -164,8 +167,10 @@ update_@{label}();
             @stok.realm <span class="caret"></span>
           </a>
           <ul class="dropdown-menu" role="menu">
-            @stok.au.toList.flatMap(_.ownedPages(realm, "Reactor")).map(r=>(r, Wikis(r.name).count)).sortWith(_._2 > _._2).map{t=>
-              <li><a href="/wikie/switchRealm/@t._1.name">@t._1.name</a></li>
+            @** sorting adds noise in log *@
+            @** @stok.au.toList.flatMap(_.ownedReactors).map(r=>(r, Wikis(r.name).count)).sortWith(_._2 > _._2).map(_._1).map{t=> *@
+            @stok.au.toList.flatMap(_.ownedReactors).map{t=>
+              <li><a href="/wikie/switchRealm/@t.name">@t.name</a></li>
             }
          </ul>
        </li>

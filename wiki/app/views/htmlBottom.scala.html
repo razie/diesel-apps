@@ -5,11 +5,10 @@
 
 @web()=@{(site orElse orequest.orElse(stok.request).flatMap(r=>model.Website(r))) getOrElse model.Website.dflt}
 
-<p></p>
-
 <footer id="weFooter">
 
   @if(stok.bottomAd && ! (Services.config.noads || stok.au.exists(_.isUnder13))) {
+    <p></p>
     <div align="center">
     @if(stok.isLight) {
       <script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
