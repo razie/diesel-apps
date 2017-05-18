@@ -13,7 +13,7 @@ See it in action at [DieselApps.com](http://www.dieselapps.com).
 Markdown Wiki
 ===========================
 
-Embedded Markdown Wiki engine, extensible via scripting, code and DSL.
+Embedded Markdown Wiki engine, extensible via scripting, code and DSL. It is a full multi-tentant, SaaS-ready wiki/website hosting environment.
 
 Microservices and testing DSL
 =============================
