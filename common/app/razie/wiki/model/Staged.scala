@@ -11,7 +11,7 @@ import org.joda.time.DateTime
 import razie.db.{RCreate, RDelete, RMany, RTable}
 import razie.db.tx.txn
 
-/** staged stuff
+/** staged entities
   *
   * todo automatic purge of staged stuff that is forgotten
   */
@@ -30,3 +30,4 @@ case class Stage (
 object Staged {
   def find(what: String) = RMany[Stage]("what" -> what)
 }
+

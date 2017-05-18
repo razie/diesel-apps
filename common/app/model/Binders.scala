@@ -11,7 +11,7 @@ import play.api.mvc.QueryStringBindable
 import razie.wiki.Enc
 import razie.wiki.model._
 
-/** binders for codec path objects in play, String to CMDWID/WID and back */
+/** play framework binders for codec path objects in routes, String to CMDWID/WID and back */
 object Binders {
 
   implicit def widPathBindable =

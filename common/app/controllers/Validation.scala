@@ -9,10 +9,16 @@ package controllers
 import play.api.data.validation.{Constraint, Invalid, Valid, ValidationError}
 import razie.Logging
 
-/** a correction - meaning an error has a known corrective action */
+/** a correction - meaning an error has a known corrective action
+  *
+  * easy to use in controllers:
+  *
+  * ```
+  * for(page <- Wikis.find(...) orCorr Corr("can't find wiki", Some("try again"))
+  * ```
+  */
 case class Corr(err: String, action: Option[String] = None) {
   def this(e: String, l: String) = this (e, Some(l))
-  //  override def toString = """<font style="color:red">Error</font>: """ + err + action.map(" -> " + _).getOrElse("") + ""
   override def toString = """Error: """ + err + action.map(" -> " + _).getOrElse("") + ""
   def apply (moreInfo:String) = Corr (s"$err ($moreInfo)", action)
 }
@@ -66,6 +72,7 @@ trait Validation extends Logging {
     def orCorr  (msg: => Corr) (implicit errCollector: VErrors = IgnoreErrors): Option[A] = { if (o.isDefined) o else Nope(errCollector.add(msg).err) }
     def map[B]  (f: A => B) (implicit errCollector: VErrors = IgnoreErrors): Option[B] = { o map f }
   }
+
   implicit def toON[A](o: Option[A]) = { OptNope[A](o) }
   implicit def toON2(o: Boolean) = { OptNope(if (o) Some(o) else None) }
   implicit def toC2 (t:(String,String)) = Corr(t._1, Some(t._2))
@@ -76,14 +83,17 @@ trait Validation extends Logging {
 //    if (Wikis.hasBadWords(o))
 //      Invalid(ValidationError("Failed obscenity filter, eh?")) else Valid
 //  }
+
   def vPostalCode: Constraint[String] = Constraint[String]("constraint.postalCode") { o =>
     if (o.length > 0 && !o.toUpperCase.matches("[A-Z]\\d[A-Z] \\d[A-Z]\\d"))
       Invalid(ValidationError("postalCode should be like A1A 2B2, eh?")) else Valid
   }
+
   def vSpec: Constraint[String] = Constraint[String]("constraint.specialChars") { o =>
     if (o.contains('<') || o.contains('>'))
       Invalid(ValidationError("specialChars not allowed, eh?")) else Valid
   }
+
   def vEmail: Constraint[String] = Constraint[String]("constraint.emailFormat") { o =>
     if (o.length > 0 && !o.matches("[^@]+@[^@]+\\.[^@]+") || o.contains(" ") || o.contains("\t"))
       Invalid(ValidationError("invalid email")) else Valid

@@ -4,17 +4,16 @@
  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
  */
-package admin
+package razie.audit
 
-import org.bson.types.ObjectId
-import org.joda.time.DateTime
-import razie.db.{ROne, RazMongo}
-import razie.{Log, Logging}
-import razie.wiki.Services
 import com.mongodb.casbah.Imports._
 import com.novus.salat.grater
-import razie.base.{Audit, AuditService}
+import org.bson.types.ObjectId
+import org.joda.time.DateTime
+import razie.Logging
 import razie.db.RazSalatContext.ctx
+import razie.db.{ROne, RazMongo}
+import razie.wiki.Services
 
 /**
   * razie's default Audit implementation - stores them events in a Mongo table. Use this as an example to write your own auditing service.

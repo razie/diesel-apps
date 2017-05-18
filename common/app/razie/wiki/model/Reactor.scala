@@ -12,13 +12,17 @@ import com.novus.salat._
 import razie.clog
 import razie.db.RazSalatContext._
 import razie.db.RazMongo
-import razie.wiki.dom.WikiDomain
 import razie.wiki.util.DslProps
 import razie.wiki.{Services, WikiConfig}
+import razie.diesel.dom.WikiDomain
 
 import scala.collection.mutable.ListBuffer
 
-/** reactor management - we can host multiple wikis, each is a "reactor" */
+/**
+  * reactor management (multi-tenant) - we can host multiple wikis/websites, each is a "reactor"
+  *
+  * this holds all the reactors hosted in this process
+  */
 object WikiReactors {
   // reserved reactors
   final val RK = WikiConfig.RK       // original, still decoupling code

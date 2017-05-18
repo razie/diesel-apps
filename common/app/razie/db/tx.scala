@@ -89,20 +89,3 @@ object dbop {
 }
 
 
-// todo playing with this concept
-// todo i should in fact collect all actions automatically under the txn and only execute them at the end
-class REAction
-case object REACreate extends REAction;
-case object READelete extends REAction;
-case object REAUpdate extends REAction;
-
-class REntityAction (entity:REntity[_], action:REAction) {
-  def exec (implicit txn: Txn) {
-    action match {
-      case REACreate => entity.create
-      case READelete => entity.delete
-      case REAUpdate => entity.update
-    }
-  }
-}
-

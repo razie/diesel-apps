@@ -11,7 +11,7 @@ import razie.wiki.WikiConfig
 import razie.wiki.model._
 import razie.wiki.util.PlayTools
 
-/** deal with multihosting - identify the reactor from the current domain
+/** multi-tenancy - identify the reactor from the current domain
   *
   * todo inject and remove hardcodings
   */

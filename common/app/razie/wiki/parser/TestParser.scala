@@ -6,17 +6,9 @@
  */
 package razie.wiki.parser
 
-import org.bson.types.ObjectId
-import razie.wiki.{Services, Enc}
-import razie.{cdebug, cout, clog}
-
-import scala.collection.mutable.ListBuffer
-import scala.util.Try
-import scala.util.matching.Regex.Match
-import scala.util.parsing.combinator.RegexParsers
-import scala.Option.option2Iterable
-import scala.collection.mutable
 import razie.wiki.model._
+
+// todo needs to go into tests
 
 object Test /*extends App*/ {
 //  import com.tristanhunt.knockoff.DefaultDiscounter._

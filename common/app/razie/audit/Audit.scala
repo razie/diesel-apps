@@ -4,7 +4,7 @@
  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
  */
-package razie.base
+package razie.audit
 
 import org.bson.types.ObjectId
 import org.joda.time.DateTime

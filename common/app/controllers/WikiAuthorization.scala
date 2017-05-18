@@ -8,7 +8,10 @@ package controllers
 
 import razie.wiki.model._
 
-/** Authorization: minimum authorization functionality required - provide your own in Global::beforeStart */
+/** Authorization: minimum authorization functionality required
+  *
+  * provide your own at startup, in Services.wikiAuth
+  */
 trait WikiAuthorization {
 
   /** can user see a topic with the given properties? */
@@ -32,7 +35,7 @@ trait WikiAuthorization {
    */
   def canEdit(wid: WID, u: Option[WikiUser], w: Option[WikiEntry], props: Option[Map[String, String]] = None)(implicit errCollector: VErrors): Option[Boolean]
 
-  /** extract wvis prop from wiki */
+  /** extract wvis (edit permissions) prop from wiki */
   protected def wvis(props: Option[Map[String, String]]): Option[String] =
     props.flatMap(p => p.get("wvis").orElse(p.get("visibility"))).map(_.asInstanceOf[String])
 }

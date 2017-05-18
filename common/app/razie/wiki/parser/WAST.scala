@@ -6,11 +6,12 @@
  */
 package razie.wiki.parser
 
-import razie.{Audit, cdebug}
+import razie.{Audit, audit, cdebug}
 import razie.wiki.model.{ILink, WikiEntry, WikiUser}
 
 /**
  * wiki AST - abstract syntax tree.
+  *
  * 1. Wikis are parsed in AST
  * 2. then folded into markdown with a context
  * 3. then markdown is turned into html via markdown parser
@@ -29,9 +30,11 @@ object WAST {
   /** create a normal context - same as VIEW */
   def context         (we:Option[WikiEntry], au:Option[WikiUser]=None, ctx:Map[String,Any]=Map.empty) =
     new JMapFoldingContext(we, au, T_PREPROCESS, ctx ++ toMap(we))
+
   /** create a context for view */
   def contextView     (we:Option[WikiEntry], au:Option[WikiUser]=None, ctx:Map[String,Any]=Map.empty) =
     new JMapFoldingContext(we, au, T_VIEW, ctx ++ toMap(we))
+
   /** create a special context for templates - template expressions are expanded only */
   def contextTemplate (we:Option[WikiEntry], au:Option[WikiUser]=None, ctx:Map[String,Any]=Map.empty) =
     new JMapFoldingContext(we, au, T_TEMPLATE, ctx ++ toMap(we))
@@ -91,7 +94,7 @@ object WAST {
         ifold(SState.EMPTY, ctx)
       } catch {
         case t: Throwable =>
-          razie.base.Audit.logdb("EXCEPTION_PARSING.folding - " + ctx.we.map(_.wid.wpath) + " " + t.getLocalizedMessage())
+          audit.Audit.logdb("EXCEPTION_PARSING.folding - " + ctx.we.map(_.wid.wpath) + " " + t.getLocalizedMessage())
           WAST.SState("EXCEPTION_PARSING.folding - " + t.getLocalizedMessage())
       }
     }

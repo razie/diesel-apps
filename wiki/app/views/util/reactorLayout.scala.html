@@ -12,8 +12,8 @@ default layout 9/3 with ads, top and bottom
     <div class="col-sm-9">
 
       @if(stok.msg.nonEmpty) {
-        @notes.notesmsgDiv("notesmsg")
-        @notes.notesmsgShow("notesmsg", stok.msg)
+        @util.notesmsgDiv("notesmsg")
+        @util.notesmsgShow("notesmsg", stok.msg)
       }
 
       @content

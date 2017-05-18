@@ -20,19 +20,26 @@ object WForm {
   }
 }
 
-/** wraper with form utils */
+/**
+  * wraper with form utils - wraps a topic with a form inside, can format the form in html
+  *
+  * about forms: a topic with forms will have a hidden section:formData which is a json doc with the values for the form fields
+  *
+  * while parsed, the {{f:}} form fields are collected in a map
+  */
 class WForm(val we: WikiEntry) {
   /** format form fields as a content section
     *
     * this assumes the content is just an `[[include:...]]`
     */
-  def mkContent(j: org.json.JSONObject, content:String = we.content) =
-  if(content.contains("{{.section:formData}}"))
-    content.replaceFirst("(?s)\\{\\{.section:formData\\}\\}.*\\{\\{/section\\}\\}", "") + WForm.formData(j)
-  else
-    content.replaceFirst("(?s)\\]\\].*", "]]") + "\n" + WForm.formData(j)
+  def mkContent(j: org.json.JSONObject, content:String = we.content) = {
+    if (content.contains("{{.section:formData}}"))
+      content.replaceFirst("(?s)\\{\\{.section:formData\\}\\}.*\\{\\{/section\\}\\}", "") + WForm.formData(j)
+    else
+      content.replaceFirst("(?s)\\]\\].*", "]]") + "\n" + WForm.formData(j)
+  }
 
-  /** replace the fields in content with the respective html code */
+  /** format the fields in content with the respective html code */
   def formatFields(content: String) = {
     val FIELDS = """`\{\{\{(f):([^}]*)\}\}\}`""".r
 

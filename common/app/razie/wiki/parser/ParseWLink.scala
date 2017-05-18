@@ -6,42 +6,30 @@
  */
 package razie.wiki.parser
 
-import org.bson.types.ObjectId
-import razie.wiki.dom.WikiDomain
-import razie.wiki.parser.WAST.FoldingContext
-import razie.wiki.{Services, Enc}
-import razie.{cdebug, cout, clog}
-
-import scala.collection.mutable.ListBuffer
-import scala.util.Try
-import scala.util.matching.Regex.Match
-import scala.util.parsing.combinator.RegexParsers
-import scala.Option.option2Iterable
-import scala.collection.mutable
+import razie.diesel.dom.WikiDomain
+import razie.wiki.Enc
 import razie.wiki.model._
 
 /**
- * sed like filter using Java regexp
- *
- *  example: from US to normal: Sed ("""(\d\d)/(\d\d)/(\d\d)""", """\2/\1/\3""", "01/31/12")
- *
- *  Essentially useless since plain "sss".replaceAll(..., "$1 $2...") works almost the same way..
+ *  parse [[...]] expressions
  */
-object SedWiki {
+object ParseWLink {
   val SEARCH = """search:?([^]]*)""".r
   val SEARCH2 = """q:?([^]]*)""".r
   val LIST = """list:?([^.]*\.)?([^]]*)""".r
   val ALIAS = """alias:([^\]]*)""".r
-  val NORMAL = """(rk:)?([^|\]]*)([ ]*[|][ ]*)?([^]]*)?""".r
-  val ROLE = """([^:]*::)?([^|\]]*)([ ]*[|][ ]*)?([^]]*)?""".r
-  val BROWSE = """browse:([^|\]]*)([ ]*[|][ ]*)?([^]]*)?""".r
+  val NORMAL = """(rk:)?([^|\]]*)([ ]*[|][ ]*)?([^]]*)?""".r       // [[rk.Topic:name]]
+  val ROLE = """([^:]*::)?([^|\]]*)([ ]*[|][ ]*)?([^]]*)?""".r     // [[enabler::rk.Topic:name]]
+  val BROWSE = """browse:([^|\]]*)([ ]*[|][ ]*)?([^]]*)?""".r      // [[browse:rk.Topic:name]]
 
   def apply(realm:String, repf: (String => String), input: String): Option[(String, Option[ILink])] = {
     var i: Option[ILink] = None
 
     input match {
+
       case SEARCH(nm) =>
         Some("""<a href="http://google.com/search?q=""" + Enc.toUrl(nm) + "\">" + nm + "</a>", None)
+
       case SEARCH2(nm) =>
         Some("""<a href="http://google.com/search?q=""" + Enc.toUrl(nm) + "\">" + nm + "</a>", None)
 

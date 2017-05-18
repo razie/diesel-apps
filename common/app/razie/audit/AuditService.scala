@@ -4,9 +4,9 @@
  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
  */
-package razie.base
+package razie.audit
 
-import razie.{Log, Logging}
+import razie.Log
 
 /**
  * fairly generic website audit service.

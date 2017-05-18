@@ -18,6 +18,7 @@ import razie.wiki.util.{AuthService, NoAuthService}
   * right now this is setup in Global and different Module(s), upon startup
   */
 object Services {
+
   var auth: AuthService[WikiUser] = NoAuthService
   var config: WikiConfig = new SampleConfig
   var wikiAuth: WikiAuthorization = new NoWikiAuthorization
@@ -46,7 +47,7 @@ object Services {
   /** is this website trusted? if not links will have a "exit" warning */
   var isSiteTrusted : String => Boolean = {s=>false }
 
-  private var handlers: EventProcessor = new NoLater
+  private var handlers: EventProcessor = new NeverReally
 
   /** initialize the event processor */
   def initCqrs (al:EventProcessor) = {handlers = al}
@@ -67,7 +68,7 @@ object Services {
 }
 
 /** stub implementation - does nothing */
-class NoLater extends Services.EventProcessor {
+class NeverReally extends Services.EventProcessor {
   def !(a: Any) {}
 }
 

@@ -9,7 +9,7 @@ package razie.wiki.model
 import com.mongodb.casbah.Imports._
 import com.novus.salat._
 import org.joda.time.DateTime
-import razie.base.Audit
+import razie.audit.Audit
 import razie.wiki.parser.WAST.SState
 import razie.{AA, Log, cdebug}
 import razie.db.RazSalatContext._

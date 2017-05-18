@@ -11,3 +11,4 @@ lib_managed/
 project/project/
 *.log
 **/.DS_Store
+**/*.iml

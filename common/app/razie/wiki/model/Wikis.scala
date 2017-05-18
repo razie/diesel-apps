@@ -10,22 +10,22 @@ import com.mongodb.DBObject
 import com.mongodb.casbah.Imports._
 import com.novus.salat._
 import controllers.{VErrors, Validation}
-import razie.base.Audit
-import razie.{cdebug, Logging}
+import razie.{Logging, cdebug}
 import razie.db.{RMany, RazMongo}
 import razie.db.RazSalatContext._
-import razie.wiki.{Enc, WikiConfig, Services}
-import razie.wiki.parser.{WAST, ParserSettings}
+import razie.wiki.{Enc, Services, WikiConfig}
+import razie.wiki.parser.{ParserSettings, WAST}
 import play.api.cache._
 import play.api.Play.current
+import razie.audit.Audit
+import razie.diesel.dom.WikiDomain
 
 /** wiki factory and utils */
 object Wikis extends Logging with Validation {
-  final val EVENTS = Array("Event", "Training", "Race")
 
   def isEvent(cat: String) = "Race" == cat || "Event" == cat || "Training" == cat
 
-  //todo per realm
+  //todo configure per realm
   /** these categories are persisted in their own tables */
   final val PERSISTED = Array("Item", "Event", "Training", "Note", "Entry", "Form",
     "DslReactor", "DslElement", "DslDomain", "JSON", "DslEntity")
@@ -38,7 +38,7 @@ object Wikis extends Logging with Validation {
   final val RK = WikiConfig.RK
   final val DFLT = RK // todo replace with RK
 
-  def domain(realm: String = RK) = WikiReactors(realm).domain
+  def domain(realm: String = RK) = WikiDomain(realm) // todo inline
 
   def apply(realm: String = RK) = WikiReactors(realm).wiki
 
@@ -116,7 +116,15 @@ object Wikis extends Logging with Validation {
 
   /** helper to deal with the different markups */
   object markups {
-    final val list = Seq(MD -> "Markdown", TEXT -> "Text", JSON -> "JSON", XML -> "XML", JS -> "JavaScript", SCALA -> "Scala") // todo per reator type - hackers like stuff
+
+    final val list = Seq(
+      MD -> "Markdown",
+      TEXT -> "Text",
+      JSON -> "JSON",
+      XML -> "XML",
+      JS -> "JavaScript",
+      SCALA -> "Scala"
+    ) // todo per reator type - hackers like stuff
 
     def contains(s: String) = list.exists(_._1 == s)
 
@@ -329,7 +337,7 @@ object Wikis extends Logging with Validation {
       }
     } catch {
       case t: Throwable =>
-        razie.base.Audit.logdb("EXCEPTION_PARSING - " + wid.wpath + " " + t.getLocalizedMessage())
+        razie.audit.Audit.logdb("EXCEPTION_PARSING - " + wid.wpath + " " + t.getLocalizedMessage())
         WAST.SState("EXCEPTION_PARSING " + markup + " - " + t.getLocalizedMessage() + " - " + content)
     }
   }
@@ -763,17 +771,4 @@ object Wikis extends Logging with Validation {
 
 }
 
-object WDOM {
-
-  def apply(realm:String, cat:String) = new {
-    def linksTo(cat:String, to: UWID, role: String) = {
-      val c = Wikis(realm).category(cat)
-//      if(c.flatMap(_.contentTags.get("persistence")).exists(_ == "custom")) {
-//        c.get.contentTags("persistence.inventory")
-//      } else
-      RMany[WikiLink]("from.cat" -> cat, "to" -> to.grated, "how" -> role)
-    }
-  }
-
-}
 

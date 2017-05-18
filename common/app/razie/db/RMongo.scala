@@ -11,7 +11,7 @@ import com.mongodb.casbah.Imports._
 import com.novus.salat._
 import com.novus.salat.annotations._
 import org.joda.time.DateTime
-import razie.base.Auditor
+import razie.audit.Auditor
 import razie.db.RazSalatContext._
 
 /*
@@ -22,6 +22,7 @@ import razie.db.RazSalatContext._
  * all ops are audited by default, using an Auditor service
  */
 object RMongo extends SI[Auditor] ("RMongo.Auditor") with razie.Logging {
+
   def tbl(m: Manifest[_]): String =
     Option(m.runtimeClass.getAnnotation(classOf[RTable])).map(_.value()) match {
       case Some(s) => if (s.length > 0) s else m.runtimeClass.getSimpleName()

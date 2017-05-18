@@ -15,54 +15,10 @@ import razie.db.RazSalatContext._
 import razie.wiki.{Services}
 import model.CMDWID
 
-/** a unique ID - it is less verbose than the WID - used in data modelling.
+/**
+  * a wiki id, a pair of cat and name - can reference a wiki entry or a section of an entry
   *
-  * also, having a wid means a page exists or existed
-*/
-case class UWID(cat: String, id:ObjectId, realm:Option[String]=None) {
-  /** find the name and build a wid - possibly expensive for non-indexed topics */
-  def findWid = {
-    WikiIndex.withIndex(getRealm) { idx =>
-      idx.find((_,_,x)=>x == id).map(_._2)
-    } orElse Wikis(getRealm).findById(cat, id).map(_.wid)
-  }
-  /** force finding or building a surrogate wid */
-  lazy val wid = findWid orElse Some(WID(cat, id.toString).copy(realm=realm)) // used in too many places to refactor properly
-  def nameOrId = wid.map(_.name).getOrElse(id.toString)
-  lazy val grated = grater[UWID].asDBObject(this) //.copy(realm=None)) // todo I erase the realm for backwards compatibility
-  lazy val page = Wikis(getRealm).find(this)
-
-  /** get the realm or the default */
-  def getRealm = realm.getOrElse(Wikis.DFLT)
-
-  /** withRealm - convienience builder */
-  def r(r:String) = if(Wikis.DFLT == r) this else this.copy(realm=Some(r))
-
-  /** some topics don't use cats */
-  override def equals (other:Any) = other match {
-    case o: UWID => this.id == o.id // this way you can change cats without much impact
-    case _ => false
-  }
-}
-
-/** a wrapper for categories, since they can now have a realm */
-case class CAT(cat: String, realm:Option[String]) { // don't give realm a None defaut, eh? see object.apply
-  /** get the realm or the default */
-  def getRealm = realm.getOrElse(Wikis.DFLT)
-}
-
-object CAT {
-  def unapply (cat:String) : Option[CAT] = Some(apply(cat))
-
-  def apply (cat:String) : CAT =
-    if(cat.contains(".")) {
-      val cs = cat.split("\\.")
-      CAT(cs(1), Some(cs(0)))
-    }
-    else CAT(cat, None)
-}
-
-/** a wiki id, a pair of cat and name - can reference a wiki entry or a section of an entry
+  * THIS IS how topics are referenced everywhere in code. In DB they are reference with UWID
   *
   * format is parent/realm.cat:name#section
   *
@@ -263,14 +219,16 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
 object WID {
   /** SEO optimization - WIDs in these categories do not require the category in wpath */
   final val NOCATS = Array("Blog", "Post")
-  final val PATHCATS = Array("Club", "Pro", "School", "Talk", "Topic", "Session", "Drill", "Pathway")// timid start to shift to /cat/name
+  final val PATHCATS = Array("Club", "Pro", "School", "Talk", "Topic", "Session", "Drill", "Pathway") // timid start to shift to /cat/name
 
   //cat:name#section
-  private val REGEX = """([^/:\]]*[:])?([^#|\]]+)(#[^|\]]+)?""".r
+  private val REGEX =
+    """([^/:\]]*[:])?([^#|\]]+)(#[^|\]]+)?""".r
 
   /** parse a wid
+    *
     * @param a the list of wids from a path, parent to child */
-  private def widFromSeg(a: Array[String], curRealm:String = "") = {
+  private def widFromSeg(a: Array[String], curRealm: String = "") = {
     val w = a.map { x =>
       x match {
         case REGEX(c, n, s) => {
@@ -278,18 +236,18 @@ object WID {
             if (c == null) ""
             else c.replaceFirst("[^.]+\\.", "").replaceFirst(":", "")
           val name =
-            if(n==null) ""
-            else if(cat.length <= 0) n.replaceFirst("[^.]+\\.", "")
+            if (n == null) ""
+            else if (cat.length <= 0) n.replaceFirst("[^.]+\\.", "")
             else n
           WID(
             cat,
             name,
             None,
             Option(s).filter(_.length > 1).map(_.substring(1)),
-            if(c != null && c.contains("."))
+            if (c != null && c.contains("."))
               Some(c.replaceFirst("\\..*", ""))
-            else if(cat.length <= 0 && n != null && n.contains("."))
-              // only if cat is not specified
+            else if (cat.length <= 0 && n != null && n.contains("."))
+            // only if cat is not specified
               Some(n.replaceFirst("\\..*", ""))
             else None)
         }
@@ -303,10 +261,10 @@ object WID {
   }
 
   /** parse WID from path */
-  def fromPath(path: String) : Option[WID] = fromPath(path, "")
+  def fromPath(path: String): Option[WID] = fromPath(path, "")
 
   /** parse WID from path */
-  def fromPath(path: String, curRealm:String): Option[WID] = {
+  def fromPath(path: String, curRealm: String): Option[WID] = {
     if (path == null || path.length() == 0)
       None
     else {
@@ -320,7 +278,7 @@ object WID {
     if (path == null || path.length() == 0)
       None
     else {
-      def splitIt (tag:String, path:String) = {
+      def splitIt(tag: String, path: String) = {
         val b = path split tag
         val a = b.head split "/"
         CMDWID(b.headOption, widFromSeg(a), tag.replaceAllLiterally("/", ""), b.tail.headOption.getOrElse(""))
@@ -329,11 +287,11 @@ object WID {
       // TODO optimize this copy/paste later
       //todo if the name contains the sequence /debug this won't work - should check i.e. /debug$
       Array("/xp/", "/xpl/", "/tag/", "/react/").collectFirst {
-        case tag if path contains tag => splitIt (tag, path)
+        case tag if path contains tag => splitIt(tag, path)
       } orElse
         Array("/rss.xml", "/debug").collectFirst {
-        case tag if path endsWith tag => splitIt (tag, path)
-      } orElse
+          case tag if path endsWith tag => splitIt(tag, path)
+        } orElse
         Some(CMDWID(Some(path), widFromSeg(path split "/"), "", ""))
     }
   }
@@ -345,9 +303,9 @@ object WID {
     *
     * an alias is a topic that only contains the alias markup: [[alias:xxx]]
     */
-  def alias (content:String) : Option[WID] = {
+  def alias(content: String): Option[WID] = {
     if (wikip2r.findFirstMatchIn(content).isDefined) {
-//    if (content.matches(wikip2)) {
+      //    if (content.matches(wikip2)) {
       val wikip2r(wpath) = content
       WID.fromPath(wpath)
     } else None
@@ -359,8 +317,58 @@ object WID {
     *
     * todo is it faster to check startsWith and then pattern?
     */
-  def isAlias (content:String) : Boolean =
+  def isAlias(content: String): Boolean =
     content.startsWith("[[alias:") && wikip2r.findFirstMatchIn(content).isDefined
 
   final val empty = WID("-", "-")
 }
+
+/** a unique ID - it is less verbose than the WID - used in data modelling.
+  *
+  * also, having a wid means a page exists or existed
+  */
+case class UWID(cat: String, id:ObjectId, realm:Option[String]=None) {
+  /** find the name and build a wid - possibly expensive for non-indexed topics */
+  def findWid = {
+    WikiIndex.withIndex(getRealm) { idx =>
+      idx.find((_,_,x)=>x == id).map(_._2)
+    } orElse Wikis(getRealm).findById(cat, id).map(_.wid)
+  }
+  /** force finding or building a surrogate wid */
+  lazy val wid = findWid orElse Some(WID(cat, id.toString).copy(realm=realm)) // used in too many places to refactor properly
+  def nameOrId = wid.map(_.name).getOrElse(id.toString)
+  lazy val grated = grater[UWID].asDBObject(this) //.copy(realm=None)) // todo I erase the realm for backwards compatibility
+  lazy val page = Wikis(getRealm).find(this)
+
+  /** get the realm or the default */
+  def getRealm = realm.getOrElse(Wikis.DFLT)
+
+  /** withRealm - convienience builder */
+  def r(r:String) = if(Wikis.DFLT == r) this else this.copy(realm=Some(r))
+
+  /** some topics don't use cats */
+  override def equals (other:Any) = other match {
+    case o: UWID => this.id == o.id // this way you can change cats without much impact
+    case _ => false
+  }
+}
+
+/** a wrapper for categories, since they can now have a realm */
+case class CAT(cat: String, realm:Option[String]) { // don't give realm a None defaut, eh? see object.apply
+  /** get the realm or the default */
+  def getRealm = realm.getOrElse(Wikis.DFLT)
+}
+
+object CAT {
+  def unapply (cat:String) : Option[CAT] = Some(apply(cat))
+
+  def apply (cat:String) : CAT =
+    if(cat.contains(".")) {
+      val cs = cat.split("\\.")
+      CAT(cs(1), Some(cs(0)))
+    }
+    else CAT(cat, None)
+}
+
+
+

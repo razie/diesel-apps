@@ -1,7 +1,9 @@
 package razie.wiki.model
 
-/** working with tags query
-  * a/b|c/d is a and (b or c) and d
+/**
+  * important concept - query/select a list of topics, based on inclusion/exclusion of tags
+  *
+  *  a/b|c/d is a and (b or c) and d
   *
   * tag query tricks: if a tag uses an upper case like "Story" then it referes to the category and it optimizes things a lot
   */

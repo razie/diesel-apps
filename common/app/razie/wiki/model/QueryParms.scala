@@ -6,4 +6,5 @@
  */
 package razie.wiki.model
 
+/** don't ask... this is downright shameful */
 case class QueryParms(q: Map[String, Seq[String]])

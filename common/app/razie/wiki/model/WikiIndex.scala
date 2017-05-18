@@ -8,39 +8,18 @@ package razie.wiki.model
 
 import com.mongodb.casbah.Imports._
 import razie.base.data.TripleIdx
+import razie.diesel.dom.WikiDomain
 import razie.wiki.admin.GlobalData
-import razie.wiki.dom.WikiDomain
 
-import scala.collection.mutable.{ListBuffer, HashMap}
+import scala.collection.mutable.{HashMap, ListBuffer}
 
-/** generic instance mixin - wiki domains and indexes accept mixins */
-class Mixins[A <: {def mixins:Mixins[A]}] (val l:List[A]) {
-  val flatten = {
-    var seen = new ListBuffer[A]()
-    def see (a:A): Unit = {
-      if(! (seen contains a)) {
-        seen.append(a)
-        a.mixins.l.foreach (see)
-      }
-    }
-    l.foreach (see)
-    seen.toList
-  }
-
-  def first[B] (f:A=>List[B]) : List[B] = {
-    l.map(f).collectFirst {case x if !x.isEmpty => x }.toList.flatten
-  }
-
-  def first[B] (f:A=>Option[B]) : Option[B] = {
-    l.map(f).collectFirst {case x if !x.isEmpty => x }.flatten
-  }
-
-  def firstThat[B] (f:A=>B)(cond:B=>Boolean)(unit: =>B) : B = {
-    l.map(f).collectFirst {case x if cond(x) => x }.getOrElse(unit)
-  }
-}
-
-/** the index is (name, WID, ID) */
+/**
+  * in-mem index of wikis, labels, tags and main assocs
+  *
+  * maintained in sync in a cluster
+  *
+  * the index is (name, WID, ID)
+  */
 class WikiIndex (val realm:String, val fallBacks : List[WikiIndex]) {
   case class PEntry(ilinks: List[ILink])
   private val parsed = scala.collection.mutable.Map[ObjectId, PEntry]()
@@ -221,6 +200,7 @@ class WikiIndex (val realm:String, val fallBacks : List[WikiIndex]) {
     } else None
   }
 }
+
 /** the index is (name, WID, ID) */
 object WikiIndex {
   def init() = {}
@@ -266,5 +246,33 @@ object WikiIndex {
       }
     }
   }
-
 }
+
+/** generic instance mixin - wiki domains and indexes accept mixins */
+class Mixins[A <: {def mixins:Mixins[A]}] (val l:List[A]) {
+  val flatten = {
+    var seen = new ListBuffer[A]()
+    def see (a:A): Unit = {
+      if(! (seen contains a)) {
+        seen.append(a)
+        a.mixins.l.foreach (see)
+      }
+    }
+    l.foreach (see)
+    seen.toList
+  }
+
+  def first[B] (f:A=>List[B]) : List[B] = {
+    l.map(f).collectFirst {case x if !x.isEmpty => x }.toList.flatten
+  }
+
+  def first[B] (f:A=>Option[B]) : Option[B] = {
+    l.map(f).collectFirst {case x if !x.isEmpty => x }.flatten
+  }
+
+  def firstThat[B] (f:A=>B)(cond:B=>Boolean)(unit: =>B) : B = {
+    l.map(f).collectFirst {case x if cond(x) => x }.getOrElse(unit)
+  }
+}
+
+

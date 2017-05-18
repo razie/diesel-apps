@@ -7,11 +7,10 @@
 package razie.wiki.mods
 
 import razie.wiki.model._
-
 import scala.collection.mutable
 
 /**
- * mods can mess with wikis. can add/interpret properties, filter html etc
+ * extensibility - mods can mess with wikis. can add/interpret properties, filter html etc
  *
  * There is a mod wiki and a mod prop.
  * The modProp can tranform sections/tags while the modWiki transforms all wiki
@@ -76,7 +75,12 @@ trait WikiMod {
   def modActions (we:WikiEntry) : List[(String,String,String)] = List.empty
 }
 
-object WikiMods {//extends WikiDomain (Wikis.RK) {
+/** manage mods
+  *
+  * todo per reactor? per wiki?
+  */
+object WikiMods {
+
   val mods = mutable.HashMap[String, WikiMod]()
   val index = mutable.HashMap[String, WikiMod]()
 
@@ -141,6 +145,5 @@ object WikiMods {//extends WikiDomain (Wikis.RK) {
         ac ::: a.filterNot(tt=>ac.exists(_._1 == tt._1))
       } else a
     }
-
 }
 

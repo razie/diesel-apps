@@ -15,7 +15,7 @@ import akka.actor.{Actor, Props}
 import org.bson.types.ObjectId
 import org.joda.time.DateTime
 import play.libs.Akka
-import razie.base.Audit
+import razie.audit.Audit
 import razie.db._
 import razie.wiki.Services
 
@@ -67,6 +67,8 @@ object EmailMsg {
  * a mail session that doesn't have to connect to the server if there's nothing to send...
  *
  * you get one with SendEmail.withSession and when closed, it will spawn a thread to send the emails collected during...
+  *
+  * it is a lot more optimzed sending emails in a batch
  */
 class BaseMailSession(implicit mailSession: Option[Session] = None) {
   var emails: scala.List[EmailMsg] = Nil // collecting messages here to be sent at end
@@ -87,11 +89,13 @@ class BaseMailSession(implicit mailSession: Option[Session] = None) {
 
   var count = 0;
 
-  /** exceptions are caught outside of this - see call site */
+  /** the actual email send
+    *
+    * exceptions are caught outside of this - see call site */
   def send (msg:MimeMessage) = {
-    // todo I assume it has at least one recipient
     try {
       if(transport.isEmpty)
+        // todo I assume it has at least one recipient
         transport=Some(session.getTransport(msg.getAllRecipients()(0)))
       if(!transport.get.isConnected) {
         clog << "EMAIL_CONNECT"
@@ -112,16 +116,24 @@ class BaseMailSession(implicit mailSession: Option[Session] = None) {
     }
     Audit.logdb("EMAIL_STATUS", "MAIL.CLOSE status="+transport.map(_.isConnected).mkString + " sent "+count +" emails")
   }
-
 }
 
-/** the email sender - saves emails in DB and sends them asynchronously, retrying in certain cases */
+/** the email sender - saves emails in DB and sends them asynchronously with an actor, retrying in certain cases
+  *
+  * turns out that sending email is not the easiest thing to do
+  *
+  * will recover on restart, can be restarted etc
+  *
+  * todo move into a connectors subsystem
+  */
 object SendEmail extends razie.Logging {
   import EmailMsg.STATUS
 
-  /** this is set to false for normal testing - set to true for quick testing and stress/perf testing */
+  /** prevent it from actually sending out, good for testing
+    * this is set to false for normal testing - set to true for quick testing and stress/perf testing */
   val NO_EMAILS = true
-  /** programatically set to false during a test */
+
+  /** prevent for sending out * programatically set to false during a test */
   var NO_EMAILS_TESTNG = true
 
   // should be lazy because of akka's bootstrap
@@ -131,7 +143,7 @@ object SendEmail extends razie.Logging {
     emailSender.path
   } // initialize lazy
 
-  // set from Global, with your actual user/pass/email server combo
+  // set this from Global/Main, with your actual user/pass/email server combo
   var mkSession : (Boolean, Boolean) => javax.mail.Session = {(test:Boolean,debug:Boolean)=>
     val props = new Properties();
 
@@ -150,20 +162,6 @@ object SendEmail extends razie.Logging {
 
     session.setDebug(debug || test);
     session
-  }
-
-  /**
-    * todo inline
-   */
-  def send(to: String, from: String, subject: String, html: String, bcc: Seq[String] = Seq.empty)(implicit mailSession: MailSession) {
-    mailSession.send(to,from,subject,html,bcc)
-  }
-
-  /**
-   * todo inline
-   */
-  def notif(to: String, from: String, subject: String, html: String, bcc: Seq[String] = Seq.empty)(implicit mailSession: MailSession) {
-    mailSession.notif(to,from,subject,html,bcc)
   }
 
   /**

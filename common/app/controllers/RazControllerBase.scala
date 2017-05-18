@@ -11,7 +11,7 @@ import razie.wiki.Services
 import razie.{Logging}
 import razie.wiki.model.WikiUser
 
-/** common controller utilities */
+/** base class for controllers - common controller utilities */
 class RazControllerBase extends Controller with Logging with Validation {
 
   /** authentication - find the user currently logged in */

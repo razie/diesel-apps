@@ -48,9 +48,9 @@ abstract class SI[T >: Null] (what:String) {
   protected def prep(t:T) : T = {t} // nop
 }
 
-/** JSON document db utils
+/** represents a mongo db instance
   *
-  * This is mainly for working with Mongo, but we limit our usage to primitives that can be implemented by any rather stupid JSON document store.
+  * we limit our usage to primitives that can be implemented by any rather stupid JSON document store.
   *
   */
 object RazMongo extends SI[MongoDB] ("MongoDB") {

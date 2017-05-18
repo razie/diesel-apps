@@ -4,7 +4,7 @@
  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
  */
-package razie.base
+package razie.audit
 
 /**
  * many operations are audited - this is strait in the log files, as well as the logdb() audit facility.
@@ -22,4 +22,3 @@ trait Auditor {
   /** log a db operation with a link to the thing being audited */
   def logdbWithLink(what: String, link: String, details: Any*): String
 }
-

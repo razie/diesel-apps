@@ -10,21 +10,20 @@ import com.mongodb.casbah.Imports._
 import com.novus.salat.grater
 import org.bson.types.ObjectId
 import org.joda.time.DateTime
-import razie.base.Audit
+import razie.audit.Audit
 import razie.db._
 import razie.db.RazSalatContext.ctx
 
 import scala.collection.mutable.ListBuffer
 import razie.db.tx.txn
 
-/** a thread / series of comments on something - like a forum topic
+/**
+  * a thread / series of comments on something - like a forum topic
   *
   * threads apply to: wiki topics, PMs, MAs, questions, forums
-  *
-  * */
+  */
 @RTable
 case class CommentStream(
-  //todo there are a few records with WID instead of ID here...
   topic: ObjectId, // for wiki, this is the WID or the parent record (MsgThread, ForumTopic etc)
   what: String = "Wiki", // indicates the type of parent Wiki/Msg
   crDtm: DateTime = DateTime.now(),
@@ -54,7 +53,8 @@ case class CommentStream(
   def isDuplo (oid:String) = comments.exists(_.id equals oid)
 }
 
-/** a series of comments on something - like a forum topic 
+/**
+ * a comment in a series
  *  
  * todo add markdown options, bbcode vs md etc 
  */
@@ -84,6 +84,7 @@ case class Comment (
     val u = this.copy (likes=like.map(_._id.toString).toList ::: likes, dislikes=dislike.map(_._id.toString).toList ::: dislikes)
 //    Audit.logdb(Comments.AUDIT_COMMENT_UPDATED, "BY " + user.userName + " " + userId + " parent:" + parentId, "\nCONTENT:\n" + u)
     RUpdate.noAudit[Comment](Map("_id" -> _id), u)
+    //todo moderation stream - send to a stream of content changes for bots / moderators
   }
 
   //todo keep track of older versions and who modifies them - comment-history
@@ -92,12 +93,14 @@ case class Comment (
 //    val u = new Comment(streamId, userId, parentId, newContent, newLink, this.kind, crDtm, DateTime.now, _id)
     Audit.logdb(Comments.AUDIT_COMMENT_UPDATED, "BY " + user.userName + " " + userId + " parent:" + parentId, "\nCONTENT:\n" + u)
     RUpdate.noAudit[Comment](Map("_id" -> _id), u)
+    //todo moderation stream - send to a stream of content changes for bots / moderators
   }
 
   def delete = {
     Audit.logdb(Comments.AUDIT_COMMENT_UPDATED, "\nDELETED:\n")
     RDelete.noAudit[Comment](this)
     // todo if last, should also remove the comment stream? or maybe not
+    //todo moderation stream - send to a stream of content changes for bots / moderators
   }
 
 }

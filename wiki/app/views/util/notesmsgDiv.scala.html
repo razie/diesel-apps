@@ -1,0 +1,37 @@
+@**************
+insert a div (at top of screen) for flashing error messages or stats etc
+**************@
+@(name:String)
+
+<small>
+&nbsp; &nbsp; &nbsp; &nbsp;
+
+  <div id="messages" style="float:right;margin-top:10px">
+    <div id="@name" style="display:inline;" class="alert alert-info">
+    </div>
+  </div>
+</small>
+
+<script>
+  $('#@name').hide();
+
+function notesMsgShow(kind,text) {
+  $('#@name').removeClass('alert-info');
+  $('#@name').removeClass('alert-danger');
+  $('#@name').removeClass('alert-success');
+
+  if(kind == "err" || kind == "danger") {
+    $('#@name').addClass('alert-danger');
+  } else if(kind == "ok" || kind == "success") {
+    $('#@name').addClass('alert-success');
+  } else {
+    $('#@name').addClass('alert-info');
+  }
+
+  $('#@name').html('<strong>'+text+'</strong>');
+  $('#@name').show();
+  $('#@name').fadeOut(5000);
+  }
+
+</script>
+

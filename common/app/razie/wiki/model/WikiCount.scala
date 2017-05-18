@@ -27,10 +27,10 @@ case class WikiCount (
     WikiCount.findOne (pid) map {p=>
       val newone = p.copy(count=p.count+1)
       RUpdate noAudit (Map("pid" -> pid), newone)
-      Cache.set("count."+pid.toString, newone, 300) // 10 miuntes
+      Cache.set("count."+pid.toString, newone, 300) // 10 minutes
     } orElse {
       RCreate noAudit this
-      Cache.set("count."+pid.toString, this, 300) // 10 miuntes
+      Cache.set("count."+pid.toString, this, 300) // 10 minutes
       None
     }
   }
@@ -40,19 +40,20 @@ case class WikiCount (
     WikiCount.findOne (pid) foreach {p=>
       val newone = p.copy(count=newCount)
       RUpdate (Map("pid" -> pid), newone)
-      Cache.set("count."+pid.toString, newone, 300) // 10 miuntes
+      Cache.set("count."+pid.toString, newone, 300) // 10 minutes
     }
   }
 }
 
 /** wiki factory and utils */
 object WikiCount {
+
   def findOne(pid: ObjectId) = {
     Cache.getAs[WikiCount]("count."+pid.toString).map { x =>
       Some(x)
     }.getOrElse {
       val x = ROne[WikiCount] ("pid" -> pid)
-      x.map(x=>Cache.set("count."+x.pid.toString, x, 300)) // 10 miuntes
+      x.map(x=>Cache.set("count."+x.pid.toString, x, 300)) // 10 minutes
       x
     }
   }

@@ -8,7 +8,7 @@ package razie.wiki.util
 
 import controllers.{IgnoreErrors, VErrors}
 import org.bson.types.ObjectId
-import play.api.mvc.{Request, RequestHeader}
+import play.api.mvc.RequestHeader
 import razie.Logging
 import razie.wiki.model.{Perm, WikiUser}
 
