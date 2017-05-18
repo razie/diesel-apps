@@ -6,7 +6,7 @@ Embedded Markdown Wiki engine, extensible via scripting, code and DSL.
 Microservices and testing DSL
 =============================
 
-The (https://github.com/razie/diesel-wiki/tree/master/diesel)[diesel] sub-project is a stand-alone microservices mocking, prototyping and testing framework.
+The [https://github.com/razie/diesel-wiki/tree/master/diesel](diesel) sub-project is a stand-alone microservices mocking, prototyping and testing framework.
 
 Versions and technologies
 ========================
@@ -30,6 +30,6 @@ Here are some of the basic features:
 Details
 ==========
 
-See the [http://www.dieselapps.com/engine]
+See the [http://www.dieselapps.com/engine](engine).
 
-
+See details on the [WIKI.md](wiki).
