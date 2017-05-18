@@ -17,13 +17,13 @@ Versions and technologies
 Examples
 ========
 
-Mock a simple REST API - see (http://www.dieselapps.com/wiki/Cool_Scala/The_one-liner_microservice)[The simplest microservice you ever created]:
+Mock a simple REST API - see [The simplest microservice you ever created](http://www.dieselapps.com/wiki/Cool_Scala/The_one-liner_microservice):
 
 ```
 $mock say.hi (name ?= "Jane") => (greeting = "Hello, " + name)
 ```
 
-Test the simple REST API - see (http://www.dieselapps.com/wiki/Cool_Scala/Simple_microservices_testing)[Simple microservices testing]:
+Test the simple REST API - see [Simple microservices testing](http://www.dieselapps.com/wiki/Cool_Scala/Simple_microservices_testing):
 
 ```
 $send say.hi (name = "Jane")
