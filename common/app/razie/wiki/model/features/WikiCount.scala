@@ -4,7 +4,7 @@
  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
  */
-package razie.wiki.model
+package razie.wiki.model.features
 
 import org.bson.types.ObjectId
 import razie.clog
@@ -58,4 +58,3 @@ object WikiCount {
     }
   }
 }
-

@@ -4,7 +4,9 @@
  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
  */
-package razie.wiki.model
+package razie.wiki.model.features
+
+import razie.wiki.model.WikiEntry
 
 /** possible form states */
 object FormStatus {
@@ -64,4 +66,10 @@ object WikiForm {
   parms
   }
 }
+
+/** a form field definition */
+case class FieldDef(name: String, value: String, attributes: Map[String, String]) {
+  def withValue(x: String) = FieldDef(name, x, attributes)
+}
+
 

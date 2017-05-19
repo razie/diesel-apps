@@ -8,6 +8,7 @@ package razie.wiki.parser
 
 import razie.wiki.Enc
 import razie.wiki.model._
+import razie.wiki.model.features._
 
 import scala.Option.option2Iterable
 
@@ -570,11 +571,8 @@ trait WikiParserT extends WikiParserMini with CsvParser {
 
   //======================= dates
   import ParserSettings.{mth1, mth2}
-  
+
   def dates = date1 | date2
   def date1 = """\d\d\d\d""".r ~ "-" ~ """\d\d""".r ~ "-" ~ """\d\d""".r ^^ { case y ~ _ ~ m ~ _ ~ d => "%s-%s-%s".format(y, m, d) }
   def date2 = (mth2 + "|" + mth1).r ~ " *".r ~ """\d[\d]?""".r ~ "[ ,-]*".r ~ """\d\d\d\d""".r ^^ { case m ~ _ ~ d ~ _ ~ y => "%s-%s-%s".format(y, m, d) }
 }
-
-
-

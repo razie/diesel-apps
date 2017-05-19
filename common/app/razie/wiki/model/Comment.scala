@@ -55,8 +55,8 @@ case class CommentStream(
 
 /**
  * a comment in a series
- *  
- * todo add markdown options, bbcode vs md etc 
+ *
+ * todo add markdown options, bbcode vs md etc
  */
 @RTable
 case class Comment (
@@ -90,7 +90,6 @@ case class Comment (
   //todo keep track of older versions and who modifies them - comment-history
   def update(newContent: String, newLink:Option[String], user:WikiUser) = {
     val u = this.copy (content=newContent, link=newLink, updDtm=DateTime.now)
-//    val u = new Comment(streamId, userId, parentId, newContent, newLink, this.kind, crDtm, DateTime.now, _id)
     Audit.logdb(Comments.AUDIT_COMMENT_UPDATED, "BY " + user.userName + " " + userId + " parent:" + parentId, "\nCONTENT:\n" + u)
     RUpdate.noAudit[Comment](Map("_id" -> _id), u)
     //todo moderation stream - send to a stream of content changes for bots / moderators

@@ -4,9 +4,10 @@
  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
  */
-package razie.wiki.model
+package razie.wiki.model.features
 
 import controllers.VErrors
+import razie.wiki.model.WikiEntry
 
 /** form utils */
 object WForm {

@@ -16,6 +16,7 @@ import razie.db.{RMany, RazMongo}
 import razie.diesel.dom.RDomain
 import razie.wiki.parser.WikiParserT
 import razie.wiki.Services
+import razie.wiki.model.features.WeCache
 
 import scala.collection.mutable.ListBuffer
 
@@ -115,6 +116,9 @@ trait WikiInst {
     * @return the new content, with the templates applied
     */
   def applyTemplates (wid:WID, content:String, which:String) : String
+
+  /** make a js object accessible to the scripts */
+  def mkWixJson (owe: Option[WikiPage], ou:Option[WikiUser], q:Map[String,String], r:String) : String
 }
 
 /**
@@ -340,6 +344,9 @@ class WikiInstImpl (val realm:String, val fallBacks:List[WikiInst]) extends Wiki
   }
 
   def domFrom(we: WikiEntry): Option[RDomain] = None
+
+  /** make a js object accessible to the scripts */
+  def mkWixJson (owe: Option[WikiPage], ou:Option[WikiUser], q:Map[String,String], r:String) : String = ""
 }
 
 

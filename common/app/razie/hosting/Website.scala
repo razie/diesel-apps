@@ -2,7 +2,6 @@ package razie.hosting
 
 import play.api.mvc.{Request, RequestHeader}
 import razie.OR._
-import razie.hosting.RkReactors
 import razie.wiki.Services
 import razie.wiki.model._
 import razie.wiki.util.{DslProps, PlayTools}

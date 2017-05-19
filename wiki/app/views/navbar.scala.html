@@ -130,13 +130,15 @@ $(window).load (function() {
 
             @if(stok.au.exists(u=> u.isAdmin)) {
               <li class="divider"></li>
-            <li><a href="/razadmin/difflist/@stok.realm/www.racerkidz.com">Diffs</a></li>
+              <li><a href="/razadmin/difflist/@stok.realm/www.racerkidz.com">Diffs</a></li>
               <li><a href="/razadmin/difflist/all/www.racerkidz.com">Diffs-all</a></li>
             }
 
             <li class="divider"></li>
 
-            <li><a href="/do/signout"><i class="icon-off"></i> Sign out</a></li>
+            <li><a href="/doe/theme?css=light" title="Select light theme">Light</a></li>
+            <li><a href="/doe/theme?css=dark" title="Select drk theme">Dark</a></li>
+            <li><a href="/do/signout" title="Log off"><i class="icon-off"></i> Sign out</a></li>
           </ul>
         </li>
       }
@@ -180,4 +182,3 @@ $(window).load (function() {
   </div>
 </div><!-- /.navbar-collapse -->
 </nav>
-

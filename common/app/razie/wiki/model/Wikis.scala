@@ -19,6 +19,7 @@ import play.api.cache._
 import play.api.Play.current
 import razie.audit.Audit
 import razie.diesel.dom.WikiDomain
+import razie.wiki.model.features.{WForm, WikiForm}
 import razie.wiki.util.QueryParms
 
 /** wiki factory and utils */
@@ -379,13 +380,14 @@ object Wikis extends Logging with Validation {
       content = S_PAT replaceSomeIn (content, { m =>
         we.map(_.cacheable = false)
         try {
-          // find the page with the scripts and call them
+          // find the page with signed scripts and call them
+          // inline scripts are exanded into the html page
           val pageWithScripts = WID.fromPath(m group 2).flatMap(x => Wikis(x.getRealm).find(x)).orElse(we)
           val y=pageWithScripts.flatMap(_.scripts.find(_.name == (m group 3))).filter(_.checkSignature(user)).map{s=>
             if("inline" == s.stype) {
-              val wix = api.wix(we, user, Map.empty, "")
+              val wix = Wikis(wid.getRealm).mkWixJson(we, user, Map.empty, "")
               s"""<script>
-                |${wix.jsonBrowser}\n
+                |${wix}\n
                 |${s.content}
                 |</script>
               """.stripMargin
@@ -400,7 +402,10 @@ object Wikis extends Logging with Validation {
           }
         }
       })
-      } catch { case t: Throwable => log("exception in script", t); } // sometimes the pattern itself blows
+      } catch {
+        // sometimes the pattern itself blows
+        case t: Throwable => log("exception in script", t);
+      }
 
       // TODO this is experimental
 //      val E_PAT = """`\{\{(e):([^}]*)\}\}`""".r

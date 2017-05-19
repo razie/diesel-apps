@@ -15,9 +15,8 @@ import razie.{AA, Log, cdebug}
 import razie.db.RazSalatContext._
 import razie.db._
 import razie.wiki.Services
+import razie.wiki.model.features.{FieldDef, FormStatus, WikiForm}
 import razie.wiki.parser.WAST
-
-import scala.collection.mutable.ListBuffer
 
 /**
   * simple trait for a wiki
@@ -304,11 +303,6 @@ case class WikiEntry(
 
   def linksFrom = RMany[WikiLink] ("from.id" -> this.uwid.id)
   def linksTo = RMany[WikiLink] ("to.id" -> this.uwid.id)
-}
-
-/** a form field definition */
-case class FieldDef(name: String, value: String, attributes: Map[String, String]) {
-  def withValue(x: String) = FieldDef(name, x, attributes)
 }
 
 /** a section inside a wiki page */

@@ -4,14 +4,16 @@
  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
  */
-package razie.wiki.model
+package razie.wiki.model.features
+
+import razie.wiki.model.{UWID, WikiEntry}
 
 import scala.collection.mutable.ListBuffer
 
 /** caching oft-used pages (categories etc)
   *
-  * todo statics are bad, eh?
-  * */
+  * todo statics are bad, eh? can keep instance per WikiInst
+  */
 object WeCache {
   var loading=false
   var maxRecs = 500
