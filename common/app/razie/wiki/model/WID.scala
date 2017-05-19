@@ -6,14 +6,13 @@
  */
 package razie.wiki.model
 
-import com.mongodb.casbah.Imports._
 import com.novus.salat._
+import model.CMDWID
 import org.bson.types.ObjectId
 import razie.base.data.TripleIdx
 import razie.clog
 import razie.db.RazSalatContext._
-import razie.wiki.{Services}
-import model.CMDWID
+import razie.wiki.Services
 
 /**
   * a wiki id, a pair of cat and name - can reference a wiki entry or a section of an entry
@@ -42,8 +41,8 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
   /** find the page for this, if any - respects the NOCATS */
   lazy val page = {
     val w = if (Services.config.cacheWikis) {
-      import play.api.cache._
       import play.api.Play.current
+      import play.api.cache._
 
       Cache.getAs[WikiEntry](this.wpath+".page").map { x =>
         clog << "WIKI_CACHED FULL-" + this.wpath
@@ -151,7 +150,6 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
   def uwid = findCatId() map {x=>UWID(x._1, x._2, realm)}
 
   /** cat with realm */
-//  def cats = if(realm.exists(_ != Wikis.RK)) (realm.get + "." + cat) else cat
   def cats = if(realm.exists(_.length > 0)) (realm.get + "." + cat) else cat
 
   /** format into nice url */
@@ -167,7 +165,6 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
     if (cat != null && cat.length > 0 ) (cats + ":") else "") + name + (section.map("#" + _).getOrElse(""))
 
   def formatted = this.copy(name=Wikis.formatName(this))
-//  def url: String = "http://" + Services.config.hostport + (realm.filter(_ != Wikis.RK).map(r=>s"/w/$r").getOrElse("")) + "/wiki/" + wpathnocats
 
   /** the canonical URL with the proper hostname for reactor */
   def url: String = {

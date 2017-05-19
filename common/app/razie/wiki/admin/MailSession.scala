@@ -6,7 +6,7 @@
  */
 package razie.wiki.admin
 
-import model.Website
+import razie.hosting.Website
 import razie.wiki.model.Wikis
 
 /** wiki specifics */
@@ -16,7 +16,10 @@ class MailSession extends BaseMailSession {
   val website = realm.flatMap(Website.forRealm).getOrElse(Website.dflt)
 
   /** name of website, used in subject */
-  val RK = realm.flatMap(Website.forRealm).map(_.label).getOrElse(admin.Config.sitecfg("RacerKidz").getOrElse("RacerKidz"))
+  val RK = realm
+      .flatMap(Website.forRealm)
+      .map(_.label)
+      .getOrElse("RacerKidz")
 
   val SUPPORT = website.supportEmail
 

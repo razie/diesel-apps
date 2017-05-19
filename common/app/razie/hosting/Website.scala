@@ -1,7 +1,8 @@
-package model
+package razie.hosting
 
 import play.api.mvc.{Request, RequestHeader}
 import razie.OR._
+import razie.hosting.RkReactors
 import razie.wiki.Services
 import razie.wiki.model._
 import razie.wiki.util.{DslProps, PlayTools}
@@ -9,7 +10,7 @@ import razie.wiki.util.{DslProps, PlayTools}
 /**
  * Multihosting - website settings - will collect website properties from the topic if it has a 'website' section
  */
-class Website (we:WikiEntry, extra:Seq[(String,String)] = Seq()) extends DslProps(Some(we), "website", extra) {
+class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps(Some(we), "website", extra) {
   def label:String = this prop "label" OR name
   def name:String = this prop "name" OR we.name //"-"
   def reactor:String = this prop "reactor" OR (this prop "realm" OR "rk")
@@ -153,4 +154,3 @@ object Website {
   /** @deprecated use PlayTools.getHost */
   def getHost (implicit request: RequestHeader) = PlayTools.getHost
 }
-

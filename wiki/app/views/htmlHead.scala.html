@@ -1,10 +1,10 @@
 @(pageTitle: String = "", stok:Option[controllers.StateOk]=None, page:Option[razie.wiki.model.WikiEntry]=None, options:Map[String,String]=Map())(implicit moreMetas:Map[String,String]=Map.empty, au:Option[model.User], request:Option[Request[_]] = None)
 @import razie.wiki.model.WikiReactors
 @import razie.wiki.Services
-@import model.Website
+@import razie.hosting.Website
 
 @props() = @{
-  request.flatMap(model.Website.apply(_))
+  request.flatMap(razie.hosting.Website.apply(_))
 }
 
 @title() = @{
@@ -46,7 +46,7 @@
     <title>@title</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    @request.flatMap(model.Website.apply(_)).toSeq.flatMap(_.metas).map{t=>
+    @request.flatMap(razie.hosting.Website.apply(_)).toSeq.flatMap(_.metas).map{t=>
       <meta name="@t._1" content="@t._2">
     }
 
@@ -193,7 +193,7 @@ $(window).load (function() {
     var xp = {};
 
 @**
-    @model.Website.all.map{w=>
+    @razie.hosting.Website.all.map{w=>
       @w.prop("analyticsId").map{t=>
         xp['@w.url'] = '@t';
       }

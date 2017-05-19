@@ -9,11 +9,14 @@ package razie.wiki.model
 import com.mongodb.DBObject
 import com.mongodb.casbah.Imports._
 import com.novus.salat._
-import razie.{clog}
+import razie.clog
+import razie.db.RazMongo.RazMongoTable
 import razie.db.RazSalatContext._
 import razie.db.{RMany, RazMongo}
+import razie.diesel.dom.RDomain
 import razie.wiki.parser.WikiParserT
-import razie.wiki.{Services}
+import razie.wiki.Services
+
 import scala.collection.mutable.ListBuffer
 
 /**
@@ -21,7 +24,105 @@ import scala.collection.mutable.ListBuffer
   *
   * has a list of fallbacks / mixins
   * */
-class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
+trait WikiInst {
+  def realm:String
+  def fallBacks:List[WikiInst]
+
+  /** this is the actual parser to use - combine your own and set it here in Global */
+  def mkParser : WikiParserT
+
+  def index  : WikiIndex
+
+  def mixins : Mixins[WikiInst]
+
+  def REALM :(String,String)
+
+  def cats : Map[String,WikiEntry]
+
+  /** cache of tags - updated by the WikiIndex */
+  def tags : scala.collection.mutable.Map[String,razie.wiki.model.WikiEntry]
+
+  def weTable(cat: String) : razie.db.RazMongo.RazMongoTable
+  def weTables(cat: String) : String
+  def table : RazMongoTable
+
+  def foreach (f:DBObject => Unit)
+
+  def count : Int
+
+  // ================== methods from Wikis
+
+  /** EXPENSIVE - find pages with category */
+  def pages(category: String) : Iterator[WikiEntry]
+
+  /** find pages with category */
+  def pageNames(category: String) : Iterator[String]
+
+  /** find pages with category */
+  def pageLabels(category: String) : Iterator[String]
+
+  // TODO optimize - cache labels... they can be changed by the page itself too...
+  def label(wid: WID):String
+
+  def label(wid: UWID):String
+
+  /** get label from category definiition */
+  def labelFor(wid: WID, action: String) : Option[String]
+
+  // TODO find by ID is bad, no - how to make it work across wikis ?
+  def findById(id: String) : Option[WikiEntry]
+
+  def find(id: ObjectId) : Option[WikiEntry]
+
+  def findById(cat:String, id: String):Option[WikiEntry]
+
+  def findById(cat:String, id: ObjectId): Option[WikiEntry]
+
+  def find(wid: WID): Option[WikiEntry]
+
+  def find(uwid: UWID): Option[WikiEntry]
+
+  def find(category: String, name: String): Option[WikiEntry]
+
+  /** find any topic with name - will look in PERSISTED tables as well until at least one found */
+  def findAny(name: String) : Iterator[WikiEntry]
+
+  def findAnyOne(name: String) : Option[WikiEntry]
+
+  def ifind(wid: WID) : Option[com.mongodb.DBObject]
+
+  def categories : Iterable[razie.wiki.model.WikiEntry]
+  def category(cat: String) : Option[WikiEntry]
+
+  def refreshCat (we:WikiEntry): Unit
+
+  final val VISIBILITY = "visibility"
+
+  /** can override in cat, fallback to reactor, fallback to what's here */
+  def visibilityFor(cat: String, prop:String = VISIBILITY): Seq[String]
+
+  /** see if any of the tags of a page are nav tags */
+  def navTagFor(pageTags: Seq[String]) : Option[Option[razie.wiki.model.WikiEntry]]
+
+  /** look for and apply any formatting templates
+    *
+    * Formatting templates are used to re-format pages for display. They're used usually to decorate with functionality
+    * like menus, buttons etc
+    *
+    * @param wid
+    * @param content
+    * @param which one of html|json
+    * @return the new content, with the templates applied
+    */
+  def applyTemplates (wid:WID, content:String, which:String) : String
+}
+
+/**
+  * a wiki instance. corresponds to one reactor/realm
+  *
+  * has a list of fallbacks / mixins
+  * */
+class WikiInstImpl (val realm:String, val fallBacks:List[WikiInst]) extends WikiInst {
   /** this is the actual parser to use - combine your own and set it here in Global */
   def mkParser : WikiParserT = new WikiParserCls(realm)
 
@@ -41,7 +142,8 @@ class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
   def cats = WeCache.cats(realm)
 
   /** cache of tags - updated by the WikiIndex */
-  lazy val tags = new collection.mutable.HashMap[String,WikiEntry]() ++
+  def tags = _tags
+  private lazy val _tags = new collection.mutable.HashMap[String,WikiEntry]() ++
     (RMany[WikiEntry](REALM, "category" -> "Tag") map (w=>(w.name,w))).toList
 
   def weTable(cat: String) = Wikis.TABLE_NAMES.get(cat).map(x=>RazMongo(x)).getOrElse(if (Wikis.PERSISTED contains cat) RazMongo("we"+cat) else table)
@@ -84,7 +186,7 @@ class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
   import play.api.Play.current
 
   // this can't be further optimized - it SHOULD lookup the storage, to refresh stuff as well
-  private def ifind(wid: WID) = {
+  def ifind(wid: WID) : Option[com.mongodb.DBObject] = {
     wid.parent.map {p=>
       // todo could simplify onle name unique in parent, no cat needed?
       if(wid.cat.isEmpty)
@@ -185,8 +287,6 @@ class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
 //    }
   }
 
-  final val VISIBILITY = "visibility"
-
   /** can override in cat, fallback to reactor, fallback to what's here */
   def visibilityFor(cat: String, prop:String = VISIBILITY): Seq[String] =
     cats.get(cat).flatMap(_.contentProps.get(prop)).orElse(
@@ -196,7 +296,8 @@ class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
     ).split(",").toSeq
 
   /** see if any of the tags of a page are nav tags */
-  def navTagFor(pageTags: Seq[String]) = pageTags.map(tags.get).find(op=>op.isDefined && op.get.contentProps.contains("navTag"))
+  def navTagFor(pageTags: Seq[String]) : Option[Option[razie.wiki.model.WikiEntry]] =
+    pageTags.map(tags.get).find(op=>op.isDefined && op.get.contentProps.contains("navTag"))
 
   /** look for and apply any formatting templates
     *
@@ -208,7 +309,7 @@ class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
     * @param which one of html|json
     * @return the new content, with the templates applied
     */
-  def applyTemplates (wid:WID, content:String, which:String) = {
+  def applyTemplates (wid:WID, content:String, which:String):String = {
     val wpath=wid.wpath
     var res = content
       res = category(wid.cat).flatMap(_.section("template", which)).fold(content) { sec =>
@@ -237,6 +338,8 @@ class WikiInst (val realm:String, val fallBacks:List[WikiInst]) {
       }
     res
   }
+
+  def domFrom(we: WikiEntry): Option[RDomain] = None
 }
 
 

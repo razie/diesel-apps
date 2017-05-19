@@ -19,6 +19,7 @@ import play.api.cache._
 import play.api.Play.current
 import razie.audit.Audit
 import razie.diesel.dom.WikiDomain
+import razie.wiki.util.QueryParms
 
 /** wiki factory and utils */
 object Wikis extends Logging with Validation {
@@ -75,10 +76,8 @@ object Wikis extends Logging with Validation {
     }
     else rk.category(cat)
 
-  //  def linksFrom(from: UWID) = RMany[WikiLink]("from" -> from.grated)
   def linksFrom(to: UWID) = RMany[WikiLink]("from.cat" -> to.cat, "from.id" -> to.id)
 
-  //  def linksTo(to: UWID) = RMany[WikiLink]("to" -> to.grated)
   def linksTo(to: UWID) = RMany[WikiLink]("to.cat" -> to.cat, "to.id" -> to.id)
 
   def childrenOf(parent: UWID) =
@@ -87,9 +86,6 @@ object Wikis extends Logging with Validation {
   def linksFrom(from: UWID, role: String) =
     RMany[WikiLink]("from.id" -> from.id, "how" -> role)
 
-  //  def linksTo(to: UWID, role: String) =
-  //    RMany[WikiLink]("to.cat" -> to.cat, "to.id"->to.id, "how" -> role)
-  //
   // not taking realm into account...
   def linksTo(cat: String, to: UWID, role: String) =
   RMany[WikiLink]("from.cat" -> cat, "to.cat" -> to.cat, "to.id" -> to.id, "how" -> role)
@@ -145,7 +141,6 @@ object Wikis extends Logging with Validation {
     name.replaceAll(pat, "_").replaceAll(pat2, "").replaceAll("_+", "_").replaceFirst("_$", "")
 
   /** format a simple name - try NOT to use this */
-  //  def formatName(name: String): String = iformatName(name, """[ &?,;/:{}\[\]]""")
 
   /** these are the safe url characters. I also included ',which are confusing many sites */
   val SAFECHARS =
@@ -184,7 +179,6 @@ object Wikis extends Logging with Validation {
     val bigName = Wikis.apply(r).index.getForLower(name.toLowerCase())
     if (bigName.isDefined || wid.cat.matches("User")) {
       var newwid = Wikis.apply(r).index.getWids(bigName.get).headOption.map(_.copy(section = wid.section)) getOrElse wid.copy(name = bigName.get)
-      //      var newwid = wid.copy(name=bigName.get)
       var u = Services.config.urlmap(newwid.formatted.urlRelative(curRealm))
 
       if (rk && (u startsWith "/")) u = "http://" + Services.config.rk + u
@@ -626,7 +620,6 @@ object Wikis extends Logging with Validation {
       })
 
       // replace all divs - limitation of the markdown parser
-      //      res = res.replaceAll("\\{\\{div ([^}]*)\\}\\}", """<div $1>""")
       val DPAT1 = "\\{\\{div ([^}]*)\\}\\}".r
       res = DPAT1 replaceSomeIn (res, { m =>
         Some("<div "+Enc.unescapeHtml(m group 1)+">")
@@ -655,17 +648,11 @@ object Wikis extends Logging with Validation {
       """
         | <div id=$1>div.later</div>
         | <script type="text/javascript">
+        | // \$(document).ready(function(){
         |   \$("#$1").attr("src","$2");
+        | // });
         | </script>
         | """.stripMargin)
-//    """
-//      | <div id=$1>div.later</div>
-//      | <script type="text/javascript">
-//      |   \$(document).ready(function(){
-//      |     \$("#$1").attr("src","$2");
-//      | })
-//      | </script>
-//      | """.stripMargin
     y
   }
 
@@ -705,7 +692,6 @@ object Wikis extends Logging with Validation {
           a.replaceAll("\\{\\{\\$\\$"+b._1+"\\}\\}", b._2)
         }
       s1.replaceAll("\\{\\{`", "{{").replaceAll("\\[\\[`", "[[")
-      //.replaceAll("\\{\\{`", "{{").replaceAll("\\{\\{`/section", "{{/section")
       }) getOrElse (
       "No content template for: " + wpath + "\n\nAttributes:\n\n" + parms.map{t=>s"* ${t._1} = ${t._2}\n"}.mkString
       )

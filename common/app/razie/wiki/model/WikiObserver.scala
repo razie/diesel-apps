@@ -92,7 +92,6 @@ object WikiObservers {
     notifieds.foldLeft(true)((x, y) => x && y.before(event)(errCollector))
   }
   def after(event: WikiEventBase)(implicit errCollector: VErrors = IgnoreErrors): Unit = {
-//    val xx = notifieds.map(_.getClass.getCanonicalName) // debug
     notifieds foreach (_.after(event)(errCollector))
   }
 }

@@ -29,7 +29,8 @@ object Services {
       "TODO customize scripster"
 
   var mkReactor : (String, List[Reactor], Option[WikiEntry]) => Reactor = { (realm, fallBack, we)=>
-    new Reactor(realm, fallBack, we)
+//    new ReactorImpl(realm, fallBack, we)
+     throw new IllegalArgumentException("Services.mkReactor implementation needed")
   }
 
   /** run the given script in the context of the given page and user as well as the query map */

@@ -4,12 +4,12 @@
  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
  */
-package razie.wiki.model
+package razie.wiki.util
 
 import com.mongodb.casbah.Imports._
 import org.joda.time.DateTime
-import razie.db.{RCreate, RDelete, RMany, RTable}
 import razie.db.tx.txn
+import razie.db.{RCreate, RDelete, RMany, RTable}
 
 /** staged entities
   *

@@ -19,6 +19,31 @@ import razie.wiki.parser.WAST
 
 import scala.collection.mutable.ListBuffer
 
+/**
+  * simple trait for a wiki
+  */
+trait WikiPage {
+  def category: String
+  def name: String
+  def label: String
+  def markup: String
+  def content: String
+  def by: ObjectId
+  def tags: Seq[String]
+  def realm:String
+  def ver: Int
+  def parent: Option[ObjectId]
+  def props: Map[String, String]
+  def crDtm: DateTime
+  def updDtm: DateTime
+  def _id: ObjectId
+
+  def wid : WID
+  def uwid : UWID
+  def section (stype: String, name: String) : Option[WikiSection]
+  def contentProps : Map[String,String]
+}
+
 /** a simple wiki-style entry: language (markdown, mediawiki wikidot etc) and the actual source
   *
   * There is an "owner" property - owner is supposed to have special privileges
@@ -42,7 +67,7 @@ case class WikiEntry(
   dislikeCount: Int=0,      // list of usernames that liked it
   crDtm: DateTime = DateTime.now,
   updDtm: DateTime = DateTime.now,
-  _id: ObjectId = new ObjectId()) {
+  _id: ObjectId = new ObjectId()) extends WikiPage {
 
   import WikiEntry._
 

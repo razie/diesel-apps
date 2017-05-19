@@ -6,149 +6,44 @@
  */
 package razie.wiki.model
 
-import com.mongodb.DBObject
-import com.mongodb.casbah.Imports._
-import com.novus.salat._
-import razie.clog
-import razie.db.RazSalatContext._
-import razie.db.RazMongo
-import razie.wiki.util.DslProps
-import razie.wiki.{Services, WikiConfig}
 import razie.diesel.dom.WikiDomain
+import razie.wiki.util.DslProps
 
-import scala.collection.mutable.ListBuffer
-
-/**
-  * reactor management (multi-tenant) - we can host multiple wikis/websites, each is a "reactor"
+/** a hosted wiki instance, i.e. independent hosted website.
   *
-  * this holds all the reactors hosted in this process
+  * It has its own index, domain and is independent of other wikis
+  *
+  * It has its own users and admins/mods etc
+  *
+  * Wikis can mixin other wikis - linearized multiple inheritance.
   */
-object WikiReactors {
-  // reserved reactors
-  final val RK = WikiConfig.RK       // original, still decoupling code
-  final val WIKI = "wiki"              // main reactor
-  final val NOTES = WikiConfig.NOTES
+trait Reactor {
+  def realm:String
+  def fallBacks:List[Reactor]
+  def we:Option[WikiEntry]
 
-  final val ALIASES = Map ("www" -> "wiki")
+  def wiki   : WikiInst
+  def domain : WikiDomain
 
-  /** lower case index - reactor names are insensitive */
-  val lowerCase = new collection.mutable.HashMap[String,String]()
+  val mixins : Mixins[Reactor]
+  def club :Option[WikiEntry]
 
-  // loaded in Global
-  val reactors = new collection.mutable.HashMap[String,Reactor]()
+  def userRoles :List[String]
+  def adminEmails :List[String]
 
-  // all possible reactors, some loaded some not
-  val allReactors = new collection.mutable.HashMap[String,WikiEntry]()
+  // list of super reactors linearized
+  val supers : Array[String]
 
-  private def loadReactors() = {
-    //todo - sharding... now all realms currently loaded in this node
-    val res = reactors
+  /** Admin:UserHome if user or Admin:Home or Reactor:realm if nothing else is defined */
+  def mainPage(au:Option[WikiUser]) : WID
 
-    // load reserved reactors: rk and wiki first
+  def sectionProps(section:String) :DslProps
 
-    var toload = Services.config.preload.split(",")
+  def websiteProps : DslProps
 
-    // list all reactors to be loaded and pre-fetch wikis
-    //todo with large numbers this will leak
-    RazMongo(Wikis.TABLE_NAME).find(Map("category" -> "Reactor")).map(
-      grater[WikiEntry].asObject(_)).toList.foreach(
-      we=>allReactors.put(we.name, we))
-
-    // load the basic reactors ahead of everyone that might depend on them
-    if(toload contains RK) loadReactor(RK)
-    if(toload contains NOTES) { // todo does not have a wiki - damn, can't use loadReactor
-        res.put (NOTES, Services.mkReactor(NOTES, Nil, None))
-        lowerCase.put(NOTES, NOTES)
-    }
-    if(toload contains WIKI) loadReactor(WIKI)
-
-    // todo this will create issues such that for a while after startup things are weird
-    razie.Threads.fork {
-      // the basic were already loaded, will be ignored
-      Services.config.preload.split(",").foreach(loadReactor)
-    }
-  }
-
-  /** lazy load a reactor */
-  private def loadReactor(r:String) : Unit = {
-
-    if(lowerCase.contains(r.toLowerCase)) return;
-
-    val res = reactors
-    var toLoad = new ListBuffer[WikiEntry]()
-    toLoad append allReactors(r)
-
-    val max = 20 // linearized mixins max
-    var curr = 0
-
-      // lazy depys
-    while (curr < max && !toLoad.isEmpty) {
-      curr += 1
-      val copy = toLoad.toList
-      toLoad.clear()
-
-      // todo smarter linearization of mixins
-      copy.foreach {we=>
-        val mixins = new DslProps(Some(we), "website").prop("mixins").map(_.split(",")).getOrElse{
-          // the basic cannot depend on anyone other than what they want
-          if(Array(RK,NOTES,WIKI) contains we.name) Array.empty[String] else Array("wiki")
-        }
-
-        if(mixins.foldLeft(true){(a,b)=> a && lowerCase.contains(b.toLowerCase)}) {
-          clog << "LOADING REACTOR " + we.wid.name
-          res.put (we.name, Services.mkReactor(we.name, mixins.toList.map(x=> res.get(x).get), Some(we)))
-          lowerCase.put(we.name.toLowerCase, we.name)
-        } else {
-          clog << s"NEED TO LOAD LATER REACTOR ${we.wid.name} depends on ${mixins.mkString(",")}"
-          toLoad appendAll mixins.filterNot(x=>lowerCase.contains(x.toLowerCase)).map(allReactors.apply)
-          toLoad += we
-        }
-      }
-    }
-  }
-
-  def findWikiEntry(r:String) =
-    rk.wiki.weTable("WikiEntry").findOne(Map("category" -> "Reactor", "name" -> r)).map(grater[WikiEntry].asObject(_))
-
-  def reload(r:String): Unit = {
-    // can't remove them first, so we can reload RK reactor
-    findWikiEntry(r).foreach{we=>
-      reactors.put (we.name, Services.mkReactor(we.name, List(wiki), Some(we)))
-      lowerCase.put(we.name.toLowerCase, we.name)
-    }
-  }
-
-  def rk = reactors(RK)
-  def wiki = reactors(WIKI)
-
-  def add (realm:String, we:WikiEntry): Reactor = {
-    assert(! reactors.contains(realm), "Sorry, SITE_ERR: Reactor already active ???")
-    val r = Services.mkReactor(realm, reactors.get(WIKI).toList, Some(we))
-    reactors.put(realm, r)
-    lowerCase.put(realm.toLowerCase, realm)
-    r
-  }
-
-  def contains (realm:String) : Boolean = reactors.contains(realm)
-
-  def apply (realm:String = Wikis.RK) : Reactor = {
-    // preload
-    if(reactors.isEmpty) loadReactors()
-    // anything not preloaded, load now
-    if(!reactors.contains(realm) && allReactors.contains(realm)) loadReactor(realm)
-    reactors.getOrElse(realm, rk)
-  } // using RK as a fallback
-
+  //todo fallback also in real time to rk, per prop
   // todo listen to updates and reload
-  lazy val fallbackProps = new DslProps(WID("Reactor", "wiki").r("wiki").page, "properties")
-
-  WikiObservers mini {
-    case WikiEvent(_, "WikiEntry", _, Some(x), _, _, _) if fallbackProps.we.exists(_.uwid == x.asInstanceOf[WikiEntry].uwid) => {
-      fallbackProps.reload(x.asInstanceOf[WikiEntry])
-    }
-  }
-
-  WikiIndex.init()
+  def props : DslProps
 }
 
 /** a hosted wiki instance, i.e. independent hosted website.
@@ -159,9 +54,9 @@ object WikiReactors {
   *
   * Wikis can mixin other wikis - linearized multiple inheritance.
   */
-class Reactor (val realm:String, val fallBacks:List[Reactor] = Nil, val we:Option[WikiEntry]) {
-  val wiki   : WikiInst   = new WikiInst(realm, fallBacks.map(_.wiki))
-  val domain : WikiDomain = new WikiDomain (realm, wiki)
+abstract class ReactorImpl (val realm:String, val fallBacks:List[Reactor] = Nil, val we:Option[WikiEntry]) extends Reactor {
+//  val wiki   : WikiInst   = new WikiInstImpl(realm, fallBacks.map(_.wiki))
+//  val domain : WikiDomain = new WikiDomain (realm, wiki)
 
   val mixins = new Mixins[Reactor](fallBacks)
   lazy val club = props.wprop("club").flatMap(Wikis.find)

@@ -6,7 +6,7 @@ creates the navigation bar
 @import razie.wiki.Services
 @import razie.wiki.model.Wikis
 
-@web()=@{stok.request.flatMap(x=>model.Website.apply(x)) getOrElse model.Website.dflt}
+@web()=@{stok.request.flatMap(x=>razie.hosting.Website.apply(x)) getOrElse razie.hosting.Website.dflt}
 
 @css() = @{
   stok.css

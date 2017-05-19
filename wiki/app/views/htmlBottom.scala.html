@@ -1,9 +1,9 @@
 @** botom of html,
 **@
-@(isSite:Boolean=false, orequest:Option[Request[_]] = None, site:Option[model.Website] = None)(implicit stok:controllers.StateOk)
+@(isSite:Boolean=false, orequest:Option[Request[_]] = None, site:Option[razie.hosting.Website] = None)(implicit stok:controllers.StateOk)
 @import _root_.razie.wiki.Services
 
-@web()=@{(site orElse orequest.orElse(stok.request).flatMap(r=>model.Website(r))) getOrElse model.Website.dflt}
+@web()=@{(site orElse orequest.orElse(stok.request).flatMap(r=>razie.hosting.Website(r))) getOrElse razie.hosting.Website.dflt}
 
 <footer id="weFooter">
 
