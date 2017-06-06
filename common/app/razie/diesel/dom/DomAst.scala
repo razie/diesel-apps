@@ -25,7 +25,8 @@ object AstKinds {
   final val NEXT = "next"
 
   def isGenerated  (k:String) = GENERATED==k || SKETCHED==k || MOCKED==k
-  def shouldIgnore (k:String) = RULE==k || NEXT==k
+  def shouldIgnore (k:String) = RULE==k
+  def shouldSkip (k:String) = NEXT==k
 }
 
 object DomState {
@@ -83,13 +84,25 @@ case class DomAst(
     this
   }
 
-  def tos(level: Int, html:Boolean): String = ("  " * level) + kind + "::" + {
-    value match {
-      case c:CanHtml if(html) => c.toHtml
-      case x => x.toString
-    }
-  }.lines.map(("  " * level) + _).mkString("\n") + moreDetails + "\n" +
-    children.filter(k=> !AstKinds.shouldIgnore(k.kind)).map(_.tos(level + 1, html)).mkString
+  def tos(level: Int, html:Boolean): String = {
+    def toschildren (level:Int, kids : List[DomAst]) : List[Any] =
+      kids.filter(k=> !AstKinds.shouldIgnore(k.kind)).flatMap{k=>
+        if(false && AstKinds.shouldSkip(k.kind)) {
+          toschildren(level+1, k.children.toList)
+        } else
+          List(k.tos(level+1, html))
+      }
+
+    ("  " * level) + kind + "::" + {
+      value match {
+        case c:CanHtml if(html) => c.toHtml
+        case x => x.toString
+      }
+    }.lines.map(("  " * level) + _).mkString("\n") + moreDetails + "\n" +
+      //    children.filter(k=> !AstKinds.shouldIgnore(k.kind)).map(_.tos(level + 1, html)).mkString
+      toschildren(level, children.toList).mkString
+  }
+
 
   override def toString = tos(0, false)
 
@@ -112,8 +125,16 @@ case class DomAst(
       "details" -> moreDetails,
       "id" -> id,
       "status" -> status,
-      "children" -> children.filter(k=> !AstKinds.shouldIgnore(k.kind)).map(_.toj).toList
+      "children" -> tojchildren(children.toList)
     )
+
+  def tojchildren (kids : List[DomAst]) : List[Any] =
+      kids.filter(k=> !AstKinds.shouldIgnore(k.kind)).flatMap{k=>
+        if(AstKinds.shouldSkip(k.kind)) {
+          tojchildren(k.children.toList)
+        } else
+          List(k.toj)
+      }
 
   def toJson = toj
 

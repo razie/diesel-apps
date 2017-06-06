@@ -1,5 +1,7 @@
 package razie.diesel.dom
 
+import scala.reflect.internal.util.NoPosition
+
 /** expression types */
 object WTypes {
   final val NUMBER="Number"
@@ -19,7 +21,7 @@ object RDOM {
   class CM // abstract Class Member
 
   /** represents a Class */
-  case class C (name:String, archetype:String, stereotypes:String, base:List[String], typeParam:String, parms:List[P]=Nil, methods:List[F]=Nil, assocs:List[A]=Nil) {
+  case class C (name:String, archetype:String, stereotypes:String, base:List[String], typeParam:String, parms:List[P]=Nil, methods:List[F]=Nil, assocs:List[A]=Nil, props:List[P]=Nil) {
     override def toString = fullHtml
 
     def fullHtml = span("class::") + s""" <b><a href="/wikie/show/Category:$name">$name</a></b> """ +
@@ -28,7 +30,8 @@ object RDOM {
       smap(stereotypes) (" &lt;" + _ + "&gt;") +
       (if(base.exists(_.size>0)) "extends " else "") + base.map("<b>" + _ + "</b>").mkString +
       mks(parms, " (", ", ", ") ", "&nbsp;&nbsp;") +
-      mks(methods, "{<br><hr>", "<br>", "<br><hr>}", "&nbsp;&nbsp;")
+      mks(methods, "{<br><hr>", "<br>", "<br><hr>}", "&nbsp;&nbsp;") +
+      mks(props, " PROPS(", ", ", ") ", "&nbsp;&nbsp;")
   }
 
   /** create a P with the best guess for type */

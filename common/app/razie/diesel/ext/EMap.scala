@@ -59,7 +59,7 @@ case class EMap(cls: String, met: String, attrs: Attrs, arrow:String="=>", cond:
       }
     }
 
-    if (spec.nonEmpty) spec.map { p =>
+    val out1 = if (spec.nonEmpty) spec.map { p =>
       // sourcing has expr, overrules
       val v =
         if(p.dflt.length > 0 || p.expr.nonEmpty) expr(p)
@@ -90,6 +90,8 @@ case class EMap(cls: String, met: String, attrs: Attrs, arrow:String="=>", cond:
         a.copy()
       }
     }
+
+    out1
   }
 
   def asMsg = EMsg("", cls, met, attrs.map{p=>

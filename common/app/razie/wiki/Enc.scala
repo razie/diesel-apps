@@ -11,8 +11,9 @@ import java.net.URLEncoder
 import java.security.MessageDigest
 
 /**
- * simple encryption service - provide your own implementation DES with a per app
- *  configured key should do fine
+ * simple encryption service - used to encrypt all sorts of things like emails whatnot
+ *
+ * provide your own implementation DES with a per app configured key should do fine
  */
 trait EncryptService {
   def enc(s: String): String
@@ -25,13 +26,17 @@ object NoEncryptService extends EncryptService {
   def dec(s: String): String = s
 }
 
-/** set this in your Global::beforeStart() */
+/** set this in your Global::beforeStart()
+  * todo inject instead
+  */
 object EncryptService {
   var impl: EncryptService = NoEncryptService
 }
 
+/** encription utilities */
 object Sec {
-  //================ Encryption
+
+  // rich String with enc/dec
   implicit class EncryptedS(s: String) {
     def enc = EncryptService.impl.enc(s)
     def dec = EncryptService.impl.dec(s)
@@ -42,6 +47,7 @@ object Sec {
   }
 }
 
+/** base 64 utility */
 object Base64 {
   import org.apache.commons.codec.binary.Base64
   def enc(s: String) = new Base64(true).encode(s)
@@ -78,10 +84,6 @@ object Enc {
   // escape html characters
   def escapeHtml (s:String) = s.replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("\"", "&quot;")
   def unescapeHtml (s:String) = s.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", "\"")
-}
-
-object Dec {
-  def apply(encoded: String): String = EncryptService.impl.dec(encoded)
 }
 
 object EncUrl {

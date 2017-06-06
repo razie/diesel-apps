@@ -6,17 +6,12 @@
  */
 package razie.wiki.parser
 
-import org.bson.types.ObjectId
-import razie.wiki.{Services, Enc}
-import razie.{cdebug, cout, clog}
-
-import scala.collection.mutable.ListBuffer
-import scala.util.Try
-import scala.util.matching.Regex.Match
-import scala.util.parsing.combinator.RegexParsers
-import scala.Option.option2Iterable
-import scala.collection.mutable
 import razie.wiki.model._
+import razie.wiki.{Enc, Services}
+
+import scala.Option.option2Iterable
+import scala.collection.mutable.ListBuffer
+import scala.util.parsing.combinator.RegexParsers
 
 object ParserSettings {
   /** debug the buildig of AST while pasing */
@@ -159,9 +154,9 @@ trait WikiParserBase extends ParserCommons {
   protected def arg = "[^ :=,}]*".r ~ "=" ~ "[^},]*".r ^^ { case n ~ _ ~ v => (n, v) }
   // if contains comma, use ""
 //  protected def arg2 = "[^:=,}]*".r ~ "=\"" ~ "[^\"]*".r <~ "\"" ^^ { case n ~ _ ~ v => (n, v) }
-  protected def arg2 = "[^ :=,}]*".r ~ "=\"" ~ "([^\"=\\\\]*(?:\\\\.[^\"=\\\\]*)*)".r <~ "\"" ^^ { case n ~ _ ~ v => (n, v.replaceAll("\\\\\"", "\"").replaceAll("\\\\=", "=")) }
+  protected def arg2 = "[^ :=,}]*".r ~ "=\"" ~ "([^\"\\\\]*(?:\\\\.[^\"=\\\\]*)*)".r <~ "\"" ^^ { case n ~ _ ~ v => (n, v.replaceAll("\\\\\"", "\"").replaceAll("\\\\=", "=")) }
 
-  protected def optargs : Parser[List[(String,String)]] = opt("[: ]".r ~ rep((arg2 | arg ) <~ opt(","))) ^^ {
+  protected def optargs : Parser[List[(String,String)]] = opt("[: ]".r ~ rep((arg2 | arg ) <~ opt("[, ]+".r))) ^^ {
     case Some(_ ~ l) => l
     case None => List()
   }

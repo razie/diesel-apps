@@ -118,13 +118,28 @@ case class EMsg(arch:String, entity: String, met: String, attrs: List[RDOM.P], r
     x
   }
 
-  def toHref (section:String="", resultMode:String="debug") = {
+  /** make a href
+    *
+    * @param section
+    * @param resultMode
+    * @param mapUrl use to add args to url
+    * @return
+    */
+  def toHref (section:String="", resultMode:String="debug", mapUrl:String=>String=identity) = {
     var u = url1(section, resultMode)
-    s"""<a target="_blank" href="$u">$entity.$met(${attrs.mkString(", ")})</a>"""
+    s"""<a target="_blank" href="${mapUrl(u)}">$entity.$met(${attrs.mkString(", ")})</a>"""
   }
 
-  def toHrefWith (text:String, section:String="", resultMode:String="debug") = {
+  /** make a href
+    *
+    * @param text
+    * @param section
+    * @param resultMode
+    * @param mapUrl use to add args to url
+    * @return
+    */
+  def toHrefWith (text:String, section:String="", resultMode:String="debug", mapUrl:String=>String=identity) = {
     var u = url1(section, resultMode)
-    s"""<a target="_blank" href="$u">$text</a>"""
+    s"""<a target="_blank" href="${mapUrl(u)}">$text</a>"""
   }
 }

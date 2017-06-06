@@ -80,11 +80,13 @@ class WikiIndex (val realm:String, val fallBacks : List[WikiIndex]) {
 
   /** update an entry - call AFTER the we is persisted */
   private def up(we: WikiEntry) {
-    if (we.wid.cat == "Category") {
+    if (we.category == "Category") {
       Wikis(realm).refreshCat(we)
       WikiDomain(realm).resetDom
-    } else if (we.wid.cat == "Tag") {
-      Wikis(realm).tags.put(we.wid.name, we)
+    } else if (we.category == "DslDomain") {
+      WikiDomain(realm).resetDom
+    } else if (we.category == "Tag") {
+      Wikis(realm).tags.put(we.name, we)
     }
     parsed.put(we._id, PEntry(we.ilinks))
   }
@@ -235,7 +237,7 @@ object WikiIndex {
 
         case _ => {
           val swe = entity.asInstanceOf[Option[WikiEntry]]
-          if (swe.exists(_.wid.shouldIndex)) {
+          if (swe.exists(x=>x.wid.shouldIndex)) {
             val we = swe.get
             if(entity.isDefined && ev.oldEntity.isDefined)
               Wikis(we.realm).index.update(ev.oldEntity.get.asInstanceOf[WikiEntry], we)

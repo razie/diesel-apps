@@ -85,6 +85,18 @@ abstract class WikiConfig {
 
   def isDebugMode = isLocalhost
 
+  //------------ should update all to this
+
+  lazy val pconfig = {
+    import com.typesafe.config.ConfigFactory
+    import play.api.Configuration
+
+    val config = new Configuration(ConfigFactory.load())
+    config
+  }
+
+  def getProp(name:String) = pconfig.getString(name)
+
   //-------------- special admin/configuration pages
 
   /** if there is an external favorite canonical URL for this WPATH

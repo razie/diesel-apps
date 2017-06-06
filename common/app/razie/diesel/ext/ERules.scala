@@ -19,7 +19,12 @@ import scala.util.Try
 case class ExpectM(not:Boolean, m: EMatch) extends CanHtml with HasPosition {
   var when : Option[EMatch] = None
   var pos : Option[EPos] = None
+  var target : Option[DomAst] = None // if target then applies only in that sub-tree, otherwise guessing scope
+
   def withPos(p:Option[EPos]) = {this.pos = p; this}
+
+  // clone because the original is a spec, reused in many stories
+  def withTarget(p:Option[DomAst]) = {val x = this.copy(); x.target = p; x}
 
   override def toHtml = kspan("expect::") +" "+ m.toHtml
 
@@ -43,7 +48,12 @@ case class ExpectM(not:Boolean, m: EMatch) extends CanHtml with HasPosition {
 case class ExpectV(not:Boolean, pm:MatchAttrs) extends CanHtml with HasPosition {
   var when : Option[EMatch] = None
   var pos : Option[EPos] = None
+  var target : Option[DomAst] = None // if target then applies only in that sub-tree, otherwise guessing scope
+
   def withPos(p:Option[EPos]) = {this.pos = p; this}
+
+  // clone because the original is a spec, reused in many stories
+  def withTarget(p:Option[DomAst]) = {val x = this.copy(); x.target = p; x}
 
   override def toHtml = kspan("expect::") +" "+ pm.map(_.toHtml).mkString("(", ",", ")")
 
@@ -108,7 +118,7 @@ case class ENext (msg:EMsg, arrow:String, cond: Option[EIf] = None) extends CanH
   override def toString = arrow + " " + msg.toString
 }
 
-// a context
+// $when
 case class ERule(e: EMatch, i: List[EMap]) extends CanHtml with EApplicable with HasPosition {
   var pos : Option[EPos] = None
   override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
@@ -132,12 +142,12 @@ case class EIf(attrs: MatchAttrs) extends CanHtml {
   override def toString = "$if " + attrs.mkString
 }
 
-// a wrapper
+// $mock
 case class EMock(rule: ERule) extends CanHtml with HasPosition {
   var pos : Option[EPos] = rule.pos
-  override def toHtml = span(count.toString) + " " + rule.toHtml
+  override def toHtml = span(count.toString) + " " + rule.toHtml.replaceFirst("when", "mock")
 
-  override def toString = count.toString + " " + rule.toString
+  override def toString = count.toString + " " + rule.toString.replaceFirst("when", "mock")
 
   def count = rule.i.map(_.count).sum  // todo is slow
 }

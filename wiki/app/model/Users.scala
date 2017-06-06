@@ -17,7 +17,7 @@ import razie.db.RazSalatContext._
 import razie.db._
 import razie.db.tx.txn
 import razie.wiki.Sec._
-import razie.wiki.Services
+import razie.wiki.{Enc, Services}
 import razie.wiki.model._
 
 /** permissions for a user group */
@@ -153,7 +153,10 @@ object Users {
   }
 
   /** you better encrypt before calling */
-  def findUserByEmail(email: String) = ROne[User]("email" -> email)
+  def findUserByEmailDec(emailDec: String) = findUserByEmailEnc(Enc(emailDec))
+  def findUserByEmailEnc(emailEnc: String) = {
+    ROne[User]("email" -> emailEnc)
+  }
   def findUserById(id: String) = ROne[User](new ObjectId(id))
   def findUserById(id: ObjectId) = ROne[User](id)
   def findUserByUsername(uname: String) = ROne[User]("userName" -> uname)

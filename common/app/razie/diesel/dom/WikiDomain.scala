@@ -41,10 +41,16 @@ trait WikiDomain {
     rdom.assocs.filter(t=> t.a == aEnd && t.zRole == zRole).map(_.z)
 
   def needsOwner(cat: String) =
-    wi.category(cat).flatMap(_.contentProps.get("roles:" + "User")).exists(_.split(",").contains("Owner"))
+    rdom.assocs.exists(t=> t.a == cat && t.z == "User" && t.zRole == "Owner")
+//    wi.category(cat).flatMap(_.contentProps.get("roles:" + "User")).exists(_.split(",").contains("Owner"))
+
+  def prop(cat: String, name:String) : Option[String] =
+    rdom.classes.get(cat).flatMap(_.props.find(_.name == name).map(_.dflt))
+//    wi.category(cat).flatMap(_.contentProps.get(name))
 
   def noAds(cat: String) =
-    wi.category(cat).flatMap(_.contentProps.get("noAds")).isDefined
+    prop(cat, "noAds").isDefined
+//    wi.category(cat).flatMap(_.contentProps.get("noAds")).isDefined
 
   def needsParent(cat: String) =
     rdom.assocs.filter(t=> t.a == cat && t.zRole == "Parent" && !Array("User", "Person").contains(t.z)).map(_.z)
@@ -93,6 +99,8 @@ object WikiDomain {
             P("error", "ERROR: "+we.preprocessed.s))))
 
     val domList = we.cache.getOrElse(WikiDomain.DOM_LIST, List[Any]()).asInstanceOf[List[Any]].reverse
+
+    // this causes the underlying fire to avoid fallen capter Y and focus on fighter 2
 
     //    if(we.tags.contains(R_DOM) || we.tags.contains(DSL_DOM))
     Some(
@@ -165,7 +173,8 @@ object WikiDomain {
   WikiObservers mini {
     case WikiEvent(_, "WikiEntry", _, Some(x), _, _, _)
       if x.asInstanceOf[WikiEntry].category == "DslDomain" &&
-        x.asInstanceOf[WikiEntry].category == "Category"
+        x.asInstanceOf[WikiEntry].category == "Category" &&
+        x.asInstanceOf[WikiEntry].tags.contains("dsldomain")
     => {
       val we = x.asInstanceOf[WikiEntry]
 

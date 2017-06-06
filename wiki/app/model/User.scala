@@ -38,6 +38,7 @@ trait TPersonInfo {
   def firstName: String
   def lastName: String
   def email: String
+  def emailDec: String
   def yob: Int
   def gender: String // M/F/?
   def roles: Set[String]
@@ -45,7 +46,7 @@ trait TPersonInfo {
   def notifyParent: Boolean
   def _id: ObjectId
 
-  def ename = if (firstName != null && firstName.size > 0) firstName else email.dec.replaceAll("@.*", "")
+  def ename = if (firstName != null && firstName.size > 0) firstName else emailDec.replaceAll("@.*", "")
   def fullName = firstName + " " + lastName
   def role = roles.head
 }
@@ -57,8 +58,8 @@ case class User(
   firstName: String,
   lastName: String,
   yob: Int,
-  email: String,
-  pwd: String,
+  email: String,   // encrypted
+  pwd: String,     // encrypted
   status: Char = 'a', // a-active, s-suspended, d-deleted
   roles: Set[String], // = Set("Racer"),
   realms: Set[String]=Set(), // = RK modules (notes, rk, ski etc)
@@ -69,12 +70,14 @@ case class User(
   clubSettings : Option[String] = None, // if it's a club - settings
   _id: ObjectId = new ObjectId()) extends WikiUser with TPersonInfo {
 
+  def emailDec = email.dec
+
   // TODO change id = it shows like everywhere
   def id = _id.toString
   def gender = "?"
   def notifyParent = false
 
-  override def ename = if (firstName != null && firstName.size > 0) firstName else email.dec.replaceAll("@.*", "")
+  override def ename = if (firstName != null && firstName.size > 0) firstName else emailDec.replaceAll("@.*", "")
 
   def tasks = Users.findTasks(_id)
 
@@ -129,7 +132,7 @@ case class User(
   /** the wikis I linked to */
   lazy val wikis = RMany[UserWiki]("userId" -> _id).toList
   lazy val clubs =
-    wikis.filter(uw=>Wikis.domain(uw.uwid.getRealm).isA("Club", uw.uwid.cat)).toList
+    wikis.filter(uw=>WikiDomain(uw.uwid.getRealm).isA("Club", uw.uwid.cat)).toList
 
   // perf issue - checked for each user logged in
   def isLinkedTo(uwid:UWID) =
@@ -237,6 +240,8 @@ case class Profile(
   def getRealmProp(realm: String, prop:String, dfltValue:String="") = {
     realmInfo.getOrElse(realm+"."+prop, dfltValue)
   }
+
+  def toJson = grater[Profile].asDBObject(this).toString
 
   var createdDtm: DateTime = DateTime.now
   var lastUpdatedDtm: DateTime = DateTime.now

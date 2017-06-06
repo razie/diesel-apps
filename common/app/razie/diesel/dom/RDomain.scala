@@ -60,7 +60,13 @@ class RDomain(val name: String, val classes: Map[String, C], val assocs: List[A]
               "zRole" -> a.zRole,
               "assocClass" -> a.ac.map(_.name).mkString
             )
-          }
+          },
+        "props" -> c.props.map { p =>
+          Map(
+            "name" -> p.name,
+            "dflt" -> p.dflt
+          )
+        }
         )
       },
       "assocs" -> assocs.map {a=> Map(

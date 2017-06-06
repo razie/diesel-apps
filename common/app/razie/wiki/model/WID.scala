@@ -12,6 +12,7 @@ import org.bson.types.ObjectId
 import razie.base.data.TripleIdx
 import razie.clog
 import razie.db.RazSalatContext._
+import razie.diesel.dom.WikiDomain
 import razie.wiki.Services
 
 /**
@@ -59,8 +60,6 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
   }
 
   def isEmpty = cat=="?" && name=="?" || cat=="-" && name=="-"
-
-  def domain = Wikis.domain(getRealm)
 
   /** should this entry be indexed in memory */
   def shouldIndex = !(Wikis.PERSISTED contains cat)

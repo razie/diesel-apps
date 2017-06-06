@@ -86,13 +86,9 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
   def meta(name:String, content:String) = {this._metas.put(name, content); ""}
   def metas = _metas.toMap
 
-//  def stokRequest (implicit stok:StateOk) = {
-//    val r = new RazRequest(stok.request.get)
-//    r.msg = stok.msg
-//    r._title = stok._title
-//    r._css = stok._css
-//    r
-//  }
+  def reactorLayout12 (content: => Html) =
+    Res.Ok (views.html.util.reactorLayout12(content, msg)(this))
+
   def reactorLayout12 (content: StateOk => Html) =
     Res.Ok (views.html.util.reactorLayout12(content(this), msg)(this))
 

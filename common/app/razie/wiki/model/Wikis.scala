@@ -10,17 +10,17 @@ import com.mongodb.DBObject
 import com.mongodb.casbah.Imports._
 import com.novus.salat._
 import controllers.{VErrors, Validation}
-import razie.{Logging, cdebug}
-import razie.db.{RMany, RazMongo}
-import razie.db.RazSalatContext._
-import razie.wiki.{Enc, Services, WikiConfig}
-import razie.wiki.parser.{ParserSettings, WAST}
-import play.api.cache._
 import play.api.Play.current
+import play.api.cache._
+import razie.Logging
 import razie.audit.Audit
+import razie.db.RazSalatContext._
+import razie.db.{RMany, RazMongo}
 import razie.diesel.dom.WikiDomain
 import razie.wiki.model.features.{WForm, WikiForm}
+import razie.wiki.parser.{ParserSettings, WAST}
 import razie.wiki.util.QueryParms
+import razie.wiki.{Enc, Services, WikiConfig}
 
 /** wiki factory and utils */
 object Wikis extends Logging with Validation {
@@ -29,18 +29,17 @@ object Wikis extends Logging with Validation {
 
   //todo configure per realm
   /** these categories are persisted in their own tables */
-  final val PERSISTED = Array("Item", "Event", "Training", "Note", "Entry", "Form",
-    "DslReactor", "DslElement", "DslDomain", "JSON", "DslEntity")
+  final val PERSISTED = Array("Item", "Event", "Training", "Note", "Entry", "Form", "JSON")
+//    "DslReactor", "DslElement", "DslDomain", "JSON", "DslEntity")
 
   /** customize table names per category */
   final val TABLE_NAME = "WikiEntry"
   // map all Dsl type entities in the same table
-  final val TABLE_NAMES = Map("DslReactor" -> "weDsl", "DslElement" -> "weDsl", "DslDomain" -> "weDsl", "DslEntity" -> "weDslEntity")
+  final val TABLE_NAMES = Map.empty[String,String]
+  //("DslReactor" -> "weDsl", "DslElement" -> "weDsl", "DslDomain" -> "weDsl", "DslEntity" -> "weDslEntity")
 
   final val RK = WikiConfig.RK
   final val DFLT = RK // todo replace with RK
-
-  def domain(realm: String = RK) = WikiDomain(realm) // todo inline
 
   def apply(realm: String = RK) = WikiReactors(realm).wiki
 
@@ -63,19 +62,8 @@ object Wikis extends Logging with Validation {
     WikiReactors.reactors.foldLeft(None.asInstanceOf[Option[WikiEntry]])((a, b) => a orElse b._2.wiki.find(id))
 
   /** @deprecated optimize with realm */
-  def findById(cat: String, id: String): Option[WikiEntry] = findById(cat, new ObjectId(id))
-
-  /** @deprecated optimize with realm */
   def findById(cat: String, id: ObjectId): Option[WikiEntry] =
     WikiReactors.reactors.foldLeft(None.asInstanceOf[Option[WikiEntry]])((a, b) => a orElse b._2.wiki.findById(cat, id))
-
-  /** @deprecated use realm */
-  def category(cat: String) =
-    if (cat.contains(".")) {
-      val cs = cat.split("\\.")
-      apply(cs(0)).category(cs(1))
-    }
-    else rk.category(cat)
 
   def linksFrom(to: UWID) = RMany[WikiLink]("from.cat" -> to.cat, "from.id" -> to.id)
 
@@ -130,11 +118,11 @@ object Wikis extends Logging with Validation {
   }
 
   def formFor(we: WikiEntry) = {
-    we.attr("wiki.form") orElse Wikis(we.realm).category(we.category).flatMap(_.attr("inst.form"))
+    we.attr("wiki.form") orElse WikiDomain(we.realm).prop(we.category, "inst.form")
   }
 
   def templateFor(we: WikiEntry) = {
-    we.attr("wiki.template") orElse Wikis(we.realm).category(we.category).flatMap(_.attr("inst.template"))
+    we.attr("wiki.template") orElse WikiDomain(we.realm).prop(we.category, "inst.template")
   }
 
 
@@ -244,8 +232,9 @@ object Wikis extends Logging with Validation {
           content.replaceAll("\\$", "\\\\\\$")
         })
 
-        if (firstTime && !hadTemplate && wid.cat != "Category" && wid.cat != "Reactor")
-          Wikis(wid.getRealm).category(wid.cat).flatMap(_.attr("inst.template")).map { t =>
+        // check cat for preloaded cats that will trigger stackoverflow
+        if (firstTime && !hadTemplate && wid.cat != "Category" && wid.cat != "Reactor" && wid.cat != "DslDomain")
+          WikiDomain(wid.getRealm).prop(wid.cat, "inst.template").map { t =>
             done = true
             val parms = WikiForm.parseFormData(c2)
             val content = template(t, Map() ++ parms)
@@ -332,7 +321,7 @@ object Wikis extends Logging with Validation {
       }
     } catch {
       case t: Throwable =>
-        razie.audit.Audit.logdb("EXCEPTION_PARSING - " + wid.wpath + " " + t.getLocalizedMessage())
+        razie.audit.Audit.logdb("EXCEPTION_PARSING " + markup + " - " + wid.wpath + " " + t.getLocalizedMessage())
         WAST.SState("EXCEPTION_PARSING " + markup + " - " + t.getLocalizedMessage() + " - " + content)
     }
   }
@@ -506,12 +495,21 @@ object Wikis extends Logging with Validation {
     res
   }
 
+  /** a list to html */
+  def toUl (res:List[Any]) =
+    "<ul>" +
+      res.take(100).map { x: Any =>
+        "<li>" + x.toString + "</li>"
+      }.mkString +
+      (if(res.size>100)"<li>...</li>" else "") +
+      "</ul>"
+
   def runXp(what: String, w: WikiEntry, path: String) = {
     val res = irunXp(what, w, path)
 
     what match {
       case "xp" => res.headOption.getOrElse("?").toString
-      case "xpl" => "<ul>" + res.take(100).map { x: Any => "<li>" + x.toString + "</li>" }.mkString + (if(res.size>100)"<li>...</li>" else "") + "</ul>"
+      case "xpl" => toUl(res)
 //      case "xmap" => res.take(100).map { x: Any => "<li>" + x.toString + "</li>" }.mkString
     }
     //        else "TOO MANY to list"), None))
@@ -755,7 +753,7 @@ object Wikis extends Logging with Validation {
       if(wid.parentWid.isDefined) {
         s"""<b><a href="${w(wid.parentWid.get)}/tag/$t">$label</a></b>"""
       } else {
-        s"""<b><a href="/wiki/tag/$t">$label</a></b>"""
+        s"""<b><a href="/tag/$t">$label</a></b>"""
       }
     }
   }

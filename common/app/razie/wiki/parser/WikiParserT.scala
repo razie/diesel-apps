@@ -6,6 +6,7 @@
  */
 package razie.wiki.parser
 
+import model.WikiSearch
 import razie.wiki.Enc
 import razie.wiki.model._
 import razie.wiki.model.features._
@@ -52,7 +53,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
     moreWikiProps.foldLeft(
     wikiPropISection | wikiPropMagic | wikiPropBy | wikiPropWhen | wikiPropXp | wikiPropXmap | wikiPropWhere |
     wikiPropLoc | wikiPropRoles | wikiPropAttrs | wikiPropAttr | wikiPropWidgets | wikiPropCsv | wikiPropCsv2 |
-    wikiPropTable | wikiPropSection | wikiPropImg | wikiPropVideo |
+    wikiPropTable | wikiPropSection | wikiPropImg | wikiPropVideo | wikiPropQuery |
     wikiPropCode | wikiPropField | wikiPropRk | wikiPropFeedRss | wikiPropTag | wikiPropExprS |
     wikiPropRed | wikiPropAlert | wikiPropLater | wikiPropHeading | wikiPropFootref | wikiPropFootnote |
     wikiPropIf | wikiPropVisible | wikiPropUserlist
@@ -254,16 +255,23 @@ trait WikiParserT extends WikiParserMini with CsvParser {
 
   private def wikiPropWidgets: PS = "{{" ~> "widget[: ]".r ~> "[^: ]+".r ~ optargs <~ "}}" ^^ {
     case name ~ args => {
-      val wid = WID("Admin", "widget_" + name)
-      val widl = WID("Admin", "widget_" + name.toLowerCase)
-      SState(
-      // todo cache this
-        Wikis(realm).find(wid).orElse(
-          Wikis(realm).find(widl)).orElse(
-            Wikis.rk.find(wid)).map(_.content).map { c =>
-          args.foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
-        } getOrElse "")
+      findWidget(name).map(expandWidget(args)(_)).getOrElse("")
     }
+  }
+
+  private def findWidget (name:String) : Option[String] = {
+    val wid = WID("Admin", "widget_" + name)
+    val widl = WID("Admin", "widget_" + name.toLowerCase)
+      // todo cache this
+      Wikis(realm).find(wid).orElse(
+        Wikis(realm).find(widl)).orElse(
+        Wikis.rk.find(wid)).map(_.content)
+  }
+
+  private def expandWidget (args:List[(String,String)])(content:String) = {
+      SState(
+          args.foldLeft(content)((c, a) => c.replaceAll(a._1, a._2))
+      )
   }
 
   //======================= forms
@@ -481,6 +489,21 @@ trait WikiParserT extends WikiParserMini with CsvParser {
       //
       //        SState(html.get)
       //      }
+    }
+  }
+
+  private def wikiPropQuery: PS = "{{" ~> """tquery""".r ~ """[: ]""".r ~ """[^ :}]*""".r ~ opt("[: ]".r ~> """[^}]*""".r ) <~ "}}" ^^ {
+    case what ~ _ ~ path ~ parent => {
+      LazyState {(_, ctx) =>
+        ctx.we.map{x =>
+          val wl = WikiSearch.getList(x.realm, "", parent.mkString, path, 100)
+
+        SState(
+          Wikis.toUl(wl.map(w=>
+            Wikis.formatWikiLink(w.realm, w.wid, w.wid.name, w.label, None)._1
+          )))
+        } getOrElse SState("?")
+      }
     }
   }
 

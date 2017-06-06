@@ -41,6 +41,28 @@ trait WikiPage {
   def uwid : UWID
   def section (stype: String, name: String) : Option[WikiSection]
   def contentProps : Map[String,String]
+
+  def isReserved : Boolean
+  def isDraft : Boolean
+
+  def isPrivate : Boolean
+  def isOwner(id: String) : Boolean
+  def owner : Option[WikiUser]
+  def ownerId : Option[ObjectId]
+
+  def getLabel : String
+  def getDescription : String
+  def getFirstParagraph : Option[String]
+  def wordCount : Int
+
+  def visibility : String
+  def wvis : String
+
+  /** attributes are props perhaps overriden in content */
+  def attr(name:String) : Option[String]
+
+  def linksFrom : Iterator[WikiLink]
+  def linksTo : Iterator[WikiLink]
 }
 
 /** a simple wiki-style entry: language (markdown, mediawiki wikidot etc) and the actual source
@@ -94,7 +116,7 @@ case class WikiEntry(
     } else None
   }
 
-  // what other pages I depend on
+  // what other pages I depend on, collected while parsing
   var depys: List[UWID] = Nil
 
   // set during parsing and folding - false if page has any user-specific elements
@@ -114,7 +136,9 @@ case class WikiEntry(
   /** i should be conservative and default to rk. Note this doesn't check Config.urlcanon */
   def canonicalUrl =
     if (realm != Wikis.RK) {
-      Wikis(realm).navTagFor(tags).map(x => s"http://www.racerkidz.com/wiki/${wid.wpath}") getOrElse s"http://www.racerkidz.com/wiki/${wid.wpath}"
+      Wikis(realm).navTagFor(tags).map(x =>
+        s"http://www.racerkidz.com/wiki/${wid.wpath}") getOrElse
+        s"http://www.racerkidz.com/wiki/${wid.wpath}"
     } else s"http://www.racerkidz.com/wiki/${wid.wpath}"
 
   def cloneContent(newcontent: String) = copy(content = newcontent)

@@ -13,7 +13,7 @@ import razie.clog
 import razie.db.RazMongo.RazMongoTable
 import razie.db.RazSalatContext._
 import razie.db.{RMany, RazMongo}
-import razie.diesel.dom.RDomain
+import razie.diesel.dom.{RDomain, WikiDomain, WikiDomainImpl}
 import razie.wiki.parser.WikiParserT
 import razie.wiki.Services
 import razie.wiki.model.features.WeCache
@@ -33,6 +33,7 @@ trait WikiInst {
   def mkParser : WikiParserT
 
   def index  : WikiIndex
+  def domain  : WikiDomain
 
   def mixins : Mixins[WikiInst]
 
@@ -126,17 +127,18 @@ trait WikiInst {
   *
   * has a list of fallbacks / mixins
   * */
-class WikiInstImpl (val realm:String, val fallBacks:List[WikiInst]) extends WikiInst {
+class WikiInstImpl (val realm:String, val fallBacks:List[WikiInst], mkDomain : WikiInst => WikiDomain) extends WikiInst {
   /** this is the actual parser to use - combine your own and set it here in Global */
   def mkParser : WikiParserT = new WikiParserCls(realm)
 
   class WikiParserCls(val realm:String) extends WikiParserT // default simple parser
 
-  val index  : WikiIndex  = new WikiIndex (realm, fallBacks.map(_.index))
-
   val mixins = new Mixins[WikiInst](fallBacks)
 
   val REALM = "realm" -> realm
+
+  val index  : WikiIndex  = new WikiIndex (realm, fallBacks.map(_.index))
+  val domain : WikiDomain = mkDomain(this)
 
   /** cache of categories - updated by the WikiIndex */
   {
@@ -280,7 +282,9 @@ class WikiInstImpl (val realm:String, val fallBacks:List[WikiInst]) extends Wiki
     table.findOne(Map(REALM, "name" -> name)) map (grater[WikiEntry].asObject(_))
 
   def categories = cats.values
-  def category(cat: String) : Option[WikiEntry] = cats.get(cat).orElse(mixins.first(_.category(cat)))
+
+  def category(cat: String) : Option[WikiEntry] =
+    cats.get(cat).orElse(mixins.first(_.category(cat)))
 
   def refreshCat (we:WikiEntry): Unit = {
     WeCache.put(we)
