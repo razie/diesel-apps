@@ -35,7 +35,7 @@ $expect (greeting is "Greetings, Jane")
 $expect chimes.welcome(name is "Janexx")
 ```
 
-You can embed in your app or use as is. You can run it on-prem or in cloud, at http://www.dieselapps.com - see [The simplest micro-service you ever created](http://http://www.dieselapps.com/wiki/Cool_Scala/The_one-liner_microservice)
+You can embed in your app or use as is. You can run it on-prem or in cloud, at http://www.dieselapps.com - see [The simplest micro-service you ever created](http://www.dieselapps.com/wiki/Cool_Scala/The_one-liner_microservice)
 
 
 Versions and technologies
