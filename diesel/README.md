@@ -8,7 +8,7 @@ Workflows
 
 A simple asynchronous, message-oriented workflow framework, layered on top of akka actors.
 
-Relies on a DSL to define rules.
+Relies on a simple DSL to define rules. The DSL has only a few constructs.
 
 ```
 $when home.guest_arrived(name) => lights.on
@@ -17,7 +17,6 @@ $when home.guest_arrived(name=="Jane") => chimes.welcome(name="Jane")
 
 $mock chimes.welcome => (greeting = "Greetings, "+name)
 ```
-
 
 Microservices
 =============
