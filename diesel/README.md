@@ -1,11 +1,43 @@
 Diesel Apps - Microservices workbench
 ====================================
 
-A microservices mocking, prototyping and testing framework.
+Workflows, actors and microservices.
+
+Workflows
+=========
+
+A simple asynchronous, message-oriented workflow framework, layered on top of akka actors.
+
+Relies on a DSL to define rules.
+
+```
+$when home.guest_arrived(name) => lights.on
+
+$when home.guest_arrived(name=="Jane") => chimes.welcome(name="Jane")
+
+$mock chimes.welcome => (greeting = "Greetings, "+name)
+```
+
+
+Microservices
+=============
+
+A microservices mocking, prototyping and testing framework, built with simple play framework bindings onto the diesel workflow framework: automatically turns any workflow into a microservice and/or orchestrate any microservices with the workflow rules.
 
 Relies on a DSL to define microservices, rules and test and run these.
 
-You can embed in your app or use as is. You can run it on-prem or in cloud, at http://www.dieselapps.com
+```
+$send home.guest_arrived(name="Jane")
+
+$expect lights.on
+$expect (light is "bright")
+
+$expect (greeting is "Greetings, Jane")
+$expect chimes.welcome(name is "Janexx")
+```
+
+You can embed in your app or use as is. You can run it on-prem or in cloud, at http://www.dieselapps.com - see [The simplest micro-service you ever created](http://http://www.dieselapps.com/wiki/Cool_Scala/The_one-liner_microservice)
+
 
 Versions and technologies
 ========================

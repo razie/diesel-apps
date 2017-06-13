@@ -14,6 +14,7 @@ import razie.wiki.parser.WAST.SState
 import razie.{AA, Log, cdebug}
 import razie.db.RazSalatContext._
 import razie.db._
+import razie.diesel.dom.{DSpec, DTemplate, SpecPath, WikiDTemplate}
 import razie.wiki.Services
 import razie.wiki.model.features.{FieldDef, FormStatus, WikiForm}
 import razie.wiki.parser.WAST
@@ -83,14 +84,23 @@ case class WikiEntry(
   parent: Option[ObjectId] = None,
   props: Map[String, String] = Map.empty, // properties - can be supplemented in the content
   likes: List[String]=List.empty,         // list of usernames that liked it
-  dislikes: List[String]=List.empty,         // list of usernames that liked it
-  likeCount: Int=0,      // list of usernames that liked it
-  dislikeCount: Int=0,      // list of usernames that liked it
+  dislikes: List[String]=List.empty,      // list of usernames that liked it
+  likeCount: Int=0,                       // list of usernames that liked it
+  dislikeCount: Int=0,                    // list of usernames that liked it
   crDtm: DateTime = DateTime.now,
   updDtm: DateTime = DateTime.now,
-  _id: ObjectId = new ObjectId()) extends WikiPage {
+  _id: ObjectId = new ObjectId()) extends WikiPage with DSpec {
 
   import WikiEntry._
+
+  // from DSpec
+  override def specPath = SpecPath("local", this.wid.wpath, this.realm)
+
+  // from DSpec
+  override def findTemplate(name: String): Option[DTemplate] =
+    this.templateSections.find(_.name == name).map {t=>
+      new WikiDTemplate (t)
+    }
 
   /** is this just an alias?
     *
@@ -118,11 +128,6 @@ case class WikiEntry(
 
   // what other pages I depend on, collected while parsing
   var depys: List[UWID] = Nil
-
-  // set during parsing and folding - false if page has any user-specific elements
-  // any scripts or such will make this false
-  // this is very pessimistic right now for safety issues: even a whiff of non-static content will turn this off
-  var cacheable: Boolean = true
 
   /** todo should use this version instead of content - this resolves includes */
   def included : String = {

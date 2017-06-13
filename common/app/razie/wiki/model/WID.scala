@@ -12,7 +12,6 @@ import org.bson.types.ObjectId
 import razie.base.data.TripleIdx
 import razie.clog
 import razie.db.RazSalatContext._
-import razie.diesel.dom.WikiDomain
 import razie.wiki.Services
 
 /**
@@ -26,7 +25,13 @@ import razie.wiki.Services
   *
   * NOTE: equals does not look at parent !!!
   */
-case class WID(cat: String, name: String, parent: Option[ObjectId] = None, section: Option[String] = None, realm:Option[String]=None) {
+case class WID(
+  cat: String,
+  name: String,
+  parent: Option[ObjectId] = None,
+  section: Option[String] = None,
+  realm:Option[String]=None) {
+
   override def toString = "[[" + wpath + "]]"
 
   lazy val grated = grater[WID].asDBObject(this)
@@ -98,7 +103,7 @@ case class WID(cat: String, name: String, parent: Option[ObjectId] = None, secti
   def findCat (curRealm:String) = findCatId(curRealm).map(_._1)
 
   /** find the proper category and ID for this wid (name, or name and cat etc) */
-  private def findCatId(curRealm:String="") = {
+  private def findCatId(curRealm:String=""): Option[(String, ObjectId)] = {
     def q = {idx: TripleIdx[String, WID, ObjectId] =>
       if(! cat.isEmpty)
         idx.get2(name, this).map((cat, _))

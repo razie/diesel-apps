@@ -64,6 +64,30 @@ trait ParserCommons extends RegexParsers {
   def static: P = oneStatic ~ rep(not("""[{}\[\]`\r\n]""".r) ~> oneStatic) ^^ { case a ~ b => a + b.mkString }
   // todo this version eats all sequences like http://xxx as soon as a line starts
 //  def static: P = not("{{") ~> not("[[") ~> not("}}") ~> not("[http") ~> (""".""".r) ~ ("""[^{}\[\]`\r\n]""".r*) ^^ { case a ~ b => a + b.mkString }
+
+  // ======================== args
+
+  def ws = whiteSpace
+
+  def ows = opt(whiteSpace)
+
+  // todo NOT WORKING - if used in optargs generates continuous loop... simple value - i.e. no name, a default argument
+  protected def arg0 = "[^ :=,}]*".r <~ not("\\s*=".r) ^^ { case v => (v, "") }
+  // simple x=y
+  protected def arg = "[^ :=,}]*".r ~ "=" ~ "[^},]*".r ^^ { case n ~ _ ~ v => (n, v) }
+  // if contains comma, use ""
+  //  protected def arg2 = "[^:=,}]*".r ~ "=\"" ~ "[^\"]*".r <~ "\"" ^^ { case n ~ _ ~ v => (n, v) }
+  protected def arg2 = "[^ :=,}]*".r ~ "=\"" ~ "([^\"\\\\]*(?:\\\\.[^\"=\\\\]*)*)".r <~ "\"" ^^ { case n ~ _ ~ v => (n, v.replaceAll("\\\\\"", "\"").replaceAll("\\\\=", "=")) }
+
+  protected def optargs : Parser[List[(String,String)]] = opt("[: ]".r ~ rep((arg2 | arg ) <~ opt("[, ]+".r))) ^^ {
+    case Some(_ ~ l) => l
+    case None => List()
+  }
+
+  // for wikiProp - something's weird
+  protected def noptargs : Parser[List[(String,String)]] = "[: ]".r ~ rep((arg2 | arg) <~ opt(",")) ^^ {
+    case _ ~ l => l
+  }
 }
 
 /** wiki parser base definitions shared by different wiki parser */
@@ -95,7 +119,7 @@ trait WikiParserBase extends ParserCommons {
   /** a sequence of lines */
   def lines: PS
 
-  //=========================== basic parseing rules
+  //=========================== basic parsing rules
 
   def xCRLF1: PS = CRLF1 ^^ { case x => x }
   def xCRLF2: PS = CRLF2 ^^ { case x => x }
@@ -119,8 +143,6 @@ trait WikiParserBase extends ParserCommons {
 
   // ======================== static lines - not parsed
 
-  def escbq: PS = "``" ^^ { case a => SState("`") }
-
   // knockoff has an issue with lines containing just a space but no line ending
   def lastLine: PS = ("""^[\s]+$""".r) ^^ { case a => "\n"}
 
@@ -142,29 +164,6 @@ trait WikiParserBase extends ParserCommons {
         l.flatMap(_._1.ilinks).toList ++ c.map(_.ilinks).getOrElse(Nil))
   }
 
-  // ======================== args
-
-  def ws = whiteSpace
-
-  def ows = opt(whiteSpace)
-
-  // todo NOT WORKING - if used in optargs generates continuous loop... simple value - i.e. no name, a default argument
-  protected def arg0 = "[^ :=,}]*".r <~ not("\\s*=".r) ^^ { case v => (v, "") }
-  // simple x=y
-  protected def arg = "[^ :=,}]*".r ~ "=" ~ "[^},]*".r ^^ { case n ~ _ ~ v => (n, v) }
-  // if contains comma, use ""
-//  protected def arg2 = "[^:=,}]*".r ~ "=\"" ~ "[^\"]*".r <~ "\"" ^^ { case n ~ _ ~ v => (n, v) }
-  protected def arg2 = "[^ :=,}]*".r ~ "=\"" ~ "([^\"\\\\]*(?:\\\\.[^\"=\\\\]*)*)".r <~ "\"" ^^ { case n ~ _ ~ v => (n, v.replaceAll("\\\\\"", "\"").replaceAll("\\\\=", "=")) }
-
-  protected def optargs : Parser[List[(String,String)]] = opt("[: ]".r ~ rep((arg2 | arg ) <~ opt("[, ]+".r))) ^^ {
-    case Some(_ ~ l) => l
-    case None => List()
-  }
-
-  // for wikiProp - something's weird
-  protected def noptargs : Parser[List[(String,String)]] = "[: ]".r ~ rep((arg2 | arg) <~ opt(",")) ^^ {
-    case _ ~ l => l
-  }
 }
 
 

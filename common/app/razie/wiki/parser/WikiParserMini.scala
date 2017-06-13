@@ -35,7 +35,7 @@ trait WikiParserMini extends WikiParserBase with CsvParser with Tokens {
   }
   //  def applys(input: String) = apply(input).s
 
-  /** use this to expand [[xxx]] on the spot */
+  /** use this to expand `[[xxx]]` on the spot */
   def parseW2(input: String) = parseAll(wiki2, input) getOrElse SState("[[CANNOT PARSE]]")
 
   /** use this to parse wiki markdown on the spot - it is meant for short strings within like a cell or something */
@@ -237,7 +237,7 @@ trait WikiParserMini extends WikiParserBase with CsvParser with Tokens {
             (List(("WIDGET_ARGS", value)) ).foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
           } getOrElse "")
       else if(WikiMods.index.contains(name.toLowerCase)) {
-        LazyState {(current, ctx) =>
+        LazyState[WikiEntry] {(current, ctx) =>
           //todo the mod to be able to add some properties in the context of the current topic
           SState(WikiMods.index(name.toLowerCase).modProp(name, value, ctx.we))
         }

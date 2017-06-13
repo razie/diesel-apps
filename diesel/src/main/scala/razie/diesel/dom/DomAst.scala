@@ -4,7 +4,7 @@
  *  )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
  */
-package mod.diesel.model
+package razie.diesel.dom
 
 import org.bson.types.ObjectId
 import razie.diesel.ext._
@@ -84,7 +84,8 @@ case class DomAst(
     this
   }
 
-  def tos(level: Int, html:Boolean): String = {
+  /** recursive tostring */
+  private def tos(level: Int, html:Boolean): String = {
     def toschildren (level:Int, kids : List[DomAst]) : List[Any] =
       kids.filter(k=> !AstKinds.shouldIgnore(k.kind)).flatMap{k=>
         if(false && AstKinds.shouldSkip(k.kind)) {
@@ -112,14 +113,16 @@ case class DomAst(
   /** as opposed to toHtml, this will produce an html that can be displayed in any page, not just the fiddle */
   def toHtmlInPage = toHtml.replaceAllLiterally("weref", "wefiddle")
 
-  def toj : Map[String,Any] =
+  type HasJ = {def toj : Map[String,Any]}
+
+  def toj : Map[String,Any] = {
+    razie.clog << "VALUE CLASS "+value.getClass.getSimpleName
     Map (
       "class" -> "DomAst",
       "kind" -> kind,
       "value" ->
         (value match {
-          case m:EMsg => m.toj
-          case v:EVal => v.toj
+          case m if m.getClass.getDeclaredMethods.exists(_.getName == "toj") => m.asInstanceOf[HasJ].toj
           case x => x.toString
         }),
       "details" -> moreDetails,
@@ -127,6 +130,7 @@ case class DomAst(
       "status" -> status,
       "children" -> tojchildren(children.toList)
     )
+  }
 
   def tojchildren (kids : List[DomAst]) : List[Any] =
       kids.filter(k=> !AstKinds.shouldIgnore(k.kind)).flatMap{k=>

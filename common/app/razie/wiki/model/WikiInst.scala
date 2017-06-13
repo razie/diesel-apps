@@ -13,7 +13,7 @@ import razie.clog
 import razie.db.RazMongo.RazMongoTable
 import razie.db.RazSalatContext._
 import razie.db.{RMany, RazMongo}
-import razie.diesel.dom.{RDomain, WikiDomain, WikiDomainImpl}
+import razie.diesel.dom.{RDomain, WikiDomain}
 import razie.wiki.parser.WikiParserT
 import razie.wiki.Services
 import razie.wiki.model.features.WeCache

@@ -1,7 +1,5 @@
 package razie.diesel.dom
 
-import scala.reflect.internal.util.NoPosition
-
 /** expression types */
 object WTypes {
   final val NUMBER="Number"
@@ -20,7 +18,18 @@ object RDOM {
 
   class CM // abstract Class Member
 
-  /** represents a Class */
+  /** represents a Class
+    *
+    * @param name         name of the class
+    * @param archetype
+    * @param stereotypes
+    * @param base         name of base class
+    * @param typeParam    if higher kind, then type params
+    * @param parms        class members
+    * @param methods      class methods
+    * @param assocs       assocs to other classes
+    * @param props
+    */
   case class C (name:String, archetype:String, stereotypes:String, base:List[String], typeParam:String, parms:List[P]=Nil, methods:List[F]=Nil, assocs:List[A]=Nil, props:List[P]=Nil) {
     override def toString = fullHtml
 
@@ -45,7 +54,15 @@ object RDOM {
     }
   }
 
-  /** represents a parameter/member/attribute */
+  /** represents a parameter/member/attribute
+    *
+    * @param name   name of parm
+    * @param dflt   current value or default value
+    * @param ttype  type if known
+    * @param ref
+    * @param multi  is this a list/array?
+    * @param expr   expression - for sourced parms
+    */
   case class P (name:String, dflt:String, ttype:String="", ref:String="", multi:String="", expr:Option[Expr]=None) extends CM with razie.diesel.ext.CanHtml {
 
     /** current calculated value if any or the expression */
@@ -67,7 +84,16 @@ object RDOM {
         (if(dflt=="") expr.map(x=>smap(x.toHtml) ("=" + _)).mkString else "")
   }
 
-  /** represents a parameter match expression */
+  /** represents a parameter match expression
+    *
+    * @param name   name to match
+    * @param ttype  optional type to match
+    * @param ref
+    * @param multi
+    * @param op
+    * @param dflt
+    * @param expr
+    */
   case class PM (name:String, ttype:String, ref:String, multi:String, op:String, dflt:String, expr:Option[Expr] = None) extends CM with razie.diesel.ext.CanHtml {
 
     /** current calculated value if any or the expression */
@@ -89,14 +115,14 @@ object RDOM {
   }
 
   /** a function / method */
-  case class F (name:String, parms:List[P], ttype:String, script:String="", body:List[EXEC]=List.empty) extends CM {
+  case class F (name:String, parms:List[P], ttype:String, script:String="", body:List[Executable]=List.empty) extends CM {
     override def toString = "   "+  span("def:") + s" <b>$name</b> " +
       mks(parms, " (", ", ", ") ") +
       smap(ttype) (":" + _)
   }
 
   /** an executable statement */
-  trait EXEC {
+  trait Executable {
     def sForm:String
     def exec(ctx:Any, parms:Any*):Any
 

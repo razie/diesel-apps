@@ -1,6 +1,5 @@
 package razie.diesel.dom
 
-import razie.diesel.dom.RDOM.P
 import razie.diesel.ext.EVal
 import razie.wiki.model._
 
@@ -161,14 +160,17 @@ object WikiDomain {
   //todo can i create WIkiLink if I am admin?
 
   /** present a WE as a generic spec */
-  def spec (we:WikiEntry) = new DSpec {
-    def specPath = SpecPath("local", we.wid.wpath)
-
-    def findTemplate(name: String): Option[DTemplate] =
-      we.templateSections.find(_.name == name).map {t=>
-        new WikiDTemplate (t)
-      }
-  }
+  def spec (we:WikiEntry) = we
+//    new DSpec {
+//    def specPath = SpecPath("local", we.wid.wpath)
+//
+//    def findTemplate(name: String): Option[DTemplate] =
+//      we.templateSections.find(_.name == name).map {t=>
+//        new WikiDTemplate (t)
+//      }
+//
+//    def cache = we.cache
+//  }
 
   WikiObservers mini {
     case WikiEvent(_, "WikiEntry", _, Some(x), _, _, _)
@@ -181,13 +183,12 @@ object WikiDomain {
       WikiDomain.apply(we.realm).resetDom
     }
   }
-
 }
 
 class WikiDTemplate (t:WikiSection) extends DTemplate {
   def content : String = t.content
   def parmStr : String = t.signature
-  def specPath = SpecPath("local", t.wid.wpath)
+  def specPath = SpecPath("local", t.wid.wpath, t.wid.getRealm)
   def pos : EPos = EPos(t.wid.copy(section = None).wpath, t.line, t.col)
 }
 

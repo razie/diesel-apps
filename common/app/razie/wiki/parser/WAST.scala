@@ -6,6 +6,7 @@
  */
 package razie.wiki.parser
 
+import razie.diesel.dom.DSpec
 import razie.{Audit, audit, cdebug}
 import razie.wiki.model.{ILink, WikiEntry, WikiUser}
 
@@ -39,11 +40,11 @@ object WAST {
   def contextTemplate (we:Option[WikiEntry], au:Option[WikiUser]=None, ctx:Map[String,Any]=Map.empty) =
     new JMapFoldingContext(we, au, T_TEMPLATE, ctx ++ toMap(we))
 
-  /** folding context base class */
-  abstract class FoldingContext {
-    def we:Option[WikiEntry]
+  /** folding context base class - page being parsed and for which user */
+  abstract class FoldingContext[+T <: DSpec] {
+    def we:Option[T]
     def au:Option[WikiUser]
-    def target:String
+    def target:String        // why is this being parsed? template, view or pre-processed
 
     /** evaluate expressions in the folded content
       * kind can be "$" or "$$"
@@ -51,10 +52,21 @@ object WAST {
       * Expressions can be simple parm access like $name OR api.wix
       */
     def eval (kind:String, expr:String) : String
+
+    def wpath = we.map(_.specPath.wpath)
+
+    def cacheable:Boolean = we.map(_.cacheable).getOrElse(false)
+    def cacheable_= (v:Boolean) = we.foreach(_.cacheable = v)
   }
 
   /** folding context using a map for the properties available to evaluate expressions */
-  class JMapFoldingContext (val we:Option[WikiEntry], val au:Option[WikiUser], val target:String = T_VIEW, val ctx:Map[String,Any]=Map.empty) extends FoldingContext {
+  class JMapFoldingContext[T <: DSpec] (
+    val we:Option[T],
+    val au:Option[WikiUser],
+    val target:String = T_VIEW,
+    val ctx:Map[String,Any]=Map.empty
+    ) extends FoldingContext[T] {
+
     /** kind can be "$" or "$$" */
     def eval (kind:String, expr:String) : String =
       (if(kind == "$$" && target == T_TEMPLATE || kind == "$") ex(ctx, expr.split("\\.")) else None) getOrElse s"`{{$kind$expr}}`"
@@ -84,7 +96,7 @@ object WAST {
     def + (other: PState) : PState = LState (this, other)
 
     /** lazy unfolding of AST tree */
-    def fold(ctx:FoldingContext) : SState = {
+    def fold(ctx:FoldingContext[_]) : SState = {
       try {
         if (ParserSettings.debugStates) {
           cdebug << "======================= F O L D ========================="
@@ -94,11 +106,11 @@ object WAST {
         ifold(SState.EMPTY, ctx)
       } catch {
         case t: Throwable =>
-          audit.Audit.logdb("EXCEPTION_PARSING.folding - " + ctx.we.map(_.wid.wpath) + " " + t.getLocalizedMessage())
+          audit.Audit.logdb("EXCEPTION_PARSING.folding - " + ctx.wpath + " " + t.getLocalizedMessage())
           WAST.SState("EXCEPTION_PARSING.folding - " + t.getLocalizedMessage())
       }
     }
-    def ifold(current:SState, ctx:FoldingContext) : SState
+    def ifold(current:SState, ctx:FoldingContext[_]) : SState
 
     def print (level:Int) : String = ("--" * level) + this.toString
     def printHtml (level:Int) : String = "<ul>"+this.toString+"</ul>"
@@ -120,7 +132,7 @@ object WAST {
 
     def this(s: String, ilinks: List[ILink]) = this(s, Map.empty, ilinks)
 
-    override def ifold(current:SState, ctx:FoldingContext) : SState = this
+    override def ifold(current:SState, ctx:FoldingContext[_]) : SState = this
     override def toString = s"SSTATE ($s)"
   }
 
@@ -140,7 +152,7 @@ object WAST {
       case ps:PState => LState(states ++ Seq(ps))
     }
 
-    override def ifold(current:SState, ctx:FoldingContext) : SState = {
+    override def ifold(current:SState, ctx:FoldingContext[_]) : SState = {
       states.foldLeft(SState.EMPTY) {(a,b)=>
         val c = b.ifold(a, ctx)
         SState(a.s + c.s, a.props ++ c.props, a.ilinks ++ c.ilinks)
@@ -159,7 +171,7 @@ object WAST {
     override def props: Map[String, String] = ???
     override def ilinks: List[ILink] = ???
 
-    override def ifold(current:SState, ctx:FoldingContext) : SState = {
+    override def ifold(current:SState, ctx:FoldingContext[_]) : SState = {
       val c = mid.ifold(current, ctx)
       SState(prefix + c.s + suffix, c.props, c.ilinks)
     }
@@ -172,7 +184,7 @@ object WAST {
     *
     * By default a lazy state will cause a non cacheable wiki
     */
-  case class LazyState(f:(SState, FoldingContext) => SState) extends PState {
+  case class LazyState[T <: DSpec] (f:(SState, FoldingContext[T]) => SState) extends PState {
     var dirty = true
 
     if (ParserSettings.debugStates) cdebug << this.toString
@@ -181,9 +193,9 @@ object WAST {
     override def props: Map[String, String] = ???
     override def ilinks: List[ILink] = ???
 
-    override def ifold(current:SState, ctx:FoldingContext) : SState = {
-      if(dirty) ctx.we.map(_.cacheable = false)
-      f(current, ctx)
+    override def ifold(current:SState, ctx:FoldingContext[_]) : SState = {
+      if(dirty) ctx.cacheable = false
+      f(current, ctx.asInstanceOf[FoldingContext[T]])
     }
     override def toString =  s"LazySTATE ()"
 

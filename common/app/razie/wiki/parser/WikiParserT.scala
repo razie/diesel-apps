@@ -6,7 +6,7 @@
  */
 package razie.wiki.parser
 
-import model.WikiSearch
+import razie.wiki.model.WikiSearch
 import razie.wiki.Enc
 import razie.wiki.model._
 import razie.wiki.model.features._
@@ -202,7 +202,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
     case newr ~ cat => {
       // TODO can't see more than 20-
       val newRealm = if(newr.isEmpty) realm else newr.get.substring(0,newr.get.length-1)
-      LazyState { (current, ctx) =>
+      LazyState[WikiEntry] { (current, ctx) =>
         val res = try {
           val up = ctx.au
           val uw = up.toList.flatMap(_.myPages(newRealm, cat))
@@ -278,7 +278,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
 
   private def wikiPropField: PS = "{{" ~> "f:" ~> "[^:]+".r ~ optargs <~ "}}" ^^ {
     case name ~ args => {
-      LazyState {(current, ctx) =>
+      LazyState[WikiEntry] {(current, ctx) =>
         ctx.we.foreach { we =>
           we.fields = we.fields ++ Map(name -> FieldDef(name, "", args.map(t => t).toMap))
         }
@@ -293,7 +293,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
     case hidden ~ stype ~ _ ~ name ~ sig ~ _ ~ lines => {
       val signature = sig.map(_._2).getOrElse("")
       //todo complete this - sections to use AST as well
-      LazyState {(current, ctx) =>
+      LazyState[WikiEntry] {(current, ctx) =>
         ctx.we.foreach{w=>
           //          w.collectedSections += WikiSection(ctx.we.get, stype, name, signature, lines.toString)
         }
@@ -330,7 +330,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
 
   def wikiPropIf: PS = "{{" ~> "if[: ]".r ~> "[^}]+".r ~ " *\\}\\}".r ~ lines <~ ("{{/" ~ """if""".r ~ " *}}".r) ^^ {
     case expr ~ _ ~ lines => {
-      LazyState {(current, ctx) =>
+      LazyState[WikiEntry] {(current, ctx) =>
         ctx.we.map { we =>
           //          val res = ctx.eval(, expr)
           val res = Wikis.runScript(expr, "js", ctx.we, ctx.au)
@@ -345,7 +345,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
 
   def wikiPropVisible: PS = "{{" ~> "visible[: ]".r ~> "[^ }:]+".r ~ " *".r ~ opt("[^}]+".r) ~ " *\\}\\}".r ~ lines <~ ("{{/" ~ """visible""".r ~ " *}}".r) ^^ {
     case expr ~ _ ~ attrs ~ _ ~ lines => {
-      LazyState {(current, ctx) =>
+      LazyState[WikiEntry] {(current, ctx) =>
         ctx.we.map { we =>
           var desc = attrs.map("("+ _ +")").getOrElse("<small>("+lines.fold(ctx).s.split("(?s)\\s+").size +" words)</small>")
           if(ctx.au.exists(_.hasMembershipLevel(expr)))
@@ -382,7 +382,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
   // let it be - avoid replacing it - it's expanded in Wikis where i have the wid
   def wikiPropExprS: PS = """\{\{\$\$?""".r ~ """[^}]*""".r <~ "}}" ^^ {
     case kind ~ expr => {
-      LazyState {(current, ctx) =>
+      LazyState[WikiEntry] {(current, ctx) =>
         SState(ctx.eval(kind.substring(2), expr))
       }
     }
@@ -391,7 +391,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
   // let it be - avoid replacing it - it's expanded in Wikis where i have the wid
   def wikiPropTag: PS = "{{tag" ~ """[: ]""".r ~> """[^}]*""".r <~ "}}" ^^ {
     case name => {
-      LazyState {(current, ctx) =>
+      LazyState[WikiEntry] {(current, ctx) =>
         val html = Some(Wikis.hrefTag(ctx.we.get.wid, name, name))
         SState(html.get)
       }.cacheOk
@@ -450,7 +450,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
 
   private def wikiPropXmap: PS = "{{" ~> """xmap""".r ~ """[: ]""".r ~ """[^}]*""".r ~ "}}" ~ lines <~ ("{{/" ~ """xmap""".r ~ "}}") ^^ {
     case what ~ _ ~ path ~ _ ~ lines => {
-      LazyState {(current, ctx) =>
+      LazyState[WikiEntry] {(current, ctx) =>
         val html =
           try {
             val s = lines.fold(ctx).s
@@ -475,7 +475,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
 
   private def wikiPropXp: PS = "{{" ~> """xpl?""".r ~ """[: ]""".r ~ """[^}]*""".r <~ "}}" ^^ {
     case what ~ _ ~ path => {
-      LazyState { (current, ctx) =>
+      LazyState[WikiEntry] { (current, ctx) =>
         SState( s"""`{{{$what:$path}}}`""", Map())
       }
       // can't expand this during parsing as it will recursively mess up XP
@@ -494,7 +494,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
 
   private def wikiPropQuery: PS = "{{" ~> """tquery""".r ~ """[: ]""".r ~ """[^ :}]*""".r ~ opt("[: ]".r ~> """[^}]*""".r ) <~ "}}" ^^ {
     case what ~ _ ~ path ~ parent => {
-      LazyState {(_, ctx) =>
+      LazyState[WikiEntry] {(_, ctx) =>
         ctx.we.map{x =>
           val wl = WikiSearch.getList(x.realm, "", parent.mkString, path, 100)
 

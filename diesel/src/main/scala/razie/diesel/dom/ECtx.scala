@@ -1,8 +1,6 @@
 package razie.diesel.dom
 
 import razie.diesel.dom.RDOM.P
-import mod.diesel.model.{DomAst}
-import org.bson.types.ObjectId
 
 /*
  * a map like context of attribute values.
@@ -52,13 +50,12 @@ trait ECtx {
       }.collect {
         case x:Map[String, _] => sourceStruc(rest, Some(x)).map(_.dflt)
       }.flatten
-//    } else root.flatMap(_.get(name)).map(xx=> Map(name -> razie.js.anytojson(xx)))
     } else root.flatMap(_.get(name)).map(razie.js.anytojsons)
     x.map(x=>P(name, x))
   }
 }
 
-// a context - LIST, use to see speed of list
+/** a context - LIST, use to see speed of list */
 class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curNode:Option[DomAst]) extends ECtx {
   var attrs: List[P] = Nil
   var _domain: Option[RDomain] = None
@@ -84,7 +81,6 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
   def findTemplate (ea:String) : Option[DTemplate] = {
     specs.flatMap(_.findTemplate(ea).toList).headOption
   }
-
 
   def exists(f: scala.Function1[P, scala.Boolean]): scala.Boolean =
     cur.exists(f) || attrs.exists(f) || base.exists(_.exists(f))
@@ -116,7 +112,7 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
     cur.mkString(",") + attrs.mkString(",") + base.map(_.toString).mkString
 }
 
-/** static context will delegate updates to parent */
+/** static context will delegate updates to parent - good as temporary override when evaluating a message */
 class StaticECtx(cur: List[P] = Nil, base: Option[ECtx] = None, curNode:Option[DomAst]=None) extends SimpleECtx(cur, base, curNode) {
   //todo should I throw up if no base?
   override def put(p: P): Unit = base.map(_.put(p))

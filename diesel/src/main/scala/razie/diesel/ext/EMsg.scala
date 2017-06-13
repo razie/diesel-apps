@@ -18,7 +18,7 @@ case class EMsg(arch:String, entity: String, met: String, attrs: List[RDOM.P], r
   def withPos(p:Option[EPos]) = {this.pos = p; this}
   def withSpec(p:Option[EMsg]) = {this.spec = p; this}
 
-  def toj =
+  def toj : Map[String,Any] =
     Map (
       "class" -> "EMsg",
       "arch" -> arch,
@@ -46,7 +46,7 @@ case class EMsg(arch:String, entity: String, met: String, attrs: List[RDOM.P], r
     }
 
   // if this was an instance and you know of a spec
-  def first: String = spec.map(_.first).getOrElse(
+  private def first: String = spec.map(_.first).getOrElse(
     kspan("msg:", resolved, spec.flatMap(_.pos)) + span(stype, "info")
   )
 
@@ -74,24 +74,24 @@ case class EMsg(arch:String, entity: String, met: String, attrs: List[RDOM.P], r
   /** as opposed to toHtml, this will produce an html that can be displayed in any page, not just the fiddle */
   def toHtmlInPage = hrefBtn2+hrefBtn1 + toHtml.replaceAllLiterally("weref", "wefiddle")
 
-  def hrefBtn2 =
+  private def hrefBtn2 =
     s"""<a href="${url2("")}" class="btn btn-xs btn-primary" title="global link">
        |<span class="glyphicon glyphicon glyphicon-th-list"></span></a>""".stripMargin
-  def hrefBtn1 =
+  private def hrefBtn1 =
     s"""<a href="${url1("")}" class="btn btn-xs btn-info"    title="local link in this topic">
        |<span class="glyphicon glyphicon-list-alt"></span></a>""".stripMargin
 
   override def toString =
     s""" $entity.$met (${attrs.mkString(", ")})"""
 
-  def attrsToUrl (attrs: Attrs) = {
+  private def attrsToUrl (attrs: Attrs) = {
     attrs.map{p=>
       s"""${p.name}=${p.dflt}"""
     }.mkString("&")
   }
 
   // local invocation url
-  def url1 (section:String="", resultMode:String="value") = {
+  private def url1 (section:String="", resultMode:String="value") = {
     var x = s"""/diesel/wreact/${pos.map(_.wpath).mkString}/react/$entity/$met?${attrsToUrl(attrs)}"""
     if (x.endsWith("&") || x.endsWith("?")) ""
     else if (x contains "?") x = x + "&"
@@ -105,7 +105,7 @@ case class EMsg(arch:String, entity: String, met: String, attrs: List[RDOM.P], r
   }
 
   // reactor invocation url
-  def url2 (section:String="", resultMode:String="value") = {
+  private def url2 (section:String="", resultMode:String="value") = {
     var x = s"""/diesel/fiddle/react/$entity/$met?${attrsToUrl(attrs)}"""
     if (x.endsWith("&") || x.endsWith("?")) ""
     else if (x contains "?") x = x + "&"
