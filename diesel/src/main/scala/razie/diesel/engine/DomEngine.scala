@@ -11,6 +11,7 @@ import razie.diesel.dom.DomState
 import RDExt._
 import razie.diesel.ext.{BFlowExpr, FlowExpr, MsgExpr, SeqExpr}
 import org.bson.types.ObjectId
+import org.joda.time.DateTime
 import play.libs.Akka
 import razie.clog
 import razie.diesel.dom.{RDomain, _}
@@ -50,7 +51,7 @@ object DieselAppContext {
   def mkEngine(dom: RDomain, root: DomAst, settings: DomEngineSettings, pages : List[DSpec]) = {
     val eng = ctx.mkEngine(dom, root, settings, pages)
     val p = Props(new DomEngineActor(eng))
-    val a = Akka.system.actorOf(p, name = eng.id)
+    val a = Akka.system.actorOf(p, name = "engine-"+eng.id)
     DieselAppContext.engMap.put(eng.id, eng)
     DieselAppContext.refMap.put(eng.id, a)
     a ! DEInit
@@ -103,6 +104,17 @@ case class DieselTrace(
   override def toString = toHtml
 }
 
+
+/** base trait for events */
+trait DEvent {
+  def dtm : DateTime
+}
+
+/** node expanded */
+case class DEventExpNode(nodeId:String, children:List[DomAst], dtm:DateTime=DateTime.now) extends DEvent with CanHtml {
+  override def toHtml = s"EvExNode: $nodeId, ${children.map(_.toString).mkString}"
+}
+
 /** an engine */
 class DomEngine(
   val dom: RDomain,
@@ -133,6 +145,17 @@ class DomEngine(
     case d@DomAst(n: TestResult, _, _, _) if n.value.startsWith("ok") => n
   }).size
 
+  /** collect generated values */
+  def resultingValues = root.collect {
+    // todo see in Api.irunDom, trying to match them to the message sent in...
+    case d@DomAst(EVal(p), /*"generated"*/ _, _, _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.dflt)
+  }
+
+  /** collect generated values */
+  def resultingValue = root.collect {
+    case d@DomAst(EVal(p), /*"generated"*/ _, _, _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.dflt)
+  }
+
   val rules = dom.moreElements.collect {
     case e:ERule => e
   }
@@ -141,9 +164,26 @@ class DomEngine(
     case e:EFlow => e
   }
 
+  //========================== DDD
+
+  val events : ListBuffer[DEvent] = new ListBuffer[DEvent]()
+
+  def addEvent(e:DEvent*) = {
+    events.append(e:_*)
+  }
+
+  def appChildren (parent:DomAst, children:DomAst) : Unit =
+    appChildren(parent, List(children))
+
+  def appChildren (parent:DomAst, children:List[DomAst]) : Unit = {
+    parent.children appendAll children
+    addEvent(DEventExpNode(parent.id, children))
+  }
+
+  /** spawn new engine */
   def spawn (nodes:List[DomAst]) = {
     val newRoot = DomAst("root", AstKinds.ROOT).withDetails("(spawned)")
-    newRoot.children appendAll nodes
+    appChildren(newRoot, nodes)
     val engine = DieselAppContext.mkEngine(dom, newRoot, settings, pages)
     engine.ctx._hostname = ctx._hostname
     engine
@@ -192,6 +232,7 @@ class DomEngine(
 
   /** dependency between two nodes */
   case class DADepy (prereq:DomAst, depy:DomAst)
+  case class DADepyEv (prereq:String, depy:String, dtm:DateTime=DateTime.now) extends DEvent
 
   val depys = ListBuffer[DADepy]()
 
@@ -200,18 +241,30 @@ class DomEngine(
     d.map{d=>
       // d will wait
       if(p.nonEmpty) d.status = DomState.DEPENDENT
-      p.map(p=>depys.append(DADepy(p,d)))
+      p.map{p=>
+        addEvent(DADepyEv(p.id,d.id))
+        depys.append(DADepy(p,d))
+      }
     }
   }
 
-  // find the next execution list
-  // a is already assumed to have been stitched in the main tree
+  /** find the next *async* execution list. this makes the sync/async determination, based on
+    * dependencies, node type etc
+    *
+    * a is already assumed to have been stitched in the main tree
+    *
+    * @param a
+    * @param results
+    * @return
+    */
   def findFront(a: DomAst, results:List[DomAst]): List[DomAst] = {
     // any flows to shape it?
     var res = results
 
-    // returns the front of that branch and builds side effecting depys from those to the rest
+    // seq-par: returns the front of that branch and builds side effecting depys from those to the rest
     def rec(e:FlowExpr) : List[DomAst] = e match {
+
+        // sequential, create depys
       case SeqExpr(op, l) if op == "+" => {
         val res = rec(l.head)
         l.drop(1).foldLeft(res)((a,b)=> {
@@ -221,12 +274,17 @@ class DomEngine(
         })
         res
       }
+
+        // parallel, start them all
       case SeqExpr(op, l) if op == "|" => {
         l.flatMap(rec).toList
       }
+
       case MsgExpr(ea) => a.children.collect {
         case n:DomAst if n.value.isInstanceOf[EMsg] && n.value.asInstanceOf[EMsg].entity+"."+n.value.asInstanceOf[EMsg].met == ea => n
       }.toList
+
+        // more seq-par
       case BFlowExpr(ex) => rec(ex)
     }
 
@@ -243,7 +301,7 @@ class DomEngine(
     res.filter(_.status != DomState.DEPENDENT)
   }
 
-  /** a decomp req - starts processing a message
+  /** a decomp req - starts processing a message. these can be deferred async or recurse synchronously
     *
     * @param a the node to decompose/process
     * @param recurse
@@ -260,18 +318,21 @@ class DomEngine(
         razie.Log.log("wile decompose()", t)
         val err = DEError(this.id, t.toString)
         val ast = DomAst(EError(t.getMessage, t.toString)).withStatus(DomState.DONE)
-        a.children.append(ast)
+        appChildren(a, ast)
         err :: done(ast, level+1)
       }
     }.get
 
     if(msgs.isEmpty)
       msgs = msgs ::: done(a, level)
+
     checkState()
     later(msgs)
   }
 
   /** process a reply with results
+    *
+    * will decompose this node into children and spawn async those that need it
     *
     * @param a the node that got this reply
     * @param recurse
@@ -320,6 +381,7 @@ class DomEngine(
     result
   }
 
+  /** process only the tests - synchronously */
   def processTests = {
     Future {
       root.children.filter(_.kind == "test").foreach(expand(_, true, 1))
@@ -332,23 +394,22 @@ class DomEngine(
   val finishF = finishP.future
 
   def process = {
-//    Future {
-//      root.children.foreach(expand(_, true, 1))
-//      this
-//    }
-    clog << "DomEng "+id+" process"
-    root.status = DomState.STARTED
+    if(root.status != DomState.STARTED) {
 
-    // async start
-//    val msgs = root.children.toList.map{x=>
-    val msgs = findFront(root, root.children.toList).toList.map{x=>
-      x.status = DomState.LATER
-      DEReq(id, x, true, 0)
+      clog << "DomEng " + id + " process"
+      root.status = DomState.STARTED
+
+      // async start
+      //    val msgs = root.children.toList.map{x=>
+      val msgs = findFront(root, root.children.toList).toList.map { x =>
+        x.status = DomState.LATER
+        DEReq(id, x, true, 0)
+      }
+
+      if (msgs.isEmpty)
+        done(root)
+      later(msgs)
     }
-
-    if(msgs.isEmpty)
-      done(root)
-    later(msgs)
 
     finishF
   }
@@ -382,7 +443,7 @@ class DomEngine(
         // no need to return anything - children have been decomposed
       }
 
-      case n1@ENext(m, arr, cond) => {
+      case n1@ENext(m, "=>", cond) => {
         if(n1.test()) {
           val newnode = DomAst(m, AstKinds.GENERATED)
 //          a.children append newnode
@@ -409,7 +470,19 @@ class DomEngine(
 
       case e: ExpectV => expandExpectV(a, e)
 
-      case s@_ => clog << "NOT KNOWN: " + s.toString
+      case e:InfoNode =>  // ignore
+      case e:EVal =>  // ignore
+
+      // todo should execute
+      case s: EApplicable =>  {
+        clog << "EXEC KNOWN: " + s.toString
+        a.children append DomAst(EError("Can't EApplicable KNOWN - " + s.getClass.getSimpleName, s.toString), AstKinds.GENERATED)
+      }
+
+      case s@_ => {
+        clog << "NOT KNOWN: " + s.toString
+        a.children append DomAst(EWarning("NODE NOT KNOWN - " + s.getClass.getSimpleName, s.toString), AstKinds.GENERATED)
+      }
     }
     msgs
   }
@@ -592,7 +665,8 @@ class DomEngine(
     rep(a, recurse, level, newNodes)
   }
 
-  private def expandExpectM(a: DomAst, e: ExpectM) = {
+  /** test epected message */
+  private def expandExpectM(a: DomAst, e: ExpectM) : Unit = {
     val cole = new MatchCollector()
 
     val targets = e.target.map(List(_)).getOrElse(if (e.when.isDefined) {
@@ -642,7 +716,8 @@ class DomEngine(
     }
   }
 
-  private def expandExpectV(a: DomAst, e: ExpectV) = {
+  /** test epected values */
+  private def expandExpectV(a: DomAst, e: ExpectV) : Unit = {
     val cole = new MatchCollector()
 
     // identify sub-trees that it applies to
@@ -722,18 +797,21 @@ class DomEngine(
     }
   }
 
-  /** main processing of next - called from actor in async and in thread when sync */
+  /** main processing of next - called from actor in async and in thread when sync/decompose */
   def processDEMsg (m:DEMsg) = {
     m match {
-      case req@DEReq(eid, a, r, l) => {
+      case DEReq(eid, a, r, l) => {
+        require(eid == this.id) // todo logical error not a fault
         this.req(a, r, l)
       }
 
-      case rep@DERep(eid, a, r, l, results) => {
+      case DERep(eid, a, r, l, results) => {
+        require(eid == this.id) // todo logical error not a fault
         this.rep(a, r, l, results)
       }
     }
   }
 }
 
+trait InfoNode // just a marker for useless info nodes
 

@@ -176,13 +176,13 @@ abstract class WikiConfig {
   /** holds the entire wiki-based configuration, can reset to reload */
   protected val xconfig = mutable.Map[String, mutable.Map[String, String]]()
 
-  final val URLCFG = "urlcfg"
   final val URLCANON = "urlcanon"
   final val URLMAP = "urlmap"
-  final val URLFWD = "urlfwd"
   final val URLREWRITE = "urlrewrite"
+  final val URLFWD = "urlfwd"
+
+  final val URLCFG = "urlcfg"
   final val SITECFG = "sitecfg"
-  final val TOPICRED = "topicred"
   final val USERTYPES = "usertypes"
   final val BANURLS = "banurls"
 
@@ -220,7 +220,7 @@ class SampleConfig extends WikiConfig {
 
     val props = ""
 
-    for (c <- Array(SITECFG, TOPICRED, USERTYPES, BANURLS)) {
+    for (c <- Array(SITECFG, USERTYPES, BANURLS)) {
       val urlmaps = Some(Seq(props) flatMap WikiConfig.parsep)
       val xurlmap = (urlmaps.map(se => mutable.HashMap[String, String](se: _*)))
       xurlmap.map(xconfig.put(c, _))

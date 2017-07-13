@@ -73,69 +73,15 @@ object WikiDomain {
 
   def apply(realm: String) = WikiReactors(realm).domain
 
-  final val DOM_LIST = "dom.list"
-
-  final val empty = new RDomain("EMPTY", Map.empty, Nil)
-
   /** todo does it really need to start with one */
   def domFrom (first:WikiEntry, pages:List[WikiEntry]) : RDomain = {
-    val dom = pages.flatMap(p=>
-      domFrom(p).toList
-    ).foldLeft(domFrom(first).get)((a, b) => a.plus(b)).revise.addRoot
-    dom
+    RDomain.domFrom(first, pages)
   }
-
-  import RDOM._
 
   /** crawl all domain pieces and build a domain */
   def domFrom (we:WikiEntry) : Option[RDomain] = {
     we.preprocessed
-    if(we.preprocessed.s.contains("CANNOT PARSE"))
-      we.cache.put(
-        WikiDomain.DOM_LIST,
-        List(
-          EVal(
-            P("error", "ERROR: "+we.preprocessed.s))))
-
-    val domList = we.cache.getOrElse(WikiDomain.DOM_LIST, List[Any]()).asInstanceOf[List[Any]].reverse
-
-    // this causes the underlying fire to avoid fallen capter Y and focus on fighter 2
-
-    //    if(we.tags.contains(R_DOM) || we.tags.contains(DSL_DOM))
-    Some(
-      we.cache.getOrElseUpdate("razie/diesel/dom/dom", {
-        var x=new RDomain("-",
-          domList.collect {
-            case c:C => (c.name, c)
-          }.toMap,
-          domList.collect {
-            case c:A => c
-          },
-          domList.collect {
-            case c:D if !c.isInstanceOf[A] => c
-          },
-          domList.collect {
-            case o:O => (o.name, o)
-          }.toMap,
-          domList.collect {
-            case f:F => (f.name, f)
-          }.toMap)
-        // now collect everything else in more
-        x.moreElements.appendAll(
-          domList.filter {e=>
-            !(e.isInstanceOf[A] ||
-              e.isInstanceOf[C] ||
-              e.isInstanceOf[D] ||
-              e.isInstanceOf[O] ||
-              e.isInstanceOf[F])
-          })
-
-        x
-      }
-      )) collect {
-      case d:RDomain => d
-    }
-    //    else None
+    RDomain.domFrom(we)
   }
 
   /** crawl all domain pieces and build a domain */
@@ -143,17 +89,7 @@ object WikiDomain {
 
   /** crawl all domain pieces and build a domain */
   def domFilter[T] (we:WikiEntry)(p:PartialFunction[Any,T]) : List[T] = {
-    if(we.preprocessed.s.contains("CANNOT PARSE"))
-      we.cache.put(
-        WikiDomain.DOM_LIST,
-        List(
-          EVal(
-            P("error", "ERROR: "+we.preprocessed.s))))
-
-    //    if(we.tags.contains(R_DOM) || we.tags.contains(DSL_DOM))
-    we.cache.getOrElse(WikiDomain.DOM_LIST, List[Any]()).asInstanceOf[List[Any]].reverse.collect {
-      case x if(p.isDefinedAt(x)) => p(x)
-    }
+    RDomain.domFilter(we)(p)
   }
 
   def canCreateNew (realm:String, cat:String) = "User" != cat && "WikiLink" != cat

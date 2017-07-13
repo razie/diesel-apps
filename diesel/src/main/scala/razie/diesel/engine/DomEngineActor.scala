@@ -41,32 +41,38 @@ case object DEStop extends DEMsg
 case class DEStartTimer (engineId:String, d:Int, results:List[DomAst]) extends DEMsg
 case class DETimer      (engineId:String, results:List[DomAst]) extends DEMsg
 
+/** error handling
+  *
+  * todo should not be part of normal processing DEMsg
+  */
 case class DEError      (engineId:String, msg:String) extends DEMsg
 
 /**
   * engine router - routes updates to proper engine actor
+  *
+  * todo can i drop refMap and address actors directly?
   */
 class DomEngineRouter () extends Actor {
 
   def receive = {
     case DEInit => { }
 
-    case req @ DEReq(id, a, r, l) => {
-      DieselAppContext.refMap.get(id).map(_ ! req).getOrElse(
-        clog << "DomEngine Router DROP message "+req
-      )
-    }
-
-    case rep @ DERep(id, a, r, l, results) => {
-      DieselAppContext.refMap.get(id).map(_ ! rep).getOrElse(
-        clog << "DomEngine Router DROP message "+rep
-      )
-    }
+    case req @ DEReq(id, a, r, l) => route(id, req)
+    case rep @ DERep(id, a, r, l, results) => route(id, rep)
 
     case DEStop => {
 //      DieselAppContext.refMap.values.map(_ ! DEStop)
     }
   }
+
+  def route (id:String, msg:DEMsg) = {
+    DieselAppContext.refMap.get(id).map(_ ! msg).getOrElse(
+      clog << "DomEngine Router DROP message "+msg
+      // todo recover failed workflows
+      // todo distributed routing
+    )
+  }
+
 }
 
 /** exec context for engine - each engine has its own.
@@ -113,7 +119,6 @@ class DomEngineActor (eng:DomEngine) extends Actor {
       }
       else DieselAppContext.router.map(_ ! timer)
     }
-
   }
 }
 

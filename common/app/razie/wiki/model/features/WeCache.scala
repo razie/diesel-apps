@@ -20,7 +20,7 @@ object WeCache {
 
   private var pre  = new ListBuffer[WikiEntry]()
 
-  // special extra cache of categories per realm
+  // special extra cache of categories per [realm, [name, entry]]
   private var icats = new collection.mutable.HashMap[String,Map[String, WikiEntry]]()
 
   private var cache = new collection.mutable.HashMap[UWID,WikiEntry]()

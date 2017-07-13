@@ -94,7 +94,9 @@ case class WikiEntry(
   import WikiEntry._
 
   // from DSpec
-  override def specPath = SpecPath("local", this.wid.wpath, this.realm)
+  override def specPath = new SpecPath("local", this.wid.wpath, this.realm) {
+    override def ahref: Option[String] = Some(wid.ahref)
+  }
 
   // from DSpec
   override def findTemplate(name: String): Option[DTemplate] =
@@ -275,6 +277,8 @@ case class WikiEntry(
   /** AST folded with a context */
   var ipreprocessed : Option[(SState, Option[WikiUser])] = None;
   //todo don't hold the actual user, but someone that can get the user... prevents caching?
+
+  def parsed = preprocessed.s
 
   // smart preprocess with user and stuff
   def preprocess(au:Option[WikiUser]) = {

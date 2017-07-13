@@ -16,9 +16,17 @@ trait TSpecPath {
   def realm:String
   def ver:Option[String]
   def draft:Option[String]
+  def ahref:Option[String]
 }
 
-case class SpecPath (source:String, wpath:String, realm:String, ver:Option[String]=None, draft:Option[String]=None) extends TSpecPath
+case class SpecPath (
+                      source:String,
+                      wpath:String,
+                      realm:String,
+                      ver:Option[String]=None,
+                      draft:Option[String]=None) extends TSpecPath {
+  def ahref:Option[String] = None
+}
 
 /** a specification - can be a text, a wiki or anything else we can parse to extract a diesel
   *
@@ -39,6 +47,14 @@ trait DSpec {
     *  this is very pessimistic right now for safety issues: even a whiff of non-static content will turn this off
     */
   var cacheable: Boolean = true
+
+  /** the assumption is that specs can parse themselves and cache the AST elements
+    *
+    * errors must contain "CANNOT PARSE" and more information
+    *
+    * todo parsed should be an Either
+    */
+  def parsed : String
 }
 
 /** a specification of a template */
@@ -60,4 +76,32 @@ trait DSpecInventory {
   def find (path:TSpecPath) : Option[DSpec]
 }
 
+/** the simplest spec - from a named string property */
+case class TextSpec (val name:String, val text:String) extends DSpec {
+  def specPath : TSpecPath = new SpecPath("local", name, "")
+
+  def findTemplate (name:String) : Option[DTemplate] = None
+
+  /** other parsing artifacts to be used by knowledgeable modules.
+    * Parsers can put stuff in here. */
+  val cache = new scala.collection.mutable.HashMap[String, Any]()
+
+  /** the assumption is that specs can parse themselves and cache the AST elements
+    *
+    * errors must contain "CANNOT PARSE" and more information
+    *
+    * todo parsed should be an Either
+    */
+  private var iparsed : Option[String] = None
+
+  // parse just once
+  def parsed : String = iparsed.getOrElse {
+    val res = {
+      "x"
+    }
+    iparsed = Some(res)
+    res
+  }
+
+}
 

@@ -23,7 +23,10 @@ import scala.util.Try
 
 /** accumulate results and infos and errors */
 class InfoAccumulator (var eres : List[Any] = Nil) {
+
   def += (x:Any) = append(x)
+
+  // todo - weird match/case instead of explicit Seq
   def append (x:Any) = {
     x match {
       case l : List[_] => eres = eres ::: l
@@ -363,6 +366,66 @@ object RDExt {
         visited.filter(_._1 == "attr").toList.map(t => t._2)
       }
     )
+  }
+
+  /** nice links to stories in AST trees */
+  case class StoryNode (path:TSpecPath) extends CanHtml with InfoNode {
+    override def toHtml = "Story " + path.ahref
+    override def toString = "Story " + path.wpath
+  }
+
+  /* extract more nodes to run from the story - add them to root */
+  def addStoryToAst(root: DomAst, stories: List[DSpec], justTests: Boolean = false, justMocks: Boolean = false, addFiddles:Boolean=false) = {
+    var lastMsg: Option[EMsg] = None
+    var lastMsgAst: Option[DomAst] = None
+    var lastAst: List[DomAst] = Nil
+    var inSequence = true
+
+    def addMsg(v: EMsg) = {
+      lastMsg = Some(v);
+      // withPrereq will cause the story messages to be ran in sequence
+      lastMsgAst = if (!(justTests || justMocks)) Some(DomAst(v, AstKinds.RECEIVED).withPrereq({
+        if (inSequence) lastAst.map(_.id)
+        else Nil
+      })) else None // need to reset it
+      lastAst = lastMsgAst.toList
+      lastAst
+    }
+
+    def addStory (story:DSpec) = {
+
+      if(stories.size > 1 || addFiddles)
+        root.children appendAll {
+          lastAst = List(DomAst(StoryNode(story.specPath), "story").withPrereq(lastAst.map(_.id)))
+          lastAst
+        }
+
+      root.children appendAll RDomain.domFilter(story) {
+        case o: O if o.name != "context" => List(DomAst(o, AstKinds.RECEIVED))
+        case v: EMsg if v.entity == "ctx" && v.met == "storySync" => {
+          inSequence = true
+          Nil
+        }
+        case v: EMsg if v.entity == "ctx" && v.met == "storyAsync" => {
+          inSequence = false
+          Nil
+        }
+        case v: EMsg => addMsg(v)
+        case v: EVal => List(DomAst(v, AstKinds.RECEIVED))
+        case v: ERule => List(DomAst(v, AstKinds.RULE))
+        case v: EMock => List(DomAst(v, AstKinds.RULE))
+        case e: ExpectM if (!justMocks) => {
+          lastAst = List(DomAst(e.withGuard(lastMsg.map(_.asMatch)).withTarget(lastMsgAst), "test").withPrereq(lastAst.map(_.id)))
+          lastAst
+        }
+        case e: ExpectV if (!justMocks) => {
+          lastAst = List(DomAst(e.withGuard(lastMsg.map(_.asMatch)).withTarget(lastMsgAst), "test").withPrereq(lastAst.map(_.id)))
+          lastAst
+        }
+      }.flatten
+    }
+
+    stories.foreach (addStory)
   }
 
   case class TestResult(value: String, more: String = "") extends CanHtml with HasPosition {

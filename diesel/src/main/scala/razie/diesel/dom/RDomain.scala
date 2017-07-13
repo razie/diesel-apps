@@ -1,12 +1,15 @@
 package razie.diesel.dom
 
 import razie.diesel.dom.RDOM._
+import razie.diesel.ext.EVal
 
 import scala.collection.mutable.ListBuffer
 
 /** a domain or sub-domain specification. Think UML.
   *
   * in DDD parlance, this is a bounded domain.
+  *
+  * these are composable: bigger = root plus more
   */
 class RDomain(val name: String, val classes: Map[String, C], val assocs: List[A], val diamonds:List[D] = List.empty, val objects: Map[String, O] = Map.empty, val funcs: Map[String, F] = Map.empty) {
   /** use this for other elements */
@@ -124,7 +127,87 @@ class RDomain(val name: String, val classes: Map[String, C], val assocs: List[A]
 object RDomain {
   final val DATA_TYPES = "String,Int,DateTime,JSON,XML,Image,URL,WID,UWID,WPATH".split(",")
 
+  /** we cache key */
+  final val DOM_LIST = "dom.list"
+
+  /** an empty domain - use it to fold */
+  final val empty = new RDomain("EMPTY", Map.empty, Nil)
+
   def isDataType (t:String) = t != null && (DATA_TYPES contains t)
+
+  /** todo does it really need to start with one */
+  def domFrom (first:DSpec, pages:List[DSpec]) : RDomain = {
+    val dom = pages.flatMap(p=>
+      domFrom(p).toList
+    ).foldLeft(domFrom(first).get)((a, b) => a.plus(b)).revise.addRoot
+    dom
+  }
+
+  /** crawl all domain pieces and build a domain */
+  def domFrom (we:DSpec) : Option[RDomain] = {
+    // it will always make a point of calling parsed before looking in the cache
+    if(we.parsed.contains("CANNOT PARSE"))
+      we.cache.put(
+        DOM_LIST,
+        List(
+          EVal(
+            P("error", "ERROR: "+we.parsed))))
+
+    val domList = we.cache.getOrElse(DOM_LIST, List[Any]()).asInstanceOf[List[Any]].reverse
+
+    // this causes the underlying fire to avoid fallen capter Y and focus on fighter 2
+
+    //    if(we.tags.contains(R_DOM) || we.tags.contains(DSL_DOM))
+    Some(
+      we.cache.getOrElseUpdate("razie/diesel/dom/dom", {
+        var x=new RDomain("-",
+          domList.collect {
+            case c:C => (c.name, c)
+          }.toMap,
+          domList.collect {
+            case c:A => c
+          },
+          domList.collect {
+            case c:D if !c.isInstanceOf[A] => c
+          },
+          domList.collect {
+            case o:O => (o.name, o)
+          }.toMap,
+          domList.collect {
+            case f:F => (f.name, f)
+          }.toMap)
+        // now collect everything else in more
+        x.moreElements.appendAll(
+          domList.filter {e=>
+            !(e.isInstanceOf[A] ||
+              e.isInstanceOf[C] ||
+              e.isInstanceOf[D] ||
+              e.isInstanceOf[O] ||
+              e.isInstanceOf[F])
+          })
+
+        x
+      }
+      )) collect {
+      case d:RDomain => d
+    }
+    //    else None
+  }
+
+  /** crawl all domain pieces and build a domain */
+  def domFilter[T] (we:DSpec)(p:PartialFunction[Any,T]) : List[T] = {
+    //    if(!we.cache.contains(DOM_LIST) && we.preprocessed.s.contains("CANNOT PARSE"))
+    if(we.parsed.contains("CANNOT PARSE"))
+      we.cache.put(
+        DOM_LIST,
+        List(
+          EVal(
+            P("error", "ERROR: "+we.parsed))))
+
+    we.cache.getOrElse(DOM_LIST, List[Any]()).asInstanceOf[List[Any]].reverse.collect {
+      case x if(p.isDefinedAt(x)) => p(x)
+    }
+  }
 }
 
 /** base idea of a compiler - implement one per language and - I don't remember how they're plugged in

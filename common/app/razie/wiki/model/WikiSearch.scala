@@ -9,7 +9,7 @@ package razie.wiki.model
 import com.mongodb.DBObject
 import com.mongodb.casbah.Imports._
 import razie.db.RazMongo
-import razie.diesel.dom.{RDOM, WikiDomain}
+import razie.diesel.dom.{RDOM, WikiDomain, RDomain}
 import razie.diesel.ext.{EMsg, ExpectM}
 import razie.hosting.Website
 import razie.wiki.model.Visibility.PUBLIC
@@ -52,7 +52,7 @@ object WikiSearch {
     def p(p:String) = Website.forRealm(realm).flatMap(_.prop(p)).mkString
 
     if(p("wbrowser.query") == "dieselMsg") {
-      val domList = page.get.cache.getOrElse(WikiDomain.DOM_LIST, List[Any]()).asInstanceOf[List[Any]].reverse
+      val domList = page.get.cache.getOrElse(RDomain.DOM_LIST, List[Any]()).asInstanceOf[List[Any]].reverse
       val colEnt = new ListBuffer[(RDOM.A, String)]()
       val colMsg = new ListBuffer[(RDOM.A, String)]()
 

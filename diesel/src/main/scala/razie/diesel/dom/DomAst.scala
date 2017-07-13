@@ -34,6 +34,7 @@ object DomState {
   final val STARTED="exec.started" // is executing now
   final val DONE="final.done" // done
   final val LATER="exec.later" // queued up somewhere for later
+  final val ASYNC="exec.async" // started but will complete itself later
   final val DEPENDENT="exec.depy" // waiting on another task
 
   def inProgress(s:String) = s startsWith "exec."

@@ -117,8 +117,14 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
   override def toString = cls + "." + met + " " + attrs.mkString("(", ",", ")")
 }
 
-/**
-  * just a call to next - how to call next: wait => or no wait ==>
+/** just a call to next.
+  *
+  * This is used to wrap async spawns ==> and
+  * normal => when there's more than one (they start one at a time)
+  *
+  * @param msg the message wrapped / to be executed next
+  * @param arrow - how to call next: wait => or no wait ==>
+  * @param cond optional condition for this step
   */
 case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None) extends CanHtml {
   // todo match also the object parms if any and method parms if any
@@ -193,6 +199,17 @@ case class EVal(p: RDOM.P) extends CanHtml with HasPosition {
   override def toHtml = kspan("val::") + p.toHtml
 
   override def toString = "val: " + p.toString
+}
+
+/** some error, with a message and details */
+case class EWarning(msg: String, details: String = "") extends CanHtml {
+  override def toHtml =
+    if (details.length > 0)
+      span("warning::", "warning", details, "style=\"cursor:help\"") + " " + msg
+    else
+      span("warning::", "warning", details) + " " + msg
+
+  override def toString = "error::" + msg
 }
 
 /** some error, with a message and details */

@@ -1,0 +1,79 @@
+
+Let's explore the differences and similarities between workflows and actors, in the general context of asynchronous programming techniques. Maybe we can draw some interesting conclusions.
+
+While with Sigma Systems, I had the opportunity to design, build and/or contribute to 4 different generations of -what we called- workflow or work-order processing systems: dedicated and optimized for enterprise integration, generally targeted for telecommunication providers' integration patterns. Each generation was built upon the knowledge from the previous generations, evolving in terms of environment from C++ to Java and proprietary messaging to JMS and then back to proprietary messaging.
+
+
+## Asynchronous programming
+
+While regular, procedural synchronous programming is very effective at writing local logic, reactive programming is a must when dealing with distributed systems (even IO like a database or a file system), because of the decoupling of the two communicating parties and also separating failure handling, when done right.
+
+With the advent of AJAX, Node.js and Java NIO, reactive programming models have taken off, recently, especially with the help of functional programming elements. We took a look at modern reactive programming models here and here and the conclusion was that actors offered the best model for distributed systems, because of their message orientation and true decoupling via location transparency.
+
+So let's do a quick refresher on... acting.
+
+## Actors
+
+<blockquote>
+In response to a message that it receives, an actor can: make local decisions, create more actors, send more messages, and determine how to respond to the next message received. Actors may modify private state, but can only affect each other through messages (avoiding the need for any locks).
+</blockquote>
+
+[https://en.wikipedia.org/wiki/Actor_model Actors]
+
+In essence, looking at akka for instance, an actor is a local object with state, whose lifecycle is mostly managed by the system (create/killed/suspended/persisted etc, as requested by the code). The actor is associated to a "mailbox": a queue of messages which are processed by the actor, in sequence. Each message can change the state of the object and generally results in other messages being sent to other objects (either more work requests or replies etc).
+
+It is important that the state of the actor is only affected by the messages it responds to. You could write logic inside an actor, to send 5 different messages and await their respective responses and then send yet another aggregate message, but you should not expose regular methods that allow other objects to directly change the state encapsulated inside the actor.
+
+The actor management system takes care of things such as the actor lifecycle, addressing and routing, messaging - both local and remote, failure handling / supervision etc.
+
+
+## Workflows
+
+Similarly, at least in our implementation, a workflow instance is an object with local state (represented as attributes and variables), has a queue of messages (events or messages) which are processed in sequence. Processing a message will change the local state and may trigger other messages to be sent to other workflows or adapters / components.
+
+The typical workflow constructs allow sending of more messages in either parallel or sequence and also, different workflows do not share any data, even though they may share the same specification/rules.
+
+Depending on the implementation, the workflows may be persisted or not and the system may provide services such as transparent fail-over or not.
+
+The workflow system will take care of things like the workflow lifecycle (persist, suspend etc), addressing/routing and finding workflows, messaging, caching, etc.
+
+
+## Pins and routers
+
+In a cluster, actors are pinned as they are created (a reference includes the node) and managing their lifecycle (i.e. hiccups and failures) falls to the owner. If you should require the same actor started on many nodes, you will have to specify the routing strategies etc.
+
+By contrast, workflows tend to not be pinned. While it is customary to cache workflows in memory, that is an optimization, to speed up processing. Routing the messages and events to the node in question is an essential function of the system, based on some type of workflow ID or correlation ID.
+
+## Resilience
+
+If a workflow processing node fails, we'd normally continue processing transparently, with other nodes simply picking up processing the messages for the workflows that were cached on the node that failed. There would be a slight slowing down, as the respective workflows would be cached on the surviving nodes.
+
+/indent
+This particular feature depends on the underlying messaging system's ability to transparently fail-over. This is usually limited, in commercially available messaging systems. The limitations may range from no fail-over whatsoever (strong node identity) to manually failing-over via scripts to full fail-over (but with some overhead in processing each message).
+/indent
+
+For actors, being a generic model, bulk-heading and circuit breakers and such are considerations that have to be mixed in explicitly... resulting in custom code and actor patterns, while for workflow systems, these are generally built-in capabilities, in systems designed for resilience.
+
+Whether back-pressure is implemented, in a system that allows dumping responsibility to the client or not (in a system that "must" deliver under any load, even though on a degraded basis), while relevant, it is not that important.
+
+Note that back-pressure can be implemented via proper signaling between components, or just by designing the system's resource pools with limits and letting it happen naturally - this is risky, as it can cause systems to become unresponsive or outright fail, when they run out of sockets for instance, or memory or disk space etc. Resource and boundary analysis and sizing of such systems is one of the dark arts.
+
+This is similar to both actor and workflow systems.
+
+
+
+The biggest difference between workflows and actors is that an actor is generally coded and thus contain any weird logic, while a workflow is generally configured, likely with a graphical UI and thus more restrictive, as you can generally use only specific constructs (BPEL, BPMN, XPDL etc).
+
+Also, actors are generally light-weight local objects, while workflows are generally heavy-weight persisted and transactional beasts.
+
+
+## Conclusion
+
+Actor systems offer the underlying foundation to build serious reactive systems, with proper asynchronous decoupling.
+
+High performance workflow processing systems abstract away a lot of the underlying complexity in dealing with actors, retaining the more interesting and useful paradigms.
+
+
+
+
+Actors are generally the lower level construct, while the workflow is a higher level expression.

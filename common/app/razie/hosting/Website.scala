@@ -102,11 +102,26 @@ object Website {
   private val cache = new collection.mutable.HashMap[String,CacheEntry]()
   val EXP = 100000
 
+  /** cache existing sites - I get stupid lookups for sites that don't exist... and result in many lookups */
+  private val sites = new collection.mutable.HashMap[String,String]()
+
+  def lookupSite (s:String) : Option[WikiEntry] = {
+    synchronized {
+      if(sites.isEmpty) {
+        // init
+        Wikis.rk.pageNames("Site").toList map (s=>sites.put(s,s))
+      }
+    }
+
+    if(sites.contains(s)) Wikis.rk.find("Site", s)
+    else None
+  }
+
   // s is the host
   def forHost (s:String):Option[Website] = {
     val ce = cache.get(s)
     if (ce.isEmpty) {// || System.currentTimeMillis > ce.get.millis) {
-      var w = Wikis.rk.find("Site", s) map (new Website(_))
+      var w = lookupSite(s) map (new Website(_))
       if (w.isDefined)
         cache.put(s, CacheEntry(w.get, System.currentTimeMillis()+EXP))
       else RkReactors.forHost(s).map { r=>
