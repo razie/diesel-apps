@@ -36,7 +36,7 @@ case class SpecPath (
   */
 trait DSpec {
   def specPath : TSpecPath
-  def findTemplate (name:String) : Option[DTemplate]
+  def findTemplate (name:String, direction:String="") : Option[DTemplate]
 
   /** other parsing artifacts to be used by knowledgeable modules.
     * Parsers can put stuff in here. */
@@ -66,7 +66,7 @@ trait DTemplate {
 
   def parms =
     if(parmStr.trim.length > 0)
-      parmStr.split(",").map(s=>s.split("=")).map(a=> (a(0), a(1))).toMap
+      parmStr.trim.split("[, ]").map(s=>s.split("=")).filter(_.size == 2).map(a=> (a(0), a(1))).toMap
     else Map.empty[String,String]
 
 }
@@ -80,7 +80,7 @@ trait DSpecInventory {
 case class TextSpec (val name:String, val text:String) extends DSpec {
   def specPath : TSpecPath = new SpecPath("local", name, "")
 
-  def findTemplate (name:String) : Option[DTemplate] = None
+  def findTemplate (name:String, direction:String="") : Option[DTemplate] = None
 
   /** other parsing artifacts to be used by knowledgeable modules.
     * Parsers can put stuff in here. */

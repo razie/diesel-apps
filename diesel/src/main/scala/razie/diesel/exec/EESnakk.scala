@@ -125,17 +125,20 @@ class EESnakk extends EExecutor("snakk") {
 
   /** can I execute this task? */
   override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
-    (m.stype contains "GET") || (m.stype contains "POST") || (m.stype contains "TELNET") ||
-      spec(m).exists(m =>
-        (m.stype contains "GET") || (m.stype contains "POST") || (m.stype contains "TELNET") ||
-          ctx.findTemplate(m.entity + "." + m.met).isDefined)
+    def known (s:String) = (s contains "GET") || (s contains "POST") || (s contains "TELNET") || (s contains "HTTP")
+
+    known(m.stype) ||
+      spec(m).exists(m => known(m.stype) ||
+        ctx.findTemplate(m.entity + "." + m.met).isDefined)
   }
 
   /** execute the task then */
   override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = {
-    val template = ctx.findTemplate(in.entity + "." + in.met)
+    val templateReq  = ctx.findTemplate(in.entity + "." + in.met, "req")
+    val templateResp = ctx.findTemplate(in.entity + "." + in.met, "resp")
 
-    val tcontent = template.map(_.content).map { content =>
+    // expanded template content
+    val formattedTemplate = templateReq.map(_.content).map { content =>
       // todo either this or prepUrl not both
       val PAT = """\$\{([^\}]*)\}""".r
       val s1 = PAT.replaceAllIn(content, { m =>
@@ -153,14 +156,14 @@ class EESnakk extends EExecutor("snakk") {
     try {
 
       // 1. prepare the request
-      tcontent.map(parseTemplate(template, _, in.attrs)).map { sc =>
+      formattedTemplate.map(parseTemplate(templateReq, _, in.attrs)).map { sc =>
         val newurl = if (sc.url startsWith "/") "http://" + ctx.hostname.mkString + sc.url else sc.url
         // with templates
 
         val content =
-          if (template.flatMap(_.parms.get("protocol")).exists(_ == "telnet")) {
+          if (templateReq.flatMap(_.parms.get("protocol")).exists(_ == "telnet")) {
             // telnet
-            eres += EInfo("Snakking TELNET ", Enc.escapeHtml(sc.toJson)).withPos(Some(template.get.pos))
+            eres += EInfo("Snakking TELNET ", Enc.escapeHtml(sc.toJson)).withPos(Some(templateReq.get.pos))
             //            response = sc.body // make the call
             val REX =
               """([.\w]+)[:/ ](\w+).*""".r
@@ -192,26 +195,38 @@ class EESnakk extends EExecutor("snakk") {
             urlx = x.toString
             sc.setUrl(x)
 
-            eres += EInfo("Snakking " + x.url, Enc.escapeHtml(sc.toJson)).withPos(Some(template.get.pos))
+            eres += EInfo("Snakking " + x.url, Enc.escapeHtml(sc.toJson)).withPos(Some(templateReq.get.pos))
             response = sc.body // make the call
             eres += EInfo("Response", Enc.escapeHtml(response))
             val content = new EEContent(response, sc.iContentType.getOrElse(""), sc.root)
             content
           }
 
-        // does the template have return parm specs?
-        val temp = template.get.parms
+        // PROCESS the reply
+
+        // does either template have return parm specs?
+        val temp = (templateReq.get.parms ++ templateResp.map(_.parms).getOrElse(Map.empty))
+          .filter(_._1 != "content-type")
 
         // message specified return mappings, if any
         val retSpec = if (in.ret.nonEmpty) in.ret else spec(in).toList.flatMap(_.ret)
         // collect any parm specs
         val specs = retSpec.map(p => (p.name, p.dflt, p.expr.mkString))
+
         val regex = temp.find(_._1 == "regex").map(_._2).orElse(specs.find(_._1 == "regex").map(_._3))
 
-        // 2. extract values
-        val strs = content.extract(temp, specs, regex)
 
-        val pos = (template.map(_.pos)).orElse(spec(in).flatMap(_.pos))
+        // 1. response template specified
+        if()
+
+        // 2. extract values
+        val strs = templateResp.map {tresp =>
+          content.extract(temp, specs, regex)
+          }
+          .getOrElse(content.extract(temp, specs, regex))
+
+        val pos = (templateReq.map(_.pos)).orElse(spec(in).flatMap(_.pos))
+
         // add the resulting values
         eres += strs.map(t => new P(t._1, t._2)).map { x =>
           ctx.put(x)
@@ -228,7 +243,9 @@ class EESnakk extends EExecutor("snakk") {
         }
 
         eres.eres
+
       } getOrElse {
+
         // no template or tcontent => old way without templates
         in.attrs.find(_.name == "url").orElse(
           spec(in).flatMap(_.attrs.find(_.name == "url"))
@@ -267,7 +284,7 @@ class EESnakk extends EExecutor("snakk") {
           val regex = specs.find(_._1 == "regex") map (_._2)
           val strs = content.extract(Map.empty, specs, regex)
 
-          val pos = (template.map(_.pos)).orElse(spec(in).flatMap(_.pos))
+          val pos = (templateReq.map(_.pos)).orElse(spec(in).flatMap(_.pos))
           // add the resulting values
           strs.map(t => new P(t._1, t._2)).map { x =>
             ctx.put(x)
@@ -281,7 +298,7 @@ class EESnakk extends EExecutor("snakk") {
         razie.Log.log("error snakking", t)
         eres += EError("Error snakking: " + urlx, t.toString) ::
           EError("Exception : " + t.toString) ::
-          EError("Response: ", response) :: Nil
+          EError("Response: ", Enc.escapeHtml(response)) :: Nil
       }
     }
   }
@@ -297,7 +314,7 @@ object EESnakk {
     * {{template rest.create}}
     * POST /diesel/fiddle/react/rest/mcreate?name=$name&address=$address&resultMode=json
     * sso_token : joe 123456
-    * content-type: media
+    * content-type: application/json
     * *
     * {
     * "p1" : 1,
@@ -308,13 +325,13 @@ object EESnakk {
     * @param is
     * @return
     */
-  def parseTemplate(t: Option[DTemplate], is: String, attrs: Attrs) = {
+  def parseTemplate(t: Option[DTemplate], is: String, attrs: Attrs) : SnakCall = {
     if (t.flatMap(_.parms.get("protocol")).exists(_ == "telnet"))
       parseTelnetTemplate(t, is, attrs)
     else parseHttpTemplate(t, is, attrs)
   }
 
-  def parseTelnetTemplate(t: Option[DTemplate], is: String, attrs: Attrs) = {
+  def parseTelnetTemplate(t: Option[DTemplate], is: String, attrs: Attrs) : SnakCall = {
     // templates start with a \n
     val s = if (is startsWith "\n") is.substring(1) else is
     val lines = s.lines
@@ -324,10 +341,7 @@ object EESnakk {
     new SnakCall("telnet", "telnet", s"$host:$port", Map.empty, prepStr(content, attrs).replaceFirst("(?s)\n\r?$", ""))
   }
 
-  def parseHttpTemplate(template: Option[DTemplate], is: String, attrs: Attrs) = {
-    //      val regex = """(?s)(GET|POST) ([^\n]+)\n(([^\n]+\n)*)?(.+)?""".r
-    //      val regex (method, url, headers, content) = s
-
+  def parseHttpTemplate(template: Option[DTemplate], is: String, attrs: Attrs) : SnakCall = {
     // templates start with a \n
     val s = if (is startsWith "\n") is.substring(1) else is
     val verb = s.split(" ").head
@@ -338,14 +352,14 @@ object EESnakk {
     val hattr = prepStr(headers, attrs).lines.map(_.split(":", 2)).collect {
       case a if a.size == 2 => (a(0).trim, a(1).trim)
     }.toSeq.toMap
+
     new SnakCall("http", verb, url, hattr, prepStr(content, attrs).replaceFirst("(?s)\n\r?$", ""))
   }
 
   /** prepare the template content - expand $parm expressions */
   private def prepStr(url: String, attrs: Attrs) = {
     //todo add expressions like ${...}
-    val PATT =
-      """(\$\w+)*""".r
+    val PATT = """(\$\w+)*""".r
     val u = PATT.replaceSomeIn(url, { m =>
       val n = if (m.matched.length > 0) m.matched.substring(1) else ""
       attrs.find(_.name == n).map(x =>
@@ -358,9 +372,8 @@ object EESnakk {
   /** prepare the URL - expand $parm expressions */
   private def prepUrl(url: String, attrs: Attrs) = {
     //todo add expressions like ${...}
-    val PATT =
-      """(\$\w+)*""".r
-    val u = PATT.replaceSomeIn(url, { m =>
+    val PATTERN = """(\$\w+)*""".r
+    val u = PATTERN.replaceSomeIn(url, { m =>
       val n = if (m.matched.length > 0) m.matched.substring(1) else ""
       attrs.find(_.name == n).map(x =>
         Enc.toUrl(stripQuotes(x.dflt))

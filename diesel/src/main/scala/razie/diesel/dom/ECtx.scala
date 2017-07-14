@@ -28,7 +28,13 @@ trait ECtx {
   /** the specs for this engine - normally this is only set in the root EngineCtx */
   def specs: List[DSpec]
 
-  def findTemplate (ea:String) : Option[DTemplate]
+  /** find the template corresponding to the ea and direction (direction is optional
+    *
+    * @param ea entity.action
+    * @param direction "req" vs "resp" or "in" vs "out"
+    * @return
+    */
+  def findTemplate (ea:String, direction:String="") : Option[DTemplate]
 
   def exists(f: scala.Function1[P, scala.Boolean]): scala.Boolean
 
@@ -78,8 +84,8 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
 //  def domain_= (x:Option[RDomain])  = base.map(_.domain = x) getOrElse (_domain = x)
 //  def specs_= (x : List[DSpec]) = base.map(_.specs = x) getOrElse (_specs = x)
 
-  def findTemplate (ea:String) : Option[DTemplate] = {
-    specs.flatMap(_.findTemplate(ea).toList).headOption
+  def findTemplate (ea:String, direction:String="") : Option[DTemplate] = {
+    specs.flatMap(_.findTemplate(ea, direction).toList).headOption
   }
 
   def exists(f: scala.Function1[P, scala.Boolean]): scala.Boolean =

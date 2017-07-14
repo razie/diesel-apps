@@ -99,10 +99,12 @@ case class WikiEntry(
   }
 
   // from DSpec
-  override def findTemplate(name: String): Option[DTemplate] =
-    this.templateSections.find(_.name == name).map {t=>
-      new WikiDTemplate (t)
-    }
+  override def findTemplate(name: String, direction:String=""): Option[DTemplate] =
+    this
+      .templateSections
+      .filter(t=> t.name == name && (direction=="" || t.signature == direction))
+      .headOption
+      .map {t=> new WikiDTemplate (t) }
 
   /** is this just an alias?
     *
@@ -338,7 +340,9 @@ case class WikiEntry(
   def linksTo = RMany[WikiLink] ("to.id" -> this.uwid.id)
 }
 
-/** a section inside a wiki page */
+/** a section inside a wiki page
+  * {{stype name:signature args}}
+  */
 case class WikiSection(original:String, parent: WikiEntry, stype: String, name: String, signature: String, content: String, args:Map[String,String] = Map.empty) {
   var line : Int = -1
   var col  : Int = -1

@@ -8,6 +8,7 @@ package razie.diesel.ext
 
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
+import razie.diesel.engine.InfoNode
 
 /** test - expect a message m. optional guard */
 case class ExpectM(not: Boolean, m: EMatch) extends CanHtml with HasPosition {
@@ -202,7 +203,7 @@ case class EVal(p: RDOM.P) extends CanHtml with HasPosition {
 }
 
 /** some error, with a message and details */
-case class EWarning(msg: String, details: String = "") extends CanHtml {
+case class EWarning(msg: String, details: String = "") extends CanHtml with InfoNode {
   override def toHtml =
     if (details.length > 0)
       span("warning::", "warning", details, "style=\"cursor:help\"") + " " + msg
@@ -213,7 +214,7 @@ case class EWarning(msg: String, details: String = "") extends CanHtml {
 }
 
 /** some error, with a message and details */
-case class EError(msg: String, details: String = "") extends CanHtml {
+case class EError(msg: String, details: String = "") extends CanHtml with InfoNode {
   override def toHtml =
     if (details.length > 0)
       span("error::", "danger", details, "style=\"cursor:help\"") + " " + msg
@@ -224,7 +225,7 @@ case class EError(msg: String, details: String = "") extends CanHtml {
 }
 
 /** a simple info node with a message and details - details are displayed as a popup */
-case class EInfo(msg: String, details: String = "") extends CanHtml with HasPosition {
+case class EInfo(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {
   var pos: Option[EPos] = None
 
   def withPos(p: Option[EPos]) = {

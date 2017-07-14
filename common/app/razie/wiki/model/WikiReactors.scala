@@ -92,14 +92,7 @@ object WikiReactors {
 
       // todo smarter linearization of mixins
       copy.foreach {we=>
-        val mixins =
-          new DslProps(Some(we), "website")
-            .prop("mixins")
-            .map(_.split(","))
-            .getOrElse{
-          // the basic cannot depend on anyone other than what they want
-              if(Array(RK,NOTES,WIKI) contains we.name) Array.empty[String] else Array("wiki")
-            }
+        val mixins = getMixins(Some(we))
 
         if(mixins.foldLeft(true){(a,b)=> a && lowerCase.contains(b.toLowerCase)}) {
           clog << "LOADING REACTOR " + we.wid.name
@@ -113,6 +106,16 @@ object WikiReactors {
       }
     }
   }
+
+  /** find the mixins from realm properties */
+  private def getMixins (we:Option[WikiEntry]) =
+    new DslProps(we, "website")
+      .prop("mixins")
+      .map(_.split(","))
+      .getOrElse{
+        // the basic cannot depend on anyone other than what they want
+        if(we.exists(we=> Array(RK,NOTES,WIKI) contains we.name)) Array.empty[String] else Array(WIKI)
+      }
 
   def findWikiEntry(r:String) =
     rk.wiki.weTable("WikiEntry")
@@ -132,7 +135,7 @@ object WikiReactors {
 
   def add (realm:String, we:WikiEntry): Reactor = synchronized  {
     assert(! reactors.contains(realm), "Sorry, SITE_ERR: Reactor already active ???")
-    val r = Services.mkReactor(realm, reactors.get(WIKI).toList, Some(we))
+    val r = Services.mkReactor(realm, getMixins(Some(we)).flatMap(reactors.get).toList, Some(we))
     reactors.put(realm, r)
     lowerCase.put(realm.toLowerCase, realm)
     r

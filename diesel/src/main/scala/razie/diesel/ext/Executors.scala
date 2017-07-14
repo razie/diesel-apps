@@ -17,8 +17,10 @@ trait EApplicable {
 
   /** is this async?
     *
-    * if not, we'll wait in this thread - avoid a switch
-    * If Async, then the engine will actor it out and you'll need to send a DERep to the engine when done
+    * If SYNC, we'll wait in this thread on the call to apply - avoid a switch. This is great for
+    * local support like DB, logging, echo and other services
+    *
+    * If ASYNC, then the engine will actor it out and you'll need to send a DERep to the engine when done
     * so it's more like asking the engine to isolate you rather than promising something
     *
     * In case this is async, you can return some info/correlation nodes from apply(), which will be added to the tree,
@@ -27,6 +29,7 @@ trait EApplicable {
     * Also, while processing, you could add more info nodes to this one and only at the end mark it as done with DERep.
     *
     * todo will need a DEDetails for the temp info nodes
+    * todo implement async, with examples
     */
   def isAsync : Boolean = false
 
