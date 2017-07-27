@@ -402,13 +402,18 @@ object RDExt {
     }
 
     def addStory (story:DSpec) = {
-
+      story.parsed
+println(story.cache.mkString)
       if(stories.size > 1 || addFiddles)
         root.children appendAll {
           lastAst = List(DomAst(StoryNode(story.specPath), "story").withPrereq(lastAst.map(_.id)))
           lastAst
         }
 
+      RDomain.domFilter(story) {
+        case x@_ => println("---- "+x)
+
+      }
       root.children appendAll RDomain.domFilter(story) {
         case o: O if o.name != "context" => List(DomAst(o, AstKinds.RECEIVED))
         case v: EMsg if v.entity == "ctx" && v.met == "storySync" => {

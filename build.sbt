@@ -41,7 +41,9 @@ libraryDependencies in Global ++= Seq(
   "com.atlassian.commonmark"   % "commonmark"                   % "0.9.0",
   "com.atlassian.commonmark"   % "commonmark-ext-gfm-tables"    % "0.9.0",
 
-  "org.scalatest"        %% "scalatest"          % "2.1.3",
+  "org.scalatest"          %% "scalatest"          % "2.1.3",
+  "org.scalatestplus.play" %% "scalatestplus-play" % "1.5.0" % "test",
+
   "com.typesafe.akka"    %% "akka-cluster"       % "2.4.2",
   "com.typesafe.akka"    %% "akka-cluster-tools" % "2.4.2",
   "com.typesafe.akka"    %% "akka-contrib"       % "2.4.2",
@@ -64,6 +66,7 @@ lazy val diesel = (project in file("diesel"))
     unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/base/src/main/scala",
     unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/core/src/main/scala"
   )
+  // .dependsOn(pcommon).aggregate(pcommon)
 
 lazy val pcommon = (project in file("common")).enablePlugins(PlayScala)
   .settings(

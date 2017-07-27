@@ -155,10 +155,10 @@ class DomEngine(
     case d@DomAst(EVal(p), /*"generated"*/ _, _, _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.dflt)
   }
 
-  /** collect generated values */
+  /** collect the last generated value OR empty string */
   def resultingValue = root.collect {
     case d@DomAst(EVal(p), /*"generated"*/ _, _, _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.dflt)
-  }
+  }.lastOption.map(_._2).getOrElse("")
 
   val rules = dom.moreElements.collect {
     case e:ERule => e
