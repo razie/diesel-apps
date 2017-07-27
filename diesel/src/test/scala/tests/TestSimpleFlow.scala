@@ -4,7 +4,7 @@ import org.scalatest._
 import org.scalatest.Assertions._
 import razie.diesel.dom.{DomState, TextSpec}
 import razie.diesel.engine.DomEngineSettings
-import razie.diesel.samples.Utils
+import razie.diesel.samples.DomEngineUtils
 
 /**
   * Created by raz on 2017-07-06.
@@ -16,12 +16,12 @@ class SimpleSpec extends FlatSpec {
     }
 
   it should "concatenate specs" in {
-    val engine = Utils.execAndWait(Utils.mkEngine(new DomEngineSettings(), specs, List(story)))
+    val engine = DomEngineUtils.execAndWait(DomEngineUtils.mkEngine(new DomEngineSettings(), specs, List(story)))
     assert(engine.resultingValue contains "Jane")
   }
 
   it should "concatenate specs" in {
-    val engine = Utils.execAndWait(Utils.mkEngine(new DomEngineSettings(), specs, List(story)))
+    val engine = DomEngineUtils.execAndWait(DomEngineUtils.mkEngine(new DomEngineSettings(), specs, List(story)))
     assert(engine.resultingValue contains "Jane")
   }
 
@@ -47,3 +47,4 @@ $msg home.guest_arrived(name="Jane")
 """.stripMargin
     )
   }
+

@@ -9,7 +9,6 @@ package razie.diesel.engine
 import org.bson.types.ObjectId
 import play.api.mvc.{AnyContent, Request}
 import razie.diesel.engine.RDExt.EEContent
-import razie.wiki.Services
 
 import scala.Option.option2Iterable
 
@@ -72,7 +71,7 @@ class DomEngineSettings
   /** tag query to select for modeBlender */
   var tagQuery : Option[String] = None
   ) {
-  val node = Services.config.node
+  val node = DieselAppContext.localNode
 
   /** is this supposed to use a user cfg */
   def configUserId = configTag.map(x=>if(ObjectId.isValid(x)) Some(new ObjectId(x)) else None)

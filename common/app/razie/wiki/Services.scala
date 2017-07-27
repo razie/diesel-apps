@@ -48,28 +48,12 @@ object Services {
   /** is this website trusted? if not links will have a "exit" warning */
   var isSiteTrusted : String => Boolean = {s=>false }
 
-  private var handlers: EventProcessor = new NeverReally
 
   /** initialize the event processor */
-  def initCqrs (al:EventProcessor) = {handlers = al}
+  def initCqrs (al:EventProcessor) = BasicServices.initCqrs(al)
 
   /** CQRS dispatcher */
-  def ! (a: Any) = {handlers ! a}
-
-  /** this is a generic event and/or task dispatcher - I simply ran out of names...
-    *
-    * some of the evens are audits, some are entity notifications that spread through the cluster
-    *
-    * some are just stuff to do later.
-    */
-  trait EventProcessor {
-    /** execute work request later */
-    def ! (a: Any)
-  }
+  def ! (a: Any) = BasicServices ! a
 }
 
-/** stub implementation - does nothing */
-class NeverReally extends Services.EventProcessor {
-  def !(a: Any) {}
-}
 

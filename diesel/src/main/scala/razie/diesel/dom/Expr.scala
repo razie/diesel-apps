@@ -1,6 +1,7 @@
 package razie.diesel.dom
 
 import razie.clog
+import razie.diesel.exec.EEFunc
 import razie.diesel.ext.CanHtml
 
 import scala.collection.mutable
@@ -146,6 +147,17 @@ case class BlockExpr (ex : Expr) extends Expr {
   val expr = "( " + ex.toString + " )"
   override def apply (v:Any)(implicit ctx:ECtx) = ex.apply(v)
   override def getType: String = ex.getType
+}
+
+/** a js expression */
+case class JSSExpr (s : String) extends Expr {
+  val expr = "js{{ " + s + " }}"
+
+  override def getType: String = WTypes.STRING
+
+  override def apply (v:Any)(implicit ctx:ECtx) = {
+    EEFunc.execute (s)
+  }
 }
 
 /** a json block */

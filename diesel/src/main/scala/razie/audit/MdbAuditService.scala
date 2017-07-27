@@ -13,7 +13,7 @@ import org.joda.time.DateTime
 import razie.Logging
 import razie.db.RazSalatContext.ctx
 import razie.db.{ROne, RazMongo}
-import razie.wiki.Services
+import razie.wiki.{BasicServices}
 
 /**
   * razie's default Audit implementation - stores them events in a Mongo table. Use this as an example to write your own auditing service.
@@ -25,7 +25,7 @@ class MdbAuditService extends AuditService with Logging {
   /** log a db operation */
   def logdb(what: String, details: Any*) = {
     val d = details.mkString(",")
-    Services ! Audit("a", what, d)
+    BasicServices ! Audit("a", what, d)
     val s = what + " " + d
     razie.Log.audit(s)
     s
@@ -34,7 +34,7 @@ class MdbAuditService extends AuditService with Logging {
   /** log a db operation */
   def logdbWithLink(what: String, link: String, details: Any*) = {
     val d = details.mkString(",")
-    Services ! Audit("a", what, d, Some(link))
+    BasicServices ! Audit("a", what, d, Some(link))
     val s = what + " " + d
     razie.Log.audit(s)
     s

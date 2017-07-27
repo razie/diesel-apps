@@ -16,7 +16,6 @@ import play.libs.Akka
 import razie.clog
 import razie.diesel.dom.{RDomain, _}
 import razie.diesel.ext._
-import razie.wiki.Services
 
 import scala.Option.option2Iterable
 import scala.collection.mutable
@@ -25,6 +24,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Future, Promise}
 import scala.util.Try
 
+
+
 /** an application static - engine factory and cache */
 object DieselAppContext {
   private var appCtx : Option[DieselAppContext] = None
@@ -32,10 +33,13 @@ object DieselAppContext {
   var refMap = new mutable.HashMap[String,ActorRef]()
   var router : Option[ActorRef] = None
 
+  /** when in a cluster, you need to set this on startup... */
+  var localNode = "localhost"
+
   /** initialize the engine cache and actor infrastructure */
   def init (node:String="", app:String="") = {
     if(appCtx.isEmpty) appCtx = Some(new DieselAppContext(
-      if(node.length > 0) node else Services.config.node,
+      if(node.length > 0) node else localNode,
       if(app.length > 0) app else "default"
     ))
 
@@ -288,9 +292,11 @@ class DomEngine(
       case BFlowExpr(ex) => rec(ex)
     }
 
-    if(a.value.isInstanceOf[EMsg])
+    if(a.value.isInstanceOf[EMsg]) {
+      implicit val ctx = new StaticECtx(a.value.asInstanceOf[EMsg].attrs, Some(this.ctx), Some(a))
       flows.filter(_.e.test(a.value.asInstanceOf[EMsg])).map { f =>
         res = rec(f.ex)
+      }
     }
 
     // add explicit depys
@@ -393,7 +399,7 @@ class DomEngine(
   val finishP = Promise[DomEngine]()
   val finishF = finishP.future
 
-  def process = {
+  def process : Future[DomEngine] = {
     if(root.status != DomState.STARTED) {
 
       clog << "DomEng " + id + " process"
@@ -444,6 +450,7 @@ class DomEngine(
       }
 
       case n1@ENext(m, "=>", cond) => {
+        implicit val ctx = new StaticECtx(m.attrs, Some(this.ctx), Some(a))
         if(n1.test()) {
           val newnode = DomAst(m, AstKinds.GENERATED)
 //          a.children append newnode
@@ -490,6 +497,7 @@ class DomEngine(
   /** reused */
   private def runRule (a:DomAst, in:EMsg, r:ERule) = {
     var result : List[DomAst] = Nil
+    implicit val ctx = new StaticECtx(in.attrs, Some(this.ctx), Some(a))
 
     // generate each gen/map
     r.i.map { ri =>
@@ -544,6 +552,8 @@ class DomEngine(
 
   private def expandEMsg(a: DomAst, in: EMsg, recurse: Boolean, level: Int) = {
     var newNodes : List[DomAst] = Nil // nodes generated this call collect here
+
+    implicit val ctx = new StaticECtx(in.attrs, Some(this.ctx), Some(a))
 
     // if the message attrs were expressions, calculate their values
     val n: EMsg = in.copy(
@@ -604,7 +614,8 @@ class DomEngine(
         mocked = true
 
         val news = try {
-          val xx = r.apply(n, None)(new StaticECtx(n.attrs, Some(ctx), Some(a)))
+          implicit val ctx = new StaticECtx(n.attrs, Some(this.ctx), Some(a))
+          val xx = r.apply(n, None)
           xx.collect{
             // collect resulting values in the context as well
             case v@EVal(p) => {
@@ -811,6 +822,44 @@ class DomEngine(
       }
     }
   }
+
+  def extractValues (e:String, a:String) = {
+    // find the spec and check its result
+    // then find the resulting value.. if not, then json
+    val oattrs = dom.moreElements.collect {
+      //      case n:EMsg if n.entity == e && n.met == a => n
+      case n: EMsg if n.entity == e && n.met == a => n
+    }.headOption.toList.flatMap(_.ret)
+
+    //    if (oattrs.isEmpty) {
+    //      errors append s"Can't find the spec for $msg"
+    //    }
+
+    import razie.diesel.ext.stripQuotes
+
+    // collect values
+    val values = root.collect {
+      case d@DomAst(EVal(p), /*"generated"*/ _, _, _) if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined => p
+    }
+
+    values
+  }
+
+  def finalContext (e:String, a:String) = {
+    // find the spec and check its result
+    // then find the resulting value.. if not, then json
+    val oattrs = dom.moreElements.collect {
+      case n: EMsg if n.entity == e && n.met == a => n
+    }.headOption.toList.flatMap(_.ret)
+
+    // collect values
+    val values = root.collect {
+      case d@DomAst(EVal(p), /*"generated"*/ _, _, _) if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined => p
+    }
+
+    values
+  }
+
 }
 
 trait InfoNode // just a marker for useless info nodes

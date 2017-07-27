@@ -29,9 +29,11 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
   override def apply(name: String): String = overwritten.map(_.apply(name)).orElse(ps(name)).orElse(pu(name).map(_.dflt)).getOrElse(super.apply(name))
 
   override def getp(name: String): Option[P] =
-    overwritten.flatMap(_.getp(name)).orElse(ps(name).map{v=>
-      P(name,v)
-    }).orElse(pu(name)).orElse(super.getp(name))
+    if(name.length > 0)
+      overwritten.flatMap(_.getp(name)).orElse(ps(name).map{v=>
+        P(name,v)
+      }).orElse(pu(name)).orElse(super.getp(name))
+    else None
 
   override def put(p: P): Unit = overwritten.map(_.put(p)).getOrElse(super.put(p))
 
@@ -55,7 +57,8 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
   }
 
   /** source from settings */
-  private def ps(name:String) : Option[String] = settings.postedContent.flatMap(_.get(name))
+  private def ps(name:String) : Option[String] =
+    settings.postedContent.flatMap(_.get(name))
 
 
   /** used for instance when perssisting a context - will overwrite the defautl */

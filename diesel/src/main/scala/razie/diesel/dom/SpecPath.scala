@@ -64,7 +64,7 @@ trait DTemplate {
   def specPath : TSpecPath
   def pos : EPos
 
-  def parms =
+  lazy val parms =
     if(parmStr.trim.length > 0)
       parmStr.trim.split("[, ]").map(s=>s.split("=")).filter(_.size == 2).map(a=> (a(0), a(1))).toMap
     else Map.empty[String,String]

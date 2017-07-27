@@ -12,7 +12,7 @@ object PlayTools {
     if(Services.config.isLocalhost)
       Some(Services.config.simulateHost)
     else
-      request.headers.get("X-FORWARDED-HOST")
+      request.headers.get("X-FORWARDED-HOST").map(_.replaceFirst(":.*$", "")) // remove port number
 
   /** assume the request was a post - get the data reformatted as simpel NVP */
   def postData (implicit request : Request[AnyContent]) = {

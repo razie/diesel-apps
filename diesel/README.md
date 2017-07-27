@@ -1,8 +1,10 @@
 # Diesel Apps - Microservices workbench
 
-Rules, workflows, actors and microservices.
+Rules, flows, actors and microservices.
 
-Think of Amazon Lambda... then take all the complexity out of setting it up, allow creating the "lambdas" in real-time with a descriptive DSL, add configuration, versioning, hosting and continuous testing and deployment and you'll get a good picture. Add on-prem support and multi-vendor integration
+Think of Amazon Lambda... then take all the complexity out of setting it up, allow creating the "lambdas" in real-time with a descriptive DSL, add configuration, versioning, hosting and continuous testing and deployment and you'll get a good picture of what this is.
+
+Add on-prem support and multi-vendor integration
 
 ## Rules and workflows
 

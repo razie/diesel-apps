@@ -18,6 +18,8 @@ case class EMsg(arch:String, entity: String, met: String, attrs: List[RDOM.P], r
   def withPos(p:Option[EPos]) = {this.pos = p; this}
   def withSpec(p:Option[EMsg]) = {this.spec = p; this}
 
+  def asCtx (implicit ctx:ECtx) : ECtx = new StaticECtx(this.attrs, Some(ctx))
+
   def toj : Map[String,Any] =
     Map (
       "class" -> "EMsg",

@@ -102,7 +102,7 @@ case class WikiEntry(
   override def findTemplate(name: String, direction:String=""): Option[DTemplate] =
     this
       .templateSections
-      .filter(t=> t.name == name && (direction=="" || t.signature == direction))
+      .filter(t=> t.name == name && (direction=="" || t.signature.startsWith(direction)))
       .headOption
       .map {t=> new WikiDTemplate (t) }
 
@@ -341,7 +341,9 @@ case class WikiEntry(
 }
 
 /** a section inside a wiki page
-  * {{stype name:signature args}}
+  * {{stype name:signature args}}content{{/stype}}
+  *
+  * Note that the content will start with a \n if you use separate lines...
   */
 case class WikiSection(original:String, parent: WikiEntry, stype: String, name: String, signature: String, content: String, args:Map[String,String] = Map.empty) {
   var line : Int = -1

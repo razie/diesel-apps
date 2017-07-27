@@ -128,3 +128,4 @@ class WikiDTemplate (t:WikiSection) extends DTemplate {
   def pos : EPos = EPos(t.wid.copy(section = None).wpath, t.line, t.col)
 }
 
+

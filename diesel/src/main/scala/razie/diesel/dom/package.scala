@@ -19,13 +19,13 @@ package object dom {
 
   def quot(s:String) = "\""+ s + "\""
 
-  def qTyped(q:Map[String,String], f:RDOM.F) = q.map { t =>
+  def qTyped(q:Map[String,String], f:Option[RDOM.F]) = q.map { t =>
     def prep(v: String) =
       if (v.startsWith("\"")) v.replaceAll("\"", "")
       else if (v.startsWith("\'")) v.replaceAll("\'", "")
       else v
 
-    val p = f.parms.find(_.name == t._1)
+    val p = f.flatMap(_.parms.find(_.name == t._1))
     if (p.exists(_.ttype == "Int")) (t._1+"",
       try {
         t._2.toInt

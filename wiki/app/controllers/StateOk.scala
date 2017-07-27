@@ -43,6 +43,10 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
   def fqhParm(name:String) : Option[String] =
     query.get(name).orElse(fParm(name)).orElse(request.flatMap(_.headers.get(name)))
 
+  // useful so you don't have to typecast to AnyContent
+  def qhParm(name:String) : Option[String] =
+    query.get(name).orElse(request.flatMap(_.headers.get(name)))
+
   def fqhoParm(name:String, dflt:String) : String =
     query.get(name).orElse(fParm(name)).orElse(request.flatMap(_.headers.get(name))).getOrElse(dflt)
 

@@ -217,7 +217,6 @@ class EESnakk extends EExecutor("snakk") {
 
 
         // 1. response template specified
-        if()
 
         // 2. extract values
         val strs = templateResp.map {tresp =>
@@ -370,7 +369,7 @@ object EESnakk {
   }
 
   /** prepare the URL - expand $parm expressions */
-  private def prepUrl(url: String, attrs: Attrs) = {
+  def prepUrl(url: String, attrs: Attrs) : String = {
     //todo add expressions like ${...}
     val PATTERN = """(\$\w+)*""".r
     val u = PATTERN.replaceSomeIn(url, { m =>
@@ -381,6 +380,22 @@ object EESnakk {
     })
     val res = new URI(u).toString()
     res
+  }
+
+  def formatTemplate (content:String, ctx:ECtx) = {
+    // todo either this or prepUrl not both
+    val PATTERN = """(\$\w+)*""".r
+    var s1 = PATTERN.replaceSomeIn(content, { m =>
+      val n = if (m.matched.length > 0) m.matched.substring(1) else ""
+      if(n.length > 1) ctx.get(n) else None
+//        stripQuotes(x.dflt)
+    })
+    val PAT = """\$\{([^\}]*)\}""".r
+    s1 = PAT.replaceSomeIn(s1, { m =>
+      val n = m.group(1)
+      if(n.length > 1) ctx.get(n) else None
+    })
+    s1
   }
 
   override def toString = "$executor::snakk "

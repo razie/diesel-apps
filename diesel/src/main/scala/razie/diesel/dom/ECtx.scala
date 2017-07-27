@@ -43,6 +43,7 @@ trait ECtx {
   def get    (name: String): Option[String] = getp(name).map(_.dflt)
   def put    (p: P): Unit
   def putAll (p: List[P]): Unit
+  def listAttrs: List[P]
 
   def curNode : Option[DomAst]
 
@@ -61,8 +62,9 @@ trait ECtx {
   }
 }
 
+
 /** a context - LIST, use to see speed of list */
-class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curNode:Option[DomAst]) extends ECtx {
+class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curNode:Option[DomAst] = None) extends ECtx {
   var attrs: List[P] = Nil
   var _domain: Option[RDomain] = None
   var _specs: List[DSpec] = Nil
@@ -75,6 +77,8 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
     if(userId.isEmpty) userId = s
     this
   }
+
+  def listAttrs: List[P] = attrs ++ base.toList.flatMap(_.listAttrs)
 
   def domain: Option[RDomain] = base.map(_.domain) getOrElse _domain
   def specs: List[DSpec] = base.map(_.specs) getOrElse _specs
@@ -143,4 +147,7 @@ class ScopeECtx(cur: List[P] = Nil, base: Option[ECtx] = None, curNode:Option[Do
 object ECtx {
   /** empty context */
   val empty = new StaticECtx()
+
+  def apply (attrs:List[P]) = new StaticECtx(attrs)
 }
+

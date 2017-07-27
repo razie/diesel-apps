@@ -12,7 +12,7 @@ import mod.diesel.model.exec._
 import razie.Snakk
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom.{RDomain, _}
-import razie.diesel.exec.EETest
+import razie.diesel.exec.{EEFunc, EETest}
 import razie.diesel.ext._
 import razie.xp.JsonOWrapper
 
@@ -44,7 +44,8 @@ object RDExt {
       new EEDieselMemDb ::
       new EEDieselSharedDb ::
       new EESnakk ::
-      new EETest :: Nil map Executors.add
+      new EETest ::
+      new EEFunc :: Nil map Executors.add
   }
 
   /** parse from/to json utils */
@@ -132,12 +133,15 @@ object RDExt {
 
 
   // find the spec of the generated message, to ref
-  def spec(m:EMsg)(implicit ctx: ECtx) =
+  def spec(m:EMsg)(implicit ctx: ECtx) : Option[EMsg] = spec(m.entity, m.met)
+
+  // find the spec of the generated message, to ref
+  def spec(entity:String, met:String)(implicit ctx: ECtx) : Option[EMsg] =
     ctx.domain.flatMap(_.moreElements.collect {
       case x: EMsg
         if
-        ("*" == x.entity || x.entity == m.entity || regexm(x.entity, m.entity)) &&
-        ("*" == x.met || x.met == m.met || regexm(x.met, m.met))
+        ("*" == x.entity || x.entity == entity || regexm(x.entity, entity)) &&
+        ("*" == x.met || x.met == met || regexm(x.met, met))
          => x
     }.headOption)
 
@@ -372,6 +376,11 @@ object RDExt {
   case class StoryNode (path:TSpecPath) extends CanHtml with InfoNode {
     override def toHtml = "Story " + path.ahref
     override def toString = "Story " + path.wpath
+  }
+
+  /* add a message */
+  def addMsgToAst(root: DomAst, v : EMsg) = {
+    root.children append DomAst(v, AstKinds.RECEIVED)
   }
 
   /* extract more nodes to run from the story - add them to root */
