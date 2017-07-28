@@ -146,15 +146,19 @@ object RDExt {
     }.headOption)
 
   /** a REST request or response: content and type */
-  class EEContent (val body:String, val ctype:String, val iroot:Option[Snakk.Wrapper[_]] = None) {
-    def isXml = "application/xml" == ctype
-    def isJson = "application/json" == ctype
+  class EEContent (
+                    val body:String,
+                    val contentType:String,
+                    val iroot:Option[Snakk.Wrapper[_]] = None,
+                    val raw : Option[Array[Byte]] = None) {
+    def isXml = "application/xml" == contentType
+    def isJson = "application/json" == contentType
 
     import razie.Snakk._
 
     /** xp root for either xml or json body */
     lazy val root:Snakk.Wrapper[_] = iroot getOrElse {
-      ctype match {
+      contentType match {
         case "application/xml" => Snakk.xml(body)
         case "application/json" => Snakk.json(body)
         case x@_ => Snakk.json("")

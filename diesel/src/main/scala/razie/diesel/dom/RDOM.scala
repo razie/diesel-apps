@@ -54,6 +54,9 @@ object RDOM {
     }
   }
 
+  // todo complete type-aware
+  case class PValue[T] (value:T, contentType:String)
+
   /** represents a parameter/member/attribute
     *
     * @param name   name of parm
@@ -63,7 +66,11 @@ object RDOM {
     * @param multi  is this a list/array?
     * @param expr   expression - for sourced parms
     */
-  case class P (name:String, dflt:String, ttype:String="", ref:String="", multi:String="", expr:Option[Expr]=None) extends CM with razie.diesel.ext.CanHtml {
+  case class P (name:String, dflt:String, ttype:String="", ref:String="", multi:String="", expr:Option[Expr]=None,
+                value:Option[PValue[_]] = None
+               ) extends CM with razie.diesel.ext.CanHtml {
+
+    def v[T](va:T, ctype:String="") = this.copy(value=Some(PValue[T](va, ctype)))
 
     /** current calculated value if any or the expression */
     def valExpr = if(dflt.nonEmpty || expr.isEmpty) CExpr(dflt, ttype) else expr.get
