@@ -1,5 +1,5 @@
 
-Diesel Hydra
+Diesel Apps
 ============
 
 A framework for rapid service mocking, prototyping, development, testing and hosting. See it in action at [DieselApps.com](http://www.dieselapps.com).
