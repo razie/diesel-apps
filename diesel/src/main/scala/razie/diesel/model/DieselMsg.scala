@@ -1,6 +1,6 @@
 package razie.diesel.model
 
-import razie.wiki.model.WID
+import razie.tconf.SpecPath
 
 /** a message string - send these to Services to have them executed
   *
@@ -24,7 +24,7 @@ case class DieselMsgString (msg:String, target:DieselTarget = DieselTarget("rk")
 * @param specs list of specifications to get the rules from
 * @param stories optional list of stories to execute and validate
 */
-case class DieselTarget (realm:String, specs:List[WID]=Nil, stories:List[WID]=Nil) { }
+case class DieselTarget (realm:String, specs:List[SpecPath]=Nil, stories:List[SpecPath]=Nil) { }
 
 /** a message intended for a target. Send to CQRS for execution, via Services */
 case class DieselMsg (e:String, a:String, parms:Map[String,Any], target:DieselTarget=DieselTarget("rk")) {

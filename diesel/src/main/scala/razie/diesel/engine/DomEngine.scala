@@ -12,6 +12,7 @@ import razie.clog
 import razie.diesel.dom.{DomState, RDomain, _}
 import razie.diesel.engine.RDExt._
 import razie.diesel.ext.{BFlowExpr, FlowExpr, MsgExpr, SeqExpr, _}
+import razie.diesel.utils.DomCollector
 import razie.tconf.DSpec
 
 import scala.Option.option2Iterable
@@ -358,7 +359,7 @@ class DomEngine(
     if(root.status == DomState.DONE && status != DomState.DONE) {
       status = DomState.DONE
       clog << "DomEng "+id+" finish"
-      mod.diesel.controllers.DomGuardian.collectAst ("engine", id, root)
+      DomCollector.collectAst ("engine", id, root)
       finishP.success(this)
       DieselAppContext.refMap.get(id).map(_ ! DEStop) // stop the actor and remove engine
     }

@@ -302,7 +302,7 @@ case class WikiEntry(
   var ipreprocessed : Option[(SState, Option[WikiUser])] = None;
   //todo don't hold the actual user, but someone that can get the user... prevents caching?
 
-  def parsed = preprocessed.s
+  override def parsed = preprocessed.s
 
   // smart preprocess with user and stuff
   def preprocess(au:Option[WikiUser]) = {

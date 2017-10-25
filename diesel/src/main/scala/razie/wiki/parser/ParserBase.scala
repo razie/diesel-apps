@@ -64,8 +64,10 @@ trait ParserCommons extends RegexParsers {
   }
 }
 
-/** wiki parser base definitions shared by different wiki parser */
+/** wiki parser base definitions shared by different wiki parsers */
 trait ParserBase extends ParserCommons {
+
+  def apply(input: String) : PState
 
   /** provide a realm */
   def realm:String

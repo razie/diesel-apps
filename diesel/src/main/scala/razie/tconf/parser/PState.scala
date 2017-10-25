@@ -125,6 +125,7 @@ case class LState(states:PState*) extends PState {
 
   if (ParserSettings.debugStates) cdebug << this.toString
 
+  // nobody should ask for these - fold the parse result into a SState always
   override def s: String = ???
   override def props: Map[String, String] = ???
   override def ilinks: List[Any] = ???
@@ -150,6 +151,7 @@ case class LState(states:PState*) extends PState {
 case class RState(prefix:String, mid:PState, suffix:String)  extends PState {
   if (ParserSettings.debugStates) cdebug << this.toString
 
+  // nobody should ask for these - fold the parse result into a SState always
   override def s: String = ???
   override def props: Map[String, String] = ???
   override def ilinks: List[Any] = ???
@@ -172,6 +174,7 @@ case class LazyState[T <: DSpec, U <: DUser] (f:(SState, FoldingContext[T,U]) =>
 
   if (ParserSettings.debugStates) cdebug << this.toString
 
+  // nobody should ask for these - fold the parse result into a SState always
   override def s: String = ???
   override def props: Map[String, String] = ???
   override def ilinks: List[Any] = ???

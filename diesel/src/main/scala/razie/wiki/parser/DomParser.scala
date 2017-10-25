@@ -58,7 +58,9 @@ trait DomParser extends ParserBase with ExprParser {
 
           def mkList = s"""<a href="/diesel/list2/${c.name}">list</a>"""
 
-          def mkNew = if (ctx.we.exists(w => WikiDomain.canCreateNew(w.specPath.realm.mkString, name))) s""" | <a href="/doe/diesel/create/${c.name}">new</a>""" else ""
+          // todo delegate decision to tconf domain - when domain is refactored into tconf
+          def mkNew = "User" != name && "WikiLink" != name
+//            if (ctx.we.exists(w => WikiDomain.canCreateNew(w.specPath.realm.mkString, name))) s""" | <a href="/doe/diesel/create/${c.name}">new</a>""" else ""
 
           SState(
             s"""

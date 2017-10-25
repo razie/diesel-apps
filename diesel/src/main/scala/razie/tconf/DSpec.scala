@@ -2,6 +2,8 @@ package razie.tconf
 
 import razie.diesel.dom._
 import razie.diesel.ext
+import razie.tconf.parser.JMapFoldingContext
+import razie.wiki.parser.{ParserBase, SimpleSpecParser}
 
 /** uniquely identifies a piece of specification
   *
@@ -54,6 +56,11 @@ trait DSpec {
     */
   var cacheable: Boolean = true
 
+  /**
+    * original text content
+    */
+  def content : String
+
   /** the assumption is that specs can parse themselves and cache the AST elements
     *
     * errors must contain "CANNOT PARSE" and more information
@@ -92,14 +99,19 @@ trait DSpecInventory {
 }
 
 /** the simplest spec - from a named string property */
-case class TextSpec (val name:String, val text:String) extends DSpec {
+case class TextSpec (override val name:String, override val text:String) extends BaseTextSpec(name, text) {
+}
+
+class BaseTextSpec (val name:String, val text:String) extends DSpec {
   def specPath : TSpecPath = new SpecPath("local", name, "")
 
   def findTemplate (name:String, direction:String="") : Option[DTemplate] = None
 
   /** other parsing artifacts to be used by knowledgeable modules.
     * Parsers can put stuff in here. */
-  val collector = new scala.collection.mutable.HashMap[String, Any]()
+  override val collector = new scala.collection.mutable.HashMap[String, Any]()
+
+  override def content: String = text
 
   /** the assumption is that specs can parse themselves and cache the AST elements
     *
@@ -107,16 +119,29 @@ case class TextSpec (val name:String, val text:String) extends DSpec {
     *
     * todo parsed should be an Either
     */
-  private var iparsed : Option[String] = None
+  private var iparsed: Option[BaseTextSpec] = None
+  private var sparsed: Option[String] = None
 
   // parse just once
-  def parsed : String = iparsed.getOrElse {
+  def parsed: String = sparsed.getOrElse {
     val res = {
-      "x"
+      val p = mkParser
+      p.apply(text).fold(new JMapFoldingContext(Some(this), None)).s
     }
-    iparsed = Some(res)
+    sparsed = Some(res)
+    iparsed = Some(this)
     res
   }
-}
 
+  def mkParser : ParserBase = new SimpleSpecParser {
+    /** provide a realm */
+    override def realm: String = "rk"
+  }
+
+  def xparsed: BaseTextSpec = iparsed.getOrElse {
+    parsed
+    iparsed.get
+  }
+
+}
 

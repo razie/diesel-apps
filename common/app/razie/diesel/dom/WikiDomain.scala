@@ -1,6 +1,5 @@
 package razie.diesel.dom
 
-import razie.diesel.ext
 import razie.tconf.{DTemplate, SpecPath}
 import razie.wiki.model._
 
