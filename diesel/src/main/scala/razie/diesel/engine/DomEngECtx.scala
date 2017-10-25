@@ -2,7 +2,8 @@ package razie.diesel.engine
 
 import org.bson.types.ObjectId
 import razie.diesel.dom.RDOM.P
-import razie.diesel.dom.{DSpec, ECtx, RDomain, SimpleECtx}
+import razie.diesel.dom.{ECtx, RDomain, SimpleECtx}
+import razie.tconf.DSpec
 
 /** specific root context for an enging instance
   *
@@ -56,9 +57,9 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
     case _ => None
   }
 
-  /** source from settings */
+  /** source from settings - only if there's some value... otherwise base won't cascade */
   private def ps(name:String) : Option[String] =
-    settings.postedContent.flatMap(_.get(name))
+    settings.postedContent.flatMap(_.get(name)).filter(_.length > 0)
 
 
   /** used for instance when perssisting a context - will overwrite the defautl */

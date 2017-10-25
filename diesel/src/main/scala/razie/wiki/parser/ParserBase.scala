@@ -6,38 +6,12 @@
  */
 package razie.wiki.parser
 
-import razie.wiki.model._
-import razie.wiki.{Enc, Services}
+import razie.tconf.parser.{PState, RState, SState}
+import razie.wiki.Enc
 
 import scala.Option.option2Iterable
 import scala.collection.mutable.ListBuffer
 import scala.util.parsing.combinator.RegexParsers
-
-object ParserSettings {
-  /** debug the buildig of AST while pasing */
-  var debugStates = false
-
-  WikiObservers mini {
-    case x:WikiConfigChanged =>
-      Services.config.sitecfg("ParserSettings.debugStates").foreach { s =>
-        debugStates = s.toBoolean
-      }
-  }
-
-  //======================= forbidden html tags TODO it's easier to allow instead?
-
-  //todo form|input allowed?
-
-  final val hok = "abbr|acronym|address|a|b|blockquote|br|button|caption|div|dd|dl|dt|font|h1|h2|h3|h4|h5|h6|hr|i|img|li|p|pre|q|s|small|strike|strong|span|sub|sup|" +
-    "table|tbody|td|tfoot|th|thead|tr|ul|u|input|form|textarea|select|label"
-  final val hnok = "applet|area|base|basefont|bdo|big|body|center|cite|code|colgroup|col|" +
-    "del|dfn|dir|fieldset|frame|frameset|head|html|iframe|ins|isindex|kbd|" +
-    "legend|link|map|menu|meta|noframes|noscript|object|ol|" +
-    "optgroup|option|param|samp|script|style|title|tt|var"
-
-  final val mth1 = "Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec"
-  final val mth2 = "January|February|March|April|May|June|July|August|September|October|November|December"
-}
 
 /** simple parsers */
 trait ParserCommons extends RegexParsers {
@@ -91,12 +65,11 @@ trait ParserCommons extends RegexParsers {
 }
 
 /** wiki parser base definitions shared by different wiki parser */
-trait WikiParserBase extends ParserCommons {
-  import WAST._
-  
+trait ParserBase extends ParserCommons {
+
   /** provide a realm */
   def realm:String
-  
+
   type PS = Parser[PState]
 
   val moreDotProps = new ListBuffer[Parser[PState]]()
@@ -104,9 +77,9 @@ trait WikiParserBase extends ParserCommons {
   val moreBlocks = new ListBuffer[Parser[PState]]()
 
   // todo half combinators to allow user modules to define new rules
-  def withDotProp  (p:Parser[PState]) : WikiParserBase = {moreDotProps append p; this }
-  def withWikiProp (p:Parser[PState]) : WikiParserBase = {moreWikiProps append p; this}
-  def withBlocks   (p:Parser[PState]) : WikiParserBase = {moreBlocks append p; this}
+  def withDotProp  (p:Parser[PState]) : ParserBase = {moreDotProps append p; this }
+  def withWikiProp (p:Parser[PState]) : ParserBase = {moreWikiProps append p; this}
+  def withBlocks   (p:Parser[PState]) : ParserBase = {moreBlocks append p; this}
 
   //=========================== forward defs - these are used in other mini-parsers but can't break them out of main
 
@@ -128,14 +101,16 @@ trait WikiParserBase extends ParserCommons {
   def xstatic: PS = static ^^ { case x => x }
   def escaped: PS = "`" ~ opt(""".[^`]*""".r) ~ "`" ^^ { case a ~ b ~ c => a + b.mkString + c }
   def escaped1: PS = "``" ~ opt(""".*""".r) ~ "``" ^^ { case a ~ b ~ c => a + b.mkString + c }
-  def escaped2: PS = "```" ~ opt("js"|"scala"|"xml"|"html"|"diesel") ~ opt(CRLF1 | CRLF3 | CRLF2) ~ """(?s)[^`]*""".r ~ "```" ^^ {
+  def escaped2: PS = "```" ~ opt("js"|"scala"|"xml"|"html"|"diesel"|"sh"|"java") ~ opt(CRLF1 | CRLF3 | CRLF2) ~ """(?s)[^`]*""".r ~ "```" ^^ {
     case a ~ name ~ _ ~ b ~ c => {
       RState(
         s"""<pre><code language="${name.mkString}">""",
-        if (name != "xml" && name != "html") b
-        else {
-          Enc.escapeHtml(b)
-        },
+        name match {
+          case Some("xml") | Some("html") => Enc.escapeHtml(b)
+          case _ if true => Enc.escapeHtml(b)
+          case _ => b
+        }
+        ,
         "</code></pre>")
 //      a + b + c
     }
@@ -159,9 +134,9 @@ trait WikiParserBase extends ParserCommons {
     case l ~ c =>
       // leave as SState for DSL parser
       SState(
-        l.map(t => t._1.s + t._2.s).mkString + c.map(_.s).getOrElse(""),
+        l.map(t => t._1.s + t._2).mkString + c.map(_.s).getOrElse(""),
         l.flatMap(_._1.props).toMap ++ c.map(_.props).getOrElse(Map()),
-        l.flatMap(_._1.ilinks).toList ++ c.map(_.ilinks).getOrElse(Nil))
+        l.flatMap(_._1.ilinks) ++ c.map(_.ilinks).getOrElse(Nil))
   }
 
 }

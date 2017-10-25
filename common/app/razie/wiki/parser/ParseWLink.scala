@@ -11,7 +11,7 @@ import razie.wiki.Enc
 import razie.wiki.model._
 
 /**
- *  parse [[...]] expressions
+ *  parse wiki links and [[...]] expressions
  */
 object ParseWLink {
   val SEARCH = """search:?([^]]*)""".r

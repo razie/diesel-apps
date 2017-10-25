@@ -50,9 +50,7 @@ case class WID(
       import play.api.Play.current
       import play.api.cache._
 
-      Cache.getAs[WikiEntry](this.wpath+".page").map { x =>
-        clog << "WIKI_CACHED FULL-" + this.wpath
-        x
+      WikiCache.getEntry(this.wpath+".page").map { x =>x
       }
     } else None
 
@@ -73,13 +71,19 @@ case class WID(
   def findSection = section.flatMap{s=> page.flatMap(_.sections.find(_.name == s))}
 
   /** get textual content, unprocessed, of this object, if found */
-  def content = section.map{s=>
-    page.flatMap(p=> p.sections.find(_.name == s) orElse p.templateSections.find(_.name == s)).map(_.content) getOrElse s"`[Section $s not found in $toString!]`"
+  def content = section.map{ s=>
+    // allow that section contains signature
+    val sar = s.split(":", 2)
+
+    page.flatMap( p=>
+      p.sections.find(t=> t.name == s && (sar.size < 2 || t.signature == sar.last)) orElse
+        p.templateSections.find(t=> t.name == s && (sar.size < 2 || t.signature == sar.last))).map(_.content) getOrElse
+          s"`[Section $s not found in $toString!]`"
   } orElse page.map(_.content)
 
   /** withRealm - convienience builder. Note that you can't override a category prefix */
   def r(r:String) =
-    if(CAT.unapply(cat).flatMap(_.realm).isDefined) this
+    if(CAT.unapply(cat).flatMap(_.realm).isDefined || r.length <= 0) this
     else this.copy(realm = Some(r))
 //  def r(r:String) = if(Wikis.DFLT == r || CAT.unapply(cat).flatMap(_.realm).isDefined) this else this.copy(realm = Some(r))
 
@@ -352,6 +356,10 @@ case class UWID(cat: String, id:ObjectId, realm:Option[String]=None) {
     case o: UWID => this.id == o.id // this way you can change cats without much impact
     case _ => false
   }
+}
+
+object UWID {
+  final val empty = UWID("?", new ObjectId())
 }
 
 /** a wrapper for categories, since they can now have a realm */

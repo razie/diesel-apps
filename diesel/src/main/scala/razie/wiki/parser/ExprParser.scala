@@ -1,5 +1,5 @@
 /**
-  * ____    __    ____  ____  ____,,___     ____  __  __  ____
+  *  ____    __    ____  ____  ____,,___     ____  __  __  ____
   * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
   * )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
   * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
@@ -10,25 +10,32 @@ import razie.diesel.dom._
 import razie.diesel.ext.{BFlowExpr, FlowExpr, MsgExpr, SeqExpr}
 
 /** expressions parser */
-trait WikiExprParser extends WikiParserBase {
+trait ExprParser extends ParserBase {
 
-  def ident: P = """\w+""".r
-
-  def qqident: P =
-    """[\w.]+""" ~ rep("." ~> ident) ^^ {
-      case i ~ l => (i :: l).mkString(".")
-    }
+  /** a regular ident but also '...' */
+  def ident: P = """[\w]+""".r | """'[\w -]+'""".r ^^ {
+    case s =>
+      if(s.startsWith("'") && s.endsWith("'"))
+        s.substring(1, s.length-1)
+      else
+        s
+  }
 
   def qident: P = ident ~ rep("." ~> ident) ^^ {
     case i ~ l => (i :: l).mkString(".")
   }
 
+  def xpath: P = ident ~ rep("[/@]+".r ~ ident) ^^ {
+    case i ~ l => (i :: l.map{x=>x._1+x._2}).mkString("")
+  }
+
   def any: P = """.*""".r
 
   //todo full expr with +-/* and XP
-  def value: P = qident | number | str
+  def value: P = qident | aint | afloat | str
 
-  def number: P = """\d+""".r
+  def aint: P = """\d+""".r
+  def afloat: P = """\d+[.]\d+""".r
 
   // todo commented - if " not included in string, evaluation has trouble - see expr(s)
   // todo see stripq and remove it everywhere when quotes die and proper type inference is used
@@ -49,7 +56,7 @@ trait WikiExprParser extends WikiParserBase {
     )
   }
 
-  def pterm1: Parser[Expr] = numexpr | cexpr | aident | jss | exregex | eblock | js
+  def pterm1: Parser[Expr] = numexpr | cexpr | xident | jsexpr1 | jsexpr2 | aident | jss | exregex | eblock | js
 
   def eblock: Parser[Expr] = "(" ~ ows ~> expr <~ ows ~ ")" ^^ { case ex => BlockExpr(ex) }
 
@@ -72,25 +79,31 @@ trait WikiExprParser extends WikiParserBase {
   def jother: Parser[String] = "[^{}\\[\\],]+".r ^^ { case ex => ex }
 
   // a number
-  def numexpr: Parser[Expr] = number ^^ { case i => new CExpr(i, "Number") }
+  def numexpr: Parser[Expr] = (aint | afloat) ^^ { case i => new CExpr(i, WTypes.NUMBER) }
 
   // string const
-  def cexpr: Parser[Expr] = "\"" ~> """[^"]*""".r <~ "\"" ^^ { case e => new CExpr(e, "String") }
+  def cexpr: Parser[Expr] = "\"" ~> """[^"]*""".r <~ "\"" ^^ { case e => new CExpr(e, WTypes.STRING) }
 
   // qualified identifier
   def aident: Parser[Expr] = qident ^^ { case i => new AExprIdent(i) }
 
+  // XP identifier (either json or xml)
+  def xident: Parser[Expr] = "xp:" ~> xpath ^^ { case i => new XPathIdent(i) }
+
+  def jsexpr1: Parser[Expr] = "js:" ~> ".*(?=[,)])".r ^^ { case li => JSSExpr(li) }
+  def jsexpr2: Parser[Expr] = "js:{" ~> ".*(?=})".r <~ "}" ^^ { case li => JSSExpr(li) }
+
   // regular expression, JS style
   def exregex: Parser[Expr] =
-    """/[^/]*/""".r ^^ { case x => new CExpr(x, "Regex") }
+    """/[^/]*/""".r ^^ { case x => new CExpr(x, WTypes.REGEX) }
 
   //------------ conditions
 
   def cond: Parser[BExpr] = boolexpr
 
-  def boolexpr: Parser[BExpr] = bterm1 | bterm1 ~ "||" ~ bterm1 ^^ { case a ~ s ~ b => bcmp(a, s.trim, b) }
+  def boolexpr: Parser[BExpr] = bterm1 | bterm1 ~ ("||" | "or") ~ bterm1 ^^ { case a ~ s ~ b => bcmp(a, s.trim, b) }
 
-  def bterm1: Parser[BExpr] = bfactor1 | bfactor1 ~ "&&" ~ bfactor1 ^^ { case a ~ s ~ b => bcmp(a, s.trim, b) }
+  def bterm1: Parser[BExpr] = bfactor1 | bfactor1 ~ ("&&" | "and") ~ bfactor1 ^^ { case a ~ s ~ b => bcmp(a, s.trim, b) }
 
   def bfactor1: Parser[BExpr] = eq | neq | lte | gte | lt | gt
 
@@ -98,9 +111,9 @@ trait WikiExprParser extends WikiParserBase {
 
   def df: Parser[BExpr] = expr ~ "?=" ~ expr ^^ { case a ~ s ~ b => cmp(a, s.trim, b) }
 
-  def eq: Parser[BExpr] = expr ~ "==" ~ expr ^^ { case a ~ s ~ b => cmp(a, s.trim, b) }
+  def eq: Parser[BExpr] = expr ~ ("==" | "is") ~ expr ^^ { case a ~ s ~ b => cmp(a, s.trim, b) }
 
-  def neq: Parser[BExpr] = expr ~ "!=" ~ expr ^^ { case a ~ s ~ b => cmp(a, s.trim, b) }
+  def neq: Parser[BExpr] = expr ~ ("!=" | "not") ~ expr ^^ { case a ~ s ~ b => cmp(a, s.trim, b) }
 
   def lte: Parser[BExpr] = expr ~ "<=" ~ expr ^^ { case a ~ s ~ b => cmp(a, s.trim, b) }
 

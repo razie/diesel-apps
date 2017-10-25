@@ -113,7 +113,7 @@ object JsScripster extends Logging {
     } //"'"+v+"'" }
   }
 
-  def qtojson(q: Map[String, String]) = "{" + q.map(t => s"""${t._1} : ${typeSafe(t._2)} """).mkString(",") + "}"
+  def qtojson(q: Map[String, String]) = "{" + q.map(t => s"""'${t._1}' : ${typeSafe(t._2)} """).mkString(",") + "}"
 
   def qtourl(q: Map[String, String]) = q.map(t => s"""${t._1}=${t._2}""").mkString("&")
 

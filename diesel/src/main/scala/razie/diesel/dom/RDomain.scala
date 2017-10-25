@@ -2,6 +2,7 @@ package razie.diesel.dom
 
 import razie.diesel.dom.RDOM._
 import razie.diesel.ext.EVal
+import razie.tconf.DSpec
 
 import scala.collection.mutable.ListBuffer
 
@@ -147,19 +148,19 @@ object RDomain {
   def domFrom (we:DSpec) : Option[RDomain] = {
     // it will always make a point of calling parsed before looking in the cache
     if(we.parsed.contains("CANNOT PARSE"))
-      we.cache.put(
+      we.collector.put(
         DOM_LIST,
         List(
           EVal(
             P("error", "ERROR: "+we.parsed))))
 
-    val domList = we.cache.getOrElse(DOM_LIST, List[Any]()).asInstanceOf[List[Any]].reverse
+    val domList = we.collector.getOrElse(DOM_LIST, List[Any]()).asInstanceOf[List[Any]].reverse
 
     // this causes the underlying fire to avoid fallen capter Y and focus on fighter 2
 
     //    if(we.tags.contains(R_DOM) || we.tags.contains(DSL_DOM))
     Some(
-      we.cache.getOrElseUpdate("razie/diesel/dom/dom", {
+      we.collector.getOrElseUpdate("razie/diesel/dom/dom", {
         var x=new RDomain("-",
           domList.collect {
             case c:C => (c.name, c)
@@ -198,13 +199,13 @@ object RDomain {
   def domFilter[T] (we:DSpec)(p:PartialFunction[Any,T]) : List[T] = {
     //    if(!we.cache.contains(DOM_LIST) && we.preprocessed.s.contains("CANNOT PARSE"))
     if(we.parsed.contains("CANNOT PARSE"))
-      we.cache.put(
+      we.collector.put(
         DOM_LIST,
         List(
           EVal(
             P("error", "ERROR: "+we.parsed))))
 
-    we.cache.getOrElse(DOM_LIST, List[Any]()).asInstanceOf[List[Any]].reverse.collect {
+    we.collector.getOrElse(DOM_LIST, List[Any]()).asInstanceOf[List[Any]].reverse.collect {
       case x if(p.isDefinedAt(x)) => p(x)
     }
   }

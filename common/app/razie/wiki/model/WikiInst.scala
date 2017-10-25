@@ -201,13 +201,16 @@ class WikiInstImpl (val realm:String, val fallBacks:List[WikiInst], mkDomain : W
         weTable(wid.cat).findOne(Map(REALM, "category" -> wid.cat, "name" -> wid.name, "parent" -> p))
     } getOrElse {
       if (Services.config.cacheDb) {
-        Cache.getAs[DBObject](wid.wpath+".db").orElse {
-          clog << "WIKI_CACHED DB-" + wid.wpath
+        val key = wid.copy(section = None).wpath+".db"
+
+        WikiCache.getDb(key).map{x=>
+          x
+        }.orElse {
           val n = weTable(wid.cat).findOne(Map(REALM, "category" -> wid.cat, "name" -> Wikis.formatName(wid.name)))
           n.filter(x => !Wikis.PERSISTED.contains(wid.cat)).map {
             // only for main wikis with no parents
             // todo can refine this logic further
-            Cache.set(wid.wpath + ".db", _, 300) // 10 minutes
+            WikiCache.set(key, _, 300) // 10 minutes
           }
           n
         }

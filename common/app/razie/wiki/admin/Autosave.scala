@@ -13,6 +13,7 @@ case class Autosave(
   name: String,
   userId: ObjectId,
   contents: Map[String,String],
+  crDtm: DateTime = DateTime.now,
   updDtm: DateTime = DateTime.now,
   _id: ObjectId = new ObjectId()) extends REntity[Autosave] {
 
@@ -26,7 +27,9 @@ object Autosave {
 
   /** create or update */
   def set(name:String, userId: ObjectId, c:Map[String,String]) =
-    ROne[Autosave]("name" -> name, "userId" -> userId).map(_.copy(contents=c).update).getOrElse(Autosave(name, userId, c).create)
+    ROne[Autosave]("name" -> name, "userId" -> userId)
+      .map(_.copy(contents=c, updDtm = DateTime.now).update)
+      .getOrElse(Autosave(name, userId, c).create)
 
   /** each user has its own draft */
   def find(name:String, userId: ObjectId) =

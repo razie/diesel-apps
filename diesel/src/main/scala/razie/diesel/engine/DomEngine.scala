@@ -6,78 +6,20 @@
  */
 package razie.diesel.engine
 
-import akka.actor.{ActorRef, Props}
-import razie.diesel.dom.DomState
-import RDExt._
-import razie.diesel.ext.{BFlowExpr, FlowExpr, MsgExpr, SeqExpr}
 import org.bson.types.ObjectId
 import org.joda.time.DateTime
-import play.libs.Akka
 import razie.clog
-import razie.diesel.dom.{RDomain, _}
-import razie.diesel.ext._
+import razie.diesel.dom.{DomState, RDomain, _}
+import razie.diesel.engine.RDExt._
+import razie.diesel.ext.{BFlowExpr, FlowExpr, MsgExpr, SeqExpr, _}
+import razie.tconf.DSpec
 
 import scala.Option.option2Iterable
-import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Future, Promise}
 import scala.util.Try
 
-
-
-/** an application static - engine factory and cache */
-object DieselAppContext {
-  private var appCtx : Option[DieselAppContext] = None
-  var engMap = new mutable.HashMap[String,DomEngine]()
-  var refMap = new mutable.HashMap[String,ActorRef]()
-  var router : Option[ActorRef] = None
-
-  /** when in a cluster, you need to set this on startup... */
-  var localNode = "localhost"
-
-  /** initialize the engine cache and actor infrastructure */
-  def init (node:String="", app:String="") = {
-    if(appCtx.isEmpty) appCtx = Some(new DieselAppContext(
-      if(node.length > 0) node else localNode,
-      if(app.length > 0) app else "default"
-    ))
-
-    val p = Props(new DomEngineRouter())
-    val a = Akka.system.actorOf(p)
-    router = Some(a)
-    a ! DEInit
-
-    appCtx.get
-  }
-
-  /** the static version - delegates to factory */
-  def mkEngine(dom: RDomain, root: DomAst, settings: DomEngineSettings, pages : List[DSpec]) = {
-    val eng = ctx.mkEngine(dom, root, settings, pages)
-    val p = Props(new DomEngineActor(eng))
-    val a = Akka.system.actorOf(p, name = "engine-"+eng.id)
-    DieselAppContext.engMap.put(eng.id, eng)
-    DieselAppContext.refMap.put(eng.id, a)
-    a ! DEInit
-    eng
-  }
-
-  def engines = engMap.values.toList
-
-  def stop = {
-  }
-
-  def ctx = appCtx.getOrElse(init())
-}
-
-/** a diesel app context
-  *
-  * todo properly injecting these */
-class DieselAppContext (node:String, app:String) {
-  /** make an engine instance for the given AST root */
-  def mkEngine(dom: RDomain, root: DomAst, settings: DomEngineSettings, pages : List[DSpec]) =
-    new DomEngine(dom, root, settings, pages)
-}
 
 /** a trace */
 case class DieselTrace(
@@ -109,17 +51,23 @@ case class DieselTrace(
 }
 
 
-/** base trait for events */
+/** DDD - base trait for events */
 trait DEvent {
   def dtm : DateTime
 }
 
-/** node expanded */
+/** DDD - node expanded */
 case class DEventExpNode(nodeId:String, children:List[DomAst], dtm:DateTime=DateTime.now) extends DEvent with CanHtml {
-  override def toHtml = s"EvExNode: $nodeId, ${children.map(_.toString).mkString}"
+  override def toHtml = s"EvExpNode: $nodeId, ${children.map(_.toString).mkString}"
 }
 
-/** an engine */
+/** DDD - node status */
+case class DEventNodeStatus(nodeId:String, status:String, dtm:DateTime=DateTime.now) extends DEvent with CanHtml {
+  override def toHtml = s"EvNodeStatus: $nodeId, $status}"
+}
+
+
+/** the engine: one flow = one engine = one actor */
 class DomEngine(
   val dom: RDomain,
   val root: DomAst,
@@ -138,6 +86,7 @@ class DomEngine(
     .withDomain(dom)
     .withSpecs(pages)
     .withCredentials(settings.userId)
+    .withHostname(settings.node)
 
   def href (format:String="") = s"/diesel/engine/view/$id?format=$format"
 
@@ -172,22 +121,50 @@ class DomEngine(
 
   val events : ListBuffer[DEvent] = new ListBuffer[DEvent]()
 
-  def addEvent(e:DEvent*) = {
+  def addEvent(e:DEvent*) : Unit = {
     events.append(e:_*)
+
+    def n(id:String) = root.find(id).get
+
+    e collect {
+
+      case DEventExpNode(parentId, children, _) =>
+        n(parentId).children appendAll children
+
+      case DEventNodeStatus(parentId, status, _) =>
+        n(parentId).status = status
+
+      case DADepyEv(pId, dId, _) =>
+        depys.append(DADepy(n(pId),n(dId)))
+    }
   }
 
-  def appChildren (parent:DomAst, children:DomAst) : Unit =
-    appChildren(parent, List(children))
+  //==========================
 
-  def appChildren (parent:DomAst, children:List[DomAst]) : Unit = {
-    parent.children appendAll children
+  // todo it's faster here where i have the node handles than looking it up by id above...
+
+  def evAppChildren (parent:DomAst, children:DomAst) : Unit =
+    evAppChildren(parent, List(children))
+
+  def evAppChildren (parent:DomAst, children:List[DomAst]) : Unit = {
+//    parent.children appendAll children
     addEvent(DEventExpNode(parent.id, children))
+  }
+
+  def evChangeStatus (node:DomAst, status:String) : Unit = {
+//    node.status = status
+    addEvent(DEventNodeStatus(node.id, status))
+  }
+
+  def evAddDepy (p:DomAst, d:DomAst) : Unit = {
+//    depys.append(DADepy(p,d))
+    addEvent(DADepyEv(p.id,d.id))
   }
 
   /** spawn new engine */
   def spawn (nodes:List[DomAst]) = {
     val newRoot = DomAst("root", AstKinds.ROOT).withDetails("(spawned)")
-    appChildren(newRoot, nodes)
+    evAppChildren(newRoot, nodes)
     val engine = DieselAppContext.mkEngine(dom, newRoot, settings, pages)
     engine.ctx._hostname = ctx._hostname
     engine
@@ -213,7 +190,7 @@ class DomEngine(
 
   // completed a node - udpate stat
   def done(a: DomAst, level:Int=1): List[DEMsg] = {
-    a.status = DomState.DONE
+    evChangeStatus(a, DomState.DONE)
 
     clog << "DomEng "+id+("  " * level)+" done " + a.value
 
@@ -227,7 +204,7 @@ class DomEngine(
         val prereq = depys.filter(x => x.depy.id == n.id && DomState.inProgress(x.prereq.status))
         prereq.isEmpty && n.status == DomState.DEPENDENT
       }.map { n =>
-        n.status = DomState.LATER
+        evChangeStatus(n, DomState.LATER)
         DEReq(id, n, true, level/* + 1*/) // don't increase level for depys - they're not "deep" but equals
         // todo i think depys are not even equals - they would have their own level...?
       }
@@ -244,10 +221,10 @@ class DomEngine(
   def crdep(p:List[DomAst], d:List[DomAst]) = {
     d.map{d=>
       // d will wait
-      if(p.nonEmpty) d.status = DomState.DEPENDENT
+      if(p.nonEmpty) evChangeStatus(d, DomState.DEPENDENT)
+
       p.map{p=>
-        addEvent(DADepyEv(p.id,d.id))
-        depys.append(DADepy(p,d))
+        evAddDepy(p,d)
       }
     }
   }
@@ -314,7 +291,7 @@ class DomEngine(
     * @param level
     */
   def req(a: DomAst, recurse: Boolean = true, level: Int): Unit = {
-    a.status = DomState.STARTED
+    evChangeStatus(a, DomState.STARTED)
 
     clog << "DomEng "+id+("  " * level)+" expand " + a.value
     var msgs = Try {
@@ -324,7 +301,7 @@ class DomEngine(
         razie.Log.log("wile decompose()", t)
         val err = DEError(this.id, t.toString)
         val ast = DomAst(EError(t.getMessage, t.toString)).withStatus(DomState.DONE)
-        appChildren(a, ast)
+        evAppChildren(a, ast)
         err :: done(ast, level+1)
       }
     }.get
@@ -349,11 +326,12 @@ class DomEngine(
   def rep(a: DomAst, recurse: Boolean = true, level: Int, results:List[DomAst]): List[DEMsg] = {
     var msgs : List[DEMsg] = Nil // continuations from this cycle
 
-    a.children appendAll results
+    evAppChildren(a, results)
+
     if (recurse)
       msgs = msgs ::: findFront(a, results).map { n =>
 //      req(n, recurse, level + 1)
-      n.status = DomState.LATER
+      evChangeStatus(n, DomState.LATER)
       DEReq(id, n, recurse, level+1) // increase level for children
     }
     msgs
@@ -368,7 +346,7 @@ class DomEngine(
     var result : List[DEMsg] = Nil
 
     if(res.size > 0) {
-      node.status = DomState.STARTED
+      evChangeStatus(node, DomState.STARTED)
     } else {
       if(node.status != DomState.DONE)
         // call only when transitioning to DONE
@@ -380,6 +358,7 @@ class DomEngine(
     if(root.status == DomState.DONE && status != DomState.DONE) {
       status = DomState.DONE
       clog << "DomEng "+id+" finish"
+      mod.diesel.controllers.DomGuardian.collectAst ("engine", id, root)
       finishP.success(this)
       DieselAppContext.refMap.get(id).map(_ ! DEStop) // stop the actor and remove engine
     }
@@ -440,19 +419,21 @@ class DomEngine(
 
     a.value match {
 
-      case next@ENext(m, "==>", cond) => {
+      case next@ENext(m, "==>", cond, _) => {
+        implicit val ctx = new StaticECtx(next.parent.map(_.attrs).getOrElse(Nil), Some(this.ctx), Some(a))
         // start new engine/process
         // todo should find settings for target service  ?
-        val eng = spawn(List(DomAst(m)))
+        val eng = spawn(List(DomAst(next.evaluateMsg)))
         eng.process // start it up in the background
         a.children append DomAst(EInfo(s"""Spawn engine <a href="/diesel/engine/view/${eng.id}">${eng.id}</a>"""))//.withPos((m.get.pos)))
         // no need to return anything - children have been decomposed
       }
 
-      case n1@ENext(m, "=>", cond) => {
-        implicit val ctx = new StaticECtx(m.attrs, Some(this.ctx), Some(a))
+      case n1@ENext(m, "=>", cond, _) => {
+        implicit val ctx = new StaticECtx(n1.parent.map(_.attrs).getOrElse(Nil), Some(this.ctx), Some(a))
+
         if(n1.test()) {
-          val newnode = DomAst(m, AstKinds.GENERATED)
+          val newnode = DomAst(n1.evaluateMsg, AstKinds.GENERATED)
 //          a.children append newnode
           msgs = rep(a, recurse, level, List(newnode))
         }
@@ -506,7 +487,7 @@ class DomEngine(
         case x: EMsg if x.entity == ri.cls && x.met == ri.met => x
       }.headOption
 
-      var newMsgs = ri.apply(in, spec, r.pos).collect {
+      var newMsgs = ri.apply(in, spec, r.pos, r.i.size > 1).collect {
         // hack: if only values then collect resulting values and dump message
         // only for size 1 because otherwise they may be in a sequence of messages and their value
         // may depend on previous messages and can't be evaluated now
@@ -520,11 +501,14 @@ class DomEngine(
           //            a.children appendAll x.attrs.map(x => DomAst(EVal(x), AstKinds.GENERATED).withSpec(r))
           //            ctx putAll x.attrs
           //            None
-          Some(DomAst(ENext(x, "=>"), AstKinds.NEXT).withSpec(r))
+          Some(DomAst(ENext(x, "=>", None, true), AstKinds.NEXT).withSpec(r))
         }
         // else collect message
         case x: EMsg => {
-          Some(DomAst(x, AstKinds.GENERATED).withSpec(r))
+          if(r.i.size > 1)
+            Some(DomAst(ENext(x, "=>"), AstKinds.NEXT).withSpec(r))
+          else
+            Some(DomAst(x, AstKinds.GENERATED).withSpec(r))
         }
         case x: ENext => {
           Some(DomAst(x, AstKinds.GENERATED).withSpec(r))
@@ -606,10 +590,12 @@ class DomEngine(
     // 3. executors
 
     // no mocks, let's try executing it
-    // I run snaks even if rules fit - but not if mocked
-    if (!mocked) {
+    // todo WHY - I run snaks even if rules fit - but not if mocked
+    // todo now I run only if nothing else fits
+    if (!mocked && !ruled) {
       Executors.all.filter { x =>
-        (!settings.mockMode || x.isMock) && x.test(n)
+        // todo inconsistency: I am running rules if no mocks fit, so I should also run any executor ??? or only the isMocks???
+        (true /*!settings.mockMode || x.isMock*/) && x.test(n)
       }.map { r =>
         mocked = true
 
@@ -834,8 +820,6 @@ class DomEngine(
     //    if (oattrs.isEmpty) {
     //      errors append s"Can't find the spec for $msg"
     //    }
-
-    import razie.diesel.ext.stripQuotes
 
     // collect values
     val values = root.collect {

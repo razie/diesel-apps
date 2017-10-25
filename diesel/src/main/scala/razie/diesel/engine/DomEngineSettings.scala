@@ -7,10 +7,7 @@
 package razie.diesel.engine
 
 import org.bson.types.ObjectId
-import play.api.mvc.{AnyContent, Request}
 import razie.diesel.engine.RDExt.EEContent
-
-import scala.Option.option2Iterable
 
 object DomEngineSettings {
   /** take the settings from either URL or body form or default */
@@ -30,7 +27,10 @@ object DomEngineSettings {
       resultMode = fqhoParm(RESULT_MODE, "json"),
       parentNodeId = fqhParm(DIESEL_NODE_ID),
       configTag = fqhParm(DIESEL_CONFIG_TAG),
-      userId = fqhParm(DIESEL_USER_ID)
+      userId = fqhParm(DIESEL_USER_ID),
+      hostport = fqhParm(HOSTPORT),
+      realm = fqhParm(REALM),
+      tagQuery = fqhParm(TAG_QUERY)
     )
   }
 
@@ -44,10 +44,14 @@ object DomEngineSettings {
   final val DIESEL_CONFIG_TAG = "dieselConfigTag"
   final val DIESEL_USER_ID = "dieselUserId"
   final val TAG_QUERY = "tagQuery"
+  final val HOSTPORT = "hostport"
+  final val REALM = "realm"
+
+  // filter qeury parms
   final val FILTER = Array(SKETCH_MODE, MOCK_MODE, BLENDER_MODE, DRAFT_MODE, EXEC_MODE, RESULT_MODE)
 }
 
-class DomEngineSettings
+case class DomEngineSettings
 (
   var mockMode    : Boolean = false,
   var blenderMode : Boolean = true,
@@ -69,7 +73,11 @@ class DomEngineSettings
   var postedContent : Option[EEContent] = None,
 
   /** tag query to select for modeBlender */
-  var tagQuery : Option[String] = None
+  var tagQuery : Option[String] = None,
+
+  var hostport : Option[String] = None,
+
+  var realm : Option[String] = None
   ) {
   val node = DieselAppContext.localNode
 
@@ -93,6 +101,10 @@ class DomEngineSettings
       Map(DIESEL_USER_ID -> x)
     ).getOrElse(Map.empty) ++ tagQuery.map(x=>
       Map(TAG_QUERY -> x)
+    ).getOrElse(Map.empty) ++ realm.map(x=>
+      Map(REALM -> x)
+    ).getOrElse(Map.empty) ++ hostport.map(x=>
+      Map(HOSTPORT -> x)
     ).getOrElse(Map.empty)
   }
 }

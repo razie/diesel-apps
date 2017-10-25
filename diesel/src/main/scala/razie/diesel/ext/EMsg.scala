@@ -74,7 +74,7 @@ case class EMsg(arch:String, entity: String, met: String, attrs: List[RDOM.P], r
   }
 
   /** as opposed to toHtml, this will produce an html that can be displayed in any page, not just the fiddle */
-  def toHtmlInPage = hrefBtn2+hrefBtn1 + toHtml.replaceAllLiterally("weref", "wefiddle")
+  def toHtmlInPage = hrefBtn2+hrefBtn1 + toHtml.replaceAllLiterally("weref", "wefiddle") + "<br>"
 
   private def hrefBtn2 =
     s"""<a href="${url2("")}" class="btn btn-xs btn-primary" title="global link">

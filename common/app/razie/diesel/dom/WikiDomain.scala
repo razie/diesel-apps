@@ -1,6 +1,7 @@
 package razie.diesel.dom
 
-import razie.diesel.ext.EVal
+import razie.diesel.ext
+import razie.tconf.{DTemplate, SpecPath}
 import razie.wiki.model._
 
 /**
@@ -41,15 +42,12 @@ trait WikiDomain {
 
   def needsOwner(cat: String) =
     rdom.assocs.exists(t=> t.a == cat && t.z == "User" && t.zRole == "Owner")
-//    wi.category(cat).flatMap(_.contentProps.get("roles:" + "User")).exists(_.split(",").contains("Owner"))
 
   def prop(cat: String, name:String) : Option[String] =
     rdom.classes.get(cat).flatMap(_.props.find(_.name == name).map(_.dflt))
-//    wi.category(cat).flatMap(_.contentProps.get(name))
 
   def noAds(cat: String) =
     prop(cat, "noAds").isDefined
-//    wi.category(cat).flatMap(_.contentProps.get("noAds")).isDefined
 
   def needsParent(cat: String) =
     rdom.assocs.filter(t=> t.a == cat && t.zRole == "Parent" && !Array("User", "Person").contains(t.z)).map(_.z)
@@ -85,9 +83,6 @@ object WikiDomain {
   }
 
   /** crawl all domain pieces and build a domain */
-//  def domFrom(we: WikiEntry): Option[RDomain] = WikiReactors.rk.wiki.domFrom(we)
-
-  /** crawl all domain pieces and build a domain */
   def domFilter[T] (we:WikiEntry)(p:PartialFunction[Any,T]) : List[T] = {
     RDomain.domFilter(we)(p)
   }
@@ -97,16 +92,6 @@ object WikiDomain {
 
   /** present a WE as a generic spec */
   def spec (we:WikiEntry) = we
-//    new DSpec {
-//    def specPath = SpecPath("local", we.wid.wpath)
-//
-//    def findTemplate(name: String): Option[DTemplate] =
-//      we.templateSections.find(_.name == name).map {t=>
-//        new WikiDTemplate (t)
-//      }
-//
-//    def cache = we.cache
-//  }
 
   WikiObservers mini {
     case WikiEvent(_, "WikiEntry", _, Some(x), _, _, _)
@@ -121,11 +106,13 @@ object WikiDomain {
   }
 }
 
-class WikiDTemplate (t:WikiSection) extends DTemplate {
+case class WikiDTemplate (t:WikiSection) extends DTemplate {
   def content : String = t.content
   def parmStr : String = t.signature
+  def parms : Map[String,String] = t.args
   def specPath = SpecPath("local", t.wid.wpath, t.wid.getRealm)
   def pos : EPos = EPos(t.wid.copy(section = None).wpath, t.line, t.col)
+
 }
 
 

@@ -1,11 +1,17 @@
 package razie.diesel.dom
 
+import razie.wiki.Enc
+
 /** expression types */
 object WTypes {
   final val NUMBER="Number"
   final val STRING="String"
   final val JSON="JSON"
   final val DATE="Date"
+  final val REGEX="Regex"
+
+  final val INT="Int"
+  final val FLOAT="Float"
 }
 
 /**
@@ -46,6 +52,8 @@ object RDOM {
   /** create a P with the best guess for type */
   def typified (n:String, s:Any) = {
     s match {
+      case s:Float => P(n, "").v[Float](s, WTypes.NUMBER)
+//      case s:Int => P(n, "").v[Int](s, "Number")
       case i: Int => P(n, i.toString, WTypes.NUMBER)
       case _ => {
         if (s.toString.trim.startsWith("{")) P(n, s.toString, WTypes.JSON)
@@ -56,6 +64,8 @@ object RDOM {
 
   // todo complete type-aware
   case class PValue[T] (value:T, contentType:String)
+
+  type NVP = Map[String,String]
 
   /** represents a parameter/member/attribute
     *
@@ -75,6 +85,17 @@ object RDOM {
     /** current calculated value if any or the expression */
     def valExpr = if(dflt.nonEmpty || expr.isEmpty) CExpr(dflt, ttype) else expr.get
 
+    def calculateValue(implicit ctx: ECtx) : String =
+      if(dflt.nonEmpty || expr.isEmpty) dflt else expr.get.apply ("").toString
+
+    def strimmedDflt =
+      if(dflt.size > 80) dflt.take(60) + "{...}"
+      else dflt
+
+    def htrimmedDflt =
+      if(dflt.size > 80) dflt.take(60)
+      else dflt
+
     override def toString =
       s"$name" +
         smap(ttype) (":" + ref + _) +
@@ -85,10 +106,14 @@ object RDOM {
     // todo refs for type, docs, position etc
     override def toHtml =
       s"<b>$name</b>" +
-        smap(ttype) (":" + ref + _) +
+        (if(ttype.toLowerCase != "string") smap(ttype) (":" + ref + _) else "") +
         smap(multi)(identity) +
-        smap(dflt) (s=> "=" + tokenValue(if("Number" == ttype) s else quot(s))) +
-        (if(dflt=="") expr.map(x=>smap(x.toHtml) ("=" + _)).mkString else "")
+        smap(Enc.escapeHtml(htrimmedDflt)) {s=>
+          "=" + tokenValue(if("Number" == ttype) s else quot(s))
+        } +
+//        (if(dflt.length > 60) "<span class=\"label label-default\"><small>...</small></span>") +
+        (if(dflt.length > 60) "<b><small>...</small></b>" else "") +
+        (if(dflt=="") expr.map(x=>smap(x.toHtml) ("<-" + _)).mkString else "")
   }
 
   /** represents a parameter match expression

@@ -18,7 +18,7 @@ import scala.collection.mutable
 class EEDieselSharedDb extends EExecutor("diesel.shareddb") {
 
   /** map of active contexts per transaction */
-  val tables = new mutable.HashMap[String, mutable.HashMap[String, Any]]()
+  val tables = new mutable.HashMap[String, mutable.HashMap[String, P]]()
 
   override def isMock: Boolean = true
 
@@ -28,19 +28,42 @@ class EEDieselSharedDb extends EExecutor("diesel.shareddb") {
 
   override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = synchronized {
     val col = ctx("collection")
+
     in.met match {
+
       case "get" => {
-        tables.get(col).flatMap(_.get(ctx("id"))).map(x => EVal(P("document", x.toString))).toList
+        tables.get(col).flatMap(_.get(ctx("id"))).map(x => EVal(x)).toList
       }
+
+      case "remove" => {
+        tables.get(col).flatMap(_.remove(ctx("id"))).map(
+          x => EVal(x)
+        ).toList
+      }
+
       case cmd@("upsert") => {
         if (!tables.contains(col))
-          tables.put(col, new mutable.HashMap[String, Any]())
+          tables.put(col, new mutable.HashMap[String, P]())
 
         val id = if (ctx("id").length > 0) ctx("id") else new ObjectId().toString
 
-        tables(col).put(id, ctx("document"))
+        ctx.getp("document").map(p=>
+          tables(col).put(id, p)
+        )
         EVal(P("id", id)) :: Nil
       }
+
+      case "findOne" => {
+//        val res = tables.get(col).map { col =>
+//          col.filter { t =>
+//            val o = t._2
+//            in.attrs.foldLeft(true)((a, b) => a && o(b.name).toString == b.calculateValue)
+//          }
+//        }
+//        res.headOption.map(x=> EVal(P("document", x._2.toString))).toList
+      Nil
+      }
+
       case "log" => {
         val res = tables.keySet.map { k =>
           "Collection: " + k + "\n" +
@@ -50,10 +73,16 @@ class EEDieselSharedDb extends EExecutor("diesel.shareddb") {
         }.mkString("\n")
         EVal(P("result", res)) :: Nil
       }
+
       case "clear" => {
-        tables.clear()
+        ctx.get("collection").map {col=>
+          tables.get(col).map(_.clear())
+        }.getOrElse {
+          tables.clear()
+        }
         Nil
       }
+
       case s@_ => {
         new EError(s"ctx.$s - unknown activity ") :: Nil
       }
@@ -66,6 +95,8 @@ class EEDieselSharedDb extends EExecutor("diesel.shareddb") {
     EMsg("", "diesel.shareddb", "upsert", Nil) ::
       EMsg("", "diesel.shareddb", "get", Nil) ::
       EMsg("", "diesel.shareddb", "log", Nil) ::
+      EMsg("", "diesel.shareddb", "findOne", Nil) ::
+      EMsg("", "diesel.shareddb", "remove", Nil) ::
       EMsg("", "diesel.shareddb", "clear", Nil) :: Nil
 }
 
@@ -112,14 +143,16 @@ class EEDieselMemDb extends EExecutor("diesel.memdb") {
     }
 
     in.met match {
+
       case "get" => {
         require(col.length > 0)
         tables.get(col).flatMap(_.entries.get(ctx("id"))).map(x => EVal(P("document", x.toString))).toList
       }
+
       case cmd@("upsert") => {
         require(col.length > 0)
-        if (tables.size > 5)
-          throw new IllegalStateException("Too many collections (5)")
+        if (tables.size > 10)
+          throw new IllegalStateException("Too many collections (10)")
 
         if (!tables.contains(col))
           tables.put(col, Col(col))
@@ -132,13 +165,16 @@ class EEDieselMemDb extends EExecutor("diesel.memdb") {
         tables(col).entries.put(id, ctx("document"))
         EVal(P("id", id)) :: Nil
       }
+
       case "logAll" => {
         val res = s"Sessions: ${sessions.size}\n" + log
         EVal(P("result", res)) :: Nil
       }
+
       case "log" => {
         EVal(P("result", log)) :: Nil
       }
+
       case "clear" => {
         tables.clear()
         Nil

@@ -6,28 +6,29 @@
   **/
 package razie.wiki.parser
 
-import razie.diesel.dom.{WikiDTemplate, WikiDomain}
 import mod.diesel.model.exec.EESnakk
 import razie.diesel.dom.RDOM._
-import razie.diesel.dom.{RDOM, WikiDTemplate, _}
+import razie.diesel.dom._
 import razie.diesel.ext._
-import razie.wiki.model.WikiEntry
-import razie.wiki.parser.{WAST, WikiExprParser, WikiParserBase}
-import razie.wiki.{Enc, Services}
+import razie.tconf.parser.{FoldingContext, LazyState, SState}
+import razie.tconf.{DSpec, DUser}
+import razie.wiki.Enc
 
 import scala.Option.option2Iterable
 import scala.util.Try
 import scala.util.parsing.input.Positional
 
 /** domain parser - for domain sections in a wiki */
-trait WikiDomParser extends WikiParserBase with WikiExprParser {
+trait DomParser extends ParserBase with ExprParser {
 
   import RDOM._
-  import WAST._
 
   def domainBlocks =
     pobject | pclass | passoc | pfunc |
     pwhen | pflow | pmatch | psend | pmsg | pval | pexpect
+
+  def lazys (f:(SState, FoldingContext[DSpec,DUser]) => SState) =
+    LazyState[DSpec, DUser] (f)
 
   // todo replace $ with . i.e. .class
 
@@ -52,7 +53,7 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
           tParm.map(_.mkString).mkString,
           attrs,
           funcs)
-        LazyState[DSpec] { (current, ctx) =>
+        lazys { (current, ctx) =>
           collectDom(c, ctx.we)
 
           def mkList = s"""<a href="/diesel/list2/${c.name}">list</a>"""
@@ -120,7 +121,7 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
     * add a domain element to the topic
     */
   def addToDom(c: Any) = {
-    LazyState[DSpec] { (current, ctx) =>
+    lazys { (current, ctx) =>
       collectDom(c, ctx.we)
       SState(
         c match {
@@ -138,7 +139,7 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
   /**
     */
   def pif: Parser[EIf] =
-    """[.$]if""".r ~> ws ~> optMatchAttrs ^^ {
+    """[.$]if""".r ~> ows ~> optMatchAttrs ^^ {
       case aa => EIf(aa)
     }
 
@@ -148,7 +149,7 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
   def pmatch: PS =
     keyw("""[.$]match""".r) ~ ws ~ clsMatch ~ opt(pif) ^^ {
       case k ~ _ ~ Tuple3(ac, am, aa) ~ cond => {
-        LazyState[DSpec] { (current, ctx) =>
+        lazys { (current, ctx) =>
           val x = EMatch(ac, am, aa, cond)
           //          f.pos = Some(EPos(ctx.we.map(_.wid.wpath).mkString, k.pos.line, k.pos.column))
           addToDom(x).ifold(current, ctx)
@@ -164,9 +165,10 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
     * => z.role (attrs)
     **/
   def pgen: Parser[EMap] =
-    ows ~> pArrow ~ ows ~ opt(pif) ~ ows ~ (clsMet | justAttrs) ^^ {
+    ows ~> keyw(pArrow) ~ ows ~ opt(pif) ~ ows ~ (clsMet | justAttrs) ^^ {
       case arrow ~ _ ~ cond ~ _ ~ Tuple3(zc, zm, za) => {
-        EMap(zc, zm, za, arrow, cond)
+        EMap(zc, zm, za, arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
+        // EPos wpath set later
       }
     }
 
@@ -176,10 +178,11 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
   def pwhen: PS =
     keyw("""[.$]when|[.$]mock""".r) ~ ws ~ clsMatch ~ ws ~ opt(pif) ~ rep(pgen) ^^ {
       case k ~ _ ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ gens => {
-        LazyState[DSpec] { (current, ctx) =>
+        lazys { (current, ctx) =>
           val x = EMatch(ac, am, aa, cond)
-          val r = ERule(x, gens)
-          r.pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
+          val wpath = ctx.we.map(_.specPath.wpath).mkString
+          val r = ERule(x, gens.map(m=>m.withPosition(m.pos.get.copy(wpath=wpath))))
+          r.pos = Some(EPos(wpath, k.pos.line, k.pos.column))
           val f = if (k.s contains "when") r else EMock(r)
           addToDom(f).ifold(current, ctx)
         }
@@ -192,7 +195,7 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
   def pflow: PS =
     keyw("""[.$]flow""".r) ~ ws ~ clsMatch ~ ws ~ opt(pif) ~ " *=>".r ~ ows ~ flowexpr ^^ {
       case k ~ _ ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ _ ~ _ ~ ex => {
-        LazyState[DSpec] { (current, ctx) =>
+        lazys { (current, ctx) =>
           val x = EMatch(ac, am, aa, cond)
           val f = EFlow(x, ex)
           f.pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
@@ -208,7 +211,7 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
     """[.$]assoc""".r ~> ws ~> opt(ident <~ ws) ~ assRole ~ " *-> *".r ~ assRole ~ optAttrs ^^ {
       case n ~ Tuple2(a, arole) ~ _ ~ Tuple2(z, zrole) ~ p => {
         val c = A(n.mkString, a, z, arole, zrole, p)
-        LazyState[DSpec] { (current, ctx) =>
+        lazys { (current, ctx) =>
           collectDom(c, ctx.we)
           SState(
             """<span class="label label-default">""" +
@@ -222,7 +225,7 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
     """[.$]object """.r ~> ident ~ " *".r ~ ident ~ opt(CRLF2 ~> rep1sep(vattrline, CRLF2)) ^^ {
       case name ~ _ ~ c ~ l => {
         val o = O(name, c, l.toList.flatMap(identity))
-        LazyState[DSpec] { (current, ctx) =>
+        lazys { (current, ctx) =>
           collectDom(o, ctx.we)
           SState(
             """<div class="well">""" +
@@ -236,7 +239,7 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
   /**
     * optional attributes
     */
-  def attrs: Parser[List[RDOM.P]] = " *\\(".r ~> ows ~> repsep(pattr, "," ~ ows) <~ ows <~ ")"
+  def attrs: Parser[List[RDOM.P]] = " *\\(".r ~> ows ~> repsep(pattr, ows ~ "," ~ ows) <~ ows <~ ")"
 
   /**
     * optional attributes
@@ -267,7 +270,7 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
     case None => ""
   }
 
-  def OPS1: Parser[String] = "==|~=|!=|\\?=|>=|<=|>|<|contains|is".r
+  def OPS1: Parser[String] = "==|~=|!=|\\?=|>=|<=|>|<|contains|is|not".r
 
   /**
     * name:<>type[kind]*=default
@@ -303,7 +306,8 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
   def pattr: Parser[RDOM.P] = " *".r ~> qident ~ opt(" *: *".r ~> opt("<>") ~ ident ~ optKinds) ~ opt(" *\\* *".r) ~ opt(" *~?= *".r ~> expr) ^^ {
     case name ~ t ~ multi ~ e => {
       val (dflt, ex) = e match {
-        case Some(CExpr(ee, "String")) => (ee, None)
+//        case Some(CExpr(ee, "String")) => (ee, None)
+          // todo good optimization but I no longer know if some parm is erased like (a="a", a="").
         case Some(expr) => ("", Some(expr))
         case None => ("", None)
       }
@@ -335,7 +339,7 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
     */
   def pval: PS = "[.$]val *".r ~> pattr ^^ {
     case a => {
-      LazyState[DSpec] { (current, ctx) =>
+      lazys { (current, ctx) =>
         val v = EVal(a)
         collectDom(v, ctx.we)
         SState(v.toHtml)
@@ -360,11 +364,11 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
     */
   def psend: PS = keyw("[.$]send *".r) ~ opt("<" ~> "[^>]+".r <~ "> *".r) ~ qclsMet ~ optAttrs ~ opt(" *: *".r ~> optAttrs) <~ " *".r ^^ {
     case k ~ stype ~ qcm ~ attrs ~ ret => {
-      LazyState[DSpec] { (current, ctx) =>
+      lazys { (current, ctx) =>
         val f = EMsg("receive", qcm._1, qcm._2, attrs, ret.toList.flatten(identity), stype.mkString.trim)
         f.pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
         collectDom(f, ctx.we)
-        SState(CanHtml.span("receive::", "default") + f.toHtmlInPage + "<br>")
+        SState(f.kspan("receive::") + f.toHtmlInPage + "<br>")
       }
     }
   }
@@ -376,13 +380,13 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
     */
   def pmsg: PS = keyw("[.$]msg *".r) ~ opt("<" ~> "[^>]+".r <~ "> *".r) ~ qclsMet ~ optAttrs ~ opt(" *(:|=>) *".r ~> optAttrs) <~ " *".r ^^ {
     case k ~ stype ~ qcm ~ attrs ~ ret => {
-      LazyState[DSpec] { (current, ctx) =>
+      lazys { (current, ctx) =>
 
         val archn =
           if (stype.exists(_.length > 0)) stype.mkString.trim
           else {
             // todo snakkers need to be plugged in and insulated better
-            // find snakker and import stype
+            // if no archetype specified, find a template snakker and import stype
             val t = ctx.we.flatMap(_.findTemplate(qcm._3))
             val sc = t.map(_.content).mkString
             if ("" != sc) Try {
@@ -404,7 +408,7 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
     *
     * An NVP is either the spec or an instance of a function call, a message, a data object... whatever...
     */
-  def linemsg(wpath: String) = keyw("[.$]msg *".r | "[.$]send\\s*".r) ~ opt("<" ~> "[^>]+".r <~ "> *".r) ~ ident ~ " *\\. *".r ~ ident ~ optAttrs ~ opt(" *: *".r ~> optAttrs) ^^ {
+  def linemsg(wpath: String) = keyw("[.$]msg *".r | "[.$]send\\s*".r) ~ opt("<" ~> "[^>]+".r <~ "> *".r) ~ ident ~ " *\\. *".r ~ qident ~ optAttrs ~ opt(" *: *".r ~> optAttrs) ^^ {
     case k ~ stype ~ ent ~ _ ~ ac ~ attrs ~ ret => {
       val f = EMsg("def", ent, ac, attrs, ret.toList.flatten(identity), stype.mkString.trim)
       f.pos = Some(EPos(wpath, k.pos.line, k.pos.column))
@@ -431,7 +435,7 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
     */
   def pexpect: PS = keyw("[.$]expect".r <~ ws) ~ opt("not" <~ ws) ~ opt(qclsMet) ~ optMatchAttrs ~ opt(pif) <~ " *".r ^^ {
     case k ~ not ~ qcm ~ attrs ~ cond => {
-      LazyState[DSpec] { (current, ctx) =>
+      lazys { (current, ctx) =>
         val pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
         val f = qcm.map(qcm =>
           ExpectM(not.isDefined, EMatch(qcm._1, qcm._2, attrs, cond)).withPos(pos))
@@ -444,8 +448,8 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
 
   private def collectDom(x: Any, we: Option[DSpec]) = {
     we.foreach { w =>
-      val rest = w.cache.getOrElse(RDomain.DOM_LIST, List[Any]()).asInstanceOf[List[Any]]
-      w.cache.put(RDomain.DOM_LIST, x :: rest)
+      val rest = w.collector.getOrElse(RDomain.DOM_LIST, List[Any]()).asInstanceOf[List[Any]]
+      w.collector.put(RDomain.DOM_LIST, x :: rest)
     }
   }
 
@@ -454,7 +458,7 @@ trait WikiDomParser extends WikiParserBase with WikiExprParser {
     */
   def pfunc: PS = "[.$]def *".r ~> qident ~ optAttrs ~ opt(" *: *".r ~> ident) ~ optScript ~ optBlock ^^ {
     case name ~ a ~ t ~ s ~ b => {
-      LazyState[DSpec] { (current, ctx) =>
+      lazys { (current, ctx) =>
         val f = F(name, a, t.mkString, s.fold(ctx).s, b)
         collectDom(f, ctx.we)
 

@@ -5,7 +5,8 @@ package razie.wiki.model
   *
   *  a/b|c/d is a and (b or c) and d
   *
-  * tag query tricks: if a tag uses an upper case like "Story" then it referes to the category and it optimizes things a lot
+  * tag query tricks: if a tag uses an upper case like "Story" then it referes
+  * to the category and it optimizes things a lot in big reactors
   */
 class TagQuery(val tags: String) {
   val ltags = tags.split("/").map(_.trim).filter(goodTag)

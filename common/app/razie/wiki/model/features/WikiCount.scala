@@ -13,11 +13,17 @@ import razie.db.tx.txn
 import play.api.cache._
 import play.api.Play.current
 
-/** keep track of view counts, per wiki page id */
+/** keep track of view counts, per wiki page id
+  *
+  * use pid - page ID only, for regular topics
+  *
+  * use wpath only for special pages (like hardcoded templates). make sure the wpaths is realm-neutral (i.e. make it up with category:name)
+  */
 @RTable
 case class WikiCount (
   pid: ObjectId,
   count: Long = 1,
+  wpath: Option[String] = None,
   _id:ObjectId = new ObjectId()
 //todo add thumbup, thumbdown
   ) extends REntity[WikiCount] {
@@ -56,5 +62,15 @@ object WikiCount {
       x.map(x=>Cache.set("count."+x.pid.toString, x, 300)) // 10 minutes
       x
     }
+  }
+
+  def findOneForTemplate(wpath: String) = {
+    // todo optimize with Cache ?
+    val x = ROne[WikiCount] ("wpath" -> wpath)
+    x.orElse(
+      Some(
+        WikiCount(new ObjectId(), 1, Some(wpath))
+      )
+    )
   }
 }

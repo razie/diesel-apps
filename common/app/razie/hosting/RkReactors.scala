@@ -6,6 +6,7 @@
  */
 package razie.hosting
 
+import admin.Config
 import play.api.mvc.Request
 import razie.wiki.WikiConfig
 import razie.wiki.model._
@@ -16,13 +17,13 @@ import razie.wiki.util.PlayTools
   * todo inject and remove hardcodings
   */
 object RkReactors {
+  val hostedDomains = Config.prop("wiki.hostedDomains", "dieselapps.com").split(",").map("." + _)
+
   /** for the host REACTOR.dslapps.com - see if there is a known reactor for that */
   def forHost (h:String) : Option[String] = {
     // auto-websites of type REACTOR.coolscala.com
     if (
-      h.endsWith(".dslcloud.com") ||    /* the testing website */
-      h.endsWith(".dslapps.com") ||
-      h.endsWith(".dieselapps.com")
+      hostedDomains.exists(d=> h.endsWith(d))
     ) {
       // extract reactor
       val r = h.substring(0, h.indexOf('.')).toLowerCase

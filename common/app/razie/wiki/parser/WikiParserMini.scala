@@ -8,6 +8,7 @@ package razie.wiki.parser
 
 import java.net.URI
 
+import razie.tconf.parser.{LazyState, ParserSettings, RState, SState}
 import razie.wiki.Services
 import razie.wiki.model._
 import razie.wiki.mods.WikiMods
@@ -19,7 +20,7 @@ import scala.util.parsing.combinator.token.Tokens
   *
   * i.e. you jsut want to parse the DomParser rules
   */
-trait WikiParserMini extends WikiParserBase with CsvParser with Tokens {
+trait WikiParserMini extends ParserBase with CsvParser with Tokens {
 
   import WAST._
 
@@ -73,7 +74,21 @@ trait WikiParserMini extends WikiParserBase with CsvParser with Tokens {
       if (p.successful) {
         // this is an ilink with auto-props in the name/label
         // for now, reformat the link to allow props and collect them in the ILInk
-        ParseWLink(realm, identity, p.get.s).map(x => SState(x._1, Map(), x._2.map(x => ILink(x.wid, x.label, x.role, p.get.props, p.get.ilinks)).toList)).getOrElse(SState("")) // TODO something with the props
+        ParseWLink(realm, identity, p.get.s)
+          .map(x =>
+            SState(
+              x._1,
+              Map(),
+              x._2.map(x =>
+                ILink(
+                  x.wid,
+                  x.label,
+                  x.role,
+                  p.get.props,
+                  p.get.ilinks.filter(_.isInstanceOf[ILink]).asInstanceOf[List[ILink]]))
+                .toList)
+          )
+          .getOrElse(SState("")) // TODO something with the props
       } else {
         // this is a normal ilink
         ParseWLink(realm, Wikis.formatName _, name).map(x => SState(x._1, Map(), x._2.toList)).getOrElse(SState(""))
@@ -237,7 +252,7 @@ trait WikiParserMini extends WikiParserBase with CsvParser with Tokens {
             (List(("WIDGET_ARGS", value)) ).foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
           } getOrElse "")
       else if(WikiMods.index.contains(name.toLowerCase)) {
-        LazyState[WikiEntry] {(current, ctx) =>
+        LazyState[WikiEntry,WikiUser] {(current, ctx) =>
           //todo the mod to be able to add some properties in the context of the current topic
           SState(WikiMods.index(name.toLowerCase).modProp(name, value, ctx.we))
         }

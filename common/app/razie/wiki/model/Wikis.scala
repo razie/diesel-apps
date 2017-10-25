@@ -12,16 +12,51 @@ import com.novus.salat._
 import controllers.{VErrors, Validation}
 import play.api.Play.current
 import play.api.cache._
-import razie.Logging
+import razie.{Logging, clog}
 import razie.audit.Audit
 import razie.db.RazSalatContext._
 import razie.db.{RMany, RazMongo}
 import razie.diesel.dom.WikiDomain
+import razie.tconf.parser.{OState, PState, ParserSettings, SState}
 import razie.wiki.model.features.{WForm, WikiForm}
-import razie.wiki.parser.{ParserSettings, WAST}
+import razie.wiki.parser.WAST
 import razie.wiki.util.QueryParms
 import razie.wiki.{Enc, Services, WikiConfig}
 
+object WikiCache {
+
+  def set[T](id:String, w:T, i:Int) = {
+    clog << "WIKI_CACHE_SET - "+id
+    Cache.set(id, w, 300) // 10 miuntes
+  }
+
+  def getEntry(id:String) : Option[WikiEntry] = {
+    Cache.getAs[WikiEntry](id).map{x=>
+      clog << "WIKI_CACHED FULL - "+id
+      x
+    }
+  }
+
+  def getDb(id:String) : Option[DBObject] = {
+    Cache.getAs[DBObject](id).map{x=>
+      clog << "WIKI_CACHED DB - "+id
+      x
+    }
+  }
+
+  def getString(id:String) : Option[String] = {
+    Cache.getAs[String](id).map{x=>
+      clog << "WIKI_CACHED FRM - "+id
+      x
+    }
+  }
+
+  def remove(id:String) = {
+    clog << "WIKI_CACHE_CLEAR - "+id
+    Cache.remove(id)
+  }
+
+}
 /** wiki factory and utils */
 object Wikis extends Logging with Validation {
 
@@ -98,6 +133,7 @@ object Wikis extends Logging with Validation {
   final val SCALA = "scala"
   final val JSON = "json"
   final val XML = "xml"
+  final val HTML = "html"
 
   /** helper to deal with the different markups */
   object markups {
@@ -108,7 +144,8 @@ object Wikis extends Logging with Validation {
       JSON -> "JSON",
       XML -> "XML",
       JS -> "JavaScript",
-      SCALA -> "Scala"
+      SCALA -> "Scala",
+      HTML -> "Raw html"
     ) // todo per reator type - hackers like stuff
 
     def contains(s: String) = list.exists(_._1 == s)
@@ -170,13 +207,13 @@ object Wikis extends Logging with Validation {
       var newwid = Wikis.apply(r).index.getWids(bigName.get).headOption.map(_.copy(section = wid.section)) getOrElse wid.copy(name = bigName.get)
       var u = Services.config.urlmap(newwid.formatted.urlRelative(curRealm))
 
-      if (rk && (u startsWith "/")) u = "http://" + Services.config.rk + u
+      if (rk && (u startsWith "/")) u = "http://" + Services.config.home + u
 
       (s"""<a href="$u" title="$title">$tlabel</a>""", Some(ILink(newwid, label, role)))
     } else if (rk) {
       val sup = "" //"""<sup><b style="color:red">^</b></sup></a>"""
       (
-        s"""<a href="http://${Services.config.rk}${wid.formatted.urlRelative}" title="$title">$tlabel$sup</a>""",
+        s"""<a href="http://${Services.config.home}${wid.formatted.urlRelative}" title="$title">$tlabel$sup</a>""",
         Some(ILink(wid, label, role)))
     } else {
       // topic not found in index - hide it from google
@@ -200,7 +237,7 @@ object Wikis extends Logging with Validation {
   private def include(wid: WID, c2: String, we: Option[WikiEntry] = None, firstTime: Boolean = false)(implicit errCollector: VErrors): Option[String] = {
     // todo this is not cached as the underlying page may change - need to pick up changes
     var done = false
-    var collecting = we.exists(_.depys.isEmpty) // should collect depys
+    val collecting = we.exists(_.depys.isEmpty) // should collect depys
 
     val res = try {
       val INCLUDE = """(?<!`)\[\[include(WithSection)?:([^\]]*)\]\]""".r
@@ -275,33 +312,40 @@ object Wikis extends Logging with Validation {
   }
 
   // TODO better escaping of all url chars in wiki name
-  def preprocess(wid: WID, markup: String, content: String, page: Option[WikiEntry]) = {
+  def preprocess(wid: WID, markup: String, content: String, page: Option[WikiEntry]) : PState = {
+    implicit val errCollector = new VErrors()
+    
+    def includes (c:String) = {
+      var c2 = c
+
+      if (c2 contains "[[./")
+        c2 = c.replaceAll("""\[\[\./""", """[[%s/""".format(wid.realm.map(_ + ".").mkString + wid.cat + ":" + wid.name)) // child topics
+      if (c2 contains "[[../")
+        c2 = c2.replaceAll("""\[\[\../""", """[[%s""".format(wid.parentWid.map(wp => wp.realm.map(_ + ".").mkString + wp.cat + ":" + wp.name + "/").getOrElse(""))) // siblings topics
+
+      // TODO stupid - 3 levels of include...
+      include(wid, c2, page, true).map { x =>
+        page.map(_.cacheable = false) // simple dirty if includes, no depy to manage
+        c2 = x
+      }.flatMap { x =>
+        include(wid, c2, page, false).map {
+          c2 = _
+        }.flatMap { x =>
+          include(wid, c2, page, false).map {
+            c2 = _
+          }
+        }
+      }
+
+      c2
+    }
+
     try {
       markup match {
         case MD =>
           val t1 = System.currentTimeMillis
-          implicit val errCollector = new VErrors()
 
-          var c2 = content
-
-          if (c2 contains "[[./")
-            c2 = content.replaceAll("""\[\[\./""", """[[%s/""".format(wid.realm.map(_ + ".").mkString + wid.cat + ":" + wid.name)) // child topics
-          if (c2 contains "[[../")
-            c2 = c2.replaceAll("""\[\[\../""", """[[%s""".format(wid.parentWid.map(wp => wp.realm.map(_ + ".").mkString + wp.cat + ":" + wp.name + "/").getOrElse(""))) // siblings topics
-
-          // TODO stupid - 3 levels of include...
-          include(wid, c2, page, true).map { x =>
-            page.map(_.cacheable = false) // simple dirty if includes, no depy to manage
-            c2 = x
-          }.flatMap { x =>
-            include(wid, c2, page, false).map {
-              c2 = _
-            }.flatMap { x =>
-              include(wid, c2, page, false).map {
-                c2 = _
-              }
-            }
-          }
+          var c2 = includes(content)
 
           // pre-mods
           page.orElse(wid.page).map { x =>
@@ -314,15 +358,19 @@ object Wikis extends Logging with Validation {
           cdebug << s"wikis.preprocessed ${t2 - t1} millis for ${wid.name}"
           res
 
-        case TEXT => WAST.SState(content.replaceAll("""\[\[([^]]*)\]\]""", """[[\(1\)]]"""))
-        case JSON | XML | JS | SCALA => WAST.SState(content)
+        case TEXT => SState(content.replaceAll("""\[\[([^]]*)\]\]""", """[[\(1\)]]"""))
+        case JSON | XML | JS | SCALA => SState(content)
+        case HTML => {
+          // trick: parse it like we normally would, for properties and includes, but then discard
+          OState(includes(content), preprocess(wid, MD, content, page))
+        }
 
-        case _ => WAST.SState("UNKNOWN_MARKUP " + markup + " - " + content)
+        case _ => SState("UNKNOWN_MARKUP " + markup + " - " + content)
       }
     } catch {
       case t: Throwable =>
         razie.audit.Audit.logdb("EXCEPTION_PARSING " + markup + " - " + wid.wpath + " " + t.getLocalizedMessage())
-        WAST.SState("EXCEPTION_PARSING " + markup + " - " + t.getLocalizedMessage() + " - " + content)
+        SState("EXCEPTION_PARSING " + markup + " - " + t.getLocalizedMessage() + " - " + content)
     }
   }
 
@@ -396,17 +444,6 @@ object Wikis extends Logging with Validation {
         case t: Throwable => log("exception in script", t);
       }
 
-      // TODO this is experimental
-//      val E_PAT = """`\{\{(e):([^}]*)\}\}`""".r
-//
-//      content = E_PAT replaceSomeIn (content, { m =>
-//        try {
-//          find the page with the scripts and call them
-//          if((m group 2) startsWith "api.wix") Some(runScript(m group 2, we))
-//          else None
-//        } catch { case _: Throwable => Some("!?!") }
-//      })
-
       // cannot have these expanded in the  AST parser because then i recurse forever when resolving XPATHs...
       val XP_PAT = """`\{\{\{(xp[l]*):([^}]*)\}\}\}`""".r
 
@@ -426,6 +463,7 @@ object Wikis extends Logging with Validation {
         content = razie.wiki.mods.WikiMods.modPreHtml(x, Some(content)).getOrElse(content)
       }
 
+      //todo plugins register and define formatting for differnet content types
       markup match {
         case MD => {
 
@@ -452,7 +490,7 @@ object Wikis extends Logging with Validation {
           res
         }
         case TEXT => content
-        case JSON | XML | JS | SCALA => content
+        case JSON | XML | JS | SCALA | HTML => content
         case _ => "UNKNOWN_MARKUP " + markup + " - " + content
       }
     } catch {
@@ -566,15 +604,16 @@ object Wikis extends Logging with Validation {
   def clearCache(wids : WID*) = {
     wids.foreach(wid=>
       Array(
+      wid.r("rk"), // yea, stupid but...
       wid,
       wid.copy(parent=None, section=None),
       wid.copy(realm = None, section=None),
       wid.copy(realm = None, parent=None, section=None),
       wid.copy(realm = None, parent=None, section=None, cat="")
     ).foreach {wid=>
-      Cache.remove(wid.wpath+".db")
-      Cache.remove(wid.wpath+".formatted")
-      Cache.remove(wid.wpath+".page")
+      WikiCache.remove(wid.wpath+".db")
+      WikiCache.remove(wid.wpath+".formatted")
+      WikiCache.remove(wid.wpath+".page")
     })
   }
 
@@ -587,24 +626,23 @@ object Wikis extends Logging with Validation {
    * @return
    */
   def format(wid: WID, markup: String, icontent: String, we: Option[WikiEntry], user:Option[WikiUser]) : String = {
-    if (JSON == wid.cat || JSON == markup || XML == wid.cat || XML == markup)
+    if (JSON == wid.cat || JSON == markup || XML == wid.cat || XML == markup || TEXT == markup)
       formatJson(wid, markup, icontent, we)
     else {
       var res = {
         val cacheFormatted = Services.config.cacheFormat
 
         if(cacheFormatted &&
-          we.exists(_.cacheable) &&
+          we.exists(w=> w.cacheable && w.category != "-" && w.category != "") &&
           (icontent == null || icontent == "") &&
           wid.section.isEmpty) {
 
-          Cache.getAs[String](we.get.wid.wpath+".formatted").map{x=>
-            clog << "WIKI_CACHED FRM-"+wid.wpath
+          WikiCache.getString(we.get.wid.wpath+".formatted").map{x=>
             x
           }.getOrElse {
             val n = format1(wid, markup, icontent, we, user)
             if(we.exists(_.cacheable)) // format can change cacheable
-              Cache.set(we.get.wid.wpath+".formatted", n, 300) // 10 miuntes
+              WikiCache.set(we.get.wid.wpath+".formatted", n, 300) // 10 miuntes
             n
           }
         } else
@@ -662,7 +700,7 @@ object Wikis extends Logging with Validation {
   // todo protect this from tresspassers
   def runScript(s: String, lang:String, page: Option[WikiEntry], au:Option[WikiUser]) = {
     // page preprocessed for, au or default to thread statics - the least reliable
-    val up = page.flatMap(_.ipreprocessed.flatMap(_._2)) orElse au //orElse razie.NoStaticS.get[WikiUser]
+    val up = page.flatMap(_.ipreprocessed.flatMap(_._2)) orElse au
     //todo use au not up
     val q = razie.NoStaticS.get[QueryParms]
     Services.runScript(s, lang, page, up, q.map(_.q.map(t => (t._1, t._2.mkString))).getOrElse(Map()))

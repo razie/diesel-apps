@@ -6,6 +6,7 @@
  */
 package razie.wiki
 
+import com.google.inject.Inject
 import controllers.{NoWikiAuthorization, WikiAuthorization}
 import razie.db.RazMongo
 import razie.wiki.model._
@@ -19,9 +20,9 @@ import razie.wiki.util.{AuthService, NoAuthService}
   */
 object Services {
 
-  var auth: AuthService[WikiUser] = NoAuthService
-  var config: WikiConfig = new SampleConfig
-  var wikiAuth: WikiAuthorization = new NoWikiAuthorization
+  @Inject() var auth: AuthService[WikiUser] = NoAuthService
+  @Inject() var config: WikiConfig = new SampleConfig
+  @Inject() var wikiAuth: WikiAuthorization = new NoWikiAuthorization
 
   // this is only used for signed scripts - unsafe scripts are not ran here
   var runScriptImpl : (String, String, Option[WikiEntry], Option[WikiUser], Map[String, String], Boolean) => String =

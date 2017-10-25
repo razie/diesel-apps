@@ -95,6 +95,8 @@ package object ext {
     cond.zipWithIndex.foldLeft(true)((a, b) => a && {
       var res = false
 
+      val pm = b._1
+
       // testing for name and value
       if (b._1.dflt.size > 0 || b._1.expr.isDefined) {
         if (b._1.name.size > 0) {
@@ -103,6 +105,12 @@ package object ext {
             // mark it in the cole
             foundName.map(_.apply(p))
           }
+
+          if(!res) {
+            // last try: any value in context
+            res = new BCMP2(AExprIdent(pm.name), pm.op, pm.valExpr).apply("")
+          }
+
           if (res) cole.map(_.plus(b._1.name + b._1.op + b._1.dflt))
           else cole.map(_.minus(b._1.name, in.find(_.name == b._1.name).mkString, b._1))
         }
@@ -124,9 +132,9 @@ package object ext {
     def kspan(s: String, k: String = "default", specPos:Option[EPos] = None) = {
       def mkref: String = pos.orElse(specPos).map(_.toRef).mkString
       pos.map(p =>
-        s"""<span onclick="$mkref" style="cursor:pointer" class="label label-$k">$s</span>"""
+        s"""<span onclick="$mkref" style="cursor:pointer" class="label label-$k">$s</span>&nbsp;"""
       ) getOrElse
-        s"""<span class="label label-$k">$s</span>"""
+        s"""<span class="label label-$k">$s</span>&nbsp;"""
     }
   }
 

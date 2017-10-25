@@ -7,6 +7,7 @@
 package razie.wiki.model
 
 import org.bson.types.ObjectId
+import razie.tconf.DUser
 import razie.wiki.util.NoAuthService
 
 /** user permissions */
@@ -39,13 +40,16 @@ object Perm {
     "cCategory", "uCategory", "uReserved",
     Basic, Gold, Platinum, Moderator, domFiddle
   )
+
 }
 
 /** basic user concept - you have to provide your own implementation */
-abstract class WikiUser {
+abstract class WikiUser extends DUser {
   def userName: String
   def email: String
   def _id: ObjectId
+
+  override def id: String = _id.toString
 
   def ename: String // make up a nice name: either first name or email or something
 
@@ -60,6 +64,7 @@ abstract class WikiUser {
     * @return
     */
   def hasMembershipLevel(s:String) : Boolean
+  def membershipLevel : String
 
   def hasPerm(p: Perm) : Boolean
 

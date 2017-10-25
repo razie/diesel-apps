@@ -8,38 +8,29 @@ package razie.wiki
 
 import java.io.FileInputStream
 import java.util.Properties
+
 import com.google.inject.Singleton
 import play.api.mvc.Request
 import razie.clog
-import razie.wiki.model.WikiUser
+import razie.wiki.model.{WID, WikiConfigChanged, WikiUser, Wikis}
 import razie.wiki.util.PlayTools
+
 import scala.collection.mutable
+import com.google.inject._
+import play.api.Configuration
+import razie.hosting.Website
+
+import scala.collection.mutable.HashMap
 
 object WikiConfig {
+  @Inject() var playConfig:Configuration = null
+
   final val RK = "rk"
   final val NOTES = "notes"
 
   // parse a properties looking thing
   def parsep(content: String) =
-    (content.split("\r*\n")) filter (!_.startsWith("#")) map (_.split("=", 2)) filter (_.size == 2) map (x => (x(0), x(1)))
-
-  // load properties from system or from a file rk.properties
-  val props = {
-    val p = new Properties();
-    if(System.getProperty("rk.properties") != null) {
-      p.load(new FileInputStream(System.getProperty("rk.properties")))
-    } else {
-      clog << "================ E R R O R        rk.properties ==================\n" + p.toString
-      clog << "you do not have a file rk.properties in the classpath, using defaults"
-      p.put("rk.hostport", "localhost:9000")
-      p.put("rk.safemode", "no")
-      p.put("rk.noads", "true")
-      p.put("rk.forcephone", "false")
-
-    }
-    clog << "================ rk.properties ==================\n" + p.toString
-    p
-  }
+    (content.split("\r*\n").map(_.trim)) filter (!_.startsWith("#")) map (_.split("=", 2)) filter (_.size == 2) map (x => (x(0).trim, x(1).trim))
 }
 
 /**
@@ -53,49 +44,50 @@ object WikiConfig {
  * *****************************************************************
  */
 abstract class WikiConfig {
-  import WikiConfig.props
 
-  final val rk = System.getProperty("rk.home", props.getProperty("rk.home"))
-  final val hostport = props.getProperty("rk.hostport")
-  final val node = props.getProperty("rk.node", hostport)//java.net.InetAddress.getLocalHost.getCanonicalHostName)
-  final val safeMode = props.getProperty("rk.safemode")
-  final val analytics = true; //props.getProperty("rk.analytics").toBoolean
-  val noads = props.getProperty("rk.noads", isLocalhost.toString).toBoolean
-  final val forcephone = props.getProperty("rk.forcephone").toBoolean
+  def pconfig = WikiConfig.playConfig.underlying
 
-  final val mongodb = props.getProperty("rk.mongodb")
-  final val mongohost = props.getProperty("rk.mongohost")
-  final val mongouser = props.getProperty("rk.mongouser")
-  final val mongopass = props.getProperty("rk.mongopass")
+  def prop(name:String, dflt:String="") =
+    if(pconfig.hasPath(name)) pconfig.getString(name) else dflt
 
-  final val cacheWikis = props.getProperty("rk.cachewikis", "false").toBoolean
-  final val cacheFormat = props.getProperty("rk.cacheformat", "false").toBoolean
-  final val cacheDb = props.getProperty("rk.cachedb", "false").toBoolean
+  final val home        = prop("wiki.home")
+
+  final val hostport    = prop("wiki.hostport")
+  final val node        = prop("wiki.node", hostport)//java.net.InetAddress.getLocalHost.getCanonicalHostName)
+  final val safeMode    = prop("wiki.safemode")
+  final val analytics   = true; //props.getProperty("rk.analytics").toBoolean
+  final val noads       = prop("wiki.noads", isLocalhost.toString).toBoolean
+  final val forcephone  = prop("wiki.forcephone").toBoolean
+
+  final val mongodb     = prop("wiki.mongodb")
+  final val mongohost   = prop("wiki.mongohost")
+  final val mongouser   = prop("wiki.mongouser")
+  final val mongopass   = prop("wiki.mongopass")
+
+  final val cacheWikis  = prop("wiki.cachewikis", "false").toBoolean
+  final val cacheFormat = prop("wiki.cacheformat", "false").toBoolean
+  final val cacheDb     = prop("wiki.cachedb", "false").toBoolean
 
   // preload these reactors - comma separated. make sure rk,notes,wiki are included in order
-  final val preload = props.getProperty("rk.preload", "rk,notes,wiki,ski")
+  final val preload     = prop("wiki.preload", "rk,notes,wiki,ski")
+
+  final val clusterMode = prop("wiki.cluster", "no")
+
+  final val CONNECTED   = prop("wiki.connected", "connected")
 
   /** when running on localhost, simulate this host */
-  def simulateHost = props.getProperty("rk.simulateHost")
+  def simulateHost      = prop("wiki.simulateHost")
 
   // todo is only used for auth on the support email when sending - to configure password per reactor
-  def SUPPORT = "support@racerkidz.com"
+  /** support email */
+  def SUPPORT = prop("wiki.supportEmail", "support@racerkidz.com")
+
+  /** admin email */
+  final val adminEmail = prop("wiki.adminEmail", "razie@razie.com")
 
   def isLocalhost = "localhost:9000" == hostport
 
   def isDebugMode = isLocalhost
-
-  //------------ should update all to this
-
-  lazy val pconfig = {
-    import com.typesafe.config.ConfigFactory
-    import play.api.Configuration
-
-    val config = new Configuration(ConfigFactory.load())
-    config
-  }
-
-  def getProp(name:String) = pconfig.getString(name)
 
   //-------------- special admin/configuration pages
 
@@ -186,19 +178,25 @@ abstract class WikiConfig {
   final val USERTYPES = "usertypes"
   final val BANURLS = "banurls"
 
-  /** override to implement the actual configuration loading */
-  def reloadUrlMap: Unit
+  def getTheme (user:Option[WikiUser], request:Option[Request[_]]) = {
+    // session settings override everything
+    request.flatMap(_.session.get("css")) orElse (
+      // then user
+      user.flatMap(_.css)
+      ) orElse (
+      // or website settings
+      request.flatMap(r=> Website(r)).flatMap(_.css)
+      ) getOrElse ("light")
+  }
 
-  final val clusterMode = props.getProperty("rk.cluster", "no")
-
-  final val CONNECTED = props.getProperty("rk.connected", "connected")
-
-  def getTheme (user:Option[WikiUser], request:Option[Request[_]]) : String
   // no request available
   def isLight(au:Option[WikiUser], request:Option[Request[_]]=None) =
     getTheme (au, request) contains "light"
   // todo remove this - relies on statics
-  def oldisLight = isLight(None, None)
+  def oldisLight(au:Option[WikiUser]) = isLight(au, None)
+
+  private var ibadIps = Array("178.175.146.90")
+  def badIps = ibadIps
 
   def robotUserAgents = irobotUserAgents
   protected var irobotUserAgents = List[String]()
@@ -208,6 +206,51 @@ abstract class WikiConfig {
 
   def reservedNames = ireservedNames
   protected var ireservedNames = List[String]()
+
+  final val CFG_PAGES = Array(SITECFG, USERTYPES, BANURLS, URLCFG)
+
+  import WikiConfig.parsep
+
+  // using sync here, although access is not... sometimes weird conflict
+  // todo remove the object and reload atomically the Services.config
+  def reloadUrlMap : Unit = {
+    println("========================== RELOADING URL MAP ==============================")
+
+    for (c <- Array(SITECFG, USERTYPES, BANURLS)) {
+      val urlmaps = Some(Seq(Wikis.find(WID("Admin", c)).map(_.content).getOrElse("")) flatMap parsep)
+      val xurlmap = (urlmaps.map(se => HashMap[String, String](se: _*)))
+      xurlmap.map(xconfig.put(c, _))
+    }
+
+    reload (Wikis.find(WID("Admin", URLCFG)).map(_.content).getOrElse(""))
+  }
+
+  def reload (cfg:String) : Unit = synchronized {
+    // concentrated all types in just one topic "urlcfg"
+    for (u <- Seq(cfg) flatMap parsep) {
+      val RE = """([^.]+)\.(.*)""".r
+      val RE(pre, prop) = u._1
+
+      if (!xconfig.contains(pre))
+        xconfig.put(pre, HashMap[String, String](prop -> u._2))
+      else
+        xconfig.get(pre).map(_.put(prop, u._2))
+    }
+
+    xconfig.keys.foreach(x => {
+      //      println("============= config topic: " + x + " size " + xconfig.get(x).size)
+      //      xconfig.get(x).foreach(y => println(y.mkString("\n  ")))
+    })
+
+    Services ! new WikiConfigChanged
+
+    irobotUserAgents = sitecfg("robots.useragents").toList.flatMap(s=>s.split("[;,]"))
+    ireservedNames = sitecfg("reserved.names").toList.flatMap(s=>s.split("[;,]"))
+    //     todo settle this - there are two places for configuring trusted sites
+    itrustedSites = sitecfg("trusted.sites").toList.flatMap(s=>s.split("[;,]"))
+    ibadIps = sitecfg("badips").toList.flatMap(s=>s.split("[;,]")).toArray
+  }
+
 }
 
 /** sample config - use for testing for instance. Before beginning a test, do Services.config = SampleConfig */
@@ -215,33 +258,8 @@ abstract class WikiConfig {
 class SampleConfig extends WikiConfig {
   override def getTheme (user:Option[WikiUser], request:Option[Request[_]]) = "light"
 
-  def reloadUrlMap {
-    println("========================== SAMPLE RELOADING URL MAP ==============================")
-
-    val props = ""
-
-    for (c <- Array(SITECFG, USERTYPES, BANURLS)) {
-      val urlmaps = Some(Seq(props) flatMap WikiConfig.parsep)
-      val xurlmap = (urlmaps.map(se => mutable.HashMap[String, String](se: _*)))
-      xurlmap.map(xconfig.put(c, _))
-    }
-
-    for (u <- Seq(props) flatMap WikiConfig.parsep) {
-      val RE = """([^.]+)\.(.*)""".r
-      val RE(pre, prop) = u._1
-
-      if (!xconfig.contains(pre))
-        xconfig.put(pre, mutable.HashMap[String, String](prop -> u._2))
-      else
-        xconfig.get(pre).map(_.put(prop, u._2))
-    }
-
-    // todo should fire this event
-    // Services ! new WikiConfigChanged
-
-    irobotUserAgents = sitecfg("robots.useragents").toList.flatMap(s=>s.split("[;,]"))
-    ireservedNames = sitecfg("reserved.names").toList.flatMap(s=>s.split("[;,]"))
-    itrustedSites = sitecfg("trusted.sites").toList.flatMap(s=>s.split("[;,]"))
+  override def reloadUrlMap {
+    reload( "" )
   }
 }
 

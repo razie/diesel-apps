@@ -1,6 +1,10 @@
 package razie.diesel.dom
 
 import razie.diesel.dom.RDOM.P
+import razie.diesel.ext.EVal
+import razie.tconf.{DSpec, DTemplate}
+
+import scala.util.Try
 
 /*
  * a map like context of attribute values.
@@ -31,13 +35,14 @@ trait ECtx {
   /** find the template corresponding to the ea and direction (direction is optional
     *
     * @param ea entity.action
-    * @param direction "req" vs "resp" or "in" vs "out"
+    * @param direction "request" vs "response"
     * @return
     */
   def findTemplate (ea:String, direction:String="") : Option[DTemplate]
 
   def exists(f: scala.Function1[P, scala.Boolean]): scala.Boolean
 
+  def remove (name: String): Option[P]
   def apply  (name: String): String = get(name).mkString
   def getp   (name: String): Option[P] // overwrite this one - leave the get
   def get    (name: String): Option[String] = getp(name).map(_.dflt)
@@ -53,11 +58,17 @@ trait ECtx {
       val R = """([^.]+)\.(.*)""".r
       val R(n,rest) = name
       root.flatMap(_.get(n)).orElse {
-        get(n).map ( razie.js.parse )
+        Try {
+          getp(n).map(_.dflt).filter(_.length > 0).map(razie.js.parse)
+        }.recover {
+          Map.empty
+        }.get
       }.collect {
         case x:Map[String, _] => sourceStruc(rest, Some(x)).map(_.dflt)
       }.flatten
-    } else root.flatMap(_.get(name)).map(razie.js.anytojsons)
+    } else {
+      root.flatMap(_.get(name)).map(razie.js.anytojsons)
+    }
     x.map(x=>P(name, x))
   }
 }
@@ -73,12 +84,18 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
 
   def credentials: Option[String] = userId orElse base.flatMap(_.credentials)
   // once given, you cannot change credentials
+
+  def withHostname(s: String) = {
+    _hostname = Some(s)
+    this
+  }
+
   def withCredentials(s: Option[String]) = {
     if(userId.isEmpty) userId = s
     this
   }
 
-  def listAttrs: List[P] = attrs ++ base.toList.flatMap(_.listAttrs)
+  def listAttrs: List[P] = cur ++ attrs ++ base.toList.flatMap(_.listAttrs)
 
   def domain: Option[RDomain] = base.map(_.domain) getOrElse _domain
   def specs: List[DSpec] = base.map(_.specs) getOrElse _specs
@@ -95,16 +112,29 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
   def exists(f: scala.Function1[P, scala.Boolean]): scala.Boolean =
     cur.exists(f) || attrs.exists(f) || base.exists(_.exists(f))
 
+  def remove (name: String): Option[P] = {
+    attrs.find(a=> a.name == name).map { p =>
+      attrs = attrs.filter(_.name != name)
+      p
+    } orElse base.flatMap(_.remove(name))
+  }
+
   /** we delegate on empty values - empty is the same as missing then
     *
     * this is relevant - current message won't work otherwise, like ctx.echo(parm)
     * */
   def getp(name: String): Option[P] =
-    cur.find(a=> a.name == name && a.dflt != "").orElse(
-      attrs.find(a=> a.name == name)).orElse(
-      base.flatMap(_.getp(name))).orElse(
-      sourceStruc(name)
-    )
+    cur.find(a=> a.name == name && a.dflt != "")
+      .orElse(attrs.find(a=> a.name == name))
+      .orElse(base.flatMap(_.getp(name)))
+      .orElse(sourceStruc(name))
+      .orElse(getpFromDomain(name))
+
+  private def getpFromDomain(name:String) : Option[P] = {
+    domain.flatMap(_.moreElements.collectFirst{
+      case v:EVal if v.p.name == name => v.p
+    })
+  }
 
   /** propagates by default up - see the Scope context which will not */
   def put(p: P): Unit =
@@ -128,6 +158,8 @@ class StaticECtx(cur: List[P] = Nil, base: Option[ECtx] = None, curNode:Option[D
   override def put(p: P): Unit = base.map(_.put(p))
 
   override def putAll(p: List[P]): Unit = base.map(_.putAll(p))
+
+  override def remove (name: String): Option[P] = base.flatMap(_.remove(name))
 }
 
 /** context for an internal scope - parent is scope or Eng

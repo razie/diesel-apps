@@ -12,69 +12,44 @@ import razie.diesel.dom._
 import scala.Option.option2Iterable
 import scala.util.Try
 
-/** mapping a message - a decomposition rule (right hand side of =>)
-  *
-  * @param cls
-  * @param met
-  * @param attrs
-  */
-case class EMap(cls: String, met: String, attrs: Attrs, arrow:String="=>", cond: Option[EIf] = None) extends CanHtml {
+object EMap {
 
-  // todo this is rather stupid - need better accounting
-  /** count the number of applications of this rule */
-  var count = 0;
-
-  def apply(in: EMsg, destSpec: Option[EMsg], pos:Option[EPos])(implicit ctx: ECtx): List[Any] = {
-    var e = Try {
-      val m = EMsg("generated", cls, met, sourceAttrs(in, attrs, destSpec.map(_.attrs))).
-        withPos(pos).
-        withSpec(destSpec)
-
-      if(arrow == "==>" || cond.isDefined)
-        ENext(m, arrow, cond)
-      else m
-    }.recover {
-      case t:Throwable => {
-        razie.Log.log("trying to source message", t)
-        EError(t.getMessage, t.toString)
-      }
-    }.get
-    count += 1
-
-    List(e)
-  }
-
-  def sourceAttrs(in: EMsg, spec: Attrs, destSpec: Option[Attrs])(implicit ctx: ECtx) = {
+  def sourceAttrs(in: EMsg, spec: Attrs, destSpec: Option[Attrs], deferEvaluation:Boolean=false)(implicit ctx: ECtx) = {
     // current context, msg overrides
     val myCtx = new StaticECtx(in.attrs, Some(ctx))
 
     // solve an expression
     def expr(p: P) = {
-      p.expr.map(_.apply("")(myCtx)/*.toString*/).getOrElse{
-        val s = p.dflt
-        s
-        //          if (s.matches("[0-9]+")) s // num
-        //          else if (s.startsWith("\"")) s // string
-        //          else in.attrs.find(_.name == s).map(_.dflt).getOrElse("")
+      p.expr.map(_.applyTyped("")(myCtx)/*.toString*/).getOrElse{
+        P("", p.dflt)
       }
     }
 
     val out1 = if (spec.nonEmpty) spec.map { p =>
+      val pe =
+        if(p.dflt.length > 0 || p.expr.nonEmpty) Some(p)
+        else in.attrs.find(_.name == p.name).orElse(
+          ctx.getp(p.name)
+        )
+
       // sourcing has expr, overrules
       val v =
-        if(p.dflt.length > 0 || p.expr.nonEmpty) expr(p)
-        else in.attrs.find(_.name == p.name).map(_.dflt).orElse(
-          ctx.get(p.name)
-        ).getOrElse(
-          "" // todo or somehow mark a missing parm?
+        if(p.dflt.length > 0 || p.expr.nonEmpty) Some(expr(p))
+        else in.attrs.find(_.name == p.name).orElse(
+          ctx.getp(p.name)
         )
 
       val tt =
-        if (p.ttype.isEmpty && !p.expr.exists(_.getType != "") && v.isInstanceOf[Int]) WTypes.NUMBER
-        else if (p.ttype.isEmpty) p.expr.map(_.getType).mkString
-        else p.ttype
+        v.map(_.ttype).getOrElse {
+          if (p.ttype.isEmpty && !p.expr.exists(_.getType != "") && v.isInstanceOf[Int]) WTypes.NUMBER
+          else if (p.ttype.isEmpty) p.expr.map(_.getType).mkString
+          else p.ttype
+        }
 
-      p.copy(dflt = v.toString, ttype=tt)
+      if(deferEvaluation)
+        p
+      else
+        p.copy(dflt = v.map(_.dflt).mkString, ttype=tt)
     } else if (destSpec.exists(_.nonEmpty)) destSpec.get.map { p =>
       // when defaulting to spec, order changes
       val v = in.attrs.find(_.name == p.name).map(_.dflt).orElse(
@@ -92,6 +67,46 @@ case class EMap(cls: String, met: String, attrs: Attrs, arrow:String="=>", cond:
     }
 
     out1
+  }
+
+}
+
+/** mapping a message - a decomposition rule (right hand side of =>)
+  *
+  * @param cls
+  * @param met
+  * @param attrs
+  */
+case class EMap(cls: String, met: String, attrs: Attrs, arrow:String="=>", cond: Option[EIf] = None) extends CanHtml with HasPosition {
+  var pos: Option[EPos] = None
+
+  def withPosition (p:EPos) = { this.pos=Some(p); this}
+
+  // todo this is rather stupid - need better accounting
+  /** count the number of applications of this rule */
+  var count = 0;
+
+  def apply(in: EMsg, destSpec: Option[EMsg], apos:Option[EPos], deferEvaluation:Boolean=false)(implicit ctx: ECtx): List[Any] = {
+    var e = Try {
+      val m = EMsg(
+        "generated", cls, met,
+        EMap.sourceAttrs(in, attrs, destSpec.map(_.attrs), deferEvaluation)
+      ).
+        withPos(this.pos.orElse(apos)).
+        withSpec(destSpec)
+
+      if(arrow == "==>" || cond.isDefined || deferEvaluation)
+        ENext(m, arrow, cond, deferEvaluation).withParent(in).withSpec(destSpec)
+      else m
+    }.recover {
+      case t:Throwable => {
+        razie.Log.log("trying to source message", t)
+        EError(t.getMessage, t.toString)
+      }
+    }.get
+    count += 1
+
+    List(e)
   }
 
   def asMsg = EMsg("", cls, met, attrs.map{p=>

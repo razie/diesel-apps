@@ -127,10 +127,29 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
   * @param arrow - how to call next: wait => or no wait ==>
   * @param cond optional condition for this step
   */
-case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None) extends CanHtml {
+case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred:Boolean=false) extends CanHtml {
+  var parent:Option[EMsg] = None
+  var spec:Option[EMsg] = None
+
+  def withParent(p:EMsg) = { this.parent=Some(p); this}
+  def withSpec(p:Option[EMsg]) = { this.spec=p; this}
+
   // todo match also the object parms if any and method parms if any
   def test(cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
     cond.fold(true)(_.test(List.empty, cole))
+  }
+
+  def evaluateMsg(implicit ctx: ECtx) = {
+    // if evaluation was deferred, do it
+    val m = if (deferred) {
+      parent.map { parent =>
+        msg.copy(attrs = EMap.sourceAttrs(parent, msg.attrs, spec.map(_.attrs)))
+      } getOrElse {
+        msg // todo evaluate something here as well...
+      }
+    } else msg
+
+    m
   }
 
   override def toHtml = arrow + " " + msg.toHtml
@@ -138,7 +157,7 @@ case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None) extends Can
   override def toString = arrow + " " + msg.toString
 }
 
-// $when
+/** $when - match and decomposition rule */
 case class ERule(e: EMatch, i: List[EMap]) extends CanHtml with EApplicable with HasPosition {
   var pos: Option[EPos] = None
 

@@ -4,6 +4,7 @@ import razie.{Audit, cout}
 import razie.diesel.dom._
 import razie.diesel.engine._
 import razie.diesel.ext.{EMsg, EVal}
+import razie.tconf.{DSpec, TextSpec}
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.{Await, Future}

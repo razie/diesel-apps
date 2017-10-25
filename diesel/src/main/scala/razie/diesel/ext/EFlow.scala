@@ -8,14 +8,15 @@ package razie.diesel.ext
 
 import razie.diesel.dom._
 
-/** flows seq/par and depys are processed directly be the engine */
+/** flows seq/par and depys are processed directly by the engine */
 case class EFlow(e: EMatch, ex: FlowExpr) extends CanHtml with EApplicable with HasPosition {
   var pos : Option[EPos] = None
+
   override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
     e.test(m, cole)
 
   override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] =
-    Nil//i.apply(in, destSpec, pos)
+    Nil
 
   override def toHtml = span("$flow::") + s" ${e.toHtml} => $ex <br>"
 

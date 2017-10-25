@@ -44,6 +44,7 @@ case class MyUser(userName: String, email: String, _id: ObjectId = new ObjectId(
   def myPages(realm: String, cat: String): List[Any] = List.empty
   def css = Some("dark") // dark/light preferences
   def hasMembershipLevel(s:String) = false
+  def membershipLevel =Perm.Member
   def isActive = true
   def isSuspended = false
 

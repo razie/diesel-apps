@@ -24,7 +24,7 @@ class Sec extends RazControllerBase {
       x <- (if (ds.expiry.isAfterNow) Some(true) else None) orErr ("[expired]")
     ) yield {
         ds.done
-        Redirect(ds.link)
+        Redirect(ds.link).flashing(SecLink.HEADER -> ds.id)
       }) getOrElse
       Msg2("Link is invalid/expired... please contact <a href=\"/doe/support\">Support</a>. <br><small>" + errCollector.mkString + "</small>", Some("/"))
   }

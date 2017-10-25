@@ -1,5 +1,7 @@
 package razie.diesel
 
+import razie.diesel.dom.RDOM.P
+
 /**
  * simple, neutral domain model representation: class/object/function
  *
@@ -19,6 +21,7 @@ package object dom {
 
   def quot(s:String) = "\""+ s + "\""
 
+  /** if you have a func defn handy */
   def qTyped(q:Map[String,String], f:Option[RDOM.F]) = q.map { t =>
     def prep(v: String) =
       if (v.startsWith("\"")) v.replaceAll("\"", "")
@@ -26,15 +29,34 @@ package object dom {
       else v
 
     val p = f.flatMap(_.parms.find(_.name == t._1))
-    if (p.exists(_.ttype == "Int")) (t._1+"",
+    if (p.exists(x=> x.ttype == "Int" || x.ttype == WTypes.NUMBER)) (t._1+"",
       try {
         t._2.toInt
       } catch {
         case e:Throwable => throw new IllegalArgumentException("Type error: expected Int, parm "+t._1+" found "+t._2)
       }
-      )
+    )
     else
       (t._1, prep(t._2))
+  }
+
+  /** better version - f is if you have a func defn in context */
+  def qTypedP(q:Map[String,P], f:Option[RDOM.F]) = q.map { t =>
+    def prep(v: String) =
+      if (v.startsWith("\"")) v.replaceAll("\"", "")
+      else if (v.startsWith("\'")) v.replaceAll("\'", "")
+      else v
+
+    val p = f.flatMap(_.parms.find(_.name == t._1)).getOrElse(t._2)
+    if (p.ttype == "Int" || p.ttype == WTypes.NUMBER) (t._1+"",
+      try {
+        t._2.dflt.toInt
+      } catch {
+        case _:Throwable => throw new IllegalArgumentException("Type error: expected Int, parm "+t._1+" found "+t._2)
+      }
+      )
+    else
+      (t._1, prep(t._2.dflt))
   }
 
 }

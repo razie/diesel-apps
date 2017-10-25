@@ -14,6 +14,7 @@ import razie.diesel.dom.RDOM._
 import razie.diesel.dom.{RDomain, _}
 import razie.diesel.exec.{EEFunc, EETest}
 import razie.diesel.ext._
+import razie.tconf.{DSpec, TSpecPath}
 import razie.xp.JsonOWrapper
 
 import scala.Option.option2Iterable
@@ -151,7 +152,8 @@ object RDExt {
                     val contentType:String,
                     val iroot:Option[Snakk.Wrapper[_]] = None,
                     val raw : Option[Array[Byte]] = None) {
-    def isXml = "application/xml" == contentType
+
+    def isXml = "application/xml" == contentType || "text/xml" == contentType
     def isJson = "application/json" == contentType
 
     import razie.Snakk._
@@ -159,14 +161,15 @@ object RDExt {
     /** xp root for either xml or json body */
     lazy val root:Snakk.Wrapper[_] = iroot getOrElse {
       contentType match {
-        case "application/xml" => Snakk.xml(body)
-        case "application/json" => Snakk.json(body)
-        case x@_ => Snakk.json("")
+        case _ if isXml => Snakk.xml(body)
+        case _ if isJson => if(body.trim.startsWith("{")) Snakk.json(body) else Snakk.json("{}") // avoid exceptions parsing
+        case x@_ => Snakk.json("{error: 'unknown SnakkCall.contentType'}")
         //throw new IllegalStateException ("unknown content-type: "+x)
       }
     }
 
-    lazy val hasValues = root \ "values"
+    lazy val hasValues = if(isXml || isJson) root \ "values" else Snakk.empty
+
     lazy val r = if(hasValues.size > 0) hasValues else root
 
     // todo not optimal
@@ -186,14 +189,22 @@ object RDExt {
       (r \@@ name).toOption
     }
 
-    /** name, default, expr */
-    def ex(n:String, d:String, e:String)  = {
+    /** name, default, expr
+      *
+      * will replace a.b.c with a/b/@c and a/b/c with a/b/@c
+      */
+    def ex(n:String, d:String, e:String, oe:Option[Expr])  = {
+      def forceAttr (path:String) = path.replaceFirst("(.*)/([^/]*)$", "$1/@$2")
+
       if (e.isEmpty)
         (n, (r \@@ n OR d).toString)
       else if (e.startsWith("/") && e.endsWith("/")) // regex
         (n, e.substring(1, e.length - 1).r.findFirstIn(body).mkString)
-      else
-        (n, (r \@@ e OR d).toString)
+      else oe match {
+        case Some(xpi:XPathIdent) => (n, (r \@@ forceAttr(xpi.expr) OR d).toString)
+        case Some(api:AExprIdent) => (n, (r \@@ forceAttr(api.expr.replaceAllLiterally(".", "/")) OR d).toString)
+        case _ => (n, (r \@@ forceAttr(e.replaceAllLiterally(".", "/")) OR d).toString)
+      }
     }
 
     /** extract the values and expressions from a response
@@ -202,7 +213,7 @@ object RDExt {
       * @param spec a list of name/default/expression
       * @param regex an optional regex with named groups
       */
-    def extract (temp:Map[String,String], spec:Seq[(String,String, String)], regex:Option[String]) = {
+    def extract (temp:Map[String,String], spec:Seq[(String,String, String, Option[Expr])], regex:Option[String]) = {
 
       if(regex.isDefined) {
         val rex =
@@ -215,6 +226,7 @@ object RDExt {
         if(jrex.find())
           (
             for(g <- spec)
+              // todo inconsistency: I am running rules if no mocks fit, so I should also run any executor ??? or only the isMocks???
               yield (
                 g._1,
                 Try {
@@ -225,13 +237,13 @@ object RDExt {
         else Nil
       } else if(temp.nonEmpty) {
         val strs = temp.map { t =>
-          ex(t._1, "", t._2)
+          ex(t._1, "", t._2, None)
         }
         strs.toList
       } else if(spec.nonEmpty) {
         // main case
-        spec.map(t=>ex(t._1, t._2, t._3)).toList
-      } else {
+        spec.map(t=>ex(t._1, t._2, t._3, t._4)).filter(_._2.nonEmpty).toList
+      } else if (isJson) {
         // last ditch attempt to discover some values
 
         //          (
@@ -244,7 +256,8 @@ object RDExt {
             yield (a.names.get(k).toString, a.getString(a.names.get(k).toString))
           ).toList
         strs.toList
-      }
+      } else
+        Nil
     }
 
   }
@@ -387,7 +400,11 @@ object RDExt {
     root.children append DomAst(v, AstKinds.RECEIVED)
   }
 
-  /* extract more nodes to run from the story - add them to root */
+  /**
+    *  add all nodes from story and add them to root
+    *
+    *  todo when are expressions evaluated?
+    */
   def addStoryToAst(root: DomAst, stories: List[DSpec], justTests: Boolean = false, justMocks: Boolean = false, addFiddles:Boolean=false) = {
     var lastMsg: Option[EMsg] = None
     var lastMsgAst: Option[DomAst] = None
@@ -407,7 +424,8 @@ object RDExt {
 
     def addStory (story:DSpec) = {
       story.parsed
-println(story.cache.mkString)
+      println(story.collector.mkString)
+
       if(stories.size > 1 || addFiddles)
         root.children appendAll {
           lastAst = List(DomAst(StoryNode(story.specPath), "story").withPrereq(lastAst.map(_.id)))

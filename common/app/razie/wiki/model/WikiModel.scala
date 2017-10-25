@@ -10,14 +10,15 @@ import com.mongodb.casbah.Imports._
 import com.novus.salat._
 import org.joda.time.DateTime
 import razie.audit.Audit
-import razie.wiki.parser.WAST.SState
 import razie.{AA, Log, cdebug}
 import razie.db.RazSalatContext._
 import razie.db._
-import razie.diesel.dom.{DSpec, DTemplate, SpecPath, WikiDTemplate}
+import razie.diesel.dom.WikiDTemplate
+import razie.tconf.parser.SState
+import razie.tconf.{DSpec, DTemplate, SpecPath}
 import razie.wiki.Services
 import razie.wiki.model.features.{FieldDef, FormStatus, WikiForm}
-import razie.wiki.parser.WAST
+import razie.wiki.parser.{WAST}
 
 /**
   * simple trait for a wiki
@@ -197,14 +198,21 @@ case class WikiEntry(
 
   /** backup old version and update entry, update index */
   def update(newVer: WikiEntry, reason:Option[String] = None)(implicit txn:Txn=tx.auto) = {
+
     val uname = WikiUsers.impl.findUserById(newVer.by).map(_.userName).getOrElse(newVer.by.toString)
     if(uname != "Razie")
       Audit.logdbWithLink(
         if(wid.cat=="Note") AUDIT_NOTE_UPDATED else AUDIT_WIKI_UPDATED,
         newVer.wid.urlRelative,
         s"""BY $uname - $category : $name ver ${newVer.ver}""")
+
     if(!isDraft || !newVer.isDraft) WikiEntryOld(this, reason).create
-    RUpdate.noAudit[WikiEntry](Wikis(realm).weTables(wid.cat), Map("_id" -> newVer._id), newVer)
+
+    // force unix style - some patterns go weird with \r
+    val safeVer = newVer.copy(content = newVer.content.replaceAll("\r", ""))
+
+    RUpdate.noAudit[WikiEntry](Wikis(realm).weTables(wid.cat), Map("_id" -> newVer._id), safeVer)
+
     Wikis.shouldFlag(name, label, content).map(auditFlagged(_))
 
     // this is done async from WikiEvent. if sync here it will cause problems
@@ -237,6 +245,7 @@ case class WikiEntry(
     """(?s)\{\{\.*(section|def|lambda|inline|dfiddle|dsl\.\w*)([: ])?([^:}]*)?(:)?([^}]*)?\}\}((?>.*?(?=\{\{/[^`])))\{\{/\.*(section|def|lambda|inline|dfiddle|dsl\.\w*)?\}\}""".r
   private final val PATT_TEM =
     """(?s)\{\{\.*(template)([: ])?([^ :}]*)?([: ])?([^}]*)?\}\}((?>.*?(?=\{\{/[^`])))\{\{/\.*(template)?\}\}""".r
+  //                   1       2      3         4      5                  6
 
   /** find the sections - used because for templating I don't want to reolves the includes */
   private def findSections (c:String, pat:scala.util.matching.Regex) = {
@@ -250,8 +259,18 @@ case class WikiEntry(
 
     (for (m <- pat.findAllIn(c).matchData) yield {
       val mm = PATT2.findFirstMatchIn(m.matched).get
-      val signargs = mm.group(5).split("[: ]")
-      val args = if(signargs.length>1) AA(signargs(1)).toMap else Map.empty[String,String]
+      val g5 = mm.group(5)
+      val signargs = g5.split("[: ]",2)
+      // sometimes space divides an arg list, so we bring it back
+//      val args = if(signargs.length>1 && !signargs(0).contains(",")) AA(signargs(1)).toMap else if(signargs(0).contains(",")) AA(signargs(0)+","+signargs(1)).toMap  else Map.empty[String,String]
+//      val sign = if(signargs.length > 1) signargs(0)+","+ signargs(1) else signargs(0)
+      var args = if(signargs.length>1) AA(signargs(1)).toMap else Map.empty[String,String]
+      args = args.map(t=>
+        (t._1, (
+          if(t._2.startsWith("\"") && t._2.endsWith("\"")) t._2.substring(1, t._2.length-1)
+          else t._2
+        ))
+      )
       val sign = signargs(0)
       val ws = WikiSection(mm.source.toString, this, mm.group(1), mm.group(3), sign, mm.group(6), args)
       val ss = c.substring(0, m.start)
@@ -265,10 +284,13 @@ case class WikiEntry(
   }
 
   /** pattern for all sections requiring signing - (?s) means multi-line */
-  val PATTSIGN = """(?s)\{\{(\.?)(template|def|lambda|inline):([^:}]*)(:REVIEW[^}]*)\}\}((?>.*?(?=\{\{/)))\{\{/(template|def|lambda|inline)?\}\}""".r //?s means DOTALL - multiline
+  val PATTSIGN = """(?s)\{\{(\.?)(template|def|lambda|inline)[: ]*([^:}]*)(:REVIEW[^}]*)\}\}((?>.*?(?=\{\{/)))\{\{/(template|def|lambda|inline)?\}\}""".r //?s means DOTALL - multiline
 
   /** find a section */
-  def section (stype: String, name: String) = sections.find(x => x.stype == stype && x.name == name)
+  def section (stype: String, name: String) = {
+    if(name contains ":") sections.find(x => x.stype == stype && x.name == name)
+    else sections.find(x => x.stype == stype && x.name == name)
+  }
 
   /** scripts are just a special section */
   lazy val scripts = sections.filter(x => "def" == x.stype || "lambda" == x.stype || "inline" == x.stype)
@@ -287,7 +309,7 @@ case class WikiEntry(
     val t1 = System.currentTimeMillis
     val s = ast.fold(WAST.context(Some(this), au)) // fold the AST
     // add hardcoded attribute - these can be overriden by tags in content
-    val res = WAST.SState(s.s,
+    val res = SState(s.s,
       Map("category" -> category, "name" -> name, "label" -> label, "url" -> (wid.urlRelative),
         "id" -> _id.toString, "tags" -> tags.mkString(",")) ++ s.props,
       s.ilinks)
@@ -315,7 +337,7 @@ case class WikiEntry(
     else props.get(name)
 
   /** all the links from this page to others, based on parsed content */
-  def ilinks = preprocessed.ilinks
+  def ilinks = preprocessed.ilinks.filter(_.isInstanceOf[ILink]).asInstanceOf[List[ILink]]
 
   final val AUDIT_WIKI_CREATED = "WIKI_CREATED"
   final val AUDIT_WIKI_UPDATED = "WIKI_UPDATED"
@@ -334,7 +356,7 @@ case class WikiEntry(
   /** other parsing artifacts to be used by knowledgeable modules.
     * Parsers can put stuff in here. */
   //todo move the fields and form stuff here
-  val cache = new scala.collection.mutable.HashMap[String, Any]()
+  val collector = new scala.collection.mutable.HashMap[String, Any]()
 
   def linksFrom = RMany[WikiLink] ("from.id" -> this.uwid.id)
   def linksTo = RMany[WikiLink] ("to.id" -> this.uwid.id)

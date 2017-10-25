@@ -108,7 +108,6 @@ case class Comment (
 object Comments {
   def findForWiki(id:ObjectId) = ROne[CommentStream]("what" -> "Wiki", "topic" -> id)
   def findFor(id:ObjectId, role:String) = ROne[CommentStream]("what" -> role, "topic" -> id)
-  def findById(id: String) = ROne[CommentStream](new ObjectId(id))
   def findCommentById(id: String) = ROne[Comment](new ObjectId(id))
 
   final val AUDIT_COMMENT_CREATED = "COMMENT_CREATED"

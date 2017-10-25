@@ -6,9 +6,11 @@
  */
 package razie.wiki.parser
 
+import razie.tconf.parser.{PState, SState}
+
 /** Created by raz on 2014-11-20.
  */
-trait WikiParserNotes extends WikiParserBase {
+trait WikiParserNotes extends ParserBase {
   import WAST._
   
   def notesDotProps = dotPropAct | dotPropShare | dotPropEmail

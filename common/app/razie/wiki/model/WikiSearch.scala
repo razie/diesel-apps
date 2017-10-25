@@ -47,12 +47,12 @@ object WikiSearch {
   /** extract associations from the page
     * @return Tuple(left, middle, right, mkLink)
     */
-  def extract (realm:String, page:Option[WikiEntry]) = {
+  def extractAssocs (realm:String, page:Option[WikiEntry]) = {
     // website prop p
     def p(p:String) = Website.forRealm(realm).flatMap(_.prop(p)).mkString
 
     if(p("wbrowser.query") == "dieselMsg") {
-      val domList = page.get.cache.getOrElse(RDomain.DOM_LIST, List[Any]()).asInstanceOf[List[Any]].reverse
+      val domList = page.get.collector.getOrElse(RDomain.DOM_LIST, List[Any]()).asInstanceOf[List[Any]].reverse
       val colEnt = new ListBuffer[(RDOM.A, String)]()
       val colMsg = new ListBuffer[(RDOM.A, String)]()
 

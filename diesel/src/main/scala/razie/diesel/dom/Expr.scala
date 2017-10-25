@@ -1,6 +1,7 @@
 package razie.diesel.dom
 
 import razie.clog
+import razie.diesel.dom.RDOM.P
 import razie.diesel.exec.EEFunc
 import razie.diesel.ext.CanHtml
 
@@ -37,6 +38,10 @@ trait HasDsl /*extends GReferenceable*/ {
 trait WFunc { // extends PartialFunc ?
   /** apply this function to an input value and a context */
   def apply (v:Any)(implicit ctx:ECtx) : Any
+
+  /** apply this function to an input value and a context */
+  def applyTyped (v:Any)(implicit ctx:ECtx) : P = P("", apply(v).toString, getType)
+
   /** what is the resulting type - when known */
   def getType : String = ""
 }
@@ -53,13 +58,33 @@ abstract class Expr extends WFunc with HasDsl with CanHtml {
 case class AExpr2 (a:Expr, op:String, b:Expr) extends Expr {
   val expr = (a.toDsl + op + b.toDsl)
 
-  override def apply(v: Any)(implicit ctx: ECtx) = //Try {
+  override def apply(v: Any)(implicit ctx: ECtx) = { //Try {
+
+    // resolve an expression to P with value and type
+    def top (x:Expr) : Option[P] = x match {
+      case CExpr(aa, tt) => Some(P ("", aa, tt))
+      case AExprIdent(aid) => ctx.getp(aid)
+      case _ => Some(P("", a(v).toString))
+    }
+
+    def isNum (x:Expr) : Boolean = x match {
+      case CExpr(_, WTypes.NUMBER) => true
+      case AExprIdent(aid) => ctx.getp(aid).exists(_.ttype == WTypes.NUMBER)
+      case _ => false
+    }
+
     op match {
       case "+" => {
         (a, b) match {
-            // json exprs are different
+            // json exprs are different, like cart + { item:...}
           case (AExprIdent(aid), JBlockExpr(jb)) if ctx.getp(aid).exists(_.ttype == WTypes.JSON) =>
             jsonExpr(op, a(v).toString, b(v).toString)
+
+          case _ if isNum(a) && isNum(b) => {
+            val ai = a(v).toString.toInt
+            val bi = b(v).toString.toInt
+            ai + bi
+          }
 
           case _ => {
             a(v).toString + b(v).toString
@@ -85,6 +110,7 @@ case class AExpr2 (a:Expr, op:String, b:Expr) extends Expr {
 //      t.toString
 //    }
 //  }.get
+  }
 
   /** process a js operation */
   def jsonExpr (op:String, aa:String, bb:String) = {
@@ -122,6 +148,13 @@ case class AExpr2 (a:Expr, op:String, b:Expr) extends Expr {
 /** a qualified identifier */
 case class AExprIdent (val expr:String) extends Expr {
   override def apply (v:Any)(implicit ctx:ECtx) = ctx.apply(expr)
+
+  override def applyTyped (v:Any)(implicit ctx:ECtx) : P = ctx.getp(expr).getOrElse(P(expr, ""))
+}
+
+/** a qualified identifier */
+case class XPathIdent (val expr:String) extends Expr {
+  override def apply (v:Any)(implicit ctx:ECtx) = ctx.apply(expr)
 }
 
 /** constant expression
@@ -155,9 +188,8 @@ case class JSSExpr (s : String) extends Expr {
 
   override def getType: String = WTypes.STRING
 
-  override def apply (v:Any)(implicit ctx:ECtx) = {
-    EEFunc.execute (s)
-  }
+  override def apply (v:Any)(implicit ctx:ECtx) =
+    EEFunc.execute (s) //.dflt
 }
 
 /** a json block */
@@ -231,28 +263,42 @@ case class BCMP2(a: Expr, op: String, b: Expr) extends BExpr(a.toDsl + " " + op 
         }
       }
       case _ => {
-        val as = a(in).toString
-        val bs = b(in).toString
-        val x = as matches bs
         op match {
           case "?=" => a(in).toString.length >= 0 // anything with a default
           case "==" => a(in) == b(in)
           case "!=" => a(in) != b(in)
-          case "~=" => a(in).toString matches b(in).toString
+          case "~=" | "like" => a(in).toString matches b(in).toString
           case "<=" => a(in).toString <= b(in).toString
           case ">=" => a(in).toString >= b(in).toString
           case "<" => a(in).toString < b(in).toString
           case ">" => a(in).toString > b(in).toString
+
           case "contains" => a(in).toString contains b(in).toString
+
           case "is" => {
+            val as = a(in).toString
             // is nuber or is date or is string etc
-            a.isInstanceOf[CExpr] && b.isInstanceOf[AExprIdent] && (
-              a.asInstanceOf[CExpr].ttype.toLowerCase == b.asInstanceOf[AExprIdent].expr.toLowerCase ||
-                "number" == b.asInstanceOf[AExprIdent].expr.toLowerCase && a.asInstanceOf[CExpr].expr.matches("[0-9]+")
-              ) ||
-              (a(in).toString == b(in).toString)
-            // if not known type expr, then behave like equals
+            if(b.toString == "defined") {
+              as.length > 0
+            } else if(b.toString == "empty") {
+              as.length == 0
+            } else {
+              a.isInstanceOf[CExpr] && b.isInstanceOf[AExprIdent] && (
+                a.asInstanceOf[CExpr].ttype.toLowerCase == b.asInstanceOf[AExprIdent].expr.toLowerCase ||
+                "string" == b.asInstanceOf[AExprIdent].expr.toLowerCase &&
+                  a.asInstanceOf[CExpr].ttype.length == 0 ||
+                  "number" == b.asInstanceOf[AExprIdent].expr.toLowerCase &&
+                    a.asInstanceOf[CExpr].expr.matches("[0-9]+")
+                ) ||
+                (as == b(in).toString)
+              // if not known type expr, then behave like equals
+            }
           }
+
+          case "not" if b.toString == "defined" => a(in).toString.length <= 0
+          case "not" if b.toString == "empty" => a(in).toString.length > 0
+          case "not" => a(in) != b(in)
+
           case _ => {
             clog << "[ERR Operator " + op + " UNKNOWN!!!]";
             false

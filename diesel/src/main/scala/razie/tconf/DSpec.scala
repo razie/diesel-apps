@@ -1,4 +1,7 @@
-package razie.diesel.dom
+package razie.tconf
+
+import razie.diesel.dom._
+import razie.diesel.ext
 
 /** uniquely identifies a piece of specification
   *
@@ -20,11 +23,12 @@ trait TSpecPath {
 }
 
 case class SpecPath (
-                      source:String,
-                      wpath:String,
-                      realm:String,
-                      ver:Option[String]=None,
-                      draft:Option[String]=None) extends TSpecPath {
+  source:String,
+  wpath:String,
+  realm:String,
+  ver:Option[String]=None,
+  draft:Option[String]=None) extends TSpecPath {
+
   def ahref:Option[String] = None
 }
 
@@ -36,11 +40,13 @@ case class SpecPath (
   */
 trait DSpec {
   def specPath : TSpecPath
+
+  // todo this is too specific - need to refactor out
   def findTemplate (name:String, direction:String="") : Option[DTemplate]
 
   /** other parsing artifacts to be used by knowledgeable modules.
     * Parsers can put stuff in here. */
-  def cache : scala.collection.mutable.HashMap[String, Any]
+  def collector : scala.collection.mutable.HashMap[String, Any]
 
   /** set during parsing and folding - false if page has any user-specific elements
     *  any scripts or such will make this false
@@ -63,11 +69,20 @@ trait DTemplate {
   def parmStr : String
   def specPath : TSpecPath
   def pos : EPos
+  def parms : Map[String,String]
 
-  lazy val parms =
-    if(parmStr.trim.length > 0)
-      parmStr.trim.split("[, ]").map(s=>s.split("=")).filter(_.size == 2).map(a=> (a(0), a(1))).toMap
-    else Map.empty[String,String]
+  /** resolve a parm, case-insensitive and stip quotes */
+  def parm(name: String): Option[String] =
+    parms
+      .find(_._1.compareToIgnoreCase(name) == 0)
+      .map(_._2)
+      .map(ext.stripQuotes)
+
+  /** template attributes, like content-type etc */
+//  lazy val parms =
+//    if(parmStr.trim.length > 0)
+//      parmStr.trim.split("[, \n\t]").map(s=>s.split("=")).filter(_.size == 2).map(a=> (a(0).trim, a(1).trim)).toMap
+//    else Map.empty[String,String]
 
 }
 
@@ -84,7 +99,7 @@ case class TextSpec (val name:String, val text:String) extends DSpec {
 
   /** other parsing artifacts to be used by knowledgeable modules.
     * Parsers can put stuff in here. */
-  val cache = new scala.collection.mutable.HashMap[String, Any]()
+  val collector = new scala.collection.mutable.HashMap[String, Any]()
 
   /** the assumption is that specs can parse themselves and cache the AST elements
     *
@@ -102,6 +117,6 @@ case class TextSpec (val name:String, val text:String) extends DSpec {
     iparsed = Some(res)
     res
   }
-
 }
+
 
