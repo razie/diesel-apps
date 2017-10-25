@@ -57,15 +57,22 @@ libraryDependencies in Global ++= Seq(
 lazy val root = (project in file("."))
   .settings(
     commonSettings
-  ).aggregate(diesel, pcommon)//, pwiki)
+  ).aggregate(tconf,diesel, pcommon)//, pwiki)
+
+lazy val tconf = (project in file("tconf"))
+  .settings(
+    commonSettings,
+    unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/base/src/main/scala",
+    unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/core/src/main/scala"
+  )
 
 lazy val diesel = (project in file("diesel"))
   .settings(
     commonSettings,
- // libraryDependencies ++= deps
     unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/base/src/main/scala",
     unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/core/src/main/scala"
   )
+  .dependsOn(tconf).aggregate(tconf)
   // .dependsOn(pcommon).aggregate(pcommon)
 
 lazy val pcommon = (project in file("common")).enablePlugins(PlayScala)
@@ -119,8 +126,8 @@ pomExtra := (
     </license>
   </licenses>
   <scm>
-    <url>git@github.com:razie/diesel-hydra.git</url>
-    <connection>scm:git:git@github.com:razie/diesel-hydra.git</connection>
+    <url>git@github.com:razie/diesel-apps.git</url>
+    <connection>scm:git:git@github.com:razie/diesel-apps.git</connection>
   </scm>
   <developers>
     <developer>
