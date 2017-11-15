@@ -7,9 +7,7 @@
 package razie.tconf.parser
 
 import razie.tconf.{DSpec, DUser}
-import razie.tconf.parser.T_VIEW
 import razie.{audit, cdebug}
-//import razie.wiki.model.{ILink, WikiEntry, WikiUser}
 
 
 /** folding context base class - page being parsed and for which user */

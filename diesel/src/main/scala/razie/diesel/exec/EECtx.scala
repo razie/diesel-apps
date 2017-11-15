@@ -78,7 +78,7 @@ class EECtx extends EExecutor("ctx") {
             val nat = in.attrs.filter(e => !Array("list", "item", "msg").contains(e.name))
             l.map { item: Any =>
               val is = razie.js.anytojsons(item)
-              EMsg("", e, m, RDOM.typified(parm("item").get.dflt, is) :: nat)
+              EMsg(e, m, RDOM.typified(parm("item").get.dflt, is) :: nat)
             }
           }
           case x@_ => {
@@ -167,12 +167,12 @@ class EECtx extends EExecutor("ctx") {
   override def toString = "$executor::ctx "
 
   override val messages: List[EMsg] =
-    EMsg("", "ctx", "persisted", Nil) ::
-      EMsg("", "ctx", "log", Nil) ::
-      EMsg("", "ctx", "echo", Nil) ::
-      EMsg("", "ctx", "test", Nil) ::
-      EMsg("", "ctx", "engineSync", Nil) ::
-      EMsg("", "ctx", "storySync", Nil) :: // processed by the story teller
-      EMsg("", "ctx", "storyAsync", Nil) :: // processed by the story teller
-      EMsg("", "ctx", "clear", Nil) :: Nil
+    EMsg("ctx", "persisted") ::
+      EMsg("ctx", "log") ::
+      EMsg("ctx", "echo") ::
+      EMsg("ctx", "test") ::
+      EMsg("ctx", "engineSync") ::
+      EMsg("ctx", "storySync") :: // processed by the story teller
+      EMsg("ctx", "storyAsync") :: // processed by the story teller
+      EMsg("ctx", "clear") :: Nil
 }

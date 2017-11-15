@@ -19,6 +19,9 @@ import scala.collection.mutable
   */
 object SpecCache {
 
+  // max entries
+  final val MAX = 100
+
   // stupid LRU expiry
   val cachel = new mutable.HashMap[String, Long]()
 
@@ -29,7 +32,7 @@ object SpecCache {
     val res = cachem.get(we.content).flatMap(_._2).orElse {
       cachem.put(we.content, (we, d))
       cachel.put(we.content, System.currentTimeMillis())
-      if(cachel.size > 100) {
+      if(cachel.size > MAX) {
         var min = System.currentTimeMillis()
         var minc = ""
         cachel.foreach(x=> if(x._2 < min) {

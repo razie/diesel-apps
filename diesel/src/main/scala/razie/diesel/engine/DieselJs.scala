@@ -11,7 +11,7 @@ import razie.diesel.dom._
 
 /** wrapper for JS scripts - this is the object `diesel` */
 class DieselJs (val ctx:ECtx) {
-    def engineId : String = ctx.root.asInstanceOf[DomEngECtx].engine.map(_.id).mkString
+    def engineId : String = ctx.root.engine.map(_.id).mkString
     def get (name:String) : String = ctx.apply(name)
     def set (name:String, value:String) : String = {
       ctx.put(P(name, value))

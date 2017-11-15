@@ -17,8 +17,8 @@ import razie.diesel.dom.WikiDTemplate
 import razie.tconf.parser.SState
 import razie.tconf.{DSpec, DTemplate, SpecPath}
 import razie.wiki.Services
-import razie.wiki.model.features.{FieldDef, FormStatus, WikiForm}
-import razie.wiki.parser.{WAST}
+import razie.wiki.model.features.{FieldDef, FormStatus, WikiCount, WikiForm}
+import razie.wiki.parser.WAST
 
 /**
   * simple trait for a wiki
@@ -360,6 +360,8 @@ case class WikiEntry(
 
   def linksFrom = RMany[WikiLink] ("from.id" -> this.uwid.id)
   def linksTo = RMany[WikiLink] ("to.id" -> this.uwid.id)
+
+  def viewCount = ROne[WikiCount] ("pid" -> this.uwid.id).map(_.count)
 }
 
 /** a section inside a wiki page

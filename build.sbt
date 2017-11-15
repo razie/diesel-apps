@@ -5,13 +5,13 @@ name := "diesel"
 
 lazy val commonSettings = Seq(
   organization := "com.razie",
-  version := "0.9.2-SNAPSHOT",
+  version := "0.9.3-SNAPSHOT",
   scalaVersion := "2.11.8",
 
-  organizationName     := "Razie's Pub",
-  organizationHomepage := Some(url("http://www.razie.com")),
+  organizationName     := "DieselApps",
+  organizationHomepage := Some(url("http://www.dieselapps.com")),
   licenses := Seq("BSD-style" -> url("http://www.opensource.org/licenses/bsd-license.php")),
-  homepage := Some(url("http://www.razie.com"))
+  homepage := Some(url("http://www.dieselapps.com"))
 )
 
 libraryDependencies in Global ++= Seq(
@@ -23,8 +23,8 @@ libraryDependencies in Global ++= Seq(
 
   "ch.qos.logback"          % "logback-classic"    % "1.0.13",
 
-  //"com.razie"              %% "snakk_base"         % "0.9.2-SNAPSHOT",
-  //"com.razie"              %% "snakk_core"         % "0.9.2-SNAPSHOT",
+  //"com.razie"              %% "snakk_base"         % "0.9.3-SNAPSHOT",
+  //"com.razie"              %% "snakk_core"         % "0.9.3-SNAPSHOT",
 
   "commons-codec"          % "commons-codec"      % "1.4",
   "javax.mail"             % "mail"               % "1.4.5",
@@ -137,3 +137,4 @@ pomExtra := (
     </developer>
   </developers>
 )
+

@@ -377,7 +377,7 @@ object Wikis extends Logging with Validation {
 
   /** html for later */
   def propLater (id:String, url:String) =
-    s"""<script async>$$("#$id").load("$url");</script>"""
+    s"""<script async>require(['jquery'],function($$){$$("#$id").load("$url");});</script>"""
 
   /** partial formatting function
     *
@@ -424,8 +424,10 @@ object Wikis extends Logging with Validation {
             if("inline" == s.stype) {
               val wix = Wikis(wid.getRealm).mkWixJson(we, user, Map.empty, "")
               s"""<script>
+                |razOnLoad(function(){
                 |${wix}\n
                 |${s.content}
+                |;});
                 |</script>
               """.stripMargin
             } else
@@ -688,10 +690,10 @@ object Wikis extends Logging with Validation {
     val y = x.replaceAll("\\{\\{div.later ([^ ]*) ([^}]*)\\}\\}",
       """
         | <div id=$1>div.later</div>
-        | <script type="text/javascript">
-        | // \$(document).ready(function(){
+        | <script>
+        |  razOnLoad(function(){
         |   \$("#$1").attr("src","$2");
-        | // });
+        |  });
         | </script>
         | """.stripMargin)
     y

@@ -9,7 +9,7 @@ package razie.wiki.model
 import com.novus.salat.annotations._
 import org.bson.types.ObjectId
 import org.joda.time.DateTime
-import razie.db.{RCreate, RTable, Txn, tx}
+import razie.db._
 
 /**
  * auditing events on wiki pages, like edits, views etc
@@ -69,5 +69,7 @@ object WikiAudit {
   final val DELETE_WIKI = "delete.wiki"
 
   def isUpd(s:String) = s.startsWith("create.") || s.startsWith("update.") || s.startsWith("delete.")
+
+  def findForWid(wid:WID) = RMany[WikiAudit]("wpath" -> wid.wpath)
 }
 

@@ -50,8 +50,6 @@ object DieselAppContext {
     eng
   }
 
-  def engines = engMap.values.toList
-
   def stop = {
   }
 

@@ -1,6 +1,7 @@
 package razie.diesel.dom
 
 import razie.diesel.dom.RDOM.P
+import razie.diesel.engine.DomEngECtx
 import razie.diesel.ext.EVal
 import razie.tconf.{DSpec, DTemplate}
 
@@ -21,7 +22,7 @@ import scala.util.Try
  */
 trait ECtx {
   /** root domain - it normally is an instance of DomEngineCtx and you can get more details from it */
-  def root: ECtx
+  def root: DomEngECtx
   /** in a hierarchy, this is my failback */
   def base: Option[ECtx]
   def hostname:Option[String]
@@ -146,7 +147,7 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
     if(base.isDefined) base.get.putAll(p)
     else attrs = p ::: attrs.filter(x => !p.exists(_.name == x.name))
 
-  def root: ECtx = base.map(_.root).getOrElse(this)
+  def root: DomEngECtx = base.map(_.root).getOrElse(this).asInstanceOf[DomEngECtx]
 
   override def toString =
     cur.mkString(",") + attrs.mkString(",") + base.map(_.toString).mkString
@@ -169,11 +170,11 @@ class StaticECtx(cur: List[P] = Nil, base: Option[ECtx] = None, curNode:Option[D
   * todo when loading context, how do I reover active scope contexts
   */
 class ScopeECtx(cur: List[P] = Nil, base: Option[ECtx] = None, curNode:Option[DomAst]=None) extends SimpleECtx(cur, base, curNode) {
-//  override def put(p: P): Unit =
-//    attrs = p :: attrs.filter(_.name != p.name)
-//
-//  override def putAll(p: List[P]): Unit =
-//    attrs = p ::: attrs.filter(x => !p.exists(_.name == x.name))
+  override def put(p: P): Unit =
+    attrs = p :: attrs.filter(_.name != p.name)
+
+  override def putAll(p: List[P]): Unit =
+    attrs = p ::: attrs.filter(x => !p.exists(_.name == x.name))
 }
 
 object ECtx {

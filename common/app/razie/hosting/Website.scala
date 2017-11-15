@@ -147,6 +147,10 @@ object Website {
     }
   }
 
+  def clean (host:String):Unit = {
+    cache.remove(host)
+  }
+
   def all = cache.values.map(_.w).toList
 
   def xrealm   (implicit request:RequestHeader) = (getHost flatMap Website.forHost).map(_.reactor).getOrElse(dflt.reactor)
@@ -160,8 +164,6 @@ object Website {
 
   /** find or default */
   def get  (implicit request: Request[_]) : Website = apply getOrElse dflt
-
-  def clean (host:String):Unit = { cache.remove(host) }
 
   def dflt = new Website(Wikis.rk.categories.head) //todo this is stupid - find better default
 

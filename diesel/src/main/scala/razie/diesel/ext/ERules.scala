@@ -39,7 +39,7 @@ case class ExpectM(not: Boolean, m: EMatch) extends CanHtml with HasPosition {
 
   /** check to match the arguments */
   def sketch(cole: Option[MatchCollector] = None)(implicit ctx: ECtx): List[EMsg] = {
-    var e = EMsg("generated", m.cls, m.met, sketchAttrs(m.attrs, cole))
+    var e = EMsg(m.cls, m.met, sketchAttrs(m.attrs, cole), "generated")
     e.pos = pos
     //      e.spec = destSpec
     //      count += 1
@@ -104,7 +104,7 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
   }
 
   /** extract a message signature from the match */
-  def asMsg = EMsg("", cls, met, attrs.map { p =>
+  def asMsg = EMsg(cls, met, attrs.map { p =>
     // extract the sample value
     val df = if (p.dflt.nonEmpty) p.dflt else p.expr match {
       case Some(CExpr(e, _)) => e

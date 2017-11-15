@@ -82,7 +82,7 @@ class DomEngine(
   val maxLevels = 25
 
   // setup the context for this eval
-  implicit val ctx = new DomEngECtx(settings)
+  implicit var ctx : ECtx = new DomEngECtx(settings)
     .withEngine(this)
     .withDomain(dom)
     .withSpecs(pages)
@@ -167,7 +167,7 @@ class DomEngine(
     val newRoot = DomAst("root", AstKinds.ROOT).withDetails("(spawned)")
     evAppChildren(newRoot, nodes)
     val engine = DieselAppContext.mkEngine(dom, newRoot, settings, pages)
-    engine.ctx._hostname = ctx._hostname
+    engine.ctx.root._hostname = ctx.root._hostname
     engine
   }
 
@@ -359,7 +359,7 @@ class DomEngine(
     if(root.status == DomState.DONE && status != DomState.DONE) {
       status = DomState.DONE
       clog << "DomEng "+id+" finish"
-      DomCollector.collectAst ("engine", id, root)
+      DomCollector.collectAst ("engine", id, this)
       finishP.success(this)
       DieselAppContext.refMap.get(id).map(_ ! DEStop) // stop the actor and remove engine
     }
@@ -535,7 +535,21 @@ class DomEngine(
     result
   }
 
-  private def expandEMsg(a: DomAst, in: EMsg, recurse: Boolean, level: Int) = {
+  /** if it's an internal engine message, execute it */
+  private def expandEngineEMsg(a: DomAst, in: EMsg) : Boolean = {
+    if(in.entity == "diesel.scope" && in.met == "push") {
+      this.ctx = new ScopeECtx(Nil, Some(this.ctx), Some(a))
+      true
+    } else if(in.entity == "diesel.scope" && in.met == "pop") {
+      this.ctx = this.ctx.base.get
+      true
+    } else {
+      false
+    }
+  }
+
+  /** expand a single message */
+  private def expandEMsg(a: DomAst, in: EMsg, recurse: Boolean, level: Int) : List[DEMsg] = {
     var newNodes : List[DomAst] = Nil // nodes generated this call collect here
 
     implicit val ctx = new StaticECtx(in.attrs, Some(this.ctx), Some(a))
@@ -556,7 +570,7 @@ class DomEngine(
     )
 
     // 1. look for mocks
-    var mocked = false
+    var mocked = expandEngineEMsg(a, n)
 
     if (settings.mockMode) {
       (root.collect {

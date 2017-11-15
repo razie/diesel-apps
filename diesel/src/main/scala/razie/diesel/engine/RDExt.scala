@@ -63,10 +63,10 @@ object RDExt {
 
       if(o.contains("class")) s("class") match {
         case "EMsg" => EMsg(
-          s("arch"),
           s("entity"),
           s("met"),
           parms("attrs"),
+          s("arch"),
           parms("ret"),
           s("stype")
         ).withPos(if(o.contains("pos")) Some(new EPos(o("pos").asInstanceOf[Map[String, Any]])) else None)
@@ -272,7 +272,7 @@ object RDExt {
                ) {
     def e = m.entity
     def a = m.met
-    def toHtml = EMsg("", e, a ,Nil).withPos(m.pos).toHtmlInPage // no parms
+    def toHtml = EMsg(e, a).withPos(m.pos).toHtmlInPage // no parms
   }
 
   def summarize(d: RDomain) = {
@@ -423,6 +423,8 @@ object RDExt {
     }
 
     def addStory (story:DSpec) = {
+      var savedInSequence = inSequence
+
       story.parsed
       println(story.collector.mkString)
 
@@ -434,8 +436,10 @@ object RDExt {
 
       RDomain.domFilter(story) {
         case x@_ => println("---- "+x)
-
       }
+
+      if(stories.size > 1) root.children appendAll addMsg(EMsg("diesel.scope", "push"))
+
       root.children appendAll RDomain.domFilter(story) {
         case o: O if o.name != "context" => List(DomAst(o, AstKinds.RECEIVED))
         case v: EMsg if v.entity == "ctx" && v.met == "storySync" => {
@@ -459,6 +463,10 @@ object RDExt {
           lastAst
         }
       }.flatten
+
+      if(stories.size > 1) root.children appendAll addMsg(EMsg("diesel.scope", "pop"))
+
+      inSequence = savedInSequence
     }
 
     stories.foreach (addStory)

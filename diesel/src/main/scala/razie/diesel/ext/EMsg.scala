@@ -12,7 +12,7 @@ import razie.diesel.dom._
 import scala.Option.option2Iterable
 
 // a nvp - can be a spec or an event, message, function etc
-case class EMsg(arch:String, entity: String, met: String, attrs: List[RDOM.P], ret: List[RDOM.P] = Nil, stype: String = "") extends CanHtml with HasPosition {
+case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:String="", ret: List[RDOM.P] = Nil, stype: String = "") extends CanHtml with HasPosition {
   var spec: Option[EMsg] = None
   var pos : Option[EPos] = None
   def withPos(p:Option[EPos]) = {this.pos = p; this}

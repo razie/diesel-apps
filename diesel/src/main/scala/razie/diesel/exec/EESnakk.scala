@@ -627,7 +627,7 @@ case class MsgCol(e: String,
                   out: ListBuffer[PCol] = new ListBuffer[PCol],
                   cons: ListBuffer[PMCol] = new ListBuffer[PMCol]
                  ) {
-  def toHtml = EMsg("", e, a, Nil).withPos(pos).toHtmlInPage
+  def toHtml = EMsg(e, a).withPos(pos).toHtmlInPage
 }
 
 

@@ -158,7 +158,7 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
         def xt(id: String, time:Option[String] = None) = s"""<iframe width="560" height="315" src="http://www.youtube.com/embed/$id${time.map(x=>"?start="+x).mkString}" frameborder="0" allowfullscreen></iframe>"""//.format(id)
         def vm(id: String) = """<iframe src="//player.vimeo.com/video/%s" width="500" height="281" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>""".format(id)
         def vp(id: String) = s"""<iframe width="560" height="315" src="https://videopress.com/embed/$id" frameborder="0" allowfullscreen></iframe>
-          <script src="https://videopress.com/videopress-iframe.js"></script>"""
+          <script async src="https://videopress.com/videopress-iframe.js"></script>"""
         url match {
           case yt1(a, g1) => {
             if(g1 == null) { // no time info

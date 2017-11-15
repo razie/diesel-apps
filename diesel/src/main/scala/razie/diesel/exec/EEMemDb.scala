@@ -92,12 +92,12 @@ class EEDieselSharedDb extends EExecutor("diesel.shareddb") {
   override def toString = "$executor::shareddb "
 
   override val messages: List[EMsg] =
-    EMsg("", "diesel.shareddb", "upsert", Nil) ::
-      EMsg("", "diesel.shareddb", "get", Nil) ::
-      EMsg("", "diesel.shareddb", "log", Nil) ::
-      EMsg("", "diesel.shareddb", "findOne", Nil) ::
-      EMsg("", "diesel.shareddb", "remove", Nil) ::
-      EMsg("", "diesel.shareddb", "clear", Nil) :: Nil
+    EMsg("diesel.shareddb", "upsert") ::
+      EMsg("diesel.shareddb", "get") ::
+      EMsg("diesel.shareddb", "log") ::
+      EMsg("diesel.shareddb", "findOne") ::
+      EMsg("diesel.shareddb", "remove") ::
+      EMsg("diesel.shareddb", "clear") :: Nil
 }
 
 // the context persistence commands - isolated per user and/or anon session
@@ -119,7 +119,7 @@ class EEDieselMemDb extends EExecutor("diesel.memdb") {
   override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = synchronized {
     cleanup
     // user id or anon session (one workflow)
-    val sessionId = ctx.credentials.getOrElse(ctx.root.asInstanceOf[DomEngECtx].engine.get.id)
+    val sessionId = ctx.credentials.getOrElse(ctx.root.engine.get.id)
     val session = sessions.get(sessionId).getOrElse {
       if (sessions.size > 400)
         throw new IllegalStateException("Too many in-mem db sessions")
@@ -193,11 +193,11 @@ class EEDieselMemDb extends EExecutor("diesel.memdb") {
   override def toString = "$executor::memdb "
 
   override val messages: List[EMsg] =
-    EMsg("", "diesel.memdb", "upsert", Nil) ::
-      EMsg("", "diesel.memdb", "get", Nil) ::
-      EMsg("", "diesel.memdb", "log", Nil) ::
-      //        EMsg("", "diesel.memdb", "logAll", Nil) :: // undocumented
-      EMsg("", "diesel.memdb", "clear", Nil) :: Nil
+    EMsg("diesel.memdb", "upsert") ::
+      EMsg("diesel.memdb", "get") ::
+      EMsg("diesel.memdb", "log") ::
+      //        EMsg("diesel.memdb", "logAll", Nil) :: // undocumented
+      EMsg("diesel.memdb", "clear") :: Nil
 }
 
 

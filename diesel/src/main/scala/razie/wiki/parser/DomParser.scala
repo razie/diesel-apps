@@ -367,7 +367,7 @@ trait DomParser extends ParserBase with ExprParser {
   def psend: PS = keyw("[.$]send *".r) ~ opt("<" ~> "[^>]+".r <~ "> *".r) ~ qclsMet ~ optAttrs ~ opt(" *: *".r ~> optAttrs) <~ " *".r ^^ {
     case k ~ stype ~ qcm ~ attrs ~ ret => {
       lazys { (current, ctx) =>
-        val f = EMsg("receive", qcm._1, qcm._2, attrs, ret.toList.flatten(identity), stype.mkString.trim)
+        val f = EMsg(qcm._1, qcm._2, attrs, "receive", ret.toList.flatten(identity), stype.mkString.trim)
         f.pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
         collectDom(f, ctx.we)
         SState(f.kspan("receive::") + f.toHtmlInPage + "<br>")
@@ -396,7 +396,7 @@ trait DomParser extends ParserBase with ExprParser {
             }.getOrElse("") else ""
           }
 
-        val f = EMsg("def", qcm._1, qcm._2, attrs, ret.toList.flatten(identity), archn)
+        val f = EMsg(qcm._1, qcm._2, attrs, "def", ret.toList.flatten(identity), archn)
 
         f.pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
         collectDom(f, ctx.we)
@@ -412,7 +412,7 @@ trait DomParser extends ParserBase with ExprParser {
     */
   def linemsg(wpath: String) = keyw("[.$]msg *".r | "[.$]send\\s*".r) ~ opt("<" ~> "[^>]+".r <~ "> *".r) ~ ident ~ " *\\. *".r ~ qident ~ optAttrs ~ opt(" *: *".r ~> optAttrs) ^^ {
     case k ~ stype ~ ent ~ _ ~ ac ~ attrs ~ ret => {
-      val f = EMsg("def", ent, ac, attrs, ret.toList.flatten(identity), stype.mkString.trim)
+      val f = EMsg(ent, ac, attrs, "def", ret.toList.flatten(identity), stype.mkString.trim)
       f.pos = Some(EPos(wpath, k.pos.line, k.pos.column))
       f
     }

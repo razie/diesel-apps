@@ -98,7 +98,7 @@ class DomEngineActor (eng:DomEngine) extends Actor {
 
     case DEStop => {
       //remove refs for active engines
-//      DieselAppContext.engMap.remove(eng.id)
+      DieselAppContext.engMap.remove(eng.id)
       DieselAppContext.refMap.remove(eng.id)
       context stop self
     }

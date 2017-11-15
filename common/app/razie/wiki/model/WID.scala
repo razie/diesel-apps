@@ -12,7 +12,9 @@ import org.bson.types.ObjectId
 import razie.base.data.TripleIdx
 import razie.clog
 import razie.db.RazSalatContext._
+import razie.tconf.{SpecPath, TSpecPath}
 import razie.wiki.Services
+
 
 /**
   * a wiki id, a pair of cat and name - can reference a wiki entry or a section of an entry
@@ -196,7 +198,7 @@ case class WID(
   /** use when coming from a known realm */
   def urlRelative (fromRealm:String) : String =
   "/" + {
-    if(realm.exists(_ != fromRealm)) "wiki/" + wpath
+    if(realm.exists(_ != fromRealm)) "wiki/" + wpathFull
     else canonpath //wpathnocats
   }
 
@@ -218,6 +220,8 @@ case class WID(
 
   // this is my label
   def getLabel() = WikiReactors(getRealm).wiki.label(this)
+
+  def toSpecPath = WID.WidSpecPath(this)
 }
 
 /** wid utils */
@@ -326,6 +330,18 @@ object WID {
     content.startsWith("[[alias:") && wikip2r.findFirstMatchIn(content).isDefined
 
   final val empty = WID("-", "-")
+
+  implicit class WidSpecPath (wid:WID) extends TSpecPath {
+    def source:String = ""
+    def wpath:String = wid.wpath
+    def realm:String = wid.getRealm
+    def ver:Option[String] = None
+    def draft:Option[String] = None
+    def ahref:Option[String] = Some(wid.ahref)
+  }
+
+  implicit def fromSpecPath (s:TSpecPath) : WID = fromPath(s.wpath).get
+  implicit def fromSpecPathList (s:List[TSpecPath]) : List[WID] = s.map(fromSpecPath)
 }
 
 /** a unique ID - it is less verbose than the WID - used in data modelling.

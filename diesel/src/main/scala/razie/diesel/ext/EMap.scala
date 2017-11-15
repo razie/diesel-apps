@@ -89,9 +89,9 @@ case class EMap(cls: String, met: String, attrs: Attrs, arrow:String="=>", cond:
   def apply(in: EMsg, destSpec: Option[EMsg], apos:Option[EPos], deferEvaluation:Boolean=false)(implicit ctx: ECtx): List[Any] = {
     var e = Try {
       val m = EMsg(
-        "generated", cls, met,
-        EMap.sourceAttrs(in, attrs, destSpec.map(_.attrs), deferEvaluation)
-      ).
+         cls, met,
+        EMap.sourceAttrs(in, attrs, destSpec.map(_.attrs), deferEvaluation),
+      "generated").
         withPos(this.pos.orElse(apos)).
         withSpec(destSpec)
 
@@ -109,7 +109,7 @@ case class EMap(cls: String, met: String, attrs: Attrs, arrow:String="=>", cond:
     List(e)
   }
 
-  def asMsg = EMsg("", cls, met, attrs.map{p=>
+  def asMsg = EMsg(cls, met, attrs.map{p=>
     P (p.name, p.dflt, p.ttype, p.ref, p.multi)
   })
 
