@@ -21,6 +21,10 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
   var stuff : List[String] = List() // keep temp status for this request
   var bottomAd : Boolean = false
 
+  var _requireJs : Boolean = true
+  def requireJs(x : Boolean) = { _requireJs = x;}
+  def requireJs = _requireJs
+
   lazy val errCollector = new VErrors()
 
   def showBottomAd(yes:Boolean) = {bottomAd = yes}
@@ -89,6 +93,9 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
   /** add a meta to this page's header */
   def meta(name:String, content:String) = {this._metas.put(name, content); ""}
   def metas = _metas.toMap
+
+  def reactorLayout12FullPage (content: => Html) =
+    Res.Ok (views.html.util.reactorLayout12FullPage(content, msg)(this))
 
   def reactorLayout12 (content: => Html) =
     Res.Ok (views.html.util.reactorLayout12(content, msg)(this))

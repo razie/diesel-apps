@@ -72,8 +72,6 @@ case class User(
 
   def emailDec = email.dec
 
-  // TODO change id = it shows like everywhere
-  def id = _id.toString
   def gender = "?"
   def notifyParent = false
 
@@ -99,8 +97,15 @@ case class User(
   def isHarry = id == "4fdb5d410cf247dd26c2a784"
 
   // TODO optimize
-  def perms: Set[String] = profile.map(_.perms).getOrElse(Set()) ++ groups.flatMap(_.can).toSet
+  def perms: Set[String] = profile.map(_.perms).getOrElse(Set()) ++ groups.flatMap(_.can)
   def hasPerm(p: Perm) = perms.contains("+" + p.s) && !perms.contains("-" + p.s)
+
+  override def membershipLevel : String =
+      if(this.hasPerm(Perm.Moderator) || this.isAdmin) Perm.Moderator.s
+      else if (this.hasPerm(Perm.Platinum)) Perm.Platinum.s
+      else if (this.hasPerm(Perm.Gold)) Perm.Gold.s
+      else if (this.hasPerm(Perm.Basic)) Perm.Basic.s
+      else Perm.Member.s
 
   override def hasMembershipLevel(s:String) =
     (s == Perm.Member.s) ||

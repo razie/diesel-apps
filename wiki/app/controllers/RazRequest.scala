@@ -4,6 +4,7 @@ import model._
 import play.api.mvc._
 import razie.hosting.Website
 import razie.wiki.Services
+import razie.wiki.admin.SecLink
 
 /** trying some type foolery - pass this off as a Request[_] as well and proxy to original */
 class RazRequest (realm:String, au:Option[User], val ireq:Request[_], name:String="") extends StateOk (
@@ -39,10 +40,16 @@ class RazRequest (realm:String, au:Option[User], val ireq:Request[_], name:Strin
   def remoteAddress : scala.Predef.String = ireq.remoteAddress
   def secure : scala.Boolean = ireq.secure
 
+  def verifySecLink : Boolean = req.flash.get(SecLink.HEADER).flatMap(SecLink.find).exists(_.verify)
+
   /** default transaction per request */
-  lazy val txn = razie.db.tx.t(
-    (if(name.length > 0) name else req.path),
-    au.map(_.userName).getOrElse("?"))
+  var isTxnSet = false
+  lazy val txn = {
+    isTxnSet = true
+    razie.db.tx.t(
+      (if(name.length > 0) name else req.path),
+      au.map(_.userName).getOrElse("?"))
+  }
 
 //  override def id : scala.Long = ireq.id
 //  override def tags : scala.Predef.Map[scala.Predef.String, scala.Predef.String] = ireq.tags
