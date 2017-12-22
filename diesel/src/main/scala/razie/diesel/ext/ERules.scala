@@ -167,7 +167,7 @@ case class ERule(e: EMatch, i: List[EMap]) extends CanHtml with EApplicable with
   override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] =
     i.flatMap(_.apply(in, destSpec, pos))
 
-  override def toHtml = span("when::", "default") + s" ${e.toHtml} ${i.map(_.toHtml).mkString("<br>")} <br>"
+  override def toHtml = span("when::", "default") + s" ${e.toHtml} <br>${i.map(_.toHtml).mkString("<br>")} <br>"
 
   override def toString = "when:: " + e + " => " + i.mkString
 }

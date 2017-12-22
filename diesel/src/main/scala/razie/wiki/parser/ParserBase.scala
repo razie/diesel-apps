@@ -130,9 +130,25 @@ trait ParserBase extends ParserCommons {
     case l => SState(l.map(_.s).mkString, l.flatMap(_.props).toMap, l.flatMap(_.ilinks))
   }
 
+  def sstatic(tag:String): PS = not(s"{{/$tag" | "{{xx`/" | "```" | """^\./""".r ) ~> (""".""".r) ~ ("""[^{}\[\]`\r\n]""".r*) ^^ { case a ~ b => SState(a + b.mkString) }
+  def sline(tag:String): PS = rep(lastLine | sstatic(tag)) ^^ {
+    // leave as SState for DSL parser
+    case l => SState(l.map(_.s).mkString, l.flatMap(_.props).toMap, l.flatMap(_.ilinks))
+  }
+
   def soptline: PS = opt(sline) ^^ { case o => o.map(identity).getOrElse(SState.EMPTY) }
+  def soptline(tag:String): PS = opt(sline(tag)) ^^ { case o => o.map(identity).getOrElse(SState.EMPTY) }
 
   def slines: Parser[SState] = rep(soptline ~ (CRLF1 | CRLF3 | CRLF2)) ~ opt(sline) ^^ {
+    case l ~ c =>
+      // leave as SState for DSL parser
+      SState(
+        l.map(t => t._1.s + t._2).mkString + c.map(_.s).getOrElse(""),
+        l.flatMap(_._1.props).toMap ++ c.map(_.props).getOrElse(Map()),
+        l.flatMap(_._1.ilinks) ++ c.map(_.ilinks).getOrElse(Nil))
+  }
+
+  def slinesUntil(tag:String): Parser[SState] = rep(soptline(tag) ~ (CRLF1 | CRLF3 | CRLF2)) ~ opt(sline(tag)) ^^ {
     case l ~ c =>
       // leave as SState for DSL parser
       SState(

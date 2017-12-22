@@ -71,20 +71,20 @@ class TestSimpleEngine extends PlaySpec /*with GuiceOneAppPerSuite */ {
 
   // 1. setup rules configuration
   val specs = List(
-    XTextSpec("spec1",
+    SampleTextSpec("spec1",
       """
 $when home.guest_arrived(name) => lights.on
 $when home.guest_arrived(name == "Jane") => chimes.welcome(name)
 """.stripMargin
     ),
 
-    XTextSpec("spec2",
+    SampleTextSpec("spec2",
       """
 $when chimes.welcome(name) => (greeting = "Greetings, "+name)
 """.stripMargin
     ),
 
-    XTextSpec("spec3",
+    SampleTextSpec("spec3",
       """
 $val aval="someval"
 
@@ -94,7 +94,7 @@ $mock some.mock(name) => (greeting = "Greetings, "+name)
   )
 
   val specMultline =
-    XTextSpec("multiline",
+    SampleTextSpec("multiline",
       """
 $when home.guest_arrived(name == "Jane")
 => chimes.welcome(name)
@@ -105,14 +105,14 @@ $when home.guest_arrived(name == "Jane")
 
   // 2. some trigger message/test
   val storySend =
-    XTextSpec("story1",
+    SampleTextSpec("story1",
       """
 $send home.guest_arrived(name="Jane")
 """.stripMargin
     )
 
   val storyExpect =
-    XTextSpec("story1",
+    SampleTextSpec("story1",
       """
 $expect (greeting contains "Jane")
 """.stripMargin
@@ -120,11 +120,11 @@ $expect (greeting contains "Jane")
 }
 
 /** the simplest spec - from a named string property */
-case class XTextSpec (override val name:String, override val text:String) extends BaseTextSpec(name, text) {
-  override def mkParser = new XTextParser("rk")
+case class SampleTextSpec (override val name:String, override val text:String) extends BaseTextSpec(name, text) {
+  override def mkParser = new SampleTextParser("rk")
 }
 
-class XTextParser(val realm: String) extends SimpleSpecParser with DomParser {
+class SampleTextParser(val realm: String) extends SimpleSpecParser with DomParser {
   withBlocks(domainBlocks)
 }
 
