@@ -61,7 +61,7 @@ case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:Strin
   )
 
   /** color - if has executor */
-  private def resolved: String = if(isResolved) "default" else "warning"
+  private def resolved: String = if(isResolved) "default" else "primary"
 
   /** extract a match from this message signature */
   def asMatch = EMatch(entity, met, attrs.filter(_.dflt != "").map {p=>
@@ -88,7 +88,9 @@ case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:Strin
 
   private def attrsToUrl (attrs: Attrs) = {
     attrs.map{p=>
-      s"""${p.name}=${p.dflt}"""
+      // todo only if the expr is constant?
+      val v = p.expr.map(_.expr).getOrElse(p.dflt)
+      s"""${p.name}=$v"""
     }.mkString("&")
   }
 

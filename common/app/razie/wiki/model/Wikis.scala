@@ -18,6 +18,7 @@ import razie.db.RazSalatContext._
 import razie.db.{RMany, RazMongo}
 import razie.diesel.dom.WikiDomain
 import razie.tconf.parser.{OState, PState, ParserSettings, SState}
+import razie.wiki.model.Visibility.PUBLIC
 import razie.wiki.model.features.{WForm, WikiForm}
 import razie.wiki.parser.WAST
 import razie.wiki.util.QueryParms
@@ -252,8 +253,19 @@ object Wikis extends Logging with Validation {
         }
 
         done = true
+
+        // IF YOUR content changes - review this escape here
         //regexp uses $ as a substitution
-        content.map(_.replaceAll("\\$", "\\\\\\$")).getOrElse("`[ERR Can't include $1 " + errCollector.mkString + "]`")
+        val xx = content
+          .map(
+            _.replaceAllLiterally("\\", "\\\\")
+             .replaceAll("\\$", "\\\\\\$")
+          )
+//          .map(_.replaceAllLiterally("$", "\\$"))
+//          .map(_.replaceAll("\\\\", "\\\\\\\\"))
+          .getOrElse("`[ERR Can't include $1 " + errCollector.mkString + "]`")
+
+        xx
       })
 
       if (!res1.contains("{{.wiki.noTemplate")) {
@@ -265,8 +277,11 @@ object Wikis extends Logging with Validation {
           //todo this is parse-ahead, maybe i can make it lazy?
           val parms = WikiForm.parseFormData(c2)
           val content = template(m.group(1), Map() ++ parms)
+          // IF YOUR content changes - review this escape here
           //regexp uses $ as a substitution
-          content.replaceAll("\\$", "\\\\\\$")
+          content
+            .replaceAllLiterally("\\", "\\\\")
+            .replaceAll("\\$", "\\\\\\$")
         })
 
         // check cat for preloaded cats that will trigger stackoverflow
@@ -424,7 +439,7 @@ object Wikis extends Logging with Validation {
             if("inline" == s.stype) {
               val wix = Wikis(wid.getRealm).mkWixJson(we, user, Map.empty, "")
               s"""<script>
-                |razOnLoad(function(){
+                |withJquery(function(){
                 |${wix}\n
                 |${s.content}
                 |;});
@@ -492,7 +507,8 @@ object Wikis extends Logging with Validation {
           res
         }
         case TEXT => content
-        case JSON | XML | JS | SCALA | HTML => content
+        case JSON | SCALA | JS => "<pre>" + content.replaceAll("\n", "<br/>") + "</pre>"
+        case XML | HTML => content
         case _ => "UNKNOWN_MARKUP " + markup + " - " + content
       }
     } catch {
@@ -556,7 +572,7 @@ object Wikis extends Logging with Validation {
   }
 
   // scaled down formatting of jsut some content
-  def sformat(content: String, markup:String="md", user:Option[WikiUser]) =
+  def sformat(content: String, markup:String="md", user:Option[WikiUser]=None) =
     format (WID("1","2"), markup, content, None, user)
 
   /** main formatting function
@@ -691,7 +707,7 @@ object Wikis extends Logging with Validation {
       """
         | <div id=$1>div.later</div>
         | <script>
-        |  razOnLoad(function(){
+        |  withJquery(function(){
         |   \$("#$1").attr("src","$2");
         |  });
         | </script>
@@ -798,6 +814,30 @@ object Wikis extends Logging with Validation {
     }
   }
 
+  /////////////////// visibility for new wikis
+
+  def mkVis(wid:WID, realm:String) = wid.findParent
+    .flatMap(_.props.get("visibility"))
+    .orElse(WikiReactors(realm).props.prop("default.visibility"))
+    .getOrElse(
+      WikiReactors(realm)
+        .wiki
+        .visibilityFor(wid.cat)
+        .headOption
+        .getOrElse(PUBLIC))
+
+  /** extract wvis (edit permissions) prop from wiki */
+  protected def wvis(props: Option[Map[String, String]]): Option[String] =
+    props.flatMap(p => p.get("wvis").orElse(p.get("visibility"))).map(_.asInstanceOf[String])
+
+  def mkwVis(wid:WID, realm:String) = wvis(wid.findParent.map(_.props))
+    .orElse(WikiReactors(realm).props.prop("default.wvis"))
+    .getOrElse(
+      WikiReactors(realm)
+        .wiki
+        .visibilityFor(wid.cat)
+        .headOption
+        .getOrElse(PUBLIC))
 }
 
 

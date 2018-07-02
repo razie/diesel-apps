@@ -46,6 +46,9 @@ trait DSpec {
   // todo this is too specific - need to refactor out
   def findTemplate (name:String, direction:String="") : Option[DTemplate]
 
+  /** find template with predicate */
+  def findTemplate (p : DTemplate => Boolean) : Option[DTemplate]
+
   /** other parsing artifacts to be used by knowledgeable modules.
     * Parsers can put stuff in here. */
   def collector : scala.collection.mutable.HashMap[String, Any]
@@ -72,6 +75,7 @@ trait DSpec {
 
 /** a specification of a template */
 trait DTemplate {
+  def name : String
   def content : String
   def parmStr : String
   def specPath : TSpecPath
@@ -106,6 +110,7 @@ class BaseTextSpec (val name:String, val text:String) extends DSpec {
   def specPath : TSpecPath = new SpecPath("local", name, "")
 
   def findTemplate (name:String, direction:String="") : Option[DTemplate] = None
+  def findTemplate (p : DTemplate => Boolean) : Option[DTemplate] = None
 
   /** other parsing artifacts to be used by knowledgeable modules.
     * Parsers can put stuff in here. */

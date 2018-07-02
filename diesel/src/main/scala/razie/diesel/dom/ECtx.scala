@@ -1,5 +1,6 @@
 package razie.diesel.dom
 
+import razie.cdebug
 import razie.diesel.dom.RDOM.P
 import razie.diesel.engine.DomEngECtx
 import razie.diesel.ext.EVal
@@ -35,11 +36,14 @@ trait ECtx {
 
   /** find the template corresponding to the ea and direction (direction is optional
     *
-    * @param ea entity.action
+    * @param ea entity.action OR URL
     * @param direction "request" vs "response"
     * @return
     */
   def findTemplate (ea:String, direction:String="") : Option[DTemplate]
+
+  /** find template with predicate */
+  def findTemplate (p : DTemplate => Boolean) : Option[DTemplate]
 
   def exists(f: scala.Function1[P, scala.Boolean]): scala.Boolean
 
@@ -60,7 +64,14 @@ trait ECtx {
       val R(n,rest) = name
       root.flatMap(_.get(n)).orElse {
         Try {
-          getp(n).map(_.dflt).filter(_.length > 0).map(razie.js.parse)
+          val p = getp(n).filter(_.dflt.length > 0)
+          val m =
+            if(p.flatMap(_.value).exists(_.isInstanceOf[Map[String,_]]))
+              p.flatMap(_.value).map(_.asInstanceOf[Map[String,_]])
+          else {
+            p.map(_.dflt).map(razie.js.parse)
+            }
+          m
         }.recover {
           Map.empty
         }.get
@@ -108,6 +119,14 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
 
   def findTemplate (ea:String, direction:String="") : Option[DTemplate] = {
     specs.flatMap(_.findTemplate(ea, direction).toList).headOption
+  }
+
+  /** find template with predicate */
+  def findTemplate (p : DTemplate => Boolean) : Option[DTemplate] = {
+    specs.foldLeft[Option[DTemplate]](None)((a,s) =>
+      // stop searching when found
+      a.orElse(s.findTemplate(p))
+    )
   }
 
   def exists(f: scala.Function1[P, scala.Boolean]): scala.Boolean =

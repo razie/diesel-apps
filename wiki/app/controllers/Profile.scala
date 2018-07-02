@@ -14,7 +14,7 @@ import org.json.JSONObject
 import play.api.Configuration
 import play.api.data.Form
 import play.api.data.Forms.{mapping, nonEmptyText, tuple, _}
-import play.api.mvc.{Action, Request}
+import play.api.mvc.{Action, Call, Request}
 import razie.OR._
 import razie.audit.Audit
 import razie.diesel.model.DieselMsgString
@@ -43,8 +43,9 @@ object Profile extends RazController {
   }
 
   // TODO should be private
-  def createUser(u: User)(implicit request: Request[_], txn:Txn) = {
-    val created = {u.create(u.mkProfile); Some(u)}
+  def createUser(u: User, about:String = "")(implicit request: Request[_], txn:Txn) = {
+    val pro = u.mkProfile
+    val created = {u.create(pro); Some(u)}
 
     // todo decouple with the event below
     created.foreach { x => RacerKidz.myself(x._id) }
@@ -53,16 +54,42 @@ object Profile extends RazController {
       Services ! UserCreatedEvent(x._id.toString, Config.node)
     }
 
-    UserTasks.verifyEmail(u).create
+    // when testing, skip email verification
+    if(! Services.config.isLocalhost) {
+      UserTasks.verifyEmail(u).create
+    } else {
+      val ppp = pro.addPerm("+" + Perm.eVerified.s).addPerm("+" + Perm.uWiki.s)
+      pro.update(if (u.isUnder13) ppp else ppp.addPerm("+" + Perm.uProfile.s))
+    }
+
+    if (u.isClub) {
+      UserTasks.setupCalendars(u).create
+      UserTasks.setupRegistration(u).create
+    }
 
     SendEmail.withSession(Website.realm(request)) { implicit mailSession =>
       Tasks.sendEmailVerif(u)
+      Emailer.sendEmailUname(unameF(u.firstName, u.lastName), u)
       val uname = (u.firstName + (if (u.lastName.length > 0) ("." + u.lastName) else "")).replaceAll("[^a-zA-Z0-9\\.]", ".").replaceAll("[\\.\\.]", ".")
       Emailer.sendEmailUname(uname, u, false)
-      Emailer.tellAdmin("New user", u.userName, u.emailDec)
+      Emailer.tellAdmin("New user", u.userName, u.emailDec, "realm: "+u.realms.mkString, "ABOUT: "+about)
     }
+
+    val stok = ROK.r
+
+    //realm new user flow
+    Services ! DieselMsgString(
+      s"""$$msg rk.user.joined(userName="${u.userName}", realm="${stok.realm}")""",
+      DieselTarget(
+        stok.realm,
+        WID.fromPath(s"${stok.realm}.Reactor:${stok.realm}#diesel").map(_.toSpecPath).toList,
+        Nil)
+    )
+
     created
   }
+
+  def unameF (f:String,l:String) = (f + (if (l.length > 0) ("." + l) else "")).replaceAll("[^a-zA-Z0-9\\.]", ".").replaceAll("[\\.\\.]", ".")
 }
 
 case class UserCreatedEvent (uid:String, node:String) extends WikiEventBase
@@ -205,6 +232,14 @@ class Profile @Inject() (config:Configuration) extends RazController with Loggin
     })
   }
 
+  /** login from other pages */
+  def doeLoginWithPass = RAction { implicit request =>
+    auth // clean theme
+    val email = request.formParm("email")
+    val pass = request.formParm("password")
+    login(email, pass, "")
+  }
+
   // join step 2 with google - link to existing account
   def doeJoin2Google = RAction { implicit request =>
     auth // clean theme
@@ -244,6 +279,9 @@ class Profile @Inject() (config:Configuration) extends RazController with Loggin
     val realm = Wikie.getRealm()
     val website = request.website
     val secLink = request.session.get(SecLink.HEADER).flatMap(SecLink.find)
+
+    val loginUrl = website.prop("join").getOrElse(routes.Profile.doeJoin().url)
+
     debug("login.secLink="+secLink.mkString)
 
       Users.findUserByEmailDec((email)) orElse (Users.findUserNoCase(email)) match {
@@ -296,10 +334,10 @@ class Profile @Inject() (config:Configuration) extends RazController with Loggin
               s"""Oops... you are not a member of this site/project. To join, open a support request.<br>
                  |<br>
                  |<small>Translation: even though you do have an account here, you're not a member of this particular site!</small>
-               """.stripMargin, Some(routes.Profile.doeJoin())).withNewSession
+               """.stripMargin, Some(Call("GET", loginUrl))).withNewSession
           } else {
             // user not ok, try again
-            Redirect(routes.Profile.doeJoin()).withNewSession
+            Redirect(loginUrl).withNewSession
           }
         }
       case None => // capture basic profile and create profile
@@ -328,9 +366,40 @@ class Profile @Inject() (config:Configuration) extends RazController with Loggin
   // accepted consent, record it
   def doeConsent2 (ver:String, next:String) = FAUR { implicit request =>
       request.au.get.profile.map(p => p.update(p.consented(ver)))
-      UserEvent(request.au.get._id, "CONSENTED").create
+      UserEvent(request.au.get._id, "CONSENTED " + ver).create
       cleanAuth()
       Msg2("Thank you!", Some(next))
+  }
+
+  // display consent
+  def doeClearConsent = FAUR { implicit request =>
+    if(request.au.exists(_.isMod))
+    Msg2(
+      "This will clear all consents from your users - are you sure?",
+      Some(routes.Profile.doeClearConsent2(request.realm).url))
+    else
+      Msg(s"No permission to do that! (clearConsent on realm ${request.realm})")
+  }
+
+  // display consent
+  def doeClearConsent2 (realm:String) = FAUR { implicit request =>
+    var cnt = 0
+
+    if(
+      realm == "*" && request.au.exists(_.isAdmin) ||
+      realm == request.realm && request.au.exists(_.isMod)
+    ) {
+      Users.findUsersForRealm(realm).foreach {u =>
+        u.profile.foreach {p=>
+          UserEvent(u._id, "CONSENT CLEARED - old: " + p.consent.mkString).create
+          p.update (p.copy(consent = None))
+          cnt += 1
+        }
+      }
+
+      Msg2(s"Updated $cnt profiles!")
+    } else
+      Msg(s"No permission to do that! (clearConsent2 on realm $realm)")
   }
 
   /** start registration long form - submit is doeCreateProfile */
@@ -365,13 +434,7 @@ class Profile @Inject() (config:Configuration) extends RazController with Loggin
       if (testcode != T.TESTCODE) request.session.get(s)
       else Some(d)
 
-    def unameauto (yob:Int) = Services.config.sitecfg("userName.auto").exists(_ startsWith "ye") && DateTime.now.year.get - yob > 12
-    def unameF (f:String,l:String) = (f + (if (l.length > 0) ("." + l) else "")).replaceAll("[^a-zA-Z0-9\\.]", ".").replaceAll("[\\.\\.]", ".")
-
-    def uname (f:String,l:String,yob:Int) =
-      if (! unameauto(yob))
-        System.currentTimeMillis.toString
-      else unameF(f.trim,l.trim)
+    def uname (f:String,l:String,yob:Int) = Profile.unameF(f.trim,l.trim)
 
     auth // clean theme
 
@@ -394,8 +457,9 @@ class Profile @Inject() (config:Configuration) extends RazController with Loggin
             p <- getFromSession("pwd", T.TESTCODE) orErr ("psession corrupted");
             e <- getFromSession("email", f + l + "@k.com") orErr ("esession corrupted");
             already <- (!Users.findUserByEmailDec((e)).isDefined) orCorr ("User already created" -> "patience, patience...");
+            isOk <- (DateTime.now.year.get - y > 15) orErr ("You can only create an account if you are 16 or older");
             iu <- Some(User(
-              uname(f, l, y), f.trim, l.trim, y, Enc(e),
+              uniqueUsername(uname(f, l, y)), f.trim, l.trim, y, Enc(e),
               Enc(p), 'a', Set(ut),
               Set(Website.realm),
               (if (addr != null && addr.length > 0) Some(addr) else None),
@@ -410,44 +474,8 @@ class Profile @Inject() (config:Configuration) extends RazController with Loggin
               if(about.length > 0) u = u.copy(prefs = u.prefs + ("about" -> about))
 
               razie.db.tx("doeCreateProfile", u.userName) { implicit txn =>
-                // TODO bad code - update and reuse account creation code in Tasks.addParent
-                val pro = u.mkProfile
-                val created = { u.create(pro); Some(u)}
-                created.foreach { x => RacerKidz.myself(x._id) }
-
-                // when testing, skip email verification
-                if(! Services.config.isLocalhost) {
-                  UserTasks.verifyEmail(u).create
-                } else {
-                  val ppp = pro.addPerm("+" + Perm.eVerified.s).addPerm("+" + Perm.uWiki.s)
-                  pro.update(if (u.isUnder13) ppp else ppp.addPerm("+" + Perm.uProfile.s))
-                }
-
-                if (u.isClub) {
-                  UserTasks.setupCalendars(u).create
-                  UserTasks.setupRegistration(u).create
-                }
-
-                // TODO why the heck am i sleeping?
-                //              Thread.sleep(1000)
-                SendEmail.withSession(Website.realm(request)) { implicit mailSession =>
-                  Tasks.sendEmailVerif(u)
-                  if (!unameauto(u.yob))
-                    Emailer.sendEmailUname(unameF(u.firstName, u.lastName), u)
-                  Emailer.tellAdmin("New user", u.userName, u.emailDec, "realm: "+u.realms.mkString, "ABOUT: "+about)
-                }
+                Profile.createUser(u, about)
               }
-
-              val stok = ROK.r
-
-              //realm new user flow
-              Services ! DieselMsgString(
-                s"""$$msg rk.user.joined(userName="${u.userName}", realm="${stok.realm}")""",
-                DieselTarget(
-                  stok.realm,
-                  WID.fromPath(s"${stok.realm}.Reactor:${stok.realm}#diesel").map(_.toSpecPath).toList,
-                  Nil)
-                )
 
               // process extra parms to determine what next
               request.session.get("extra") map { x =>
@@ -463,6 +491,105 @@ class Profile @Inject() (config:Configuration) extends RazController with Loggin
             unauthorized("Oops - cannot update this user [doeCreateProfile " + getFromSession("email", f + l + "@k.com") + "] - Please try again or send a suport request!").withNewSession
           }
       }) //fold
+  }
+
+  /** create profile for an external user - simplified
+    *
+    * @param realmcd - specific realm code, to validate calls came from realm
+    */
+  def doeCreateExt() = RAction { implicit stok =>
+
+    def uname (f:String,l:String,yob:Int) = Profile.unameF(f.trim,l.trim)
+
+    auth // clean theme
+
+    val realmcd = stok.formParm("realmcd").trim
+
+    val n = stok.formParm("name").trim
+    val f = n.split(" ").head
+    val l = n.split(" ").tail.mkString(" ")
+    val e = stok.formParm("email")
+    val p = stok.formParm("password").trim
+    val r = stok.formParm("repassword").trim
+    val y = 0
+
+    val esid = stok.formParm("extSystemId").trim
+    val eiid = stok.formParm("extInstanceId").trim
+    val eaid = stok.formParm("extAccountId").trim
+
+    logger.info (n, f, l, e, p, y, esid, eiid, eaid)
+
+    logger.info (stok.formParms.mkString)
+
+    if(realmcd != "hcvalue") {
+      Unauthorized("")
+   } else if(
+      f.isEmpty ||
+      e.isEmpty ||
+      p.isEmpty ||
+      p.length < 6 ||
+      p != r ||
+      esid.isEmpty ||
+      eiid.isEmpty ||
+      eaid.isEmpty
+    ) {
+      // you must have validated this data previously
+      Msg ("Data is invalid, please try again");
+    } else if(Users.findUserByEmailDec((e)).isDefined) {
+      Users.findUserByEmailDec((e)).map {u=>
+        if(! u.realms.contains(stok.realm)) {
+          clog << "user exists but has no realm, adding realm to user"
+          val newu = u.copy(realms = u.realms + stok.realm)
+          u.update(newu)
+
+          cleanAuth(Some(u))
+        }
+
+        val p = u.profile.get
+        val newp = p.upsertExtLink(ExtSystemUserLink(esid, eiid, eaid))
+        p.update(newp)
+      }
+
+      Msg ("User already registered... please proceed to login.");
+    } else {
+      val u = User(
+        uniqueUsername(uname(f, l, y)), f.trim, l.trim, y, Enc(e),
+        Enc(p),
+        'a',
+        Set(Users.ROLE_MEMBER),
+        Set(stok.realm),
+        None,
+        Map(
+          "css" -> dfltCss,
+          "favQuote" -> "Do one thing every day that scares you - Eleanor Roosevelt",
+          "weatherCode" -> "caon0696"
+        )
+      )
+
+      razie.db.tx("doeCreateExt", u.userName) { implicit txn =>
+        val newu = Profile.createUser(u)
+        val p = newu.get.profile.get
+        val newp = p.upsertExtLink(ExtSystemUserLink(esid, eiid, eaid))
+        p.update(newp)
+      }
+
+      // todo consent
+//      Tasks.msgVerif(u, "", Some(routes.Profile.doeConsent().url))
+      Msg2("Registration accepted... please continue to the login page...", Some("/"))
+      }
+  }
+
+  def uniqueUsername (initial:String) = {
+    var cur = initial
+    var n = 0
+
+    while(n < 20 && Users.findUserByUsername(cur).isDefined) {
+      n = n+1
+      cur = initial + "." + n
+    }
+
+    if (n >= 20) cur = initial + "." + System.currentTimeMillis()
+    cur
   }
 
   // user chose to login with google

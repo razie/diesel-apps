@@ -1,9 +1,11 @@
 package razie.diesel.dom
 
+import mod.diesel.model.exec.EESnakk
 import razie.clog
 import razie.diesel.dom.RDOM.P
 import razie.diesel.exec.EEFunc
 import razie.diesel.ext.CanHtml
+import razie.wiki.parser.SimpleExprParser
 
 import scala.collection.mutable
 import scala.util.Try
@@ -112,7 +114,7 @@ case class AExpr2 (a:Expr, op:String, b:Expr) extends Expr {
 //  }.get
   }
 
-  /** process a js operation */
+  /** process a js operation like obja + objb */
   def jsonExpr (op:String, aa:String, bb:String) = {
     val ai = razie.js.parse(aa)
     val bi = razie.js.parse(bb)
@@ -163,7 +165,26 @@ case class XPathIdent (val expr:String) extends Expr {
   */
 case class CExpr (ee : String, ttype:String="") extends Expr {
   val expr = ee.toString
-  override def apply (v:Any)(implicit ctx:ECtx) = if(ttype == "Number") ee.toInt else ee
+
+  override def apply (v:Any)(implicit ctx:ECtx) =
+    if(ttype == "Number") {
+      if(ee.contains(".")) ee.toDouble
+      else ee.toInt
+    } else {
+      // expand templates by default
+      if(ee contains "${") {
+        val PAT = """\$\{([^\}]*)\}""".r
+        val s1 = PAT.replaceAllIn(ee, { m =>
+          (new SimpleExprParser).parseExpr(m.group(1)).map {e=>
+            P ("x", "", "", "", "", Some(e)).calculatedValue
+          } getOrElse
+            s"{ERROR: ${m.group(1)}"
+        })
+        s1
+      } else
+        ee
+    }
+
   override def toDsl = if(ttype == "String") ("\"" + expr + "\"") else expr
   override def getType: String = ttype
   override def toHtml = tokenValue(toDsl)
@@ -182,14 +203,21 @@ case class BlockExpr (ex : Expr) extends Expr {
   override def getType: String = ex.getType
 }
 
-/** a js expression */
+/** a js expression
+  * js:a.b
+  * js:{...}
+  */
 case class JSSExpr (s : String) extends Expr {
   val expr = "js{{ " + s + " }}"
 
-  override def getType: String = WTypes.STRING
+  override def getType: String = WTypes.UNKNOWN
 
   override def apply (v:Any)(implicit ctx:ECtx) =
     EEFunc.execute (s) //.dflt
+
+  override def applyTyped (v:Any)(implicit ctx:ECtx) : P = {
+    EEFunc.executeTyped (s)
+  }
 }
 
 /** a json block */
@@ -202,14 +230,17 @@ case class JBlockExpr (ex : String) extends Expr {
 
   // replace ${e} with value
   def template (s:String)(implicit ctx:ECtx) = {
-    val PATT = """(\$\w+)""".r
-    val u = PATT.replaceSomeIn(s, { m =>
-      val n = if(m.matched.length > 0) m.matched.substring(1) else ""
-      ctx.get(n).map(x=>
-        razie.diesel.ext.stripQuotes(x)
-      )
-    })
-    u
+
+    EESnakk.prepStr2(s, Nil)
+
+//    val PATT = """(\$\w+)""".r
+//    val u = PATT.replaceSomeIn(s, { m =>
+//      val n = if(m.matched.length > 0) m.matched.substring(1) else ""
+//      ctx.get(n).map(x=>
+//        razie.diesel.ext.stripQuotes(x)
+//      )
+//    })
+//    u
   }
 
 }
@@ -246,8 +277,15 @@ case class BCMP2(a: Expr, op: String, b: Expr) extends BExpr(a.toDsl + " " + op 
   override def apply(in: Any)(implicit ctx: ECtx) = {
     (a, b) match {
       case (CExpr(aa, WTypes.NUMBER), CExpr(bb, WTypes.NUMBER)) => {
-        val ai = aa.toInt
-        val bi = bb.toInt
+        val ai = {
+          if(aa.contains(".")) aa.toDouble
+          else aa.toInt
+        }
+        val bi = {
+          if(bb.contains(".")) bb.toDouble
+          else bb.toInt
+        }
+
         op match {
           case "?=" => true
           case "==" => ai == bi
@@ -256,6 +294,8 @@ case class BCMP2(a: Expr, op: String, b: Expr) extends BExpr(a.toDsl + " " + op 
           case ">=" => ai >= bi
           case "<" => ai < bi
           case ">" => ai > bi
+          case "is" => ai == bi
+          case "not" => ai != bi
           case _ => {
             clog << "[ERR Operator " + op + " UNKNOWN!!!]";
             false

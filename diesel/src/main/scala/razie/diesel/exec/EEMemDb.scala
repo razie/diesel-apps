@@ -71,7 +71,7 @@ class EEDieselSharedDb extends EExecutor("diesel.shareddb") {
               "  " + id + " -> " + tables(k)(id).toString
             }.mkString("  ", "\n", "")
         }.mkString("\n")
-        EVal(P("result", res)) :: Nil
+        EVal(P("payload", res)) :: Nil
       }
 
       case "clear" => {
@@ -168,11 +168,11 @@ class EEDieselMemDb extends EExecutor("diesel.memdb") {
 
       case "logAll" => {
         val res = s"Sessions: ${sessions.size}\n" + log
-        EVal(P("result", res)) :: Nil
+        EVal(P("payload", res)) :: Nil
       }
 
       case "log" => {
-        EVal(P("result", log)) :: Nil
+        EVal(P("payload", log)) :: Nil
       }
 
       case "clear" => {

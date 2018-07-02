@@ -26,30 +26,32 @@ object EMap {
     }
 
     val out1 = if (spec.nonEmpty) spec.map { p =>
-      val pe =
-        if(p.dflt.length > 0 || p.expr.nonEmpty) Some(p)
-        else in.attrs.find(_.name == p.name).orElse(
-          ctx.getp(p.name)
-        )
-
-      // sourcing has expr, overrules
-      val v =
-        if(p.dflt.length > 0 || p.expr.nonEmpty) Some(expr(p))
-        else in.attrs.find(_.name == p.name).orElse(
-          ctx.getp(p.name)
-        )
-
-      val tt =
-        v.map(_.ttype).getOrElse {
-          if (p.ttype.isEmpty && !p.expr.exists(_.getType != "") && v.isInstanceOf[Int]) WTypes.NUMBER
-          else if (p.ttype.isEmpty) p.expr.map(_.getType).mkString
-          else p.ttype
-        }
-
       if(deferEvaluation)
         p
-      else
+      else {
+        // do evaluation now
+        val pe =
+          if(p.dflt.length > 0 || p.expr.nonEmpty) Some(p)
+          else in.attrs.find(_.name == p.name).orElse(
+            ctx.getp(p.name)
+          )
+
+        // sourcing has expr, overrules
+        val v =
+          if(p.dflt.length > 0 || p.expr.nonEmpty) Some(expr(p))
+          else in.attrs.find(_.name == p.name).orElse(
+            ctx.getp(p.name)
+          )
+
+        val tt =
+          v.map(_.ttype).getOrElse {
+            if (p.ttype.isEmpty && !p.expr.exists(_.getType != "") && v.isInstanceOf[Int]) WTypes.NUMBER
+            else if (p.ttype.isEmpty) p.expr.map(_.getType).mkString
+            else p.ttype
+          }
+
         p.copy(dflt = v.map(_.dflt).mkString, ttype=tt)
+      }
     } else if (destSpec.exists(_.nonEmpty)) destSpec.get.map { p =>
       // when defaulting to spec, order changes
       val v = in.attrs.find(_.name == p.name).map(_.dflt).orElse(
@@ -101,8 +103,8 @@ case class EMap(cls: String, met: String, attrs: Attrs, arrow:String="=>", cond:
     }.recover {
       case t:Throwable => {
         razie.Log.log("trying to source message", t)
-        EError(t.getMessage, t.toString)
-      }
+        new EError("Exception trying to source message", t)
+        }
     }.get
     count += 1
 

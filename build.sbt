@@ -44,11 +44,13 @@ libraryDependencies in Global ++= Seq(
   "org.scalatest"          %% "scalatest"          % "2.1.3",
   "org.scalatestplus.play" %% "scalatestplus-play" % "1.5.0" % "test",
 
+
   "com.typesafe.akka"    %% "akka-cluster"       % "2.4.2",
   "com.typesafe.akka"    %% "akka-cluster-tools" % "2.4.2",
   "com.typesafe.akka"    %% "akka-contrib"       % "2.4.2",
   "com.typesafe.akka"    %% "akka-slf4j"         % "2.4.2",
   "com.typesafe.akka"    %% "akka-camel"         % "2.4.2",
+  "com.typesafe.akka"    %% "akka-testkit"       % "2.4.2" % Test,
 
   "junit"                   % "junit"              % "4.5"      % "test->default",
   "org.scalatest"          %% "scalatest"          % "2.1.3"

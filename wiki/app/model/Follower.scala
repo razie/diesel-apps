@@ -28,7 +28,18 @@ case class FollowerWiki(
   comment: String,
   uwid: UWID,
   _id: ObjectId = new ObjectId()) {
-  def delete = { Audit.delete(this); RDelete[FollowerWiki]("_id" -> _id) }
+
+  def delete (implicit txn: Txn) = {
+    Audit.delete(this);
+    RDelete[FollowerWiki]("_id" -> _id)
+
+    // remove referenced follower too, if last
+    ROne[Follower](followerId)
+      .filter(x=>
+        RMany[FollowerWiki]("followeId" -> followerId).filter(_._id != this._id).size > 0
+      )
+      .map(_.delete)
+  }
 
   def follower = ROne[Follower](followerId)
 }

@@ -69,6 +69,10 @@ object WikiReactors {
       Services.config.preload
         .split(",")
         .foreach(loadReactor)
+
+      // now load the rest
+      val rest = allReactors.filter(x=> !reactors.contains(x._1)).map(_._1)
+      rest.foreach(loadReactor)
     }
   }
 

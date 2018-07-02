@@ -95,8 +95,9 @@ class RazController extends RazControllerBase with Logging {
 
   //================= RESPONSES
 
-  def noPerm(wid: WID, more: String = "", shouldAudit: Boolean = true, teaser:String = "")(implicit request: Request[_], errCollector: VErrors = IgnoreErrors) = {
-//    implicit val stok = razRequest
+  def noPerm(wid: WID, more: String = "", shouldAudit: Boolean = true, teaser:String = "", ostok:Option[RazRequest]=None)(implicit request: Request[_], errCollector: VErrors = IgnoreErrors) = {
+    val stok = ostok.getOrElse(rhRequest)
+
     if (errCollector.hasCorrections) {
       val uname = auth.map(_.userName).getOrElse(if(isFromRobot) "ROBOT" else "")
       val msg = Website.get.prop("msg.err.noPerm").getOrElse("Sorry, you don't have the permission to do this!")
@@ -114,7 +115,7 @@ class RazController extends RazControllerBase with Logging {
              |>> $more
              |""".stripMargin +
             md("Admin:Unauthorized"),
-            Some(controllers.Wiki.w(wid).toString), auth)(rhRequest), Seq.empty)(rhRequest))
+            Some(controllers.Wiki.w(wid).toString), auth)(stok), Seq.empty)(stok))
       else
       // with teasers, don't send the Unauthorized answer anymore
         Ok(
@@ -125,7 +126,7 @@ class RazController extends RazControllerBase with Logging {
            |$more
            |""".stripMargin +
           md("Admin:Unauthorized"),
-            Some(controllers.Wiki.w(wid).toString), auth)(rhRequest), Seq.empty)(rhRequest))
+            Some(controllers.Wiki.w(wid).toString), auth)(stok), Seq.empty)(stok))
     } else noPermOLD(wid, more + " " + errCollector.mkString)
   }
 
@@ -249,6 +250,19 @@ ${errCollector.mkString}
     else None
   }
 
+  // Filter(noRobots) {...}
+  def activeUser (stok:RazRequest) : Option[Result] = {
+    if(! stok.au.exists(a=> checkActive(a).exists(_ == true)))
+      Some(Unauthorized("Need to login / have an active account"))
+    else None
+  }
+
+  def adminUser (stok:RazRequest) : Option[Result] = {
+    if(! stok.au.exists(a=> checkActive(a).exists(_ == true) && a.isAdmin))
+      Some(Unauthorized("Need to have an active admin account"))
+    else None
+  }
+
   /** mock teh action filters */
   class FilteredAction (val filter: RazRequest => Option[Result]) {
     def apply(f: RazRequest => Result) : Action[AnyContent] = RAction {implicit request=>
@@ -261,6 +275,15 @@ ${errCollector.mkString}
     }
 
     def async(f: RazRequest => Future[Result]) : Action[AnyContent] = RAction.async {implicit request=>
+      val req = razRequest
+      filter(req).map {res=>
+        Future.successful(res)
+      } getOrElse {
+        f(req)
+      }
+    }
+
+    def async[A](bodyParser: BodyParser[A]) (f: RazRequest => Future[Result]) : Action[A] = RAction(bodyParser).async {implicit request=>
       val req = razRequest
       filter(req).map {res=>
         Future.successful(res)
@@ -291,11 +314,6 @@ ${errCollector.mkString}
   /** action builder that decomposes the request, extracting user and creating a simple error buffer */
   def RAction = new RazAction (BodyParsers.parse.default)
   def RAction[A] (bodyParser: BodyParser[A])() = new RazAction (bodyParser)
-
-//  final def apply[A](bodyParser: BodyParser[A])(block: R[A] => Result): Action[A] = async(bodyParser) { req: R[A] =>
-//    Future.successful(block(req))
-//  }
-
 
   /** action builder that decomposes the request, extracting user and creating a simple error buffer */
   def FAUR(f: RazRequest => Result) : Action[AnyContent] =

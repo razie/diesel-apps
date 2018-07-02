@@ -46,14 +46,14 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
     overwritten.map(_.exists(f)).orElse(settings.postedContent.map(_.exists(f))).getOrElse(super.exists(f))
 
   // uniques
-  val uid = P("UID", new ObjectId().toString)
-  val millis = P("MILLIS", System.currentTimeMillis().toString)
+  val uid = P("DIESEL_UID", new ObjectId().toString)
+  val millis = P("DIESEL_MILLIS", System.currentTimeMillis().toString)
 
   /** source some of the unique values to help rerun tests */
   def pu (s:String) : Option[P] = s match {
-    case "UID" => Some(uid)
-    case "MILLIS" => Some(millis)
-    case "CURMILLIS" => Some(P("CURMILLIS", System.currentTimeMillis().toString))
+    case "DIESEL_UID" => Some(uid)
+    case "DIESEL_MILLIS" => Some(millis)
+    case "DIESEL_CURMILLIS" => Some(P("DIESEL_CURMILLIS", System.currentTimeMillis().toString))
     case _ => None
   }
 

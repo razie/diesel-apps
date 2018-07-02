@@ -47,8 +47,13 @@ abstract class WikiConfig {
 
   def pconfig = WikiConfig.playConfig.underlying
 
+  /** get from play config */
   def prop(name:String, dflt:String="") =
     if(pconfig.hasPath(name)) pconfig.getString(name) else dflt
+
+  /** play config overwritten by sitecfg */
+  def weprop(name:String, dflt:String="") =
+    sitecfg(name) orElse (if(pconfig.hasPath(name)) Some(pconfig.getString(name)) else None) getOrElse dflt
 
   final val home        = prop("wiki.home")
 
@@ -69,7 +74,7 @@ abstract class WikiConfig {
   final val cacheDb     = prop("wiki.cachedb", "false").toBoolean
 
   // preload these reactors - comma separated. make sure rk,notes,wiki are included in order
-  final val preload     = prop("wiki.preload", "rk,notes,wiki,ski")
+  final val preload     = prop("wiki.preload", "rk,notes,wiki,ski,omniware,omni-prod,itelyap")
 
   final val clusterMode = prop("wiki.cluster", "no")
 
@@ -95,7 +100,7 @@ abstract class WikiConfig {
     *
     * @param tags taken from a WikiEntry - using it plain to decouple code
     */
-  def urlcanon(wpath: String, tags:Option[Seq[String]]) = {
+  def urlcanon(wpath: String, tags:Option[Seq[String]]) : Option[String] = {
     var res: Option[String] = None
 
     //todo make unit test for urlcfg based canon for enduroschool

@@ -21,15 +21,14 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Future, Promise}
 import scala.util.Try
 
-
 /** a trace */
-case class DieselTrace(
+case class DieselTrace (
   root:DomAst,
   node:String,        // actual server node
   engineId:String,      // engine Id
   app:String,         // application/system id twitter:pc:v5
   details:String="",
-  parentNodeId:Option[String]=None ) extends CanHtml {
+  parentNodeId:Option[String]=None ) extends CanHtml with InfoNode {
 
   def toj: Map[String, Any] =
     Map(
@@ -93,6 +92,7 @@ class DomEngine(
 
   def failedTestCount = (root.collect {
     case d@DomAst(n: TestResult, _, _, _) if n.value.startsWith("fail") => n
+    case d@DomAst(n: EError, _, _, _) => n
   }).size
 
   def successTestCount = (root.collect {
@@ -100,7 +100,7 @@ class DomEngine(
   }).size
 
   /** collect generated values */
-  def resultingValues = root.collect {
+  def resultingValues() = root.collect {
     // todo see in Api.irunDom, trying to match them to the message sent in...
     case d@DomAst(EVal(p), /*"generated"*/ _, _, _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.dflt)
   }
@@ -177,6 +177,15 @@ class DomEngine(
       m.map(processDEMsg)
     } else
       m.map(m=>DieselAppContext.router.map(_ ! m))
+  }
+
+  /** stop me now */
+  def stopNow = {
+      status = DomState.DONE
+      clog << "DomEng "+id+" stopNow"
+      DomCollector.collectAst ("engine", id, this)
+      finishP.success(this)
+      DieselAppContext.stopActor(id)
   }
 
   def collectValues[T] (f: PartialFunction[Any, T]) : List[T] =
@@ -301,7 +310,7 @@ class DomEngine(
       case t:Throwable => {
         razie.Log.log("wile decompose()", t)
         val err = DEError(this.id, t.toString)
-        val ast = DomAst(EError(t.getMessage, t.toString)).withStatus(DomState.DONE)
+        val ast = DomAst(new EError("Exception", t)).withStatus(DomState.DONE)
         evAppChildren(a, ast)
         err :: done(ast, level+1)
       }
@@ -420,7 +429,15 @@ class DomEngine(
 
     a.value match {
 
+      case stop : EEngStop => {
+        // start new engine/process
+        // todo should find settings for target service  ?
+        a.children append DomAst(EInfo(s"""Stopping engine <a href="/diesel/engine/view/${this.id}">${this.id}</a>"""))//.withPos((m.get.pos)))
+        stopNow
+      }
+
       case next@ENext(m, "==>", cond, _) => {
+        // forking new engine / async branch
         implicit val ctx = new StaticECtx(next.parent.map(_.attrs).getOrElse(Nil), Some(this.ctx), Some(a))
         // start new engine/process
         // todo should find settings for target service  ?
@@ -431,6 +448,7 @@ class DomEngine(
       }
 
       case n1@ENext(m, "=>", cond, _) => {
+        // message executed later
         implicit val ctx = new StaticECtx(n1.parent.map(_.attrs).getOrElse(Nil), Some(this.ctx), Some(a))
 
         if(n1.test()) {
@@ -438,10 +456,20 @@ class DomEngine(
 //          a.children append newnode
           msgs = rep(a, recurse, level, List(newnode))
         }
+        // message will be evaluate() later
       }
 
       case x: EMsg if x.entity == "" && x.met == "" => {
-        a.children appendAll x.attrs.map(p => DomAst(EVal(p)withPos(x.pos), AstKinds.GENERATED).withSpec(x))
+        // just expressions, generate values from each attribute
+        a.children appendAll x.attrs.map{p =>
+          if(p.ttype == WTypes.EXCEPTION) {
+            p.value.map {v=>
+              DomAst(new EError(p.dflt, v.value.asInstanceOf[Throwable]) withPos(x.pos), AstKinds.GENERATED).withSpec(x)
+            } getOrElse
+              DomAst(EError(p.dflt) withPos(x.pos), AstKinds.GENERATED).withSpec(x)
+          } else
+            DomAst(EVal(p) withPos(x.pos), AstKinds.GENERATED).withSpec(x)
+        }
         ctx putAll x.attrs
       }
 
@@ -459,6 +487,8 @@ class DomEngine(
 
       case e: ExpectV => expandExpectV(a, e)
 
+      case e: ExpectAssert => expandExpectAssert(a, e)
+
       case e:InfoNode =>  // ignore
       case e:EVal =>  // ignore
 
@@ -470,13 +500,15 @@ class DomEngine(
 
       case s@_ => {
         clog << "NOT KNOWN: " + s.toString
-        a.children append DomAst(EWarning("NODE NOT KNOWN - " + s.getClass.getSimpleName, s.toString), AstKinds.GENERATED)
+        a.children append DomAst(
+          EWarning("NODE NOT KNOWN - " + s.getClass.getSimpleName, s.toString),
+          AstKinds.GENERATED)
       }
     }
     msgs
   }
 
-  /** reused */
+  /** reused - execute a rule */
   private def runRule (a:DomAst, in:EMsg, r:ERule) = {
     var result : List[DomAst] = Nil
     implicit val ctx = new StaticECtx(in.attrs, Some(this.ctx), Some(a))
@@ -488,10 +520,12 @@ class DomEngine(
         case x: EMsg if x.entity == ri.cls && x.met == ri.met => x
       }.headOption
 
+      // defer evaluation if multiple messages generated - if just one message, evaluate values now
       var newMsgs = ri.apply(in, spec, r.pos, r.i.size > 1).collect {
         // hack: if only values then collect resulting values and dump message
         // only for size 1 because otherwise they may be in a sequence of messages and their value
         // may depend on previous messages and can't be evaluated now
+        //
         case x: EMsg if x.entity == "" && x.met == "" && r.i.size == 1 => {
           a.children appendAll x.attrs.map(p => DomAst(EVal(p).withPos(x.pos), AstKinds.GENERATED).withSpec(r))
           ctx putAll x.attrs
@@ -557,14 +591,21 @@ class DomEngine(
     // if the message attrs were expressions, calculate their values
     val n: EMsg = in.copy(
       attrs = in.attrs.map {p=>
+        // only calculate if not already calculated =likely in a different context=
+        val pres = if(p.dflt.nonEmpty) p else p.expr.map(_.applyTyped("")).getOrElse(p)
+
         p.copy(
-          // only if not already calculated =likely in a different context=
-          dflt = if(p.dflt.nonEmpty) p.dflt else p.expr.map(_.apply("").toString).getOrElse(p.dflt),
-          ttype = if(p.ttype.nonEmpty) p.ttype else p.expr match {
+          dflt = pres.dflt,
+
+          // interpolate type
+          ttype = if(pres.ttype.nonEmpty) pres.ttype else p.expr match {
+              // expression type known?
             case Some(CExpr(_, WTypes.STRING)) => WTypes.STRING
             case Some(CExpr(_, WTypes.NUMBER)) => WTypes.NUMBER
-            case _ => p.ttype
-          }
+            case _ => pres.ttype
+          },
+
+          value = pres.value
         )
       }
     )
@@ -593,6 +634,7 @@ class DomEngine(
     var ruled = false
     // no mocks fit, so let's find rules
     // I run rules even if mocks fit - mocking mocks only going out, not decomposing
+    // todo - WHY ?
     if (true || !mocked) {
       rules.filter(_.e.test(n)).map { r =>
         // each matching rule
@@ -616,13 +658,24 @@ class DomEngine(
 
         val news = try {
           implicit val ctx = new StaticECtx(n.attrs, Some(this.ctx), Some(a))
+
           val xx = r.apply(n, None)
-          xx.collect{
+
+          // step 1: expand lists
+          val yy = xx.flatMap(x=> {
+            x match {
+              case l:List[_] => l
+              case e@_ => List(e)
+            }
+          })
+
+          yy.collect{
             // collect resulting values in the context as well
             case v@EVal(p) => {
               ctx.put(p)
               v
             }
+//            case l@List => e
             case e@_ => e
           }.map(x =>
             DomAst(x,
@@ -633,10 +686,20 @@ class DomEngine(
         } catch {
           case e: Throwable =>
             razie.Log.alarmThis("wtf", e)
-            List(DomAst(EError("Exception:" + e.getMessage), AstKinds.GENERATED))
+            List(DomAst(new EError("Exception:", e), AstKinds.GENERATED))
         }
 
         newNodes = newNodes ::: news
+      }
+
+      if(newNodes.isEmpty) {
+        clog << "NO matches: " + in.toString
+        a.children append DomAst(
+          EWarning(
+            "No rules, mocks or executors match for " + in.toString,
+            "Review your engine configuration (blender, mocks, drafts, tags), " +
+              "spelling of messages or rule clauses / pattern matches"),
+          AstKinds.GENERATED)
       }
     }
 
@@ -681,6 +744,8 @@ class DomEngine(
   private def expandExpectM(a: DomAst, e: ExpectM) : Unit = {
     val cole = new MatchCollector()
 
+    Try {
+
     val targets = e.target.map(List(_)).getOrElse(if (e.when.isDefined) {
       // find generated messages that should be tested
       root.collect {
@@ -694,7 +759,7 @@ class DomEngine(
         case d@DomAst(n: EMsg, k, _, _) if AstKinds.isGenerated(k) =>
           cole.newMatch(d)
           if (e.m.test(n, Some(cole)))
-            a.children append DomAst(TestResult("ok"), "test").withSpec(e)
+            a.children append DomAst(TestResult("ok").withPos(e.pos), "test").withSpec(e)
       }
 
       cole.done
@@ -719,20 +784,43 @@ class DomEngine(
         a.children append DomAst(
           TestResult(
             "fail",
+            "",
             label("found", "warning") + " " +
-              cole.highestMatching.map(_.diffs.values.map(_._1).toList.map(x => s"""<span style="color:red">$x</span>""").mkString(",")).mkString
-          ),
+            cole.highestMatching.map(_.diffs.values.map(_._1).toList.map(x => s"""<span style="color:red">$x</span>""").mkString(",")).mkString
+          ).withPos(e.pos),
           AstKinds.TEST
         ).withSpec(e)
       }
     }
+
+  }.recover {
+    case t:Throwable => {
+
+      razie.Log.log("while decompose em()", t)
+
+      // oops - add test failure
+      a.children append DomAst(
+        TestResult(
+          "fail",
+          "",
+          cole.toHtml
+        ),
+        AstKinds.TEST
+      ).withSpec(e)
+
+      a.children append DomAst(new EError("Exception", t)).withStatus(DomState.DONE)
+    }
+  }.get
   }
 
   /** test epected values */
   private def expandExpectV(a: DomAst, e: ExpectV) : Unit = {
     val cole = new MatchCollector()
 
+    Try {
+
     // identify sub-trees that it applies to
+
     val subtrees = e.target.map(List(_)).getOrElse(if (e.when.isDefined) {
       // find generated messages that should be tested
       root.collect {
@@ -742,13 +830,7 @@ class DomEngine(
 
     if (subtrees.size > 0) {
       // todo look at all possible targets - will need to create a matchCollector per etc
-      val vals = subtrees.flatMap{n=>
-        n.collect {
-          case d@DomAst(n: EVal, k, _, _) if AstKinds.isGenerated(k) => d
-        }
-      }
 
-//      val vals = subtrees.flatMap{n=>
       subtrees.foreach {n=>
         val vvals = n.collect {
           case d@DomAst(n: EVal, k, _, _) if AstKinds.isGenerated(k) => d
@@ -757,13 +839,21 @@ class DomEngine(
         // include the message's values in its context
         val newctx = new StaticECtx(n.value.asInstanceOf[EMsg].attrs, Some(ctx), Some(n))
 
-        if (vvals.size > 0 && e.test(vvals.map(_.value.asInstanceOf[EVal].p), Some(cole), vvals)(newctx))
-          a.children append DomAst(TestResult("ok"), AstKinds.TEST).withSpec(e)
+        val values = vvals.map(_.value.asInstanceOf[EVal].p)
+
+        if (vvals.size > 0 && e.test(values, Some(cole), vvals)(newctx))
+          a.children append DomAst(
+            TestResult("ok").withPos(e.pos),
+            AstKinds.TEST
+          ).withSpec(e)
+        else
+        //if no rules succeeded and there were vals, collect the misses
+          values.map(v=> cole.missed(v.name))
       }
 
       // test each generated value
-//      if (e.test(vals.map(_.value.asInstanceOf[EVal].p), Some(cole), vals))
-//        a.children append DomAst(TestResult("ok"), AstKinds.TEST).withSpec(e)
+      //      if (e.test(vals.map(_.value.asInstanceOf[EVal].p), Some(cole), vals))
+      //        a.children append DomAst(TestResult("ok"), AstKinds.TEST).withSpec(e)
 
       cole.done
 
@@ -773,7 +863,8 @@ class DomEngine(
         a.children append DomAst(
           TestResult(
             "fail",
-            cole.highestMatching.map(_.diffs.values.map(_._1).toList.map(x => s"""<span style="color:red">$x</span>""").mkString(",")).mkString
+            "",
+            cole.toHtml
           ),
           AstKinds.TEST
         ).withSpec(e)
@@ -800,9 +891,97 @@ class DomEngine(
         a.children append DomAst(
           TestResult(
             "fail",
+            "",
+            label("found", "warning") + " " +
+            cole.highestMatching.map(_.diffs.values.map(_._1).toList.map(x => s"""<span style="color:red">$x</span>""").mkString(",")).mkString
+          ).withPos(e.pos),
+          AstKinds.TEST
+        ).withSpec(e)
+      }
+    }
+
+    }.recover {
+      case t:Throwable => {
+
+        razie.Log.log("while decompose ev()", t)
+
+        // oops - add test failure
+        a.children append DomAst(
+          TestResult(
+            "fail",
+            "",
+            cole.toHtml
+          ),
+          AstKinds.TEST
+        ).withSpec(e)
+
+        a.children append DomAst(new EError("Exception", t)).withStatus(DomState.DONE)
+      }
+    }.get
+  }
+
+  private def expandExpectAssert(a: DomAst, e: ExpectAssert) : Unit = {
+    val cole = new MatchCollector()
+
+    // identify sub-trees that it applies to
+
+    val subtrees = e.target.map(List(_)).getOrElse(if (e.when.isDefined) {
+      // find generated messages that should be tested
+      root.collect {
+        case d@DomAst(n: EMsg, k, _, _) if e.when.exists(_.test(n)) => d
+      }
+    } else List(root))
+
+    if (subtrees.size > 0) {
+      // todo look at all possible targets - will need to create a matchCollector per etc
+
+      subtrees.foreach {n=>
+        val vvals = n.collect {
+          case d@DomAst(n: EVal, k, _, _) if AstKinds.isGenerated(k) => d
+        }
+
+        // include the message's values in its context
+        val newctx = new StaticECtx(n.value.asInstanceOf[EMsg].attrs, Some(ctx), Some(n))
+
+        val values = vvals.map(_.value.asInstanceOf[EVal].p)
+
+        if (vvals.size > 0 && e.test(values, Some(cole), vvals)(newctx))
+          a.children append DomAst(
+            TestResult("ok").withPos(e.pos),
+            AstKinds.TEST
+          ).withSpec(e)
+        else
+          //if no rules succeeded and there were vals, collect the misses
+          values.map(v=> cole.missed(v.name))
+    }
+
+      // test each generated value
+//      if (e.test(vals.map(_.value.asInstanceOf[EVal].p), Some(cole), vals))
+//        a.children append DomAst(TestResult("ok"), AstKinds.TEST).withSpec(e)
+
+      cole.done
+
+      // did some rules succeed?
+      if (a.children.isEmpty) {
+        // oops - add test failure
+        a.children append DomAst(
+          TestResult(
+            "fail",
+            cole.toHtml
+          ),
+          AstKinds.TEST
+        ).withSpec(e)
+      }
+
+      // did some rules succeed?
+      if (a.children.isEmpty) {
+        // oops - add test failure
+        a.children append DomAst(
+          TestResult(
+            "fail",
             label("found", "warning") + " " +
               cole.highestMatching.map(_.diffs.values.map(_._1).toList.map(x => s"""<span style="color:red">$x</span>""").mkString(",")).mkString
-          ),
+          ).withPos(e.pos),
           AstKinds.TEST
         ).withSpec(e)
       }

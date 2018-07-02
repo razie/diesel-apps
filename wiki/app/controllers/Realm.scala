@@ -15,6 +15,7 @@ import razie.Logging
 import razie.audit.Audit
 import controllers.Wikie._
 import razie.db._
+import razie.hosting.Website
 import razie.wiki.admin.SendEmail
 import razie.wiki.model._
 import razie.wiki.model.features.WForm

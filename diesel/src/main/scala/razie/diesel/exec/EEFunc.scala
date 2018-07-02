@@ -6,6 +6,7 @@
   **/
 package razie.diesel.exec
 
+import jdk.nashorn.api.scripting.ScriptObjectMirror
 import razie.base.scriptingx.JsScripster
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
@@ -28,8 +29,16 @@ class EEFunc extends EExecutor("func") {
       val res = try {
         if (f.script != "") {
           val c = ctx.domain.get.mkCompiler("js")
+
+          // compile all other functions
           val x = c.compileAll(c.not { case fx: RDOM.F if fx.name == f.name => true })
-          val s = x + "\n" + f.script
+
+          // add this one, as an expression
+//          val s = x + "\n" + f.script
+          var s = x + "\n" + c.compile(f)
+
+          // call it
+          s = s + "\n" + c.callInContext(f)
 
           val q = in.attrs.map(t => (t.name, t.dflt)).toMap
 
@@ -52,23 +61,50 @@ class EEFunc extends EExecutor("func") {
 
 object EEFunc {
   def execute (script:String)(implicit ctx: ECtx): Any = {
-      val res : Any = try {
-        // todo optimize - remove q
-        val q  = ctx.listAttrs.map(t => (t.name, t.dflt)).toMap
-        val qp = ctx.listAttrs.map(t => (t.name, t)).toMap
+    val res : Any = try {
+      // todo optimize - remove q
+      val q  = ctx.listAttrs.map(t => (t.name, t.dflt)).toMap
+      val qp = ctx.listAttrs.map(t => (t.name, t)).toMap
 
-          JsScripster.isfiddleMap(script, "js", q + ("diesel" -> ""),
-            Some(qTypedP(qp, None) + ("diesel" -> new DieselJs(ctx))))._2
-      } catch {
-        case e: Throwable => e.getMessage
-      }
+      val r = JsScripster.isfiddleMap(script, "js", q + ("diesel" -> ""),
+        Some(qTypedP(qp, None) + ("diesel" -> new DieselJs(ctx))))
+      r._2
+    } catch {
+      case e: Throwable => e.getMessage
+    }
 
-//    res match {
-//      case i:Int => P("", i.toString, WTypes.NUMBER)
-//      case i:Float => P("", i.toString, WTypes.NUMBER)
-//      case _ => P("", res.toString, WTypes.STRING)
-//    }
     res
+  }
+
+  /** core of JS execution */
+  def executeTyped (script:String)(implicit ctx: ECtx): P = {
+    val r = try {
+      // todo optimize - remove q
+      val q  = ctx.listAttrs.map(t => (t.name, t.dflt)).toMap
+      val qp = ctx.listAttrs.map(t => (t.name, t)).toMap
+
+      val r = JsScripster.isfiddleMap(script, "js", q + ("diesel" -> ""),
+          Some(qTypedP(qp, None) + ("diesel" -> new DieselJs(ctx))))
+
+      r._3 match {
+
+        case i:Integer => P("", i.toString, WTypes.NUMBER).withValue(i, WTypes.NUMBER)
+
+        case i:Double => P("", i.toString, WTypes.NUMBER).withValue(i, WTypes.NUMBER)
+
+        case o : ScriptObjectMirror => {
+          P("", r._2.toString, WTypes.JSON).withValue(PValue(o, WTypes.appJson))
+        }
+
+        case e: Throwable => P("", e.getMessage, WTypes.EXCEPTION).withValue(e, WTypes.EXCEPTION)
+
+        case _ => P("", r._2.toString, WTypes.STRING)
+      }
+    } catch {
+      case e: Throwable => P("", e.getMessage, WTypes.EXCEPTION).withValue(e, WTypes.EXCEPTION)
+    }
+
+    r
     }
 }
 

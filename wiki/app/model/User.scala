@@ -60,8 +60,11 @@ case class User(
   yob: Int,
   email: String,   // encrypted
   pwd: String,     // encrypted
-  status: Char = 'a', // a-active, s-suspended, d-deleted
+
+  // this is per realm
+  status: Char = Users.ACTIVE, // a-active, s-suspended, d-deleted
   roles: Set[String], // = Set("Racer"),
+
   realms: Set[String]=Set(), // = RK modules (notes, rk, ski etc)
   addr: Option[String] = None, // address as typed in
   prefs: Map[String, String] = Map(), // user preferences
@@ -81,8 +84,7 @@ case class User(
 
   override def isActive = status == 'a'
   override def isSuspended = status == 's'
-//  def isMod = isAdmin || hasPerm(Perm.Moderator)
-//  def isAdmin = hasPerm(Perm.adminDb) || hasPerm(Perm.adminWiki)
+  //def isMod = isAdmin || hasPerm(Perm.Moderator)
   def isClub = roles contains UserType.Organization.toString
   def isUnder13 = DateTime.now.year.get - yob <= 12
 
@@ -102,6 +104,7 @@ case class User(
 
   override def membershipLevel : String =
       if(this.hasPerm(Perm.Moderator) || this.isAdmin) Perm.Moderator.s
+      else if (this.hasPerm(Perm.Unobtanium)) Perm.Unobtanium.s
       else if (this.hasPerm(Perm.Platinum)) Perm.Platinum.s
       else if (this.hasPerm(Perm.Gold)) Perm.Gold.s
       else if (this.hasPerm(Perm.Basic)) Perm.Basic.s
@@ -110,9 +113,10 @@ case class User(
   override def hasMembershipLevel(s:String) =
     (s == Perm.Member.s) ||
     (s == Perm.Moderator.s && (this.hasPerm(Perm.Moderator) || this.isAdmin)) ||
-    (s == Perm.Platinum.s && (this.hasPerm(Perm.Moderator) || this.hasPerm(Perm.Platinum))) ||
-    (s == Perm.Gold.s && (this.hasPerm(Perm.Moderator) || this.hasPerm(Perm.Platinum) || this.hasPerm(Perm.Gold))) ||
-    (s == Perm.Basic.s && (this.hasPerm(Perm.Moderator) || this.hasPerm(Perm.Platinum) || this.hasPerm(Perm.Gold) || this.hasPerm(Perm.Basic)))
+    (s == Perm.Unobtanium.s && (this.hasPerm(Perm.Moderator) || this.hasPerm(Perm.Unobtanium))) ||
+    (s == Perm.Platinum.s && (this.hasPerm(Perm.Moderator) || this.hasPerm(Perm.Unobtanium) || this.hasPerm(Perm.Platinum))) ||
+    (s == Perm.Gold.s && (this.hasPerm(Perm.Moderator) || this.hasPerm(Perm.Unobtanium) || this.hasPerm(Perm.Platinum) || this.hasPerm(Perm.Gold))) ||
+    (s == Perm.Basic.s && (this.hasPerm(Perm.Moderator) || this.hasPerm(Perm.Unobtanium) || this.hasPerm(Perm.Platinum) || this.hasPerm(Perm.Gold) || this.hasPerm(Perm.Basic)))
 
   // centered on Toronto by default
   lazy val ll = addr.flatMap(Maps.latlong _).getOrElse(("43.664395", "-79.376907"))
@@ -226,6 +230,9 @@ case class Profile(
   contact: Option[Contact] = None,
   consent:Option[String] = None,
   realmInfo: Map[String, String] = Map(), // (who -> what)
+
+  extLinks : Seq[ExtSystemUserLink] = Seq.empty,
+
   _id: ObjectId = new ObjectId()) {
 
   def update(p: Profile) =  RUpdate(Map("userId" -> userId), p)
@@ -250,5 +257,22 @@ case class Profile(
 
   var createdDtm: DateTime = DateTime.now
   var lastUpdatedDtm: DateTime = DateTime.now
+
+  def getExtLink (systemId:String, instanceId:String) = extLinks.find(x=> x.extSystemId == systemId && x.extInstanceId == instanceId)
+
+  /** add or update existing link */
+  def upsertExtLink (link:ExtSystemUserLink) = {
+    val e1 = extLinks.filter(x=> !(x.extSystemId == link.extSystemId && x.extInstanceId == link.extInstanceId))
+    val e2 = e1 ++ Seq(link)
+    this.copy(extLinks = e2)
+  }
 }
+
+/** link to an external system account */
+case class ExtSystemUserLink (
+  extSystemId : String,    // external system id
+  extInstanceId : String,  // external system id
+  extAccountId : String    // external account id
+  )
+
 

@@ -7,8 +7,7 @@
 package razie.base.scriptingx
 
 import javax.script.ScriptEngineManager
-
-import jdk.nashorn.api.scripting.{ClassFilter, NashornScriptEngineFactory}
+import jdk.nashorn.api.scripting.{ClassFilter, NashornScriptEngineFactory, ScriptObjectMirror}
 import razie.audit.Audit
 import razie.{CSTimer, Logging, csys}
 
@@ -21,9 +20,18 @@ object JsScripster extends Logging {
   def isfiddleMap(script: String, lang: String, q: Map[String, String], typed: Option[Map[String, Any]] = None) =
     newsfiddleMap(script, lang, q, typed, false)
 
-  /** run a fiddle with a map of arguments "queryParms" */
+  /** run a fiddle with a map of arguments "queryParms"
+    *
+    * @param script
+    * @param lang
+    * @param q
+    * @param typed
+    * @param doAudit
+    *
+    * @return (succ/fail, x.toString, x)
+    */
   // todo protect calls to this
-  def newsfiddleMap(script: String, lang: String, q: Map[String, String], typed: Option[Map[String, Any]] = None, doAudit: Boolean = true) = {
+  def newsfiddleMap(script: String, lang: String, q: Map[String, String], typed: Option[Map[String, Any]] = None, doAudit: Boolean = true) : (Boolean, String, Any) = {
 //    val wix = api.wix(we, au, q, "")
     val c = new CSTimer("script", "?")
     c.start()
@@ -36,23 +44,36 @@ object JsScripster extends Logging {
       try {
         //        val factory = new ScriptEngineManager()
         //        val engine = factory.getEngineByName("JavaScript")
+
         val factory = new NashornScriptEngineFactory();
         val engine = factory.getScriptEngine(new MyCF());
 
         val bindings = engine.createBindings()
+
         // attempt to use typed bindings, if available
         q.foreach(t => bindings.put(t._1, typed.flatMap(_.get(t._1)).getOrElse(jstypeSafe(t._2))))
 //        bindings.put("wixj", wix)
+
         val res = engine.eval(jscript, bindings)
-        (true, if (res != null) res.toString else "")
+
+        if(res != null && res.isInstanceOf[ScriptObjectMirror]) {
+          // return objects with nice tostring
+          val json = engine.eval("JSON").asInstanceOf[ScriptObjectMirror]
+          val s = json.callMember("stringify", res)
+          (true, s.toString, res)
+        }
+        else
+          (true, if (res != null) res.toString else "", res)
       } catch {
         case t: Throwable => {
           log(s"while executing script\n$jscript", t)
           // don't include the script body - security issue
-            (false, t /* + "\n\n" + jscript */)
+            (false, t.toString, t)
         }
       } finally {
+
         c.stop()
+
         audit("SFIDDLE_EXEC JS" + (c.last - c.beg) + " msec" + jscript)
         if (doAudit)
           Audit.logdb("SFIDDLE_EXEC", "JS", (c.last - c.beg) + " msec", jscript.takeRight(300))
@@ -69,11 +90,12 @@ object JsScripster extends Logging {
         var bindings = engine.createBindings()
         q.foreach(t => bindings.put(t._1, typed.flatMap(_.get(t._1)).getOrElse(t._2)))
         Audit.logdb("SFIDDLE_EXEC", "ruby", jscript)
-        (true, res.toString)
+        (true, res.toString, res)
       } catch {
         case t: Throwable => {
           log(s"while executing script\n$jscript", t)
-          (false, t + "\n\n" + jscript)
+          // don't include the script body - security issue
+          (false, t.toString, t)
         }
       }
 
@@ -81,7 +103,7 @@ object JsScripster extends Logging {
 
       throw new IllegalArgumentException ("scala not supported at this point")
 
-    } else (false, script)
+    } else (false, script, script)
   }
 
   class MyCF extends ClassFilter {

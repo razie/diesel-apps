@@ -31,13 +31,17 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
     this prop "blog" flatMap {b=>
       if(b startsWith "http") Some(b)
       else this wprop "blog" map (_.url)
-    } getOrElse WID("Blog", "RacerKidz_Site_News").url
+    } OR ""
   }
+
+  //WID("Blog", "RacerKidz_Site_News").url
 
   def twitter:String = this prop "twitter" OR "racerkid"
   def gplus:Option[String] = this prop "gplus"
   def tos:String = this prop "tos" OR "/wiki/Terms_of_Service"
   def privacy:String = this prop "privacy" OR "/wiki/Privacy_Policy"
+
+  def dieselReactor:String = this prop "dieselReactor" OR reactor
 
   def join:String = this prop "join" OR "/doe/join"
   def parent:Option[WID] = this wprop "parent"
@@ -72,19 +76,20 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
 
   def useWikiPrefix:Boolean = this bprop "useWikiPrefix" OR true
 
-  //nav.TopLevel
+  //todo optimize - don't parse every time
   def propFilter (prefix:String) = {
     propSeq.filter(_._1 startsWith (prefix)).map(t=>(t._1.replaceFirst(prefix, ""), t._2))
   }
 
   //sections should be "More" "Support" "Social"
-  def bottomMenu (section:String) = propFilter(s"bottom.$section")
+  def bottomMenu (section:String) = propFilter(s"bottom.$section.")
 
-  //nav.TopLevel
   def navrMenu () = propFilter(s"navr.")
+  def navrMenuRemove () = propFilter(s"navr.remove.").map(_._1)
 
-  //nav.TopLevel
-  def navMenu () = propFilter(s"nav.")
+  def navMenu () =
+    propFilter(s"nav.") ++
+      Seq("admin.badgeRefreshAllTests" -> "/diesel/statusAll")
 
   def metas () = propFilter(s"meta.")
 

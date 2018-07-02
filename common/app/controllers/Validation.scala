@@ -38,11 +38,11 @@ trait Validation extends Logging {
   final val cAccountNotActive = new Corr("This account is not active", """create a <a href="/doe/support?desc=Account+inactive">support request</a> to re-activate!""")
 
   def cNotMember (clubName:String, role:String="member") = new Corr(
-    "This is a club-members only topic and you are not a club member. Role="+role,
-    """You need to request membership in this club <a href="/wikie/linkuser/Club:%s?wc=0">%s</a>!""".format(clubName,clubName))
+    s"This is a members only topic and you are not a member [Role=$role]")
+//    ,  """You need to request membership in this club <a href="/wikie/linkuser/Club:%s?wc=0">%s</a>!""".format(clubName,clubName))
 
   def cNotAdmin (clubName:String) = new Corr(
-      s"This is an admin operation and you are not a club admin [$clubName]",
+      s"This is an admin operation and you are not an admin [$clubName]",
       "")
 
   def cNoQuotaUpdates = new Corr(

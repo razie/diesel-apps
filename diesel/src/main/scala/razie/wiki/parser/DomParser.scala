@@ -21,11 +21,16 @@ import scala.util.parsing.input.Positional
 /** domain parser - for domain sections in a wiki */
 trait DomParser extends ParserBase with ExprParser {
 
+  // resolve an override resulting when I simplified ExprParser
+  override type P = Parser[String]
+  override def ws = whiteSpace
+  override def ows = opt(whiteSpace)
+
   import RDOM._
 
   def domainBlocks =
     pobject | pclass | passoc | pfunc |
-    pwhen | pflow | pmatch | psend | pmsg | pval | pexpect
+    pwhen | pflow | pmatch | psend | pmsg | pval | pexpect | passert
 
   def lazys (f:(SState, FoldingContext[DSpec,DUser]) => SState) =
     LazyState[DSpec, DUser] (f)
@@ -165,12 +170,28 @@ trait DomParser extends ParserBase with ExprParser {
 
   /**
     * => z.role (attrs)
-    **/
+    */
   def pgen: Parser[EMap] =
     ows ~> keyw(pArrow) ~ ows ~ opt(pif) ~ ows ~ (clsMet | justAttrs) ^^ {
       case arrow ~ _ ~ cond ~ _ ~ Tuple3(zc, zm, za) => {
         EMap(zc, zm, za, arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
         // EPos wpath set later
+      }
+    }
+
+  /**
+    * this one used for fiddles
+    *
+    * .mock a.role (attrs) => z.role (attrs)
+    */
+  def linemock(wpath: String) =
+    keyw("""[.$]mock""".r) ~ ws ~ clsMatch ~ ws ~ opt(pif) ~ rep(pgen)  <~ " *".r ^^ {
+      case k ~ _ ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ gen => {
+        val x = EMatch(ac, am, aa, cond)
+        val f = EMock(ERule(x, gen))
+        f.pos = Some(EPos(wpath, k.pos.line, k.pos.column))
+        f.rule.pos = Some(EPos(wpath, k.pos.line, k.pos.column))
+        f
       }
     }
 
@@ -367,10 +388,10 @@ trait DomParser extends ParserBase with ExprParser {
   def psend: PS = keyw("[.$]send *".r) ~ opt("<" ~> "[^>]+".r <~ "> *".r) ~ qclsMet ~ optAttrs ~ opt(" *: *".r ~> optAttrs) <~ " *".r ^^ {
     case k ~ stype ~ qcm ~ attrs ~ ret => {
       lazys { (current, ctx) =>
-        val f = EMsg(qcm._1, qcm._2, attrs, "receive", ret.toList.flatten(identity), stype.mkString.trim)
+        val f = EMsg(qcm._1, qcm._2, attrs, "send", ret.toList.flatten(identity), stype.mkString.trim)
         f.pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
         collectDom(f, ctx.we)
-        SState(f.kspan("receive::") + f.toHtmlInPage + "<br>")
+        SState(f.kspan("send::") + f.toHtmlInPage + "<br>")
       }
     }
   }
@@ -406,9 +427,9 @@ trait DomParser extends ParserBase with ExprParser {
   }
 
   /**
-    * .msg object.func (a,b)
+    * this one's used for fiddles
     *
-    * An NVP is either the spec or an instance of a function call, a message, a data object... whatever...
+    * .msg object.func (a,b) : (out)
     */
   def linemsg(wpath: String) = keyw("[.$]msg *".r | "[.$]send\\s*".r) ~ opt("<" ~> "[^>]+".r <~ "> *".r) ~ ident ~ " *\\. *".r ~ qident ~ optAttrs ~ opt(" *: *".r ~> optAttrs) ^^ {
     case k ~ stype ~ ent ~ _ ~ ac ~ attrs ~ ret => {
@@ -417,20 +438,6 @@ trait DomParser extends ParserBase with ExprParser {
       f
     }
   }
-
-  /**
-    * .mock a.role (attrs) => z.role (attrs)
-    */
-  def linemock(wpath: String) =
-    keyw("""[.$]mock""".r) ~ ws ~ clsMatch ~ ws ~ opt(pif) ~ pgen  <~ " *".r ^^ {
-      case k ~ _ ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ gen => {
-        val x = EMatch(ac, am, aa, cond)
-        val f = EMock(ERule(x, List(gen)))
-        f.pos = Some(EPos(wpath, k.pos.line, k.pos.column))
-        f.rule.pos = Some(EPos(wpath, k.pos.line, k.pos.column))
-        f
-      }
-    }
 
   /**
     * .expect object.func (a,b)
@@ -442,6 +449,27 @@ trait DomParser extends ParserBase with ExprParser {
         val f = qcm.map(qcm =>
           ExpectM(not.isDefined, EMatch(qcm._1, qcm._2, attrs, cond)).withPos(pos))
           .getOrElse(ExpectV(not.isDefined, attrs).withPos(pos))
+        collectDom(f, ctx.we)
+        SState(f.toHtml + "<br>")
+      }
+    }
+  }
+
+  /**
+    * todo is not working
+    */
+  def optAssertExprs: Parser[List[BExpr]] = ows ~> cond <~ ows ^^ {
+    case x => x :: Nil
+  }
+
+  /**
+    * .expect object.func (a,b)
+    */
+  def passert: PS = keyw("[.$]assert".r <~ ws) ~ opt("not" <~ ws) ~ optAssertExprs <~ " *".r ^^ {
+    case k ~ not ~ exprs => {
+      lazys { (current, ctx) =>
+        val pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
+        val f = ExpectAssert(not.isDefined, exprs).withPos(pos)
         collectDom(f, ctx.we)
         SState(f.toHtml + "<br>")
       }

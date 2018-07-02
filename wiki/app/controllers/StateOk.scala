@@ -20,6 +20,7 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
   var _css : Option[String] = None // if you determine you want a different CSS
   var stuff : List[String] = List() // keep temp status for this request
   var bottomAd : Boolean = false
+  var canonicalLink : Option[String] = None
 
   var _requireJs : Boolean = true
   def requireJs(x : Boolean) = { _requireJs = x;}

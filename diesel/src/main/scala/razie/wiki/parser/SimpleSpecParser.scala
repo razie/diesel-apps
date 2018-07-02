@@ -16,16 +16,12 @@ import scala.util.parsing.combinator.token.Tokens
 trait SimpleSpecParser extends ParserBase with Tokens {
 
   def apply(input: String) = {
-    //    clog << ("PARSE: --------------------------")
-    //    clog << ("PARSE: "+input.lines.zipWithIndex.map(t=>(t._2, t._1)).mkString("\n"))
-    //    clog << ("PARSE: --------------------------")
     parseAll(wiki, input) match {
       case Success(value, _) => value
       // don't change the format of this message
       case NoSuccess(msg, next) => SState(s"[[CANNOT PARSE]] [${next.pos.toString}] : ${msg}")
     }
   }
-  //  def applys(input: String) = apply(input).s
 
   /** use this to parse wiki markdown on the spot - it is meant for short strings within like a cell or something */
   def parseLine(input: String) = parseAll(line, input) getOrElse SState("[[CANNOT PARSE]]")

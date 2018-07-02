@@ -227,6 +227,7 @@ trait RCompiler {
   def compileAll (filter: PartialFunction[Any,Boolean]) : String
   def compile (elem:Any) : String
   def call (f:F) : String
+  def callInContext (f:F) : String
 }
 
 /** JS compiler - used for domain functionality defined in JS
@@ -244,16 +245,24 @@ class RJSCompiler (val dom:RDomain) extends RCompiler {
       case f:F => {
         // prepare the func body - put a return on it and stuff
         val b = f.script.lines.toList
-        val bs = (
-          (if(b.size > 0) b.take(b.size-1) else Nil).mkString("\n") + (if(b.size > 0) "\n  return "+b(b.size-1) else ""))
-        val s = s"function ${f.name} (${f.parms.map(_.name).mkString(",")}) {$bs\n}"
+        val bs = b.mkString("\n")
+//        val bs = (
+//          (if(b.size > 0) b.take(b.size-1) else Nil).mkString("\n") +
+//            (if(b.size > 0) "\n  return "+b(b.size-1) else ""))
+        val s = s"function ${f.name.replaceAllLiterally(".", "_")} (${f.parms.map(_.name).mkString(",")}) {$bs\n}"
         s
       }
     }
   }
 
   override def call (f:F) = {
-    s"${f.name}(${f.parms.map(_.dflt).mkString(",")});"
+    s"${f.name.replaceAllLiterally(".", "_")}(${f.parms.map(_.dflt).mkString(",")});"
+  }
+
+
+  // call assuming all the parms are vars in context
+  override def callInContext (f:F) = {
+    s"${f.name.replaceAllLiterally(".", "_")}(${f.parms.map(_.name).mkString(",")});"
   }
 }
 

@@ -133,7 +133,10 @@ class WikiInstImpl (val realm:String, val fallBacks:List[WikiInst], mkDomain : W
 
   class WikiParserCls(val realm:String) extends WikiParserT // default simple parser
 
-  val mixins = new Mixins[WikiInst](fallBacks)
+  // make sure RK is the fallBack for all wikis
+  val mixins = new Mixins[WikiInst](
+    (fallBacks ::: (if(realm == Wikis.RK) Nil else List(Wikis.rk))).distinct
+    )
 
   val REALM = "realm" -> realm
 

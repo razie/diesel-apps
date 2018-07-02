@@ -7,7 +7,6 @@
 package razie.diesel.engine
 
 import org.bson.types.ObjectId
-import razie.diesel.engine.RDExt.EEContent
 
 object DomEngineSettings {
   /** take the settings from either URL or body form or default */
@@ -47,8 +46,11 @@ object DomEngineSettings {
   final val HOSTPORT = "hostport"
   final val REALM = "realm"
 
+  final val DFIDDLE = "dfiddle"
+  final val INCLUDE_FOR = "includeFor"
+
   // filter qeury parms
-  final val FILTER = Array(SKETCH_MODE, MOCK_MODE, BLENDER_MODE, DRAFT_MODE, EXEC_MODE, RESULT_MODE)
+  final val FILTER = Array(SKETCH_MODE, MOCK_MODE, BLENDER_MODE, DRAFT_MODE, EXEC_MODE, RESULT_MODE, DFIDDLE, INCLUDE_FOR)
 }
 
 case class DomEngineSettings

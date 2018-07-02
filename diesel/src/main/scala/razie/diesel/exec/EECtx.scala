@@ -9,9 +9,10 @@ package mod.diesel.model.exec
 import org.apache.commons.codec.digest.DigestUtils
 import razie.clog
 import razie.diesel.dom.RDOM._
-import razie.diesel.dom._
+import razie.diesel.dom.{RDOM, _}
 import razie.diesel.engine.{DEStartTimer, DieselAppContext, DomEngECtx}
 import razie.diesel.ext.{MatchCollector, _}
+import razie.wiki.Base64
 
 import scala.collection.mutable
 
@@ -44,6 +45,12 @@ class EECtx extends EExecutor("ctx") {
       case "log" => {
         clog << "DIESEL.log " + ctx.toString
         Nil
+      }
+
+      case "info" => {
+        in.attrs.headOption.toList.map(p=>
+          EInfo(p.name + " - click me", p.calculatedValue)
+        )
       }
 
       case "test" => {
@@ -99,16 +106,27 @@ class EECtx extends EExecutor("ctx") {
       case "set" => {
         val n = in.attrs.find(_.name == "name").map(_.dflt)
         val v = in.attrs.find(_.name == "value")
+
+        // at this point the
         n.flatMap { name =>
           if (v.exists(_.dflt != ""))
             Some(new EVal(name, v.get.dflt))
           else if (v.exists(_.expr.isDefined))
-            Some(new EVal(typified(name, v.get.expr.get.apply(""))))
+            Some(new EVal(v.get.expr.get.applyTyped("").copy(name=name)))
+//          else if (v.exists(_.expr.isDefined))
+//            Some(new EVal(typified(name, v.get.expr.get.apply(""))))
           else {
             // clear it
-            ctx.remove(name)
-            None
+            def clear (c:ECtx) : Unit = {
+              c.remove(name)
+              c.base.map(clear)
+            }
+            clear(ctx)
+            Some(new EInfo("removed " +name))
+//            None
           }
+        }.orElse{
+          v.map(_.calculatedP) // just v - copy it
         }.toList
       }
 
@@ -116,9 +134,12 @@ class EECtx extends EExecutor("ctx") {
         // set all parms passed in
         in.attrs.map { p =>
           if (p.dflt != "")
-            Some(new EVal(p.name, p.dflt))
+//            Some(new EVal(p.name, p.dflt))
+            Some(new EVal(p))
+//          else if (p.expr.isDefined)
+//            Some(new EVal(typified(p.name, p.expr.get.apply(""))))
           else if (p.expr.isDefined)
-            Some(new EVal(typified(p.name, p.expr.get.apply(""))))
+            Some(new EVal(p.expr.get.applyTyped("").copy(name=p.name)))
           else {
             // clear it
             ctx.remove(p.name)
@@ -133,6 +154,46 @@ class EECtx extends EExecutor("ctx") {
         new EInfo("ctx.sleep - slept " + d) :: Nil
       }
 
+      // debug current context
+      case "debug" => {
+        in.attrs.map{p=>
+          new EInfo(s"${p.name} = ${p.dflt} expr=(${p.expr}) cv= ${p.calculatedValue}")
+        } ++
+        ctx.listAttrs.map{p=>
+          new EInfo(s"${p.name} = ${p.dflt} expr=(${p.expr}) cv= ${p.calculatedValue}")
+        }
+      }
+
+      case "base64encode" => {
+        val res = in.attrs.filter(_.name != "result").map { a =>
+          val res = Base64.enc(a.calculatedValue).toString
+          new EVal("payload", res)
+        }
+
+        res :::
+          in.attrs
+            .find(_.name=="result")
+            .map(_.calculatedValue)
+            .map(p=> new EVal(p, res.head.p.dflt))
+            .orElse (res.headOption)
+            .toList
+      }
+
+      case "base64decode" => {
+        val res = in.attrs.filter(_.name != "result").map { a =>
+          val res = Base64.dec(a.calculatedValue)
+          new EVal(RDOM.P("payload", "", WTypes.BYTES, "", "", None, Some(PValue[Array[Byte]](res, "application/octet-stream"))))
+        }
+
+        res :::
+          in.attrs
+            .find(_.name=="result")
+            .map(_.calculatedValue)
+            .map(p=> new EVal(res.head.p.copy(name=p))) // copy to maintain value/type
+            .orElse (res.headOption)
+            .toList
+      }
+
       case "sha1" => {
         val res = in.attrs.filter(_.name != "name").map { a =>
           val md = java.security.MessageDigest.getInstance("SHA-1")
@@ -144,7 +205,7 @@ class EECtx extends EExecutor("ctx") {
         res :::
           in.attrs
             .find(_.name=="name")
-            .map(_.calculateValue)
+            .map(_.calculatedValue)
             .map(p=> new EVal(p, res.head.p.dflt))
             .toList
 
@@ -156,6 +217,17 @@ class EECtx extends EExecutor("ctx") {
         val m = in.attrs.find(_.name == "msg").map(_.dflt).getOrElse("$msg ctx.echo (msg=\"timer without message\")")
         DieselAppContext.router.map(_ ! DEStartTimer("x", d, Nil))
         new EInfo("ctx.timer - start " + d) :: Nil
+      }
+
+      case "authUser" => {
+        val uid = ctx.root.asInstanceOf[DomEngECtx].engine.flatMap(_.settings.userId)
+
+        // todo lookup the user - either in DB or wix
+        if(uid.isDefined)
+          new EInfo("User is auth ") :: Nil
+        else
+          new EError(s"ctx.authUser - User not auth") ::
+          new EEngStop(s"User not auth") :: Nil
       }
 
       case s@_ => {
@@ -174,5 +246,14 @@ class EECtx extends EExecutor("ctx") {
       EMsg("ctx", "engineSync") ::
       EMsg("ctx", "storySync") :: // processed by the story teller
       EMsg("ctx", "storyAsync") :: // processed by the story teller
-      EMsg("ctx", "clear") :: Nil
+      EMsg("ctx", "clear") ::
+      EMsg("ctx", "timer") ::
+      EMsg("ctx", "sleep") ::
+      EMsg("ctx", "set") ::
+      EMsg("ctx", "setAll") ::
+      EMsg("ctx", "sha1") ::
+      EMsg("ctx", "foreach") ::
+      EMsg("ctx", "debug") ::
+      EMsg("ctx", "authUser") ::
+      Nil
 }

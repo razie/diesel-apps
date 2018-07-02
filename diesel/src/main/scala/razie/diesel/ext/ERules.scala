@@ -9,6 +9,7 @@ package razie.diesel.ext
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.InfoNode
+import razie.wiki.Enc
 
 /** test - expect a message m. optional guard */
 case class ExpectM(not: Boolean, m: EMatch) extends CanHtml with HasPosition {
@@ -22,7 +23,11 @@ case class ExpectM(not: Boolean, m: EMatch) extends CanHtml with HasPosition {
 
   // clone because the original is a spec, reused in many stories
   def withTarget(p: Option[DomAst]) = {
-    val x = this.copy(); x.target = p; x
+    val x = this.copy();
+    x.pos = this.pos;
+    x.when = this.when;
+    x.target = p;
+    x
   }
 
   override def toHtml = kspan("expect::") + " " + m.toHtml
@@ -63,7 +68,8 @@ case class ExpectV(not: Boolean, pm: MatchAttrs) extends CanHtml with HasPositio
     val x = this.copy(); x.target = p; x
   }
 
-  override def toHtml = kspan("expect::") + " " + pm.map(_.toHtml).mkString("(", ",", ")")
+  override def toHtml =
+    kspan("expect::") + " " + pm.map(_.toHtml).mkString("(", ",", ")")
 
   override def toString = "expect:: " + pm.mkString("(", ",", ")")
 
@@ -88,6 +94,43 @@ case class ExpectV(not: Boolean, pm: MatchAttrs) extends CanHtml with HasPositio
     sketchAttrs(pm, cole)
   }
 
+}
+
+/** test - expect a value or more. optional guard */
+case class ExpectAssert(not: Boolean, exprs: List[BExpr]) extends CanHtml with HasPosition {
+  var when: Option[EMatch] = None
+  var pos: Option[EPos] = None
+  var target: Option[DomAst] = None // if target then applies only in that sub-tree, otherwise guessing scope
+
+  def withPos(p: Option[EPos]) = {
+    this.pos = p; this
+  }
+
+  // clone because the original is a spec, reused in many stories
+  def withTarget(p: Option[DomAst]) = {
+    val x = this.copy(); x.target = p; x
+  }
+
+  override def toHtml = kspan(pos.mkString+"assert::") + " " + exprs.map(_.toDsl).mkString("(", ",", ")")
+
+  override def toString = "assert:: " + exprs.mkString("(", ",", ")")
+
+  def withGuard(guard: EMatch) = {
+    this.when = Some(guard); this
+  }
+
+  def withGuard(guard: Option[EMatch]) = {
+    this.when = guard; this
+  }
+
+  /** check to match the arguments */
+  def test(a: Attrs, cole: Option[MatchCollector] = None, nodes: List[DomAst])(implicit ctx: ECtx) = {
+    exprs.foldLeft(true)((a,b)=> a && b.apply("") )
+//    testA(a, pm, cole, Some({ p =>
+      // start a new collector to mark this value
+//      cole.foreach(c => nodes.find(_.value.asInstanceOf[EVal].p.name == p.name).foreach(n => c.newMatch(n)))
+//    }))
+  }
 }
 
 // a match case
@@ -216,7 +259,9 @@ case class EVal(p: RDOM.P) extends CanHtml with HasPosition {
       }.getOrElse(Map.empty)
     }
 
-  override def toHtml = kspan("val::") + p.toHtml
+  override def toHtml =
+    if(pos.isDefined) kspan("val::") + p.toHtml
+    else spanClick("val::", "info", p.dflt) + p.toHtml
 
   override def toString = "val: " + p.toString
 }
@@ -229,11 +274,51 @@ case class EWarning(msg: String, details: String = "") extends CanHtml with Info
     else
       span("warning::", "warning", details) + " " + msg
 
-  override def toString = "error::" + msg
+  override def toString = "warning::" + "x"//msg
+}
+
+object EErrorUtils {
+  def ttos (t:Throwable) = {
+    razie.Log.log("error snakking", t)
+
+    val sw = new java.io.StringWriter()
+    val pw = new java.io.PrintWriter(sw)
+    t.printStackTrace(pw)
+
+    val s = sw.toString
+    s
+  }
 }
 
 /** some error, with a message and details */
-case class EError(msg: String, details: String = "") extends CanHtml with InfoNode {
+case class EError(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {
+  def this(msg:String, t:Throwable) =
+    this(msg + t.toString, EErrorUtils.ttos(t))
+
+  var pos: Option[EPos] = None
+
+  def withPos(p: Option[EPos]) = {
+    this.pos = p; this
+  }
+
+  override def toHtml =
+    if (details.length > 0)
+      span("error::", "danger", details, "style=\"cursor:help\"") + " " + msg
+    else
+      span("error::", "danger", details) + " " + msg
+
+  override def toString = "error::" + msg
+}
+
+/** error and stop engine */
+case class EEngStop(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {
+
+  var pos: Option[EPos] = None
+
+  def withPos(p: Option[EPos]) = {
+    this.pos = p; this
+  }
+
   override def toHtml =
     if (details.length > 0)
       span("error::", "danger", details, "style=\"cursor:help\"") + " " + msg
@@ -252,10 +337,26 @@ case class EInfo(msg: String, details: String = "") extends CanHtml with HasPosi
   }
 
   override def toHtml =
-    if (details.length > 0)
-      span("info::", "info", details, "style=\"cursor:help\"") + " " + msg
-    else
+    if (details.length > 0) {
+      spanClick(
+        "info::",
+        "info",
+        details,
+        msg
+      )
+    } else {
       span("info::", "info", details) + " " + msg
+    }
 
   override def toString = "info::" + msg
 }
+
+/** duration of the curent op */
+case class EDuration(millis:Long, msg: String="") extends CanHtml with InfoNode {
+
+  override def toHtml = span("info::", "info") + s" $millis ms - $msg"
+
+  override def toString = "info::" + s" $millis ms - $msg"
+}
+
+

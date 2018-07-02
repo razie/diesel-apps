@@ -35,6 +35,7 @@ package object ext {
   class SingleMatch(val x: Any) {
     var score = 0;
     val diffs = new mutable.HashMap[String, (Any, Any)]() // (found, expected)
+    val misses = new mutable.ArrayBuffer[String] // names didn't match
 
     def plus(s: String) = {
       score += 1
@@ -42,6 +43,11 @@ package object ext {
 
     def minus(name: String, found: Any, expected:Any) = {
       diffs.put(name, (found.toString, expected.toString))
+    }
+
+    // missed opportunity to match this
+    def missed(name: String) = {
+      misses.append(name)
     }
   }
 
@@ -67,7 +73,30 @@ package object ext {
 
     def plus(s: String) = cur.plus(s)
 
-    def minus(name: String, found: Any, expected:Any) = cur.minus(name, found, expected)
+    def minus(name: String, found: Any, expected:Any) =
+      cur.minus(name, found, expected)
+
+    // record missed opportunity to match (names did not match)
+    def missed(name: String) =
+      cur.missed(name)
+
+    def toHtml =
+      highestMatching
+        .map {h=>
+          h.diffs.values.map(_._1)
+            .toList
+            .map(x => s"""<span style="color:red">$x</span>""")
+            .mkString(",") +
+          (
+            // todo list them in order of close to far (i.e. a close name)
+            if(h.misses.size > 0)
+              "found: " + h.misses
+              .map(x => s"""<span style="color:red">$x</span>""")
+              .mkString(",")
+            else ""
+          )
+        }
+        .mkString
   }
 
   def check (in:P, pm:PM)(implicit ctx: ECtx) = {
@@ -90,7 +119,10 @@ package object ext {
    * (a=1) it occurs with value
    *
    */
-  def testA(in: Attrs, cond: MatchAttrs, cole: Option[MatchCollector] = None, foundName:Option[RDOM.P => Unit]=None)(implicit ctx: ECtx) = {
+  def testA(in: Attrs,
+            cond: MatchAttrs,
+            cole: Option[MatchCollector] = None,
+            foundName:Option[RDOM.P => Unit]=None)(implicit ctx: ECtx) = {
     // for each match
     cond.zipWithIndex.foldLeft(true)((a, b) => a && {
       var res = false
@@ -140,7 +172,8 @@ package object ext {
 
   object CanHtml {
     def prepTitle(title:String) = {
-      val x = title.replaceAll("\\\"", "\\\"")
+      val x = title.replaceAll("\\\"", "")
+//      val x = title.replaceAll("\\\"", "\\\"")
       val t = if(title.length > 0) s"""title="$x" """ else ""
       t
     }
@@ -164,6 +197,24 @@ package object ext {
     def span(s: String, k: String = "default", title:String="", extra:String="") = {
       val t = CanHtml.prepTitle(title)
       s"""<span class="label label-$k" $t $extra>$s</span>"""
+    }
+
+    /** format a clickable span, which dumps content
+      *
+      * @param s
+      * @param k
+      * @param title
+      * @param extra
+      * @return
+      */
+    def spanClick(s: String, k: String = "default", title:String="", extra:String="") = {
+      val id = java.util.UUID.randomUUID().toString
+      span(
+        s,
+        k,
+        title,
+        s"""style="cursor:help" id="$id" onclick="dieselNodeLog($$('#$id').prop('title'));""""
+      ) + " " + extra
     }
 
     /** format an html message span

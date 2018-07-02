@@ -10,9 +10,12 @@ import razie.db._
   */
 @RTable
 case class Autosave(
-  name: String,
+  what: String,                    // kind of object
+  realm: String,                   // realm
+  name: String,                    // object id in string format, i.e. wpath
   userId: ObjectId,
-  contents: Map[String,String],
+  contents: Map[String,String],    // actual content autosaved
+  ver: Long = 0,                   // auto-increasing version
   crDtm: DateTime = DateTime.now,
   updDtm: DateTime = DateTime.now,
   _id: ObjectId = new ObjectId()) extends REntity[Autosave] {
@@ -25,25 +28,38 @@ case class Autosave(
 /** autosave utils */
 object Autosave {
 
+  private def rec(what:String, realm:String, name:String, userId: ObjectId) =
+    ROne[Autosave]("what" -> what, "realm" -> realm, "name" -> name, "userId" -> userId)
+
   /** create or update */
-  def set(name:String, userId: ObjectId, c:Map[String,String]) =
-    ROne[Autosave]("name" -> name, "userId" -> userId)
-      .map(_.copy(contents=c, updDtm = DateTime.now).update)
-      .getOrElse(Autosave(name, userId, c).create)
+  def set(what:String, realm:String, name:String, userId: ObjectId, c:Map[String,String]) =
+    rec(what, realm, name, userId)
+      .map(x=> x.copy(contents=c, ver=x.ver+1, updDtm = DateTime.now).update)
+      .getOrElse(Autosave(what, realm, name, userId, c).create)
+
+  def findForUser(userId: ObjectId) =
+    RMany[Autosave]("userId" -> userId)
 
   /** each user has its own draft */
-  def find(name:String, userId: ObjectId) =
-    ROne[Autosave]("name" -> name, "userId" -> userId).map(_.contents)
+  def find(what:String, realm:String, name:String, userId: ObjectId) =
+    rec(what, realm, name, userId).map(_.contents)
 
   /** each user has its own draft */
-  def find(name:String, userId : Option[ObjectId]) =
+  def find(what:String, realm:String, name:String, userId : Option[ObjectId]) =
     userId.flatMap(uid=>
-      ROne[Autosave]("name" -> name, "userId" -> userId)
+      rec(what, realm, name, uid)
     ).map(_.contents)
 
   /** find or default - will not save the default */
-  def OR(name:String, userId: ObjectId, c:Map[String,String]) =
-    find(name, userId).getOrElse(c)
+  def OR(what:String, realm:String, name:String, userId: ObjectId, c: => Map[String,String]) =
+    find(what, realm, name, userId).getOrElse(c)
 
-  def delete(name:String, userId: ObjectId) = ROne[Autosave]("name" -> name, "userId" -> userId).map(_.delete)
+  def delete(what:String, realm:String, name:String, userId: ObjectId) =
+    rec(what, realm, name, userId).map(_.delete)
+
+  /** filter internal states */
+  def activeDrafts(userId: ObjectId) =
+    findForUser(userId).filter(x=> x.what != "DomFidPath" && x.what != "DomFidCapture")
 }
+
+

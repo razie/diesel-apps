@@ -12,6 +12,7 @@ import java.util.regex.Pattern
 
 import com.novus.salat._
 import com.razie.pub.comms.Comms
+import org.json.JSONObject
 import razie.db.RazSalatContext._
 import razie.diesel.dom.RDOM._
 import razie.diesel.engine.InfoAccumulator
@@ -20,6 +21,7 @@ import razie.tconf.DTemplate
 import razie.{Snakk, SnakkRequest, SnakkResponse, SnakkUrl}
 
 import scala.Option.option2Iterable
+import scala.collection.mutable
 import scala.concurrent.{Awaitable, Future, Promise}
 import scala.util.Try
 import scala.xml.Node
@@ -32,6 +34,18 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
   def toJson = grater[SnakkCall].toPrettyJSON(this)
 
   def toSnakkRequest (id:String="") = SnakkRequest(protocol, method, url, headers, content, id)
+
+  def toCurl = {
+    "curl -k " +
+      ("-X " + method) +
+      (headers.map{t=>
+        s""" -H '${t._1}:${t._2}' """
+      }).mkString(" ") +
+      (
+        if(content != "") s" -d '$content' " else " "
+      ) +
+    s"'$url'"
+  }
 
   var pro : Option[Promise[SnakkResponse]] = None
 
@@ -87,29 +101,39 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
     }
   }
 
+  /** snakk content from a telnet connection
+    *
+    * @param hostname
+    * @param port
+    * @param send commands to send (separated by \n)
+    * @param info
+    * @return
+    */
   def telnet(hostname: String, port: String, send: Option[String], info: Option[InfoAccumulator]): String = {
+    var pingSocket : Socket = null
+
     var res = ""
     try {
-      val pingSocket = new Socket(hostname, port.toInt);
-      pingSocket.setSoTimeout(3000) // 1 sec
+//      pingSocket = new Socket("www.google.ca", 80);
+      pingSocket = new Socket(hostname, port.toInt);
+      pingSocket.setSoTimeout(5000) // 5 sec
       val out = new PrintWriter(pingSocket.getOutputStream(), true);
       val ins = pingSocket.getInputStream();
 
-      //      out println "GET / HTTP/1.1"
+//            out println "GET / HTTP/1.1"
       //      out println "GET /diesel/test/plus/a/b HTTP/1.1"
-      //      out println ""
-      send.toList.flatMap(_.lines.toList) map { outs =>
+//      out println ""
+
+      // todo this should be done in CExp
+      send.map { s=>
+        // allow \n
+        s
+          .replaceAll("\\\\n", "\n")
+          .replaceAll("\\\\r", "\r")
+      }.toList.flatMap(_.lines.toList) map { outs =>
         out.println(outs)
         info map (_ += EInfo("telnet Sent line: " + outs))
       }
-
-      val inp = new BufferedReader(new InputStreamReader(pingSocket.getInputStream()));
-      //      for(x <- inp.lines.iterator().asScala)
-      //        res = res + x
-      //      val res = inp.readLine()
-
-      //      res = inp.readLine()
-      //      res = res + Comms.readStream(ins)
 
 //      try {
         val buff = new Array[Byte](1024);
@@ -126,7 +150,7 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
 //      }
 
       ibody = Some(res)
-      iContentType = Some("application/text")
+      iContentType = Some("application/text") // assume telnet returns text
 
       out.close();
       ins.close();
@@ -135,28 +159,31 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
       res
     } catch {
       case e: Throwable => {
-        info map (_ += EError("telnet Exception:" + e.toString))
+        razie.Log.log("snakk.telnet Exception", e)
+        info map (_ += new EError("telnet Exception:", e))
         ibody = Some(res)
+        pingSocket.close();
         return res;
       }
     }
   }
+
+  def isJson (ct:Option[String]) : Boolean =
+    ct.map(_.toLowerCase).exists(s=> s=="application/json" || s=="text/json")
 
   def isXml (ct:Option[String]) : Boolean =
     ct.map(_.toLowerCase).exists(s=> s=="application/xml" || s=="text/xml")
 
   /** use this call/template to parse incoming message (either request to us or a reply) */
   def parseIncoming (incoming:String, inSpecs : List[P], incomingMetas: NVP) : NVP = {
-    val x = (
-      isXml(
-        template.flatMap(
-          _.parms.find(t=> t._1.toLowerCase == "content-type").map(_._2)
-        )
-      )
+    val ct = template.flatMap(
+      _.parms.find(t=> t._1.toLowerCase == "content-type").map(_._2)
     )
 
-    if(x)
+    if( isXml(ct) )
       parseIncomingXml(incoming, inSpecs, incomingMetas)
+    else if( isJson(ct) )
+      parseIncomingJson(incoming, inSpecs, incomingMetas)
     else
       parseIncomingMatch(incoming, inSpecs, incomingMetas)
   }
@@ -208,22 +235,104 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
     parms
   }
 
+  /** parse a templetized url
+    *
+    * @param turl template
+    * @param url incoming
+    */
+  def parseUrl(turl:String, url:String, inSpecs:List[P], incomingMetas:NVP) = {
+    val path = turl.replaceFirst("(?s)\\?.*", "") // cut the end
+
+    parseIncomingTemplate (path, url, inSpecs, incomingMetas, true)
+  }
+
+  /** use this call/template to parse incoming message (either request to us or a reply) */
+  def parseIncomingJson (incoming:String, inSpecs : List[P], incomingMetas: NVP) : NVP = {
+    // parse the template and remember DOM so we can get the XPATH later
+    // this.content is processed, find the original template content
+    val tc = template.map(_.content).map{s=>
+      if(s matches "(?s).*\n\r?\n\r?.*") s.replaceFirst("(?s).*\n\r?\n\r?", "") else ""
+    }.getOrElse(this.content)
+
+    val js1 = new JSONObject(tc)
+    import scala.collection.JavaConverters._
+
+    // todo just one level deep for now - a flat JSON
+    // get the values that start with a $
+    val out = js1.keys.asScala.toList.map(k => js1.get(k).toString).filter(_.startsWith("$")).map(_.substring(1))
+
+    val js = new JSONObject(incoming)
+    import scala.collection.JavaConverters._
+
+    // todo just one level deep for now - a flat JSON
+    val vals = js.keys.asScala.toList.map(k => (k, js.get(k).toString)).toMap
+
+    // from template spec
+    val xinSpecs = inSpecs.map(p => (p.name, p.dflt, p.expr.mkString))
+
+    // from parsed template json
+    val foundSpecs = out.map(p => (p, "", ""))
+
+    // distinct by name
+    val allSpecs = (xinSpecs ::: foundSpecs).groupBy(_._1).map(_._2.head)
+
+    var parms =
+      (for (g <- allSpecs)
+          yield (
+            g._1,
+            Try {
+              vals(g._1)
+            }.getOrElse(g._2)
+          )
+        ).filter(_._2 != null).toMap
+
+    parms
+    }
+
   /** parse incoming message with pattern matching */
   def parseIncomingMatch (incoming:String, inSpecs : List[P], incomingMetas: NVP) : NVP = {
+    parseIncomingTemplate (this.content, incoming, inSpecs, incomingMetas, false)
+  }
+
+  /** parse incoming message with pattern matching */
+  def parseIncomingTemplate (content:String, incoming:String, inSpecs : List[P], incomingMetas: NVP, expandAll:Boolean = false) : NVP = {
     // turn template into regex
-    var re = this.content.replaceAll("""\$\{(.+)\}""", "$1")
+    var re = content
+    // all {} spec chars
+//    re = re.replaceAll("""([{}])""", "\\\\$1")
+    // all ${xx} expressions
+    re = re.replaceAll("""\$\{(.+)\}""", "$1")
+    // all $xx expressions
     re = re.replaceAll("""\$(\w+)""", "(?<$1>.*)?")
+    // all EOLs
     re = re.replaceAll("""[\r\n ]""", """\\s*""")
     re = "(?sm)" + re + ".*"
 
+    // from parsed template json
+    val foundSpecs = if(expandAll) {
+      val x = mutable.ListBuffer[String]()
+
+      val PATT = """(\$\w+)*""".r
+      val u = PATT.replaceSomeIn(content, { m =>
+        val n = if (m.matched.length > 0) m.matched.substring(1) else ""
+        if(n != null && n.trim.length > 0) x.append(n.trim)
+        None
+      })
+
+      x.toList.map(x=> (x,"", ""))
+    } else Nil
+
     val xinSpecs = inSpecs.map(p => (p.name, p.dflt, p.expr.mkString))
+
+    // distinct by name
+    val allSpecs = (xinSpecs ::: foundSpecs).groupBy(_._1).map(_._2.head)
 
     // find and make message with parms
     val jrex = Pattern.compile(re).matcher(incoming)
     val hasit = jrex.find()
     var parms = if (hasit)
       (
-        for (g <- xinSpecs)
+        for (g <- allSpecs)
           yield (
             g._1,
             Try {

@@ -8,9 +8,18 @@ package razie.wiki.parser
 
 import razie.diesel.dom._
 import razie.diesel.ext.{BFlowExpr, FlowExpr, MsgExpr, SeqExpr}
+import razie.tconf.parser.SState
+
+import scala.util.parsing.combinator.RegexParsers
 
 /** expressions parser */
-trait ExprParser extends ParserBase {
+trait ExprParser extends RegexParsers {
+
+  type P = Parser[String]
+
+  def ws = whiteSpace
+
+  def ows = opt(whiteSpace)
 
   /** a regular ident but also '...' */
   def ident: P = """[\w]+""".r | """'[\w -]+'""".r ^^ {
@@ -81,8 +90,10 @@ trait ExprParser extends ParserBase {
   // a number
   def numexpr: Parser[Expr] = (aint | afloat) ^^ { case i => new CExpr(i, WTypes.NUMBER) }
 
-  // string const
-  def cexpr: Parser[Expr] = "\"" ~> """[^"]*""".r <~ "\"" ^^ { case e => new CExpr(e, WTypes.STRING) }
+  // string const with escaped chars
+  def cexpr: Parser[Expr] = "\"" ~> """(\\.|[^\"])*""".r <~ "\"" ^^ {
+    case e => new CExpr(e.replaceAll("\\\\(.)", "$1"), WTypes.STRING)
+  }
 
   // qualified identifier
   def aident: Parser[Expr] = qident ^^ { case i => new AExprIdent(i) }
@@ -155,4 +166,18 @@ trait ExprParser extends ParserBase {
 
 }
 
+/** A simple parser for our simple specs
+  *
+  * DomParser is the actual Diesel/Dom parser.
+  * We extend from it to include its functionality and then we add its parsing rules with withBlocks()
+  */
+class SimpleExprParser extends ExprParser {
+
+  def parseExpr (input: String):Option[Expr] = {
+    parseAll(expr, input) match {
+      case Success(value, _) => Some(value)
+      case NoSuccess(msg, next) => None
+    }
+  }
+}
 

@@ -32,13 +32,14 @@ object Perm {
   val Basic = Perm("Basic") // paid account
   val Gold = Perm("Gold") // paid account
   val Platinum = Perm("Platinum") // paid account
+  val Unobtanium = Perm("Unobtanium") // paid account
   val Moderator = Perm("Moderator") // paid account
 
   implicit def tos(p: Perm): String = p.s
 
   val all: Seq[String] = Seq(adminDb, adminWiki, uWiki, uProfile, eVerified, apiCall, codeMaster,
     "cCategory", "uCategory", "uReserved",
-    Basic, Gold, Platinum, Moderator, domFiddle
+    Basic, Gold, Platinum, Unobtanium, Moderator, domFiddle
   )
 
 }
@@ -70,7 +71,10 @@ abstract class WikiUser extends DUser {
 
   def isActive : Boolean
   def isSuspended : Boolean
-  def isMod = isAdmin || hasPerm(Perm.Moderator)
+
+  // users can be, in order of access: mods, devs or admins
+  def isMod = isAdmin || hasPerm(Perm.Moderator) || hasPerm(Perm.codeMaster)
+  def isDev = isAdmin || hasPerm(Perm.codeMaster)
   def isAdmin = hasPerm(Perm.adminDb) || hasPerm(Perm.adminWiki)
 }
 

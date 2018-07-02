@@ -1,6 +1,7 @@
 package razie.diesel
 
 import razie.diesel.dom.RDOM.P
+import razie.js
 
 /**
  * simple, neutral domain model representation: class/object/function
@@ -31,7 +32,7 @@ package object dom {
     val p = f.flatMap(_.parms.find(_.name == t._1))
     if (p.exists(x=> x.ttype == "Int" || x.ttype == WTypes.NUMBER)) (t._1+"",
       try {
-        t._2.toInt
+        t._2.toDouble
       } catch {
         case e:Throwable => throw new IllegalArgumentException("Type error: expected Int, parm "+t._1+" found "+t._2)
       }
@@ -48,13 +49,22 @@ package object dom {
       else v
 
     val p = f.flatMap(_.parms.find(_.name == t._1)).getOrElse(t._2)
+
     if (p.ttype == "Int" || p.ttype == WTypes.NUMBER) (t._1+"",
       try {
-        t._2.dflt.toInt
+        t._2.dflt.toDouble
       } catch {
         case _:Throwable => throw new IllegalArgumentException("Type error: expected Int, parm "+t._1+" found "+t._2)
       }
       )
+//      this is not working - maybe at some point. for now do js:JSON.parse()
+//    else if (p.ttype == WTypes.JSON) (t._1+"",
+//      try {
+//        js.parse(t._2.dflt)
+//      } catch {
+//        case _:Throwable => throw new IllegalArgumentException("Type error: expected JSON, parm "+t._1+" found "+t._2)
+//      }
+//    )
     else
       (t._1, prep(t._2.dflt))
   }

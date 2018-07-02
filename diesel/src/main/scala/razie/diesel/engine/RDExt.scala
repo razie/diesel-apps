@@ -6,21 +6,16 @@
  */
 package razie.diesel.engine
 
-import java.util.regex.Pattern
-
 import mod.diesel.model.exec._
-import razie.Snakk
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom.{RDomain, _}
-import razie.diesel.exec.{EEFunc, EETest}
-import razie.diesel.ext._
+import razie.diesel.exec.{EEFormatter, EEFunc, EETest}
+import razie.diesel.ext.{CanHtml, _}
 import razie.tconf.{DSpec, TSpecPath}
-import razie.xp.JsonOWrapper
+import razie.wiki.Enc
 
-import scala.Option.option2Iterable
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
-import scala.util.Try
 
 /** accumulate results and infos and errors */
 class InfoAccumulator (var eres : List[Any] = Nil) {
@@ -46,7 +41,9 @@ object RDExt {
       new EEDieselSharedDb ::
       new EESnakk ::
       new EETest ::
-      new EEFunc :: Nil map Executors.add
+      new EEFunc ::
+      new EEFormatter ::
+      Nil map Executors.add
   }
 
   /** parse from/to json utils */
@@ -146,121 +143,6 @@ object RDExt {
          => x
     }.headOption)
 
-  /** a REST request or response: content and type */
-  class EEContent (
-                    val body:String,
-                    val contentType:String,
-                    val iroot:Option[Snakk.Wrapper[_]] = None,
-                    val raw : Option[Array[Byte]] = None) {
-
-    def isXml = "application/xml" == contentType || "text/xml" == contentType
-    def isJson = "application/json" == contentType
-
-    import razie.Snakk._
-
-    /** xp root for either xml or json body */
-    lazy val root:Snakk.Wrapper[_] = iroot getOrElse {
-      contentType match {
-        case _ if isXml => Snakk.xml(body)
-        case _ if isJson => if(body.trim.startsWith("{")) Snakk.json(body) else Snakk.json("{}") // avoid exceptions parsing
-        case x@_ => Snakk.json("{error: 'unknown SnakkCall.contentType'}")
-        //throw new IllegalStateException ("unknown content-type: "+x)
-      }
-    }
-
-    lazy val hasValues = if(isXml || isJson) root \ "values" else Snakk.empty
-
-    lazy val r = if(hasValues.size > 0) hasValues else root
-
-    // todo not optimal
-    def exists(f: scala.Function1[P, scala.Boolean]): scala.Boolean = {
-      val x = (r \ "*").nodes collect {
-         case j : JsonOWrapper => {
-           razie.MOLD(j.j.keys).map(_.toString).map {n=>
-             P(n, r \ "*" \@@ n)
-           }
-        }
-      }
-      x.flatten.exists(f)
-    }
-
-    // todo don't like this
-    def get(name:String) : Option[String]  = {
-      (r \@@ name).toOption
-    }
-
-    /** name, default, expr
-      *
-      * will replace a.b.c with a/b/@c and a/b/c with a/b/@c
-      */
-    def ex(n:String, d:String, e:String, oe:Option[Expr])  = {
-      def forceAttr (path:String) = path.replaceFirst("(.*)/([^/]*)$", "$1/@$2")
-
-      if (e.isEmpty)
-        (n, (r \@@ n OR d).toString)
-      else if (e.startsWith("/") && e.endsWith("/")) // regex
-        (n, e.substring(1, e.length - 1).r.findFirstIn(body).mkString)
-      else oe match {
-        case Some(xpi:XPathIdent) => (n, (r \@@ forceAttr(xpi.expr) OR d).toString)
-        case Some(api:AExprIdent) => (n, (r \@@ forceAttr(api.expr.replaceAllLiterally(".", "/")) OR d).toString)
-        case _ => (n, (r \@@ forceAttr(e.replaceAllLiterally(".", "/")) OR d).toString)
-      }
-    }
-
-    /** extract the values and expressions from a response
-      *
-      * @param temp a list of name/expression
-      * @param spec a list of name/default/expression
-      * @param regex an optional regex with named groups
-      */
-    def extract (temp:Map[String,String], spec:Seq[(String,String, String, Option[Expr])], regex:Option[String]) = {
-
-      if(regex.isDefined) {
-        val rex =
-          if (regex.get.startsWith("/") && regex.get.endsWith("/"))
-            regex.get.substring(1, regex.get.length - 1)
-          else regex.get
-
-        val jrex = Pattern.compile(rex).matcher(body)
-        //          val hasit = jrex.find()
-        if(jrex.find())
-          (
-            for(g <- spec)
-              // todo inconsistency: I am running rules if no mocks fit, so I should also run any executor ??? or only the isMocks???
-              yield (
-                g._1,
-                Try {
-                  jrex.group(g._1)
-                }.getOrElse(g._2)
-              )
-            ).toList
-        else Nil
-      } else if(temp.nonEmpty) {
-        val strs = temp.map { t =>
-          ex(t._1, "", t._2, None)
-        }
-        strs.toList
-      } else if(spec.nonEmpty) {
-        // main case
-        spec.map(t=>ex(t._1, t._2, t._3, t._4)).filter(_._2.nonEmpty).toList
-      } else if (isJson) {
-        // last ditch attempt to discover some values
-
-        //          (
-        //            if(ret.nonEmpty) ret else List(new P("result", ""))
-        //            ).map(p => p.copy(dflt = res \ "values" \@@ p.name)).map(x => EVal(x))
-        val res = jsonParsed(body)
-        val a = res.getJSONObject("values")
-        val strs = if(a.names == null) List.empty else (
-          for (k <- 0 until a.names.length())
-            yield (a.names.get(k).toString, a.getString(a.names.get(k).toString))
-          ).toList
-        strs.toList
-      } else
-        Nil
-    }
-
-  }
 
   // to collect msg def
   case class PCol(p:P, pos:Option[EPos])
@@ -462,6 +344,10 @@ object RDExt {
           lastAst = List(DomAst(e.withGuard(lastMsg.map(_.asMatch)).withTarget(lastMsgAst), "test").withPrereq(lastAst.map(_.id)))
           lastAst
         }
+        case e: ExpectAssert if (!justMocks) => {
+          lastAst = List(DomAst(e.withGuard(lastMsg.map(_.asMatch)).withTarget(lastMsgAst), "test").withPrereq(lastAst.map(_.id)))
+          lastAst
+        }
       }.flatten
 
       if(stories.size > 1) root.children appendAll addMsg(EMsg("diesel.scope", "pop"))
@@ -472,17 +358,30 @@ object RDExt {
     stories.foreach (addStory)
   }
 
-  case class TestResult(value: String, more: String = "") extends CanHtml with HasPosition {
+  /** record a test result
+    *
+    * @param value "ok" for good, otherwise is failed
+    * @param more - an escaped value
+    * @param moreHtml - unescaped html
+    */
+  case class TestResult(value: String, more: String = "", moreHtml:String="") extends CanHtml with HasPosition {
     var pos : Option[EPos] = None
     def withPos(p:Option[EPos]) = {this.pos = p; this}
 
-    override def toHtml =
+    override def toHtml = {
+      def htrimmedDflt =
+        if(more.size > 80) more.take(60)
+        else more
+
+      val hmore = Enc.escapeHtml(htrimmedDflt) + " " + moreHtml
+
       if (value == "ok")
-        span(value, "success") + s" $more"
+        kspan(value, "success", pos) + s" $hmore"
       else if (value startsWith "fail")
-        span(value, "danger") + s" $more"
+        kspan(value, "danger", pos) + s" $hmore"
       else
-        span(value, "warning") + s" $more"
+        kspan(value, "warning", pos) + s" $hmore"
+    }
 
     override def toString =
       value + s" $more"

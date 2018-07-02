@@ -121,7 +121,7 @@ case class UserWiki(
   def wlink = WikiLink(UWID("User", userId), uwid, "")
   def wname = wlink.wname
 
-  def user = ROne[User](userId)
+  lazy val user = ROne[User](userId)
   def wid = uwid.wid.get
 }
 
@@ -143,6 +143,12 @@ import play.api.cache._
 /** user factory and utils */
 object Users {
 
+  final val SUSPENDED = 's'
+  final val ACTIVE = 'a'
+  final val DELETED = 'd'
+
+  final val ROLE_MEMBER = "Member"
+
   def fromJson(j: String) = Option(grater[User].asObject(JSON.parse(j).asInstanceOf[DBObject]))
 
   /** find user by lowercase email - at loging */
@@ -152,11 +158,26 @@ object Users {
     RazMongo("User") findAll() filter(_.containsField("email")) find (x=>x.as[String]("email") != null && x.as[String]("email").dec.toLowerCase == tl) map (grater[User].asObject(_))
   }
 
-  /** you better encrypt before calling */
-  def findUserByEmailDec(emailDec: String) = findUserByEmailEnc(Enc(emailDec))
-  def findUserByEmailEnc(emailEnc: String) = {
-    ROne[User]("email" -> emailEnc)
+  /** find user by lowercase email - at loging */
+  def findUsersForRealm(realm: String) = {
+    // todo optimize somwhow
+    RazMongo("User") findAll() filter(x=>
+      realm == "*" ||
+        x.containsField("realms") &&
+          x.as[Seq[String]]("realms") != null &&
+          x.as[Seq[String]]("realms").contains(realm)
+      ) map (
+        grater[User].asObject(_)
+      ) filter (u=>
+        realm == "*" || (u.realms contains realm)
+      )
   }
+
+  /** find by decrypted email */
+  def findUserByEmailDec(emailDec: String) = findUserByEmailEnc(Enc(emailDec))
+  /** find by encrypted email */
+  def findUserByEmailEnc(emailEnc: String) = ROne[User]("email" -> emailEnc)
+
   def findUserById(id: String) = ROne[User](new ObjectId(id))
   def findUserById(id: ObjectId) = ROne[User](id)
   def findUserByUsername(uname: String) = ROne[User]("userName" -> uname)

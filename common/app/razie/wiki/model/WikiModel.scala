@@ -99,7 +99,11 @@ case class WikiEntry(
     override def ahref: Option[String] = Some(wid.ahref)
   }
 
-  // from DSpec
+  /**
+    * find a template for that name (e-a) or implementing that URL
+    *
+    * from DSpec
+    */
   override def findTemplate(name: String, direction:String=""): Option[DTemplate] =
     this
       .templateSections
@@ -107,12 +111,21 @@ case class WikiEntry(
       .headOption
       .map {t=> new WikiDTemplate (t) }
 
+  /** find template with predicate */
+  override def findTemplate (p : DTemplate => Boolean) : Option[DTemplate] = {
+    this
+      .templateSections
+      .map {t=> new WikiDTemplate (t) }
+      .find(p)
+  }
+
+
   /** is this just an alias?
     *
-    * an alias is a topic that only contains the alias markup: [[alias:xxx]]
+    * an alias is a topic that starts with the alias markup: [[alias:xxx]]
     */
   def alias: Option[WID] = {
-    val wikip2 = """\[\[alias:([^\]]*)\]\]"""
+    val wikip2 = """(?s)\[\[alias:([^\]]*)\]\].*"""
     val wikip2r = wikip2.r
     if (content.matches(wikip2)) {
       val wikip2r(wpath) = content
@@ -135,6 +148,7 @@ case class WikiEntry(
   var depys: List[UWID] = Nil
 
   /** todo should use this version instead of content - this resolves includes */
+  // todo optimize - why isn't this a lazy?
   def included : String = {
     val x = Wikis.preprocessIncludes(wid, markup, content, Some(this))
     x
@@ -283,8 +297,6 @@ case class WikiEntry(
     }).toList
   }
 
-  /** pattern for all sections requiring signing - (?s) means multi-line */
-  val PATTSIGN = """(?s)\{\{(\.?)(template|def|lambda|inline)[: ]*([^:}]*)(:REVIEW[^}]*)\}\}((?>.*?(?=\{\{/)))\{\{/(template|def|lambda|inline)?\}\}""".r //?s means DOTALL - multiline
 
   /** find a section */
   def section (stype: String, name: String) = {
@@ -331,10 +343,16 @@ case class WikiEntry(
 
   /** attributes are props perhaps overriden in content */
   def attr(name:String) : Option[String] =
-    // optimized to not parse if it's not in content
+  // optimized to not parse if it's not in content
     if(ipreprocessed.isDefined) contentProps.get(name).orElse(props.get(name))
     else if(content contains name) contentProps.get(name).orElse(props.get(name))
     else props.get(name)
+
+  /** either from me, parent or reactor */
+  def findAttr(name:String) : Option[String] =
+    // look at parent if child did not overwrite the setting
+    // todo fallback onto reactor
+    attr(name) orElse findParent.flatMap(_.attr(name))
 
   /** all the links from this page to others, based on parsed content */
   def ilinks = preprocessed.ilinks.filter(_.isInstanceOf[ILink]).asInstanceOf[List[ILink]]
@@ -375,7 +393,11 @@ case class WikiSection(original:String, parent: WikiEntry, stype: String, name: 
 
   def sign = Services.auth.sign(content)
 
-  def checkSignature(au:Option[WikiUser]) = Services.auth.checkSignature(sign, signature, au)
+  def checkSignature(au:Option[WikiUser]) =
+    if(signature startsWith "SIG")
+      Services.auth.checkSignature(sign, signature.substring(3), au)
+    else
+      Services.auth.checkSignature(sign, signature, au)
 
   def wid = parent.wid.copy(section=Some(name))
 

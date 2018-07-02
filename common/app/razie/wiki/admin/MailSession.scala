@@ -13,15 +13,15 @@ import razie.wiki.model.Wikis
 class MailSession extends BaseMailSession {
 
   /** name of website, used in subject */
-  val website = realm.flatMap(Website.forRealm).getOrElse(Website.dflt)
+  def website = realm.flatMap(Website.forRealm).getOrElse(Website.dflt)
 
   /** name of website, used in subject */
-  val RK = realm
+  def RK = realm
       .flatMap(Website.forRealm)
       .map(_.label)
       .getOrElse("RacerKidz")
 
-  val SUPPORT = website.supportEmail
+  def SUPPORT = website.supportEmail
 
   /** bottom section on each email */
   def bottom =

@@ -8,9 +8,9 @@ package razie.wiki.admin
 
 import java.util._
 import java.util.concurrent.TimeUnit
+
 import javax.mail._
 import javax.mail.internet._
-
 import akka.actor.{Actor, Props}
 import org.bson.types.ObjectId
 import org.joda.time.DateTime
@@ -22,6 +22,7 @@ import razie.wiki.Services
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import razie.clog
+import razie.hosting.Website
 
 /** a prepared email to send - either send now, later, backup etc */
 @RTable
@@ -74,15 +75,23 @@ class BaseMailSession(implicit mailSession: Option[Session] = None) {
   var emails: scala.List[EmailMsg] = Nil // collecting messages here to be sent at end
   var realm : Option[String] = None
 
-  var needsGmail = false
+  // if user defined, we need special props - defaults to gmail
+  def doesItNeedGmail = realm.flatMap(Website.forRealm).getOrElse(Website.dflt).prop("mail.smtp.user").isDefined
+
+  var needsGmail = doesItNeedGmail // likely with the wrong realm at this time...
 
   //in case you serve multiple websites - which one is in this session?
   // there are subject and reply email that may differ
-  def withRealm (s:Option[String]) = { realm=s; this}
+  def withRealm (s:Option[String]) = {
+    realm=s;
+    needsGmail = doesItNeedGmail
+    this
+  }
 
   // use local session
   lazy val session = mailSession getOrElse SendEmail.mkSession(
-    true, //!needsGmail, //emails.headOption.exists(_.isNotification), // let's do notifications for now
+    this,
+    !needsGmail, //true //emails.headOption.exists(_.isNotification), // let's do notifications for now
     false
   )
   private var transport:Option[Transport] = None;
@@ -144,14 +153,17 @@ object SendEmail extends razie.Logging {
   } // initialize lazy
 
   // set this from Global/Main, with your actual user/pass/email server combo
-  var mkSession : (Boolean, Boolean) => javax.mail.Session = {(test:Boolean,debug:Boolean)=>
+  var mkSession : (BaseMailSession, Boolean, Boolean) => javax.mail.Session = {(msession:BaseMailSession, test:Boolean,debug:Boolean)=>
     val props = new Properties();
 
     val session = if(test) {
+
       props.put("mail.smtp.host", "localhost");
       javax.mail.Session.getInstance(props,
         new SMTPAuthenticator("your@email.com", "big secret"))
+
     } else {
+
       props.put("mail.smtp.auth", "true");
       props.put("mail.smtp.starttls.enable", "true");
       props.put("mail.smtp.host", "smtp.gmail.com");
@@ -217,9 +229,17 @@ object SendEmail extends razie.Logging {
       case mailSession: MailSession => {
         //todo decrement if maxed below, also if ok keep sending only until the first error
         Audit.logdb("EMAIL_STATUS", s"$state MAIL.process session ${mailSession.emails.size} emails")
-        // 1. does it need gmail for hotmail?
-        def needs(s: String) = s.contains("hotmail.com") || s.contains("live.com") || s.contains("outlook.com") || s.contains("live.ca") || s.contains("hotmail.ca")
+
+        // 1. does it need gmail for hotmail? - these receivers need emails sent from a gmail address
+        def needs(s: String) =
+          s.contains("hotmail.com") ||
+            s.contains("live.com") ||
+            s.contains("outlook.com") ||
+            s.contains("live.ca") ||
+            s.contains("hotmail.ca")
+
         val mcount = mailSession.emails.count(e => needs(e.to))
+
         if (mcount != 0 && mcount != mailSession.emails.size) {
           // split in two sessions
           val m1 = new MailSession
@@ -234,18 +254,24 @@ object SendEmail extends razie.Logging {
 
           emailSender ! m1 // spawn sender
           emailSender ! m2 // spawn sender
+
         } else {
-          mailSession.needsGmail = mailSession.emails.count(e => needs(e.to)) == mailSession.emails.size
+
+          mailSession.needsGmail = mailSession.doesItNeedGmail || mcount == mailSession.emails.size
+
           // 2. see about sending it
+
           try {
             if (state == STATE_OK) {
               curCount += mailSession.emails.size
+
               mailSession.emails.reverse.collect {
                 // reuse session but on first failure, stop sending
                 case e: EmailMsg if state == STATE_OK => isend(e, mailSession)
                 case e: EmailMsg if state != STATE_OK => curCount -= 1
               }
             } else {
+
               if (System.currentTimeMillis() - lastBackoff > 15000) {
                 // don't send another test email sooner than half min
                 Audit.logdb("EMAIL_STATUS", s"$state EmailSender received ${mailSession.emails.size} messages while not OK, scheduling just one")
@@ -271,6 +297,7 @@ object SendEmail extends razie.Logging {
         val cnt = 10 - RMany[EmailMsg]().filter(_.shouldResend).size
 
         val x = RMany[EmailMsg]().filter(_.sendCount >= EmailMsg.MAX_RETRY_COUNT).take(cnt).toList
+
         Audit.logdb("EMAIL_STATUS", s"$state CMD_RESEND EmailSender $sss state=$state updating "+x.size)
         x.foreach { g =>
           // update all failed for resending once...
@@ -382,12 +409,16 @@ object SendEmail extends razie.Logging {
         val e = ie.copy(status = STATUS.SENDING, sendCount = ie.sendCount + 1, lastDtm = DateTime.now(), senderNode = Some(getNodeId))
         e.updateNoAudit
 
+        // for testing, we're not sending emails
         if (Services.config.hostport.startsWith("test") && NO_EMAILS_TESTNG ||
+
           Services.config.isLocalhost && (e.isNotification || NO_EMAILS || NO_EMAILS_TESTNG)) {
           // don't send emails when running test mode
           Audit.logdb("EMAIL_SENT_NOT", Seq("to:" + e.to, "from:" + e.from, "subject:" + e.subject, "body:" + e.html).mkString("\n"))
           e.copy(status = STATUS.SKIPPED, lastDtm = DateTime.now()).updateNoAudit
+
         } else
+
           try {
             val message: MimeMessage = mkMsg(e, mailSession)
 
@@ -432,8 +463,8 @@ object SendEmail extends razie.Logging {
             curCount -= 1
           }
       }
-
     }
+
     private def mkMsg(e: EmailMsg, mailSession: MailSession): MimeMessage = {
       val message = new MimeMessage(mailSession.session);
       message.setFrom(new InternetAddress(e.from));

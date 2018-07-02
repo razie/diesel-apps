@@ -12,6 +12,14 @@ object WTypes {
 
   final val INT="Int"
   final val FLOAT="Float"
+
+  final val BYTES="Bytes"
+
+  final val EXCEPTION="Exception"
+
+  final val UNKNOWN=""
+
+  final val appJson = "application/json"
 }
 
 /**
@@ -52,8 +60,8 @@ object RDOM {
   /** create a P with the best guess for type */
   def typified (n:String, s:Any) = {
     s match {
-      case s:Float => P(n, "").v[Float](s, WTypes.NUMBER)
-//      case s:Int => P(n, "").v[Int](s, "Number")
+      case s:Float => P(n, "").withValue[Float](s, WTypes.NUMBER)
+//      case s:Int => P(n, "").withValue[Int](s, "Number")
       case i: Int => P(n, i.toString, WTypes.NUMBER)
       case _ => {
         if (s.toString.trim.startsWith("{")) P(n, s.toString, WTypes.JSON)
@@ -77,16 +85,36 @@ object RDOM {
     * @param expr   expression - for sourced parms
     */
   case class P (name:String, dflt:String, ttype:String="", ref:String="", multi:String="", expr:Option[Expr]=None,
-                value:Option[PValue[_]] = None
+                var value:Option[PValue[_]] = None
                ) extends CM with razie.diesel.ext.CanHtml {
 
-    def v[T](va:T, ctype:String="") = this.copy(value=Some(PValue[T](va, ctype)))
+    def withValue[T](va:T, ctype:String="") = this.copy(value=Some(PValue[T](va, ctype)))
+
+    /** proper way to get the value */
+    def calculatedValue(implicit ctx: ECtx) : String =
+      if(dflt.nonEmpty || expr.isEmpty) dflt else expr.get.apply ("").toString
+
+    /** proper way to get the value */
+    def calculatedTypedValue(implicit ctx: ECtx) : PValue[_] =
+      value.getOrElse(
+        if(expr.isEmpty) PValue(dflt, "") else {
+          val v = expr.get.applyTyped("")
+          value = v.value // update computed value
+          value.getOrElse(PValue(v.dflt, ""))
+        }
+      )
+
+    /** me if calculated, otherwise another P, calculated */
+    def calculatedP(implicit ctx: ECtx) : P =
+      value.map(x=> this).getOrElse(
+        if(expr.isEmpty) this else {
+          val v = expr.get.applyTyped("")
+          v.copy(name=this.name)
+        }
+      )
 
     /** current calculated value if any or the expression */
     def valExpr = if(dflt.nonEmpty || expr.isEmpty) CExpr(dflt, ttype) else expr.get
-
-    def calculateValue(implicit ctx: ECtx) : String =
-      if(dflt.nonEmpty || expr.isEmpty) dflt else expr.get.apply ("").toString
 
     def strimmedDflt =
       if(dflt.size > 80) dflt.take(60) + "{...}"
