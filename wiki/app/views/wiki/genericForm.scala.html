@@ -1,0 +1,26 @@
+@**************
+show/edit/capture a note
+
+msg types are msg, err
+**************@
+@(url:String, title:String, text:String, fields:List[String], labels:Map[String,String]=Map.empty)(implicit stok:controllers.StateOk)
+
+@stok.title("Form")
+
+<h3>@title</h3>
+
+@id = @{1}
+
+<div class="well" style="padding-bottom:0px">
+
+@text
+
+<form action="@url" class="form-inline" method="post">
+
+  @fields.map { f =>
+    @labels.get(f).getOrElse(f) : <input id="@f" name="@f" value="" />
+  }
+
+  <input type="submit" value="Submit">
+</form>
+

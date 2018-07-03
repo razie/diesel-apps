@@ -1,0 +1,9 @@
+@******
+add form errors
+******@
+@(myForm: Form[_])(implicit stok: controllers.StateOk)
+
+@myForm.globalError.map { err=>
+  <p style="color:red;font-weight:bold">@err.message</p>
+}
+

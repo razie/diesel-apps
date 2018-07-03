@@ -1,0 +1,13 @@
+@***
+red text
+***@
+@(color:String)(html:Html)
+@color match {
+        case "red" => { <div class="alert alert-danger"> }
+        case "yellow" => { <div class="alert"> }
+        case "blue" => { <div class="alert alert-info"> }
+        case "green" => { <div class="alert alert-success"> }
+        case _ => { <div class="alert"> }
+}
+@html
+</div>

@@ -1,0 +1,49 @@
+@** add bootstrap classes to form fields **@
+@(dateFields:Seq[String] = Seq.empty)
+
+<script>
+require (['jquery'], function($){
+$('input[type="text"]:not([hidden])').addClass("form-control");
+$('input[type="email"]:not([hidden])').addClass("form-control");
+$('input[type="password"]:not([hidden])').addClass("form-control");
+$('select:not([hidden])').addClass("form-control");
+$('textarea:not([hidden])').addClass("form-control");
+});
+</script>
+
+
+@** date picker **@
+
+@if(dateFields.nonEmpty) {
+
+<link href="@routes.Assets.at("datepicker/css/bootstrap-datepicker.min.css")" rel="stylesheet">
+
+@*<script src="@routes.Assets.at("datepicker/css/bootstrap-datepicker.js")"></script>*@
+@*<script src="@routes.Assets.at("vendor/moment.js")"></script>*@
+
+<script>
+
+require(['jquery', '../datepicker/js/bootstrap-datepicker', '../vendor/moment'], function($) {
+
+function weFormSetupDate(name) {
+  $('input[name="'+name+'"]').datepicker({
+    format : 'yyyy-mm-dd',
+    autoclose: true,
+    keepOpen: false
+  });
+    $('input[name="'+name+'"]').on('changeDate', function(ev){
+    $('input[name="'+name+'"]').val(ev.target.value);
+    $('input[name="'+name+'"]').attr('value', ev.target.value);
+  });
+}
+
+@dateFields.map { f =>
+  weFormSetupDate('@f');
+}
+
+});
+
+</script>
+
+}
+

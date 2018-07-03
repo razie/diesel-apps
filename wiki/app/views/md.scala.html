@@ -1,0 +1,4 @@
+@* simple md template - you can embed MD text *@
+@(f: =>Html)(implicit stok:controllers.StateOk)
+@Html(razie.wiki.model.Wikis.sformat(f.toString(), "md", stok.au))
+
