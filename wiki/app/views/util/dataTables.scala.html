@@ -1,0 +1,42 @@
+@**************
+add data tables with sort pagination and search
+
+name is the ID of the table to upgrade
+**************@
+@(name: String, order: Seq[(Int, String)] = Seq.empty, paging: String = "false", pageLength: String = "-1")(implicit stok: controllers.StateOk)
+
+<link href="@routes.Assets.at("vendor/dataTables1.10.7.bootstrap.css")" rel="stylesheet" />
+
+<script >
+
+    /*
+      (function() {
+        var po = document.createElement('script'); po.type = 'text/javascript'; po.async = true;
+        po.src = 'https://apis.google.com/js/client:plusone.js';
+        var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(po, s);
+      })();
+    */
+
+    window.addEventListener('load', withJquery(function () {
+      require(['jquery', 'datatables', '../vendor/dataTables1.10.7.bootstrap'], function ($) {
+        var @name = $('#@name').dataTable({
+          'paging': @paging,
+          'lengthMenu': [[10, 25, 50, -1], [10, 25, 50, "All"]],
+          'pageLength': @pageLength,
+          'order': []
+        });
+
+        @if(order.size > 0) {
+        @{name}.api().order(
+            @order.map { t =>
+            [@t._1, "@t._2"]
+            }
+        );
+        }
+
+//        @{name}.draw();
+      });
+    }));
+</script>
+
+

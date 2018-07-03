@@ -1,0 +1,22 @@
+@()
+@import helper.twitterBootstrap._
+@import play.api.Play.current
+@import play.api.i18n.Messages.Implicits._
+
+@***** recaptcha ********@
+
+<script type="text/javascript">
+  var onloadCallback = function() {
+        grecaptcha.render('withrec', {
+          'sitekey' : '6Ldg3R8TAAAAABUziKbTSYZJIWUYSA7cwSz6uBBn'
+        });
+      };
+</script>
+
+<div id="withrec">
+</div>
+
+<script src="https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit" async defer>
+</script>
+
+

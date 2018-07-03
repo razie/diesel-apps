@@ -1,0 +1,68 @@
+@******
+simple popul modal confirmation for freaky stuff
+******@
+@()
+
+@modal(title:String,  button:String) = {
+
+  <div id="myModal2" class="modal fade">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close" aria-hidden="true">&times;</button>
+          <h3>@title</h3>
+        </div>
+        <div class="modal-body">
+          <textarea id="modalNoteEdit" rows="5" cols="60"></textarea>
+          <input id="modalNoteEditName" hidden></input>
+          <input id="modalNoteEditFormName" hidden></input>
+        </div>
+        <div class="modal-footer">
+          <a href="#" class="btn btn-default" data-dismiss="modal">Cancel</a>
+          <a href="#" onclick="return weNoteEdited();" class="btn btn-success">@button</a>
+        </div>
+      </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+  </div><!-- /.modal -->
+}
+
+@modal("Add/edit note", "Done")
+
+<script>
+require(['jquery'], function($) {
+  $('textarea:not([hidden])').addClass("form-control");
+});
+
+function weNoteEditPopup (frm, name, content) {
+  $("#modalNoteEdit").val(content);
+  $("#modalNoteEditName").val(name);
+  $("#modalNoteEditFormName").val(frm);
+  $("#myModal2").modal('show');
+
+  // close on ESC
+  $(document).keyup(function(e) {
+    if (e.keyCode == 27) { // escape key maps to keycode `27`
+      $("#oneModal").modal('hide');
+    }
+    if (e.keyCode == 13) { // escape key maps to keycode `27`
+      weNoteEdited();
+    }
+  });
+}
+
+function weNoteEdited () {
+  var frm = $("#modalNoteEditFormName").val();
+  var name = $("#modalNoteEditName").val();
+  var content = $("#modalNoteEdit").val();
+  $("#myModal2").modal('hide');
+  if(typeof weFormEditedNote != "undefined")
+    weFormEditedNote(frm, name, content);
+
+  // close on ESC
+  $(document).keyup(function(e) {
+  });
+
+  return false;
+}
+</script>
+

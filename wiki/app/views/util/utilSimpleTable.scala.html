@@ -1,0 +1,43 @@
+@*********
+FRAGMENT create a html table from a user collection
+col = collection, list of nvp
+cols = (key,label)
+@func.map(_.apply(row, k, (if(db.get(k)==null) null else db.get(k).toString))).getOrElse(db.get(k))
+
+to hide a column, map it to an empty label
+
+to use personal row class, hook the "rowClass" column in
+*********@
+
+@(col:Iterator[Map[String,String]], cols:Seq[(String,String)], func:Option[(Map[String,String],String,String)=>Html] = None)
+
+@import com.mongodb.casbah.Imports._
+@import org.joda.time.DateTime
+
+<hr>
+
+<table class="table table-striped">
+<thead>
+  <tr>
+    @cols.collect { case (k,l) if(l != null && l.length>0) =>
+      <th>@l</th>
+    }
+  </tr>
+</thead>
+@col.map { db =>
+  <tr @func.map(_.apply(db, "rowClass", "")).getOrElse("") >
+    @cols.collect { case (k,l) if(l != null && l.length>0) =>
+      <td>
+      @{
+      db.get(k) match {
+        case None | Some(null) => func.map(_.apply(db, k, null)).getOrElse("")
+        case Some(x) => func.map(_.apply(db, k, x.toString)).getOrElse(x)
+        }
+      }
+      </td>
+    }
+  </tr>
+}
+</table>
+
+<hr>

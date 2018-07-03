@@ -1,0 +1,14 @@
+@******
+simple popul modal confirmation for freaky stuff
+******@
+@(what:String, details:String, href:String, btnClass:String="btn btn-error")
+
+@modal(title:String, body:String, button:String, href:String, btnClass:String="btn btn-info") = {
+
+  <button type="button" class="@btnClass"
+    onclick="confirmThis('@title', '@body', '@button', '@href', '@btnClass')">@button</button>
+}
+
+@modal("Are you sure?", details, what, href, btnClass)
+
+

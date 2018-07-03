@@ -1,0 +1,56 @@
+@******
+simple popul modal confirmation for freaky stuff
+******@
+@()
+
+  <div id="confirmModal" class="modal fade">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close" aria-hidden="true">&times;</button>
+          <h3>title</h3>
+        </div>
+        <div class="modal-body">
+          <p>body</p>
+        </div>
+        <div class="modal-footer">
+          <a href="#" class="btn btn-default" data-dismiss="modal">Nah!</a>
+          <a id="confirmLink" href="href" class="btnClass">button</a>
+        </div>
+      </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+  </div><!-- /.modal -->
+
+
+<script>
+    function confirmModalHide() {
+      $("#confirmModal").modal('hide');
+    }
+
+    function confirmThis (title,body,button,href,btnClass) {
+      $("#confirmModal > div > div > div.modal-body").html(body);
+      $("#confirmModal > div > div > div > h3").text(title);
+      $("#confirmLink").attr("href", href);
+      $("#confirmLink").text(button);
+      $("#confirmLink").removeClass();
+      $("#confirmLink").addClass(btnClass);
+
+      $("#confirmModal").modal('show');
+    }
+
+    require(['jquery'], function($){
+
+    // clear modal contents on close
+    $('#confirmModal').on('hidden.bs.modal', function (e) {
+      $("#confirmModal > div > div > div.modal-body").html('...');
+    })
+
+    // close on ESC
+    $(document).keyup(function(e) {
+      if (e.keyCode == 27) { // escape key maps to keycode `27`
+        $("#confirmModal").modal('hide');
+      }
+    });
+    });
+</script>
+

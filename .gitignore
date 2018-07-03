@@ -6,6 +6,7 @@
 .classpath
 target/
 dist/
+libexec/
 bin/
 lib_managed/
 project/project/

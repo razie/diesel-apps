@@ -1,0 +1,16 @@
+@(myForm:Form[_], field:String, label:String)
+
+@import helper.twitterBootstrap._
+@import play.api.Play.current
+@import play.api.i18n.Messages.Implicits._
+
+@if(label != null && label.length>0) {
+  @helper.inputText(
+    myForm(field),
+    '_label -> label,
+    '_showConstraints -> false)
+} else {
+  @helper.inputText(
+    myForm(field),
+    '_showConstraints -> false)
+}

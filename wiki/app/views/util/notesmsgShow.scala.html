@@ -3,10 +3,12 @@ paint the first message
 **************@
 @(name:String, msg:Seq[(String,String)])
 
-<script>
+<script async>
 
 @if(msg.size>0) {
+razOnLoad(function(){
   notesMsgShow("@msg(0)._1", "@msg(0)._2");
+});
   }
 
 </script>

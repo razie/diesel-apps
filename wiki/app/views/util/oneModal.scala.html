@@ -1,0 +1,78 @@
+@**************
+add a modal popup to a page
+
+@util.oneModal() // to include
+popupContent (text)
+OR
+popupUrl(url)
+**************@
+@()
+
+<div id="oneModal" class="modal fade">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-body">
+        <p>?</p>
+      </div>
+    </div><!-- /.modal-content -->
+  </div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+
+<script>
+
+function oneModalHide () {
+  $("#oneModal").modal('hide');
+}
+
+//function updatePopupContent (content) {
+//  $("#oneModal").modal('hide');
+//  $("#oneModal > div > div > div.modal-body").text(content);
+//  $("#oneModal").modal('show');
+//}
+
+function popupError (content) {
+  loadInDivContent("#oneModal > div > div > div.modal-body",
+      '<div class="alert alert-danger">' + content + '</div>'
+  );
+  $("#oneModal").modal('show');
+}
+
+function popupContent (content) {
+    loadInDivContent("#oneModal > div > div > div.modal-body", content);
+    $("#oneModal").modal('show');
+  }
+
+function  loadInDivContent(div, content, complete) {
+    $(div).html(content);
+  }
+
+function popupUrl (url) {
+    loadInDiv("#oneModal > div > div > div.modal-body", url);
+    $("#oneModal").modal('show');
+  }
+
+function loadInDiv (div, url, complete) {
+    $.ajaxSetup({
+//    dataFilter:lookupLabels(url),
+    cache: false
+    });
+
+    $(div).load(url, complete);
+  }
+
+withJquery(function() {
+    // clear modal contents on close
+    $('#oneModal').on('hidden.bs.modal', function (e) {
+        $("#oneModal > div > div > div.modal-body").html('...');
+    })
+
+// close on ESC
+$(document).keyup(function(e) {
+  if (e.keyCode == 27) { // escape key maps to keycode `27`
+    $("#oneModal").modal('hide');
+  }
+});
+});
+
+</script>
+

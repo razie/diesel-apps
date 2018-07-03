@@ -1,0 +1,18 @@
+@(myForm:Form[_], field:String, label:String, args : scala.Tuple2[scala.Symbol, scala.Any]*)
+
+@import helper.twitterBootstrap._
+@import play.api.Play.current
+@import play.api.i18n.Messages.Implicits._
+
+@if(label != null && label.length>0) {
+  @helper.inputText(
+    myForm(field),
+    (Seq('_label -> label, '_showConstraints -> false ) ++ args):_*
+  )
+} else {
+  @helper.inputText(
+    myForm(field),
+    (Seq('_showConstraints -> false) ++ args):_*
+  )
+}
+
