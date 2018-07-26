@@ -1,7 +1,7 @@
 package tests
 
 import razie.tconf.BaseTextSpec
-import razie.wiki.parser.{DomParser, SimpleSpecParser}
+import razie.wiki.parser.{DomParser, ExprParser, SimpleSpecParser}
 
 /** the simplest spec - uses the Sample parser we created here */
 case class SampleTextSpec (override val name:String, override val text:String) extends BaseTextSpec(name, text) {
@@ -17,4 +17,5 @@ class SampleTextParser(val realm: String) extends SimpleSpecParser with DomParse
   // include the rules to parse the domainBlocks
   withBlocks(domainBlocks)
 }
+
 

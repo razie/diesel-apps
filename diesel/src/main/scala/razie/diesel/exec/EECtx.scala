@@ -10,6 +10,7 @@ import org.apache.commons.codec.digest.DigestUtils
 import razie.clog
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom.{RDOM, _}
+import razie.diesel.engine.DomEngineSettings.DIESEL_USER_ID
 import razie.diesel.engine.{DEStartTimer, DieselAppContext, DomEngECtx}
 import razie.diesel.ext.{MatchCollector, _}
 import razie.wiki.Base64
@@ -220,7 +221,11 @@ class EECtx extends EExecutor("ctx") {
       }
 
       case "authUser" => {
-        val uid = ctx.root.asInstanceOf[DomEngECtx].engine.flatMap(_.settings.userId)
+        val uid =
+          // the engine got it from the session/cookie
+          ctx.root.asInstanceOf[DomEngECtx].engine.flatMap(_.settings.userId) orElse
+          // or some test set it
+          ctx.get(DIESEL_USER_ID)
 
         // todo lookup the user - either in DB or wix
         if(uid.isDefined)
@@ -228,6 +233,18 @@ class EECtx extends EExecutor("ctx") {
         else
           new EError(s"ctx.authUser - User not auth") ::
           new EEngStop(s"User not auth") :: Nil
+      }
+
+      case "setAuthUser" => {
+        /** run tests in the context of a user, configurable per domain */
+        val uid = ctx.root.asInstanceOf[DomEngECtx].engine.flatMap(_.settings.userId)
+
+        if(uid.isEmpty) {
+          // todo make configurable in Website - via engine settings somehow
+          ctx.put(P(DIESEL_USER_ID, "4fdb5d410cf247dd26c2a784")) // use some standard account like Harry
+          new EInfo("User is now auth ") :: Nil
+        } else
+          new EInfo("User was already auth ") :: Nil
       }
 
       case s@_ => {
@@ -255,5 +272,6 @@ class EECtx extends EExecutor("ctx") {
       EMsg("ctx", "foreach") ::
       EMsg("ctx", "debug") ::
       EMsg("ctx", "authUser") ::
+      EMsg("ctx", "setAuthUser") ::
       Nil
 }

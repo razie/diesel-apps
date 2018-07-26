@@ -43,6 +43,8 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
 
   def dieselReactor:String = this prop "dieselReactor" OR reactor
 
+  def stylesheet:Option[WID] = this wprop "stylesheet"
+
   def join:String = this prop "join" OR "/doe/join"
   def parent:Option[WID] = this wprop "parent"
   def skipParent:Option[WID] = this wprop "skipParent"

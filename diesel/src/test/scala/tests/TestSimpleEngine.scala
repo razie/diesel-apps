@@ -15,9 +15,9 @@ class TestSimpleSpec extends TestKit(ActorSystem("x")) with WordSpecLike with Mu
 
   DieselAppContext.setActorSystem(system)
 
-  override def afterAll {
-    TestKit.shutdownActorSystem(system)
-  }
+//  override def afterAll {
+//    TestKit.shutdownActorSystem(system)
+//  }
 
   "can parse" should {
     "nothing" in {
