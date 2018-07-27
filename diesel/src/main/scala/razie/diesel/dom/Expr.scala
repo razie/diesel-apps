@@ -303,6 +303,9 @@ case class BCMP2(a: Expr, op: String, b: Expr) extends BExpr(a.toDsl + " " + op 
         }
       }
       case _ => {
+        def ap = a.applyTyped(in)
+        def bp = b.applyTyped(in)
+
         op match {
           case "?=" => a(in).toString.length >= 0 // anything with a default
           case "==" => a(in) == b(in)
@@ -317,27 +320,39 @@ case class BCMP2(a: Expr, op: String, b: Expr) extends BExpr(a.toDsl + " " + op 
 
           case "is" => {
             val as = a(in).toString
+
             // is nuber or is date or is string etc
             if(b.toString == "defined") {
               as.length > 0
-            } else if(b.toString == "empty") {
+            } else if(b.toString == "empty" || b.toString == "undefined") {
               as.length == 0
             } else {
-              a.isInstanceOf[CExpr] && b.isInstanceOf[AExprIdent] && (
-                a.asInstanceOf[CExpr].ttype.toLowerCase == b.asInstanceOf[AExprIdent].expr.toLowerCase ||
-                "string" == b.asInstanceOf[AExprIdent].expr.toLowerCase &&
-                  a.asInstanceOf[CExpr].ttype.length == 0 ||
-                  "number" == b.asInstanceOf[AExprIdent].expr.toLowerCase &&
-                    a.asInstanceOf[CExpr].expr.matches("[0-9]+")
-                ) ||
+
+              /* x is TYPE */
+              if(b.isInstanceOf[AExprIdent]) (
+
+                /* x is TYPE */
+                a.getType.toLowerCase == b.asInstanceOf[AExprIdent].expr.toLowerCase ||
+
+                /* x is string */
+//                "string" == b.asInstanceOf[AExprIdent].expr.toLowerCase &&
+//                  a.getType.length == 0 ||
+//
+                /* x is string but matches number */
+                "number" == b.asInstanceOf[AExprIdent].expr.toLowerCase &&
+                   as.matches("[0-9.]+")
+                )
+              else
+                /* if type expr not known, then behave like equals */
                 (as == b(in).toString)
-              // if not known type expr, then behave like equals
             }
           }
 
           case "not" if b.toString == "defined" => a(in).toString.length <= 0
           case "not" if b.toString == "empty" => a(in).toString.length > 0
-          case "not" => a(in) != b(in)
+
+            // also should be defined...
+          case "not" => a(in).toString.length > 0 && a(in) != b(in)
 
           case _ => {
             clog << "[ERR Operator " + op + " UNKNOWN!!!]";

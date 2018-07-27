@@ -442,8 +442,8 @@ trait DomParser extends ParserBase with ExprParser {
   /**
     * .expect object.func (a,b)
     */
-  def pexpect: PS = keyw("[.$]expect".r <~ ws) ~ opt("not" <~ ws) ~ opt(qclsMet) ~ optMatchAttrs ~ opt(pif) <~ " *".r ^^ {
-    case k ~ not ~ qcm ~ attrs ~ cond => {
+  def pexpect: PS = keyw("[.$]expect".r <~ ws) ~ opt("not" <~ ws) ~ opt(qclsMet) ~ optMatchAttrs ~ " *".r ~ opt(pif) <~ " *".r ^^ {
+    case k ~ not ~ qcm ~ attrs ~ _ ~ cond => {
       lazys { (current, ctx) =>
         val pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
         val f = qcm.map(qcm =>

@@ -6,6 +6,7 @@
  */
 package razie.diesel.engine
 
+import jdk.nashorn.internal.runtime.Undefined
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 
@@ -19,6 +20,7 @@ class DieselJs (val ctx:ECtx) {
       p match {
         case Some(x) if x.ttype == "JSON" => x.dflt // todo json type to object
         case Some(x) => x.dflt
+        case None => Undefined.getUndefined // should I ?
       }
     }
 

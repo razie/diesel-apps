@@ -22,7 +22,7 @@ trait ExprParser extends RegexParsers {
   def ows = opt(whiteSpace)
 
   /** a regular ident but also '...' */
-  def ident: P = """[\w]+""".r | """'[\w -]+'""".r ^^ {
+  def ident: P = """[a-zA-Z_][\w]*""".r | """'[\w -]+'""".r ^^ {
     case s =>
       if(s.startsWith("'") && s.endsWith("'"))
         s.substring(1, s.length-1)

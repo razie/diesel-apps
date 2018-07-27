@@ -17,7 +17,12 @@ import razie.wiki.Base64
 
 import scala.collection.mutable
 
-class EECtx extends EExecutor("ctx") {
+object EECtx {
+  final val CTX = "ctx"
+}
+
+class EECtx extends EExecutor(EECtx.CTX) {
+  import EECtx.CTX
 
   /** map of active contexts per transaction */
   val contexts = new mutable.HashMap[String, ECtx]()
@@ -25,7 +30,7 @@ class EECtx extends EExecutor("ctx") {
   override def isMock: Boolean = true
 
   override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
-    m.entity == "ctx"
+    m.entity == CTX
   }
 
   override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = {
@@ -256,22 +261,22 @@ class EECtx extends EExecutor("ctx") {
   override def toString = "$executor::ctx "
 
   override val messages: List[EMsg] =
-    EMsg("ctx", "persisted") ::
-      EMsg("ctx", "log") ::
-      EMsg("ctx", "echo") ::
-      EMsg("ctx", "test") ::
-      EMsg("ctx", "engineSync") ::
-      EMsg("ctx", "storySync") :: // processed by the story teller
-      EMsg("ctx", "storyAsync") :: // processed by the story teller
-      EMsg("ctx", "clear") ::
-      EMsg("ctx", "timer") ::
-      EMsg("ctx", "sleep") ::
-      EMsg("ctx", "set") ::
-      EMsg("ctx", "setAll") ::
-      EMsg("ctx", "sha1") ::
-      EMsg("ctx", "foreach") ::
-      EMsg("ctx", "debug") ::
-      EMsg("ctx", "authUser") ::
-      EMsg("ctx", "setAuthUser") ::
+    EMsg(CTX, "persisted") ::
+      EMsg(CTX, "log") ::
+      EMsg(CTX, "echo") ::
+      EMsg(CTX, "test") ::
+      EMsg(CTX, "engineSync") ::
+      EMsg(CTX, "storySync") :: // processed by the story teller
+      EMsg(CTX, "storyAsync") :: // processed by the story teller
+      EMsg(CTX, "clear") ::
+      EMsg(CTX, "timer") ::
+      EMsg(CTX, "sleep") ::
+      EMsg(CTX, "set") ::
+      EMsg(CTX, "setAll") ::
+      EMsg(CTX, "sha1") ::
+      EMsg(CTX, "foreach") ::
+      EMsg(CTX, "debug") ::
+      EMsg(CTX, "authUser") ::
+      EMsg(CTX, "setAuthUser") ::
       Nil
 }

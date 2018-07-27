@@ -9,7 +9,7 @@ package razie.base.scriptingx
 import javax.script.ScriptEngineManager
 import jdk.nashorn.api.scripting.{ClassFilter, NashornScriptEngineFactory, ScriptObjectMirror}
 import razie.audit.Audit
-import razie.{CSTimer, Logging, csys}
+import razie.{CSTimer, Logging, csys, js}
 
 import scala.util.Try
 
@@ -116,6 +116,7 @@ object JsScripster extends Logging {
     }
   }
 
+  /** allow for values that contain " - strip that */
   def typeSafe(v: String): String = {
     if (v.trim.startsWith("\"") || v.trim.startsWith("'") || v.trim.startsWith("{") || v.trim.startsWith("[")) v
     else Try {
@@ -125,6 +126,7 @@ object JsScripster extends Logging {
     }
   }
 
+  /** allow for values that contain " - strip that */
   def jstypeSafe(v: String): Any = {
     if (v.trim.startsWith("\"") || v.trim.startsWith("'")) v.replaceFirst("[\"']([^\"']*)[\"']", "$1")
     else if (v.trim.startsWith("{") || v.trim.startsWith("[")) v
@@ -135,7 +137,11 @@ object JsScripster extends Logging {
     } //"'"+v+"'" }
   }
 
-  def qtojson(q: Map[String, String]) = "{" + q.map(t => s"""'${t._1}' : ${typeSafe(t._2)} """).mkString(",") + "}"
+  /** old qtoj - manual, no escaping etc - bad idea */
+  def qtojson1(q: Map[String, String]) = "{" + q.map(t => s"""'${t._1}' : ${typeSafe(t._2)} """).mkString(",") + "}"
+
+  /** new qtoj - use json object via js */
+  def qtojson(q: Map[String, String]) = js.tojsons(q.map(t=>(t._1, jstypeSafe(t._2))))
 
   def qtourl(q: Map[String, String]) = q.map(t => s"""${t._1}=${t._2}""").mkString("&")
 
