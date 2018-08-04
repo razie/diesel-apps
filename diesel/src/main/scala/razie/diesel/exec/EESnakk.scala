@@ -148,7 +148,7 @@ class EESnakk extends EExecutor("snakk") {
             clog << "Snakking CURL: "
             clog << sc.toCurl
 
-            eres += EInfo("Snakking " + x.url, Enc.escapeHtml(sc.toJson)).withPos(pos)
+            eres += EInfo("Snakking " + x.toString, Enc.escapeHtml(sc.toJson)).withPos(pos)
 
             response = sc.body // make the call
 
@@ -255,7 +255,7 @@ class EESnakk extends EExecutor("snakk") {
               val response = sc.telnet("localhost", "9000", sc.postContent, Some(eres))
               new EEContent(sc.body, "application/text", None)
             } else {
-              eres += EInfo("Snakking " + ux.url, Enc.escapeHtml(sc.toJson)).withPos(pos)
+              eres += EInfo("Snakking " + urlx, Enc.escapeHtml(sc.toJson)).withPos(pos)
               val response = sc.body
               new EEContent(sc.body, sc.iContentType.getOrElse(""), sc.root)
             }
@@ -286,7 +286,7 @@ class EESnakk extends EExecutor("snakk") {
       case t: Throwable => {
         razie.Log.log("error snakking", t)
 
-        eres += EError("Error snakking: " + urlx, t.toString) ::
+        eres += //EError("Error snakking: " + urlx, t.toString) ::
           new EError("Exception : ", t) ::
           EInfo("Response: ", Enc.escapeHtml(response)) :: Nil
       }

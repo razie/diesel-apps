@@ -303,7 +303,8 @@ case class EError(msg: String, details: String = "") extends CanHtml with HasPos
 
   override def toHtml =
     if (details.length > 0)
-      span("error::", "danger", details, "style=\"cursor:help\"") + " " + msg
+      spanClick("error::", "danger", details) + msg
+//      span("error::", "danger", details, "style=\"cursor:help\"") + " " + msg
     else
       span("error::", "danger", details) + " " + msg
 
