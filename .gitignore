@@ -4,6 +4,7 @@
 .settings/
 .project
 .classpath
+.cache-*
 target/
 dist/
 libexec/
