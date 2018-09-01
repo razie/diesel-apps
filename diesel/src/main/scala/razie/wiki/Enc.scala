@@ -45,12 +45,19 @@ object Sec {
     def encUrl = Enc toUrl s
     def decUrl = Enc fromUrl s
   }
+
+    def enc(s:String) = EncryptService.impl.enc(s)
+    def dec(s:String) = EncryptService.impl.dec(s)
+    def encBase64(s:String) = Base64 enc s
+    def decBase64(s:String) = Base64 dec s
+    def encUrl(s:String) = Enc toUrl s
+    def decUrl(s:String) = Enc fromUrl s
 }
 
 /** base 64 utility */
 object Base64 {
   import org.apache.commons.codec.binary.Base64
-  def enc(s: String) = new Base64(true).encode(s)
+  def enc(s: String) = new Base64(true).encode(s.getBytes)
   def dec(s: String) = new Base64(true).decode(s)
 }
 
@@ -82,8 +89,8 @@ object Enc {
   }
 
   // escape html characters
-  def escapeHtml (s:String) = s.replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("\"", "&quot;")
-  def unescapeHtml (s:String) = s.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", "\"")
+  def escapeHtml (s:String) = s.replaceAllLiterally("<", "&lt;").replaceAll(">", "&gt;").replaceAll("\"", "&quot;")
+  def unescapeHtml (s:String) = s.replaceAllLiterally("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", "\"")
 }
 
 object EncUrl {

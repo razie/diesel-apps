@@ -31,6 +31,9 @@ object Autosave {
   private def rec(what:String, realm:String, name:String, userId: ObjectId) =
     ROne[Autosave]("what" -> what, "realm" -> realm, "name" -> name, "userId" -> userId)
 
+  def findAll(realm:String, name:String, userId: ObjectId) =
+    ROne[Autosave]("realm" -> realm, "name" -> name, "userId" -> userId)
+
   /** create or update */
   def set(what:String, realm:String, name:String, userId: ObjectId, c:Map[String,String]) =
     rec(what, realm, name, userId)

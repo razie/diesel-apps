@@ -145,9 +145,21 @@ trait DomParser extends ParserBase with ExprParser {
 
   /**
     */
-  def pif: Parser[EIf] =
+  def pif: Parser[EIf] = pifc | pifm
+
+  /**
+    */
+  def pifc: Parser[EIf] =
+    """[.$]ifc""".r ~> ows ~> optCond ^^ {
+            case b : Option[BExpr] if b.isDefined => EIfc(b.get)
+            case _ => EIfc(BExprFALSE)
+    }
+
+  /**
+    */
+  def pifm: Parser[EIf] =
     """[.$]if""".r ~> ows ~> optMatchAttrs ^^ {
-      case aa => EIf(aa)
+      case a : List[PM] => EIfm(a)
     }
 
   /**
@@ -188,7 +200,7 @@ trait DomParser extends ParserBase with ExprParser {
     keyw("""[.$]mock""".r) ~ ws ~ clsMatch ~ ws ~ opt(pif) ~ rep(pgen)  <~ " *".r ^^ {
       case k ~ _ ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ gen => {
         val x = EMatch(ac, am, aa, cond)
-        val f = EMock(ERule(x, gen))
+        val f = EMock(ERule(x, "mock", gen))
         f.pos = Some(EPos(wpath, k.pos.line, k.pos.column))
         f.rule.pos = Some(EPos(wpath, k.pos.line, k.pos.column))
         f
@@ -196,15 +208,20 @@ trait DomParser extends ParserBase with ExprParser {
     }
 
   /**
-    * .when a.role (attrs) => z.role (attrs)
+    * .when <tags> a.role (attrs) => z.role (attrs)
+    * tags are optional and could be rule, mock, model, impl etc
+    * - rule is the default for execution
+    * - mock is for mocks
+    * - others like model or impl are specific
     */
   def pwhen: PS =
-    keyw("""[.$]when|[.$]mock""".r) ~ ws ~ clsMatch ~ ws ~ opt(pif) ~ rep(pgen) ^^ {
-      case k ~ _ ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ gens => {
+    keyw("""[.$]when|[.$]mock""".r) ~ ws ~ optArch ~ clsMatch ~ ws ~ opt(pif) ~ rep(pgen) ^^ {
+      case k ~ _ ~ oarch ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ gens => {
         lazys { (current, ctx) =>
           val x = EMatch(ac, am, aa, cond)
           val wpath = ctx.we.map(_.specPath.wpath).mkString
-          val r = ERule(x, gens.map(m=>m.withPosition(m.pos.get.copy(wpath=wpath))))
+          val arch = oarch.filter(_.length > 0).getOrElse(k.s) // archetype
+          val r = ERule(x, arch, gens.map(m=>m.withPosition(m.pos.get.copy(wpath=wpath))))
           r.pos = Some(EPos(wpath, k.pos.line, k.pos.column))
           val f = if (k.s contains "when") r else EMock(r)
           addToDom(f).ifold(current, ctx)
@@ -275,9 +292,16 @@ trait DomParser extends ParserBase with ExprParser {
   /**
     * optional attributes
     */
-  def optMatchAttrs: Parser[List[RDOM.PM]] = opt(" *\\(".r ~> ows ~> repsep(pmatchattr, "," ~ ows) <~ ows <~ ")") ^^ {
+  private def optMatchAttrs: Parser[List[RDOM.PM]] = opt(" *\\(".r ~> ows ~> repsep(pmatchattr, ows ~> "," ~ ows) <~ ows <~ ")") ^^ {
     case Some(a) => a
     case None => List.empty
+  }
+
+  /**
+    * optional condition / expression
+    */
+  private def optCond: Parser[Option[BExpr]] = opt(" *\\(".r ~> ows ~> cond <~ ows <~ ")") ^^ {
+    case x => x
   }
 
   // ?
@@ -396,12 +420,16 @@ trait DomParser extends ParserBase with ExprParser {
     }
   }
 
+  private def optArch : Parser[Option[String]] = opt("<" ~> "[^>]+".r <~ "> *".r) ^^ {
+    case s => s
+  }
+
   /**
     * .msg object.func (a,b)
     *
     * An NVP is either the spec or an instance of a function call, a message, a data object... whatever...
     */
-  def pmsg: PS = keyw("[.$]msg *".r) ~ opt("<" ~> "[^>]+".r <~ "> *".r) ~ qclsMet ~ optAttrs ~ opt(" *(:|=>) *".r ~> optAttrs) <~ " *".r ^^ {
+  def pmsg: PS = keyw("[.$]msg *".r) ~ optArch ~ qclsMet ~ optAttrs ~ opt(" *(:|=>) *".r ~> optAttrs) <~ " *".r ^^ {
     case k ~ stype ~ qcm ~ attrs ~ ret => {
       lazys { (current, ctx) =>
 
@@ -448,7 +476,7 @@ trait DomParser extends ParserBase with ExprParser {
         val pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
         val f = qcm.map(qcm =>
           ExpectM(not.isDefined, EMatch(qcm._1, qcm._2, attrs, cond)).withPos(pos))
-          .getOrElse(ExpectV(not.isDefined, attrs).withPos(pos))
+          .getOrElse(ExpectV(not.isDefined, attrs, cond).withPos(pos))
         collectDom(f, ctx.we)
         SState(f.toHtml + "<br>")
       }

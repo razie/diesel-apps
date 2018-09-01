@@ -14,6 +14,7 @@ import razie.diesel.engine.RDExt._
 import razie.diesel.ext.{BFlowExpr, FlowExpr, MsgExpr, SeqExpr, _}
 import razie.diesel.utils.DomCollector
 import razie.tconf.DSpec
+import razie.wiki.Enc
 
 import scala.Option.option2Iterable
 import scala.collection.mutable.ListBuffer
@@ -102,12 +103,12 @@ class DomEngine(
   /** collect generated values */
   def resultingValues() = root.collect {
     // todo see in Api.irunDom, trying to match them to the message sent in...
-    case d@DomAst(EVal(p), /*"generated"*/ _, _, _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.dflt)
+    case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.dflt)
   }
 
   /** collect the last generated value OR empty string */
   def resultingValue = root.collect {
-    case d@DomAst(EVal(p), /*"generated"*/ _, _, _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.dflt)
+    case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.dflt)
   }.lastOption.map(_._2).getOrElse("")
 
   val rules = dom.moreElements.collect {
@@ -376,10 +377,17 @@ class DomEngine(
     result
   }
 
+  /** add built-in triggers */
+  private def prepRoot(l:ListBuffer[DomAst]) : ListBuffer[DomAst] = {
+    l.prepend(DomAst(EMsg("diesel", "before"), AstKinds.BUILTIN))
+    l.append(DomAst(EMsg("diesel", "after"), AstKinds.BUILTIN))
+    l
+  }
+
   /** process only the tests - synchronously */
   def processTests = {
     Future {
-      root.children.filter(_.kind == "test").foreach(expand(_, true, 1))
+      prepRoot(root.children.filter(_.kind == "test")).foreach(expand(_, true, 1))
       this
     }
   }
@@ -396,7 +404,7 @@ class DomEngine(
 
       // async start
       //    val msgs = root.children.toList.map{x=>
-      val msgs = findFront(root, root.children.toList).toList.map { x =>
+      val msgs = findFront(root, prepRoot(root.children).toList).toList.map { x =>
         x.status = DomState.LATER
         DEReq(id, x, true, 0)
       }
@@ -546,7 +554,7 @@ class DomEngine(
             Some(DomAst(x, AstKinds.GENERATED).withSpec(r))
         }
         case x: ENext => {
-          Some(DomAst(x, AstKinds.GENERATED).withSpec(r))
+          Some(DomAst(x, AstKinds.NEXT).withSpec(r))
         }
         case x @ _ => {
           Some(DomAst(x, AstKinds.GENERATED).withSpec(r))
@@ -590,23 +598,8 @@ class DomEngine(
 
     // if the message attrs were expressions, calculate their values
     val n: EMsg = in.copy(
-      attrs = in.attrs.map {p=>
-        // only calculate if not already calculated =likely in a different context=
-        val pres = if(p.dflt.nonEmpty) p else p.expr.map(_.applyTyped("")).getOrElse(p)
-
-        p.copy(
-          dflt = pres.dflt,
-
-          // interpolate type
-          ttype = if(pres.ttype.nonEmpty) pres.ttype else p.expr match {
-              // expression type known?
-            case Some(CExpr(_, WTypes.STRING)) => WTypes.STRING
-            case Some(CExpr(_, WTypes.NUMBER)) => WTypes.NUMBER
-            case _ => pres.ttype
-          },
-
-          value = pres.value
-        )
+      attrs = in.attrs.map { p =>
+        p.calculatedP // only calculate if not already calculated =likely in a different context=
       }
     )
 
@@ -841,12 +834,20 @@ class DomEngine(
 
         val values = vvals.map(_.value.asInstanceOf[EVal].p)
 
-        if (vvals.size > 0 && e.test(values, Some(cole), vvals)(newctx))
+        if (vvals.size > 0 &&
+          !e.applicable(values)(newctx)) {
+          a.children append DomAst(
+            TestResult("n/a").withPos(e.pos),
+            AstKinds.TEST
+          ).withSpec(e)
+        } else if (vvals.size > 0 &&
+          e.test(values, Some(cole), vvals)(newctx)) {
+
           a.children append DomAst(
             TestResult("ok").withPos(e.pos),
             AstKinds.TEST
           ).withSpec(e)
-        else
+        } else
         //if no rules succeeded and there were vals, collect the misses
           values.map(v=> cole.missed(v.name))
       }
@@ -882,7 +883,7 @@ class DomEngine(
         val d = c.x.asInstanceOf[DomAst]
         val m = d.value.asInstanceOf[EVal]
         val s = c.diffs.values.map(_._2).toList.map(x => s"""<span style="color:red">$x</span>""").mkString(",")
-        d.moreDetails = d.moreDetails + label("expected", "danger") + " " + s
+        d.moreDetails = d.moreDetails + label("expected", "danger") + " " + htmlValue(s)
       }
 
       // did some rules succeed?
@@ -893,7 +894,7 @@ class DomEngine(
             "fail",
             "",
             label("found", "warning") + " " +
-            cole.highestMatching.map(_.diffs.values.map(_._1).toList.map(x => s"""<span style="color:red">$x</span>""").mkString(",")).mkString
+            cole.highestMatching.map(_.diffs.values.map(_._1).toList.map(x => s"""<span style="color:red">${htmlValue(x.toString)}</span>""").mkString(",")).mkString
           ).withPos(e.pos),
           AstKinds.TEST
         ).withSpec(e)
@@ -1017,7 +1018,7 @@ class DomEngine(
 
     // collect values
     val values = root.collect {
-      case d@DomAst(EVal(p), /*"generated"*/ _, _, _) if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined => p
+      case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined => p
     }
 
     values
@@ -1032,7 +1033,7 @@ class DomEngine(
 
     // collect values
     val values = root.collect {
-      case d@DomAst(EVal(p), /*"generated"*/ _, _, _) if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined => p
+      case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined => p
     }
 
     values

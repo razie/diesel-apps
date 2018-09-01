@@ -185,6 +185,14 @@ class EECtx extends EExecutor(EECtx.CTX) {
             .toList
       }
 
+        // take all args and create a json doc with them
+      case "json" => {
+
+        val res = in.attrs.map (a=>(a.name, a.calculatedTypedValue.value)).toMap
+
+        new EVal(RDOM.P("payload", razie.js.tojsons(res), WTypes.JSON, "", "", None, Some(PValue(res, WTypes.appJson)))) :: Nil
+      }
+
       case "base64decode" => {
         val res = in.attrs.filter(_.name != "result").map { a =>
           val res = Base64.dec(a.calculatedValue)
@@ -278,5 +286,6 @@ class EECtx extends EExecutor(EECtx.CTX) {
       EMsg(CTX, "debug") ::
       EMsg(CTX, "authUser") ::
       EMsg(CTX, "setAuthUser") ::
+      EMsg(CTX, "json") ::
       Nil
 }

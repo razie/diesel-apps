@@ -275,20 +275,18 @@ ${errCollector.mkString}
     }
 
     def async(f: RazRequest => Future[Result]) : Action[AnyContent] = RAction.async {implicit request=>
-      val req = razRequest
-      filter(req).map {res=>
+      filter(request).map {res=>
         Future.successful(res)
       } getOrElse {
-        f(req)
+        f(request)
       }
     }
 
     def async[A](bodyParser: BodyParser[A]) (f: RazRequest => Future[Result]) : Action[A] = RAction(bodyParser).async {implicit request=>
-      val req = razRequest
-      filter(req).map {res=>
+      filter(request).map {res=>
         Future.successful(res)
       } getOrElse {
-        f(req)
+        f(request)
       }
     }
   }

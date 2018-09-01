@@ -71,6 +71,12 @@ case class User(
   gid: Option[String] = None, // google id
   modNotes: Seq[String] = Seq.empty, // google id
   clubSettings : Option[String] = None, // if it's a club - settings
+
+  perms: Set[String] = Set(),
+
+  realmSet: Map[String, UserRealm] = Map(), // per realm
+  consent:Option[String] = None,
+
   _id: ObjectId = new ObjectId()) extends WikiUser with TPersonInfo {
 
   def emailDec = email.dec
@@ -99,8 +105,8 @@ case class User(
   def isHarry = id == "4fdb5d410cf247dd26c2a784"
 
   // TODO optimize
-  def perms: Set[String] = profile.map(_.perms).getOrElse(Set()) ++ groups.flatMap(_.can)
-  def hasPerm(p: Perm) = perms.contains("+" + p.s) && !perms.contains("-" + p.s)
+  def allPerms: Set[String] = perms ++ groups.flatMap(_.can)
+  def hasPerm(p: Perm) = allPerms.contains("+" + p.s) && !allPerms.contains("-" + p.s)
 
   override def membershipLevel : String =
       if(this.hasPerm(Perm.Moderator) || this.isAdmin) Perm.Moderator.s
@@ -191,7 +197,9 @@ case class User(
     UserEvent(_id, "UPDATE").create
   }
 
-  def toJson = grater[User].asDBObject(this).toString
+  def toJson = {
+    grater[User].asDBObject(this).toString
+  }
 
   def shouldEmailParent(what: String) = {
     if (isUnder13) {
@@ -202,14 +210,92 @@ case class User(
     } else None
   }
 
-  def getPrefs(name: String, default:String="") = prefs.get(name).getOrElse(default)
-  def setPrefs(name: String, value : => String) = this.update(this.copy(prefs = this.prefs + (name -> value)))
-
   def hasRealm(m:String) = realms.contains(m) || (realms.isEmpty && Wikis.RK == m)
 
   def quota = ROne[UserQuota]("userId" -> _id) getOrElse UserQuota(_id)
 
   var css = prefs.get("css")
+
+  private def mapRS(realm:String)(f: UserRealm => UserRealm) = {
+    // if not there, create record for this realm
+    val x = if(realmSet.contains(realm))
+      this
+    else {
+      this.copy(
+        realmSet = this.realmSet ++ Seq((realm -> UserRealm( status, roles, perms, prefs, modNotes, consent )))
+      )
+    }
+
+    x.copy(
+        realmSet = x.realmSet.map { rs =>
+        if (rs._1 == realm) (rs._1, f(rs._2))
+        else rs
+      })
+  }
+
+  def consented(realm:String, ver: String) = mapRS(realm) {rs=>
+    rs.copy(consent = Some(ver + " on " +DateTime.now().toString()))
+  }
+
+  def hasConsent(realm:String) =
+    this.consent.isDefined ||
+      this.realmSet.get(realm).orElse(this.realmSet.get("rk")).exists(_.consent.isDefined)
+
+  def clearConsent(realm:String) = mapRS(realm) {rs=>
+    rs.copy(consent = None)
+  }
+
+  def addPerm(realm:String, t: String) = mapRS(realm) {rs=>
+    rs.copy(perms = perms + t)
+  }
+
+  def removePerm(realm:String, t: String) = mapRS(realm) {rs=>
+    rs.copy(perms = perms - t)
+  }
+
+  def forRealm(realm:String) = {
+    // default to rk for backwards comp for old users wihtout realms
+    this.realmSet.get(realm).orElse(this.realmSet.get("rk")).map{rs=>
+      this.copy(
+        status = rs.status,
+        roles = rs.roles,
+        prefs = rs.prefs,
+        perms = rs.perms,
+        modNotes = rs.modNotes,
+        consent = rs.consent
+      )
+    }.getOrElse(this)
+  }
+
+  def getPrefs(name: String, default:String="") = prefs.get(name).getOrElse(default)
+  def setPrefs(realm:String, p:Map[String,String]) = mapRS(realm) {rs=>
+    rs.copy(prefs = rs.prefs ++ p)
+  }
+
+  def setRoles(realm:String, s: String) = mapRS(realm) {rs=>
+    rs.copy(roles = s.split("[, ]").toSet)
+  }
+
+  def setRoles(realm:String, s: Set[String]) = mapRS(realm) {rs=>
+    rs.copy(roles = s)
+  }
+
+  def setRealms(realm:String, s: String) = {
+    this.copy(realms = s.split("[, ]").toSet)
+  }
+
+  def setStatus(realm:String, s: String) = mapRS(realm) {rs=>
+    rs.copy(status = s(0))
+  }
+
+  def addModNote(realm:String, uname: String) = mapRS(realm) {rs=>
+    rs.copy(modNotes = rs.modNotes ++ Seq(uname.drop(1)))
+  }
+
+  def removeModNote(realm:String, uname: String) = mapRS(realm) {rs=>
+    rs.copy(modNotes = rs.modNotes.filter(_ != uname.drop(1)))
+  }
+
 }
 
 case class Contact(info: Map[String, String])
@@ -224,55 +310,53 @@ case class Profile(
   userId: ObjectId,
   loc: Option[Location] = None, // address as refined with Google
   tags: Set[String] = Set(),
-  perms: Set[String] = Set(),
   aboutMe: Option[WikiEntry] = None,
   relationships: Map[String, String] = Map(), // (who -> what)
   contact: Option[Contact] = None,
-  consent:Option[String] = None,
-  realmInfo: Map[String, String] = Map(), // (who -> what)
 
-  extLinks : Seq[ExtSystemUserLink] = Seq.empty,
+  newExtLinks : Seq[ExtSystemUserLink]= Seq(),
 
   _id: ObjectId = new ObjectId()) {
 
   def update(p: Profile) =  RUpdate(Map("userId" -> userId), p)
 
   def addRel(t: (String, String)) = this.copy(relationships = relationships ++ Map(t))
-  def addPerm(t: String) = this.copy(perms = perms + t)
-  def removePerm(t: String) = this.copy(perms = perms - t)
   def addTag(t: String) = this.copy(tags = tags + t)
   def setContact(c: Contact) = this.copy(contact = Some(c))
-
-  def consented(ver: String) = this.copy(consent = Some(ver + " on " +DateTime.now().toString()))
-
-  def setRealmProp(realm: String, prop:String, value:String) = {
-    this.update(this.copy(realmInfo = this.realmInfo + ((realm+"."+prop) -> value)))
-  }
-
-  def getRealmProp(realm: String, prop:String, dfltValue:String="") = {
-    realmInfo.getOrElse(realm+"."+prop, dfltValue)
-  }
 
   def toJson = grater[Profile].asDBObject(this).toString
 
   var createdDtm: DateTime = DateTime.now
   var lastUpdatedDtm: DateTime = DateTime.now
 
-  def getExtLink (systemId:String, instanceId:String) = extLinks.find(x=> x.extSystemId == systemId && x.extInstanceId == instanceId)
+  def getExtLink (realm:String, systemId:String, instanceId:String) =
+    newExtLinks.find(x=> x.realm == realm && x.extSystemId == systemId && x.extInstanceId == instanceId)
 
   /** add or update existing link */
-  def upsertExtLink (link:ExtSystemUserLink) = {
-    val e1 = extLinks.filter(x=> !(x.extSystemId == link.extSystemId && x.extInstanceId == link.extInstanceId))
+  def upsertExtLink (realm:String, link:ExtSystemUserLink) = {
+    val e1 = newExtLinks.filter(x=> !( x.realm == realm && x.extSystemId == link.extSystemId && x.extInstanceId == link.extInstanceId))
     val e2 = e1 ++ Seq(link)
-    this.copy(extLinks = e2)
+    this.copy(newExtLinks = e2)
   }
 }
 
 /** link to an external system account */
 case class ExtSystemUserLink (
+  realm:String,
   extSystemId : String,    // external system id
   extInstanceId : String,  // external system id
   extAccountId : String    // external account id
   )
 
+/** settings per realm */
+case class UserRealm (
+  status: Char = Users.ACTIVE, // a-active, s-suspended, d-deleted
+  roles: Set[String], // like groups perms etc
 
+  perms: Set[String] = Set(),
+
+  prefs: Map[String, String] = Map(), // user preferences
+  modNotes: Seq[String] = Seq.empty,
+  consent:Option[String] = None
+  ) {
+  }

@@ -11,8 +11,15 @@ import razie.diesel.dom._
 
 import scala.Option.option2Iterable
 
-// a nvp - can be a spec or an event, message, function etc
-case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:String="", ret: List[RDOM.P] = Nil, stype: String = "") extends CanHtml with HasPosition {
+/** a message
+  *
+  * @param entity
+  * @param met
+  * @param attrs
+  * @param arch
+  * @param ret
+  */
+case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:String="", ret: List[RDOM.P] = Nil, stype: String = "") extends CanHtml with HasPosition with DomAstInfo {
   var spec: Option[EMsg] = None
   var pos : Option[EPos] = None
   def withPos(p:Option[EPos]) = {this.pos = p; this}
@@ -49,7 +56,7 @@ case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:Strin
 
   // if this was an instance and you know of a spec
   private def first: String = spec.map(_.first).getOrElse(
-    kspan("msg:", resolved, spec.flatMap(_.pos)) + span(stype, "info")
+    kspan("msg", resolved, spec.flatMap(_.pos)) + span(stype, "info")
   )
 
   /** if has executor */
@@ -146,4 +153,16 @@ case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:Strin
     var u = url1(section, resultMode)
     s"""<a target="_blank" href="${mapUrl(u)}">$text</a>"""
   }
+
+  override def shouldIgnore = this.stype contains "ignore"
+  override def shouldSkip = this.stype contains "skip"
+  override def shouldRollup =
+    // rollup simple assignments - leave only the EVals
+    entity == "" && met == "" ||
+      (this.stype contains "rollup")
+
+  /** is it public visilibity */
+  def isPublic =
+    spec.map(_.arch).exists(_ contains "public") ||
+    spec.map(_.stype).exists(_ contains "public")
 }

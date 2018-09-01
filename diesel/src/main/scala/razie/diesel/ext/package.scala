@@ -2,6 +2,8 @@ package razie.diesel
 
 import razie.diesel.dom._
 import razie.diesel.dom.RDOM.{P, PM}
+import razie.wiki.Enc
+
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
@@ -31,6 +33,9 @@ package object ext {
     }
   }
 
+  /** prep for display */
+  def htmlValue(s:String) = Enc.escapeHtml(s.take(100))
+
   /** a single match, collected when looking for expectations */
   class SingleMatch(val x: Any) {
     var score = 0;
@@ -48,6 +53,11 @@ package object ext {
     // missed opportunity to match this
     def missed(name: String) = {
       misses.append(name)
+    }
+
+    // missed opportunity to match this
+    def missedValue(p: P) = {
+      misses.append(p.toString)
     }
   }
 
@@ -80,18 +90,22 @@ package object ext {
     def missed(name: String) =
       cur.missed(name)
 
+    // record missed opportunity to match (names did not match)
+    def missedValue(p:P) =
+      cur.missedValue(p)
+
     def toHtml =
       highestMatching
         .map {h=>
           h.diffs.values.map(_._1)
             .toList
-            .map(x => s"""<span style="color:red">$x</span>""")
+            .map(x => s"""<span style="color:red">${htmlValue(x.toString)}</span>""")
             .mkString(",") +
           (
             // todo list them in order of close to far (i.e. a close name)
             if(h.misses.size > 0)
               "found: " + h.misses
-              .map(x => s"""<span style="color:red">$x</span>""")
+              .map(x => s"""<span style="color:red">${htmlValue(x)}</span>""")
               .mkString(",")
             else ""
           )
@@ -102,6 +116,7 @@ package object ext {
   def check (in:P, pm:PM)(implicit ctx: ECtx) = {
     in.name == pm.name && {
       val r = new BCMP2(in.valExpr, pm.op, pm.valExpr).apply("")
+
       if(! r) {
         // name found but no value match - mark the name
       }
@@ -111,6 +126,11 @@ package object ext {
 
   /**
    * matching attrs
+    *
+    * @param in
+    * @param cond
+    * @param cole collector for match/fail
+    * @param foundName opt function to mark value in collector
    *
    * (a,b,c) they occur in whatever sequence
    *
@@ -133,6 +153,7 @@ package object ext {
       if (b._1.dflt.size > 0 || b._1.expr.isDefined) {
         if (b._1.name.size > 0) {
           res = in.exists(x => check(x, b._1)) || ctx.exists(x => check(x, b._1))
+
           if(!res) in.find(_.name == b._1.name).map {p=>
             // mark it in the cole
             foundName.map(_.apply(p))
@@ -141,6 +162,9 @@ package object ext {
           if(!res) {
             // last try: any value in context
             res = new BCMP2(AExprIdent(pm.name), pm.op, pm.valExpr).apply("")
+
+            if(!res) // failed to find any valid exprs, just evaluate the left side to get some info
+              cole.map(_.missedValue(AExprIdent(pm.name).applyTyped("")))
           }
 
           if (res) cole.map(_.plus(b._1.name + b._1.op + b._1.dflt))
@@ -172,9 +196,10 @@ package object ext {
 
   object CanHtml {
     def prepTitle(title:String) = {
-      val x = title.replaceAll("\\\"", "")
-//      val x = title.replaceAll("\\\"", "\\\"")
-      val t = if(title.length > 0) s"""title="$x" """ else ""
+      val h = Enc.escapeHtml(title)
+      val x = h.replaceAll("\\\"", "")
+//      val x = h.replaceAll("\\\"", "\\\"")
+      val t = if(h.length > 0) s"""title="$x" """ else ""
       t
     }
 

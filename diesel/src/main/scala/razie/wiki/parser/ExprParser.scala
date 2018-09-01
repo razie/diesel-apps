@@ -22,7 +22,7 @@ trait ExprParser extends RegexParsers {
   def ows = opt(whiteSpace)
 
   /** a regular ident but also '...' */
-  def ident: P = """[a-zA-Z_][\w]*""".r | """'[\w -]+'""".r ^^ {
+  def ident: P = """[a-zA-Z_][\w]*""".r | """'[\w@. -]+'""".r ^^ {
     case s =>
       if(s.startsWith("'") && s.endsWith("'"))
         s.substring(1, s.length-1)
@@ -34,6 +34,10 @@ trait ExprParser extends RegexParsers {
     case i ~ l => (i :: l).mkString(".")
   }
 
+  def boolConst: P = "true" | "false" ^^ {
+    case b => b
+  }
+
   def xpath: P = ident ~ rep("[/@]+".r ~ ident) ^^ {
     case i ~ l => (i :: l.map{x=>x._1+x._2}).mkString("")
   }
@@ -41,10 +45,10 @@ trait ExprParser extends RegexParsers {
   def any: P = """.*""".r
 
   //todo full expr with +-/* and XP
-  def value: P = qident | aint | afloat | str
+  def value: P = boolConst | qident | afloat | aint | str
 
-  def aint: P = """\d+""".r
-  def afloat: P = """\d+[.]\d+""".r
+  def aint: P = """-?\d+""".r
+  def afloat: P = """-?\d+[.]\d+""".r
 
   // todo commented - if " not included in string, evaluation has trouble - see expr(s)
   // todo see stripq and remove it everywhere when quotes die and proper type inference is used
@@ -65,7 +69,7 @@ trait ExprParser extends RegexParsers {
     )
   }
 
-  def pterm1: Parser[Expr] = numexpr | cexpr | xident | jsexpr1 | jsexpr2 | aident | jss | exregex | eblock | js
+  def pterm1: Parser[Expr] = numexpr | bcexpr | cexpr | xident | jsexpr1 | jsexpr2 | aident | jss | exregex | eblock | js
 
   def eblock: Parser[Expr] = "(" ~ ows ~> expr <~ ows ~ ")" ^^ { case ex => BlockExpr(ex) }
 
@@ -80,19 +84,20 @@ trait ExprParser extends RegexParsers {
 
   def jarray: Parser[String] = "[" ~ ows ~> repsep(jexpr <~ ows, ",") <~ ows ~ "]" ^^ { case li => "[ " + li.mkString(",") + " ]" }
 
-//  def jexpr1: Parser[String] = jother ~ jblock ~ jother ^^ { case a ~ b ~ c => a + b.toString + c }
-
-//  def jexpr: Parser[String] = jblock | jexpr1 | jother ^^ { case ex => ex.toString }
   def jexpr: Parser[String] = jobj | jarray | jother ^^ { case ex => ex.toString }
 
   def jother: Parser[String] = "[^{}\\[\\],]+".r ^^ { case ex => ex }
 
   // a number
-  def numexpr: Parser[Expr] = (aint | afloat) ^^ { case i => new CExpr(i, WTypes.NUMBER) }
+  def numexpr: Parser[Expr] = (afloat | aint ) ^^ { case i => new CExpr(i, WTypes.NUMBER) }
 
   // string const with escaped chars
   def cexpr: Parser[Expr] = "\"" ~> """(\\.|[^\"])*""".r <~ "\"" ^^ {
     case e => new CExpr(e.replaceAll("\\\\(.)", "$1"), WTypes.STRING)
+  }
+
+  def bcexpr: Parser[Expr] = ("true" | "false") ^^ {
+    case b => new CExpr(b, WTypes.BOOLEAN)
   }
 
   // qualified identifier
@@ -115,6 +120,10 @@ trait ExprParser extends RegexParsers {
   def boolexpr: Parser[BExpr] = bterm1 | bterm1 ~ ("||" | "or") ~ bterm1 ^^ { case a ~ s ~ b => bcmp(a, s.trim, b) }
 
   def bterm1: Parser[BExpr] = bfactor1 | bfactor1 ~ ("&&" | "and") ~ bfactor1 ^^ { case a ~ s ~ b => bcmp(a, s.trim, b) }
+
+  def bConst: Parser[BExpr] = ("true" | "false") ^^ {
+    case b => BCMPConst(b)
+  }
 
   def bfactor1: Parser[BExpr] = eq | neq | lte | gte | lt | gt
 

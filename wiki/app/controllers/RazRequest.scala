@@ -7,9 +7,9 @@ import razie.wiki.Services
 import razie.wiki.admin.SecLink
 
 /** trying some type foolery - pass this off as a Request[_] as well and proxy to original */
-class RazRequest (realm:String, au:Option[User], val ireq:Request[_], name:String="") extends StateOk (
-  realm,
-  au orElse Services.auth.authUser(ireq).asInstanceOf[Option[User]],
+class RazRequest (irealm:String, iau:Option[User], val ireq:Request[_], operation:String="") extends StateOk (
+  irealm,
+  iau orElse Services.auth.authUser(ireq).asInstanceOf[Option[User]],
   Some(ireq))
 //  with play.api.mvc.RequestHeader
 {
@@ -47,7 +47,7 @@ class RazRequest (realm:String, au:Option[User], val ireq:Request[_], name:Strin
   lazy val txn = {
     isTxnSet = true
     razie.db.tx.t(
-      (if(name.length > 0) name else req.path),
+      (if(operation.length > 0) operation else req.path),
       au.map(_.userName).getOrElse("?"))
   }
 

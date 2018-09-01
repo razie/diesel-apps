@@ -6,20 +6,14 @@
  */
 package razie.wiki
 
-import java.io.FileInputStream
-import java.util.Properties
-
-import com.google.inject.Singleton
+import com.google.inject.{Singleton, _}
+import play.api.Configuration
 import play.api.mvc.Request
-import razie.clog
+import razie.hosting.Website
 import razie.wiki.model.{WID, WikiConfigChanged, WikiUser, Wikis}
 import razie.wiki.util.PlayTools
 
 import scala.collection.mutable
-import com.google.inject._
-import play.api.Configuration
-import razie.hosting.Website
-
 import scala.collection.mutable.HashMap
 
 object WikiConfig {

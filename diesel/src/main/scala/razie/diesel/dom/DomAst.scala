@@ -22,11 +22,20 @@ object AstKinds {
   final val SKETCHED = "sketched"
   final val MOCKED = "mocked"
   final val TEST = "test"
+  final val BUILTIN = "built-in"
   final val NEXT = "next"
 
   def isGenerated  (k:String) = GENERATED==k || SKETCHED==k || MOCKED==k
-  def shouldIgnore (k:String) = RULE==k
+  def shouldIgnore (k:String) = RULE==k || BUILTIN==k
   def shouldSkip (k:String) = NEXT==k
+  def shouldRollup (k:String) = NEXT==k
+}
+
+/** mix this in if you want to control display/traversal */
+trait DomAstInfo {
+  def shouldIgnore : Boolean
+  def shouldSkip : Boolean
+  def shouldRollup : Boolean
 }
 
 object DomState {
@@ -85,23 +94,42 @@ case class DomAst(
     this
   }
 
+  private def shouldIgnore (k:DomAst) =
+    AstKinds.shouldIgnore(k.kind) ||
+      k.value.isInstanceOf[DomAstInfo] && k.value.asInstanceOf[DomAstInfo].shouldIgnore
+
+  private def shouldSkip (k:DomAst) =
+    AstKinds.shouldSkip(k.kind) ||
+      k.value.isInstanceOf[DomAstInfo] && k.value.asInstanceOf[DomAstInfo].shouldSkip
+
+  private def shouldRollup (k:DomAst) =
+    AstKinds.shouldRollup(k.kind) ||
+      k.value.isInstanceOf[DomAstInfo] && k.value.asInstanceOf[DomAstInfo].shouldRollup
+
   /** recursive tostring */
   private def tos(level: Int, html:Boolean): String = {
+
+    def theKind =
+      if(html) s"""<span title="$kind">${kind.take(3)}</span>"""
+      else kind
+
     def toschildren (level:Int, kids : List[DomAst]) : List[Any] =
-      kids.filter(k=> !AstKinds.shouldIgnore(k.kind)).flatMap{k=>
-        if(false && AstKinds.shouldSkip(k.kind)) {
+      kids.filter(k=> !shouldIgnore(k)).flatMap{k=>
+        if(shouldRollup(k) && k.children.size == 1) {
+          // rollup NEXT nodes and others - just show the children
           toschildren(level+1, k.children.toList)
         } else
           List(k.tos(level+1, html))
       }
 
-    ("  " * level) + kind + "::" + {
+    (" " * level) +
+      theKind +
+      "::" + {
       value match {
         case c:CanHtml if(html) => c.toHtml
         case x => x.toString
       }
-    }.lines.map(("  " * level) + _).mkString("\n") + moreDetails + "\n" +
-      //    children.filter(k=> !AstKinds.shouldIgnore(k.kind)).map(_.tos(level + 1, html)).mkString
+    }.lines.map((" " * 1) + _).mkString("\n") + moreDetails + "\n" +
       toschildren(level, children.toList).mkString
   }
 
@@ -135,7 +163,7 @@ case class DomAst(
 
   def tojchildren (kids : List[DomAst]) : List[Any] =
       kids.filter(k=> !AstKinds.shouldIgnore(k.kind)).flatMap{k=>
-        if(AstKinds.shouldSkip(k.kind)) {
+        if(shouldSkip(k)) {
           tojchildren(k.children.toList)
         } else
           List(k.toj)

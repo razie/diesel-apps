@@ -93,7 +93,7 @@ object EEFunc {
         case i:Double => P("", i.toString, WTypes.NUMBER).withValue(i, WTypes.NUMBER)
 
         case o : ScriptObjectMirror => {
-          P("", r._2.toString, WTypes.JSON).withValue(PValue(o, WTypes.appJson))
+          P("", r._2.toString, WTypes.JSON).withValue(o, WTypes.appJson)
         }
 
         case e: Throwable => P("", e.getMessage, WTypes.EXCEPTION).withValue(e, WTypes.EXCEPTION)

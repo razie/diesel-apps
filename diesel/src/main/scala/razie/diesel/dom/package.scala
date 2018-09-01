@@ -2,6 +2,7 @@ package razie.diesel
 
 import razie.diesel.dom.RDOM.P
 import razie.js
+import razie.wiki.Enc
 
 /**
  * simple, neutral domain model representation: class/object/function
@@ -21,6 +22,7 @@ package object dom {
   def span(s: String, k: String = "default") = s"""<span class="label label-$k">$s</span>"""
 
   def quot(s:String) = "\""+ s + "\""
+  def escapeHtml(s:String) = Enc.escapeHtml(s)
 
   /** if you have a func defn handy */
   def qTyped(q:Map[String,String], f:Option[RDOM.F]) = q.map { t =>
@@ -58,8 +60,9 @@ package object dom {
       }
       )
 //      this is not working - maybe at some point. for now do js:JSON.parse()
-//    else if (p.ttype == WTypes.JSON) (t._1+"",
+//    else if (p.ttype == WTypes.JSON || p.ttype == WTypes.appJson) (t._1+"",
 //      try {
+//        // nashorn allows maps to be accessed like properties, see https://stackoverflow.com/questions/31292201/effective-way-to-pass-json-between-java-and-javascript
 //        js.parse(t._2.dflt)
 //      } catch {
 //        case _:Throwable => throw new IllegalArgumentException("Type error: expected JSON, parm "+t._1+" found "+t._2)

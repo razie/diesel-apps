@@ -15,8 +15,10 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
   def reactor:String = this prop "reactor" OR (this prop "realm" OR "rk")
 
   def title = this prop "title"
-  def url:String = this prop "url" OR "-"
   def css:Option[String] = this prop "css" // dark vs light
+
+  /** make a url for this realm - either configured */
+  def url:String = this prop "url" OR ("http://" + domain)
 
   def domain:String = this prop "domain" OR (s"$name.dieselapps.com")
 
@@ -42,6 +44,8 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
   def privacy:String = this prop "privacy" OR "/wiki/Privacy_Policy"
 
   def dieselReactor:String = this prop "dieselReactor" OR reactor
+  def dieselVisiblity:String = this prop "diesel.visibility" OR "public"
+  def dieselTrust:String = this prop "diesel.trust" OR ""
 
   def stylesheet:Option[WID] = this wprop "stylesheet"
 

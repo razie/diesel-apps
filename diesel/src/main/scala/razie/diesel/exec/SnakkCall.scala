@@ -59,6 +59,7 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
 
   var ibody: Option[String] = None
   var iContentType: Option[String] = None
+  var iHeaders: Option[Map[String, String]] = None
 
   def body = ibody getOrElse makeCall
 
@@ -76,6 +77,9 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
         else None
       }
     }
+
+    val x = conn.getHeaderFields.keySet().toArray.toList
+    iHeaders = Some(x.filter(_ != null).map(x => (x.toString, conn.getHeaderField(x.toString))).toMap)
 
     ibody.get
   }

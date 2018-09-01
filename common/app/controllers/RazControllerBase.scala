@@ -37,7 +37,6 @@ trait ViewService {
   def utilMsg(msg: String, details: String, link: Option[String], user: Option[WikiUser], link2: Option[(String, String)] = None)(implicit request: RequestHeader): play.api.mvc.Result
 }
 
-// todo inject
 object ViewService {
   @Inject() var impl: ViewService = null
 }

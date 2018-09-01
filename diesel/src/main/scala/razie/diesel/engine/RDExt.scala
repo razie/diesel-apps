@@ -157,6 +157,7 @@ object RDExt {
     def toHtml = EMsg(e, a).withPos(m.pos).toHtmlInPage // no parms
   }
 
+  /** create a summary of all relevant entities in teh domain: messages and attributes */
   def summarize(d: RDomain) = {
     val msgs  = new ListBuffer[MsgCol]
     val attrs = new ListBuffer[PCol]

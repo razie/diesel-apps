@@ -20,7 +20,7 @@ import razie.wiki.admin.SendEmail
 import razie.wiki.model._
 import razie.wiki.model.features.WForm
 import razie.wiki.util.PlayTools
-import razie.wiki.{Enc, Services}
+import razie.wiki.{Base64, Enc, Sec, Services}
 
 /** overall settings and state for this deployment */
 @RTable
@@ -79,7 +79,6 @@ object Realm extends RazController with Logging {
       tw <- Wikis(realm).find(twid) orErr s"template/spec $twid not found";
       hasQuota <- (au.isAdmin || au.quota.canUpdate) orCorr cNoQuotaUpdates
     ) yield {
-        //todo use ReactorCreateContext
         val parms =
           (
             if("Reactor" == cat) Map(
@@ -213,13 +212,10 @@ object Realm extends RazController with Logging {
       noPerm(wid, s"Cant' create your $cat ...")
   }
 
-  //todo play upgrade make static
-  val ssoRequests = new collection.mutable.HashMap[String,String]()
-
-  //todo make work in cluster...
-  def sso(id:String) = Action { request =>
-    //    val res = ssoRequests.get(id).flatMap {conn=>
-    val res = Some(id).flatMap {conn=>
+  def sso(id:String, token:String) = Action { request =>
+    val tok = Sec.dec(new String(Sec.decBase64(token)))
+    val res = Some(id).filter(_ == tok).flatMap {conn=>
+      // extract user id and check with token
       val uid = Enc.fromSession(id)
       Users.findUserByEmailEnc(uid).map { u =>
         Audit.logdb("USER_LOGIN.SSO", u.userName, u.firstName + " " + u.lastName + " realm: " + request.host)
@@ -227,7 +223,6 @@ object Realm extends RazController with Logging {
         Redirect("/").withSession(Services.config.CONNECTED -> Enc.toSession(u.email))
       }
     } getOrElse Redirect("/")
-    //    ssoRequests.remove(id)
     res
   }
 
@@ -239,12 +234,12 @@ object Realm extends RazController with Logging {
       DieselSettings("isimulateHost", Config.isimulateHost).set
       Redirect("/", SEE_OTHER)
     } else {
+      // send user id and encripted
       val conn = request.session.get(Services.config.CONNECTED).mkString
-      val temp = new ObjectId().toString
-      ssoRequests.put(temp, conn)
-      // todo use temp not conn
-      // todo find domain and redirect to domain
-      Redirect(s"http://$realm.dieselapps.com/wikie/sso/" + conn, SEE_OTHER)
+      val token = Sec.encBase64(Sec.enc(conn))
+      val w = Website.forRealm(realm)
+      val url = w.map(_.url).getOrElse(s"http://$realm.dieselapps.com")
+      Redirect(s"$url/wikie/sso/$conn?token=" + token , SEE_OTHER)
     }
   }
 

@@ -218,7 +218,8 @@ object Wikis extends Logging with Validation {
         Some(ILink(wid, label, role)))
     } else {
       // topic not found in index - hide it from google
-      val prefix = if (wid.realm.isDefined && wid.getRealm != curRealm) s"/we/${wid.getRealm}" else "/wikie"
+      //      val prefix = if (wid.realm.isDefined && wid.getRealm != curRealm) s"/we/${wid.getRealm}" else "/wikie"
+      val prefix = "/wikie"
       val plusplus = if (Wikis.PERSISTED.contains(wid.cat)) "" else """<sup><b style="color:red">++</b></sup>"""
       (
         s"""<a href="$prefix/show/${wid.wpath}" title="%s">$tlabel$plusplus</a>""".format

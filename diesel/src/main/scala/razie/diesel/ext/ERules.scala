@@ -44,7 +44,7 @@ case class ExpectM(not: Boolean, m: EMatch) extends CanHtml with HasPosition {
 
   /** check to match the arguments */
   def sketch(cole: Option[MatchCollector] = None)(implicit ctx: ECtx): List[EMsg] = {
-    var e = EMsg(m.cls, m.met, sketchAttrs(m.attrs, cole), "generated")
+    var e = EMsg(m.cls, m.met, sketchAttrs(m.attrs, cole), AstKinds.GENERATED)
     e.pos = pos
     //      e.spec = destSpec
     //      count += 1
@@ -54,7 +54,7 @@ case class ExpectM(not: Boolean, m: EMatch) extends CanHtml with HasPosition {
 
 // todo use a EMatch and combine with ExpectM - empty e/a
 /** test - expect a value or more. optional guard */
-case class ExpectV(not: Boolean, pm: MatchAttrs) extends CanHtml with HasPosition {
+case class ExpectV(not: Boolean, pm: MatchAttrs, cond: Option[EIf] = None) extends CanHtml with HasPosition {
   var when: Option[EMatch] = None
   var pos: Option[EPos] = None
   var target: Option[DomAst] = None // if target then applies only in that sub-tree, otherwise guessing scope
@@ -65,13 +65,18 @@ case class ExpectV(not: Boolean, pm: MatchAttrs) extends CanHtml with HasPositio
 
   // clone because the original is a spec, reused in many stories
   def withTarget(p: Option[DomAst]) = {
-    val x = this.copy(); x.target = p; x
+    val x = this.copy()
+    x.pos = this.pos  // need to copy vars myself
+    x.when = this.when
+    x.target = p
+    x
   }
 
   override def toHtml =
-    kspan("expect::") + " " + pm.map(_.toHtml).mkString("(", ",", ")")
+    kspan("expect::") + " " + toHtmlMAttrs(pm) + cond.map(_.toHtml).mkString
 
-  override def toString = "expect:: " + pm.mkString("(", ",", ")")
+  override def toString =
+    "expect:: " + pm.mkString("(", ",", ")") + cond.map(_.toHtml).mkString
 
   def withGuard(guard: EMatch) = {
     this.when = Some(guard); this
@@ -82,11 +87,18 @@ case class ExpectV(not: Boolean, pm: MatchAttrs) extends CanHtml with HasPositio
   }
 
   /** check to match the arguments */
+  def applicable(a: Attrs)(implicit ctx: ECtx) = {
+    cond.fold(true)(_.test(a, None))
+  }
+
+  /** check to match the arguments */
   def test(a: Attrs, cole: Option[MatchCollector] = None, nodes: List[DomAst])(implicit ctx: ECtx) = {
     testA(a, pm, cole, Some({ p =>
       // start a new collector to mark this value
       cole.foreach(c => nodes.find(_.value.asInstanceOf[EVal].p.name == p.name).foreach(n => c.newMatch(n)))
     }))
+    // we don't check the cond - it just doesn't apply
+    // && cond.fold(true)(_.test(a, cole))
   }
 
   /** check to match the arguments */
@@ -156,9 +168,9 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
     P(p.name, df, p.ttype, p.ref, p.multi)
   })
 
-  override def toHtml = ea(cls, met) + " " + toHtmlMAttrs(attrs)
+  override def toHtml = ea(cls, met) + " " + toHtmlMAttrs(attrs) + cond.map(_.toHtml).mkString
 
-  override def toString = cls + "." + met + " " + attrs.mkString("(", ",", ")")
+  override def toString = cls + "." + met + " " + attrs.mkString("(", ",", ")") + cond.map(_.toString).mkString
 }
 
 /** just a call to next.
@@ -186,7 +198,7 @@ case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred:Bo
     // if evaluation was deferred, do it
     val m = if (deferred) {
       parent.map { parent =>
-        msg.copy(attrs = EMap.sourceAttrs(parent, msg.attrs, spec.map(_.attrs)))
+        msg.copy(attrs = EMap.sourceAttrs(parent, msg.attrs, spec.map(_.attrs))).withPos(msg.pos)
       } getOrElse {
         msg // todo evaluate something here as well...
       }
@@ -200,8 +212,13 @@ case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred:Bo
   override def toString = arrow + " " + msg.toString
 }
 
-/** $when - match and decomposition rule */
-case class ERule(e: EMatch, i: List[EMap]) extends CanHtml with EApplicable with HasPosition {
+/** $when - match and decomposition rule
+  *
+  * @param e the match that triggers this rule
+  * @param arch archetype or tags
+  * @param i the mappings to execute
+  */
+case class ERule(e: EMatch, arch:String, i: List[EMap]) extends CanHtml with EApplicable with HasPosition {
   var pos: Option[EPos] = None
 
   override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
@@ -210,28 +227,43 @@ case class ERule(e: EMatch, i: List[EMap]) extends CanHtml with EApplicable with
   override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] =
     i.flatMap(_.apply(in, destSpec, pos))
 
-  override def toHtml = span("when::", "default") + s" ${e.toHtml} <br>${i.map(_.toHtml).mkString("<br>")} <br>"
+  override def toHtml = span(arch+"::", "default") + s" ${e.toHtml} <br>${i.map(_.toHtml).mkString("<br>")} <br>"
 
-  override def toString = "when:: " + e + " => " + i.mkString
+  override def toString = arch+":: " + e + " => " + i.mkString
 }
 
 // a simple condition
-case class EIf(attrs: MatchAttrs) extends CanHtml {
+trait EIf extends CanHtml {
+  def test(e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) : Boolean
+}
+
+// a simple condition
+case class EIfm(attrs: MatchAttrs) extends CanHtml with EIf {
   def test(e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
     testA(e, attrs, cole)
 
-  override def toHtml = span("$if::") + attrs.mkString("<small>(", ", ", ")</small>")
+  override def toHtml = span("$ifm::") + attrs.mkString("<small>(", ", ", ")</small>")
 
-  override def toString = "$if " + attrs.mkString
+  override def toString = "$ifm " + attrs.mkString
+}
+
+// a simple condition
+case class EIfc(cond: BExpr) extends CanHtml with EIf {
+  def test(e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
+    cond.apply("")
+
+  override def toHtml = span("$ifc::") + cond.toDsl
+
+  override def toString = "$ifc " + cond.toDsl
 }
 
 // $mock
 case class EMock(rule: ERule) extends CanHtml with HasPosition {
   var pos: Option[EPos] = rule.pos
 
-  override def toHtml = span(count.toString) + " " + rule.toHtml.replaceFirst("when", "mock")
+  override def toHtml = span(count.toString) + " " + rule.toHtml//.replaceFirst("when", "mock")
 
-  override def toString = count.toString + " " + rule.toString.replaceFirst("when", "mock")
+  override def toString = count.toString + " " + rule.toString//.replaceFirst("when", "mock")
 
   def count = rule.i.map(_.count).sum // todo is slow
 }
@@ -260,21 +292,21 @@ case class EVal(p: RDOM.P) extends CanHtml with HasPosition {
     }
 
   override def toHtml =
-    if(pos.isDefined) kspan("val::") + p.toHtml
-    else spanClick("val::", "info", p.dflt) + p.toHtml
+    if(pos.isDefined) kspan("val") + p.toHtml
+    else spanClick("val", "info", Enc.escapeHtml(p.dflt)) + p.toHtml
 
-  override def toString = "val: " + p.toString
+  override def toString = "val " + p.toString
 }
 
 /** some error, with a message and details */
 case class EWarning(msg: String, details: String = "") extends CanHtml with InfoNode {
   override def toHtml =
     if (details.length > 0)
-      span("warning::", "warning", details, "style=\"cursor:help\"") + " " + msg
+      span("warning", "warning", details, "style=\"cursor:help\"") + " " + msg
     else
-      span("warning::", "warning", details) + " " + msg
+      span("warning", "warning", details) + " " + msg
 
-  override def toString = "warning::" + "x"//msg
+  override def toString = "warning: " + "x"//msg
 }
 
 object EErrorUtils {
@@ -303,12 +335,12 @@ case class EError(msg: String, details: String = "") extends CanHtml with HasPos
 
   override def toHtml =
     if (details.length > 0)
-      spanClick("error::", "danger", details) + msg
+      spanClick("fail-error::", "danger", details) + msg
 //      span("error::", "danger", details, "style=\"cursor:help\"") + " " + msg
     else
-      span("error::", "danger", details) + " " + msg
+      span("fail-error::", "danger", details) + " " + msg
 
-  override def toString = "error::" + msg
+  override def toString = "fail-error::" + msg
 }
 
 /** error and stop engine */

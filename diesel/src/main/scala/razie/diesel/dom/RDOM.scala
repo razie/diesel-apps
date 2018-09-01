@@ -12,6 +12,7 @@ object WTypes {
 
   final val INT="Int"
   final val FLOAT="Float"
+  final val BOOLEAN="Boolean"
 
   final val BYTES="Bytes"
 
@@ -97,7 +98,9 @@ object RDOM {
     /** proper way to get the value */
     def calculatedTypedValue(implicit ctx: ECtx) : PValue[_] =
       value.getOrElse(
-        if(expr.isEmpty) PValue(dflt, "") else {
+        if(dflt.nonEmpty || expr.isEmpty)
+          PValue(dflt, "") // someone already calculated a non-type safe value
+        else {
           val v = expr.get.applyTyped("")
           value = v.value // update computed value
           value.getOrElse(PValue(v.dflt, ""))
@@ -107,9 +110,25 @@ object RDOM {
     /** me if calculated, otherwise another P, calculated */
     def calculatedP(implicit ctx: ECtx) : P =
       value.map(x=> this).getOrElse(
-        if(expr.isEmpty) this else {
+        if(dflt.nonEmpty || expr.isEmpty) this else {
           val v = expr.get.applyTyped("")
-          v.copy(name=this.name)
+          v.copy(
+            name=this.name,
+
+            // interpolate type
+            ttype = if(v.ttype.nonEmpty) v.ttype else expr match {
+            // expression type known?
+            case Some(CExpr(_, WTypes.STRING)) => WTypes.STRING
+            case Some(CExpr(_, WTypes.NUMBER)) => WTypes.NUMBER
+            case _ => {
+              if (!expr.exists(_.getType != "") &&
+                (v.value.exists(x=> x.value.isInstanceOf[Int] || x.value.isInstanceOf[Float])))
+                WTypes.NUMBER
+              else
+                expr.map(_.getType).mkString
+            }
+          }
+          )
         }
       )
 
@@ -128,7 +147,7 @@ object RDOM {
       s"$name" +
         smap(ttype) (":" + ref + _) +
         smap(multi)(identity) +
-        smap(dflt) (s=> "=" + (if("Number" == ttype) s else quot(s))) +
+        smap(strimmedDflt) (s=> "=" + (if("Number" == ttype) s else quot(s))) +
         (if(dflt=="") expr.map(x=>smap(x.toString) ("=" + _)).mkString else "")
 
     // todo refs for type, docs, position etc
@@ -137,7 +156,7 @@ object RDOM {
         (if(ttype.toLowerCase != "string") smap(ttype) (":" + ref + _) else "") +
         smap(multi)(identity) +
         smap(Enc.escapeHtml(htrimmedDflt)) {s=>
-          "=" + tokenValue(if("Number" == ttype) s else quot(s))
+          "=" + tokenValue(if("Number" == ttype) s else escapeHtml(quot(s)))
         } +
 //        (if(dflt.length > 60) "<span class=\"label label-default\"><small>...</small></span>") +
         (if(dflt.length > 60) "<b><small>...</small></b>" else "") +

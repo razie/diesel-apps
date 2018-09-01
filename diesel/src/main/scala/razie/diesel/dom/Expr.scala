@@ -42,7 +42,11 @@ trait WFunc { // extends PartialFunc ?
   def apply (v:Any)(implicit ctx:ECtx) : Any
 
   /** apply this function to an input value and a context */
-  def applyTyped (v:Any)(implicit ctx:ECtx) : P = P("", apply(v).toString, getType)
+  def applyTyped (v:Any)(implicit ctx:ECtx) : P = {
+    val res = apply(v)
+    // todo use the PValue
+    P("", res.toString, getType)
+  }
 
   /** what is the resulting type - when known */
   def getType : String = ""
@@ -166,24 +170,31 @@ case class XPathIdent (val expr:String) extends Expr {
 case class CExpr (ee : String, ttype:String="") extends Expr {
   val expr = ee.toString
 
-  override def apply (v:Any)(implicit ctx:ECtx) =
-    if(ttype == "Number") {
-      if(ee.contains(".")) ee.toDouble
-      else ee.toInt
+  override def apply (v:Any)(implicit ctx:ECtx) = applyTyped(v).dflt
+
+  override def applyTyped (v:Any)(implicit ctx:ECtx) : P = {
+    if (ttype == WTypes.NUMBER) {
+      if (ee.contains("."))
+        P("", ee, ttype).withValue(ee.toDouble)
+      else
+        P("", ee, ttype).withValue(ee.toInt)
+    } else if (ttype == WTypes.BOOLEAN) {
+      P("", ee, ttype).withValue(ee.toBoolean)
     } else {
       // expand templates by default
-      if(ee contains "${") {
+      if (ee contains "${") {
         val PAT = """\$\{([^\}]*)\}""".r
         val s1 = PAT.replaceAllIn(ee, { m =>
-          (new SimpleExprParser).parseExpr(m.group(1)).map {e=>
-            P ("x", "", "", "", "", Some(e)).calculatedValue
+          (new SimpleExprParser).parseExpr(m.group(1)).map { e =>
+            P("x", "", "", "", "", Some(e)).calculatedValue
           } getOrElse
             s"{ERROR: ${m.group(1)}"
         })
-        s1
+        P("", s1, ttype)
       } else
-        ee
+        P("", ee, ttype)
     }
+  }
 
   override def toDsl = if(ttype == "String") ("\"" + expr + "\"") else expr
   override def getType: String = ttype
@@ -259,6 +270,11 @@ case class BCMPNot(a: BExpr) extends BExpr("") {
   override def apply(e: Any)(implicit ctx: ECtx) = !a.apply(e)
 }
 
+/** const boolean expression */
+case class BCMPConst(a: String) extends BExpr(a) {
+  override def apply(e: Any)(implicit ctx: ECtx) = a == "true"
+}
+
 /** composed boolean expression */
 case class BCMP1(a: BExpr, op: String, b: BExpr) extends BExpr(a.toDsl + " " + op + " " + b.toDsl) {
   override def apply(in: Any)(implicit ctx: ECtx) = op match {
@@ -302,9 +318,12 @@ case class BCMP2(a: Expr, op: String, b: Expr) extends BExpr(a.toDsl + " " + op 
           }
         }
       }
+
       case _ => {
         def ap = a.applyTyped(in)
         def bp = b.applyTyped(in)
+        def as = ap.calculatedValue
+        def b_is (s:String) = b.isInstanceOf[AExprIdent] && s == b.asInstanceOf[AExprIdent].expr.toLowerCase
 
         op match {
           case "?=" => a(in).toString.length >= 0 // anything with a default
@@ -317,42 +336,43 @@ case class BCMP2(a: Expr, op: String, b: Expr) extends BExpr(a.toDsl + " " + op 
           case ">" => a(in).toString > b(in).toString
 
           case "contains" => a(in).toString contains b(in).toString
+          case "containsNot" => !(a(in).toString contains b(in).toString)
 
-          case "is" => {
-            val as = a(in).toString
+          case "is" if b.toString == "defined" => as.length > 0
 
-            // is nuber or is date or is string etc
-            if(b.toString == "defined") {
-              as.length > 0
-            } else if(b.toString == "empty" || b.toString == "undefined") {
-              as.length == 0
-            } else {
+          case "is" if b.toString == "empty" || b.toString == "undefined" => as.length == 0
 
+          case "is" if b_is("number")  => as.matches("[0-9.]+")
+          case "is" if b_is("boolean") => a.getType == WTypes.BOOLEAN
+
+          case "is" => { // is nuber or is date or is string etc
               /* x is TYPE */
               if(b.isInstanceOf[AExprIdent]) (
-
                 /* x is TYPE */
                 a.getType.toLowerCase == b.asInstanceOf[AExprIdent].expr.toLowerCase ||
 
                 /* x is string */
 //                "string" == b.asInstanceOf[AExprIdent].expr.toLowerCase &&
 //                  a.getType.length == 0 ||
-//
-                /* x is string but matches number */
-                "number" == b.asInstanceOf[AExprIdent].expr.toLowerCase &&
-                   as.matches("[0-9.]+")
+
+                /** just evaluate b */
+                  (as equals bp.calculatedValue)
                 )
               else
                 /* if type expr not known, then behave like equals */
                 (as == b(in).toString)
-            }
           }
 
           case "not" if b.toString == "defined" => a(in).toString.length <= 0
           case "not" if b.toString == "empty" => a(in).toString.length > 0
 
-            // also should be defined...
+            // also should be
           case "not" => a(in).toString.length > 0 && a(in) != b(in)
+
+          case _ if op.trim == "" => {
+            // no op - look for boolean parms?
+            ap.ttype == WTypes.BOOLEAN && "true" == a(in).toString
+          }
 
           case _ => {
             clog << "[ERR Operator " + op + " UNKNOWN!!!]";
@@ -362,6 +382,13 @@ case class BCMP2(a: Expr, op: String, b: Expr) extends BExpr(a.toDsl + " " + op 
       }
     }
   }
+}
+
+/** just a constant expr */
+object BExprFALSE extends BExpr ("FALSE") {
+  def apply(e: Any)(implicit ctx: ECtx): Boolean = false
+
+  override def toDsl = "FALSE"
 }
 
 

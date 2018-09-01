@@ -21,36 +21,30 @@ object EMap {
     // solve an expression
     def expr(p: P) = {
       p.expr.map(_.applyTyped("")(myCtx)/*.toString*/).getOrElse{
-        P("", p.dflt)
+        // need to preserve types and stuff
+        p
       }
     }
 
     val out1 = if (spec.nonEmpty) spec.map { p =>
       if(deferEvaluation)
         p
-      else {
-        // do evaluation now
-        val pe =
-          if(p.dflt.length > 0 || p.expr.nonEmpty) Some(p)
-          else in.attrs.find(_.name == p.name).orElse(
-            ctx.getp(p.name)
-          )
-
+      else { // do evaluation now
         // sourcing has expr, overrules
         val v =
-          if(p.dflt.length > 0 || p.expr.nonEmpty) Some(expr(p))
-          else in.attrs.find(_.name == p.name).orElse(
+          if(p.dflt.length > 0 || p.expr.nonEmpty) Some(expr(p)) // a=x
+          else in.attrs.find(_.name == p.name).orElse( // just by name: no dflt, no expr
             ctx.getp(p.name)
           )
 
         val tt =
           v.map(_.ttype).getOrElse {
-            if (p.ttype.isEmpty && !p.expr.exists(_.getType != "") && v.isInstanceOf[Int]) WTypes.NUMBER
+            if (p.ttype.isEmpty && !p.expr.exists(_.getType != "") && (v.isInstanceOf[Int] || v.isInstanceOf[Float])) WTypes.NUMBER
             else if (p.ttype.isEmpty) p.expr.map(_.getType).mkString
             else p.ttype
           }
 
-        p.copy(dflt = v.map(_.dflt).mkString, ttype=tt)
+        p.copy(dflt = v.map(_.dflt).mkString, ttype=tt, value = v.flatMap(_.value))
       }
     } else if (destSpec.exists(_.nonEmpty)) destSpec.get.map { p =>
       // when defaulting to spec, order changes
@@ -93,7 +87,7 @@ case class EMap(cls: String, met: String, attrs: Attrs, arrow:String="=>", cond:
       val m = EMsg(
          cls, met,
         EMap.sourceAttrs(in, attrs, destSpec.map(_.attrs), deferEvaluation),
-      "generated").
+        AstKinds.GENERATED).
         withPos(this.pos.orElse(apos)).
         withSpec(destSpec)
 

@@ -30,9 +30,15 @@ import scala.collection.mutable.ListBuffer
 class EESnakk extends EExecutor("snakk") {
   import EESnakk._
 
+  private def trimmed(s:String, len:Int = 2000) = (if(s.length > len) s"(>$len):\n" else "\n") + s.take(len)
+
   /** can I execute this task? */
   override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
-    def known (s:String) = (s contains "GET") || (s contains "POST") || (s contains "TELNET") || (s contains "HTTP")
+    def known (s:String) =
+      (s contains "GET") ||
+      (s contains "POST") ||
+      (s contains "TELNET") ||
+      (s contains "HTTP")
 
     m.entity == "snakk" && m.met == "json"      ||
     m.entity == "snakk" && m.met == "xml"       ||
@@ -93,10 +99,7 @@ class EESnakk extends EExecutor("snakk") {
 
       osc.map { sc =>
 
-        val newurl = if (sc.url startsWith "/") "http://" +
-          ctx.root.asInstanceOf[DomEngECtx].settings.hostport.mkString.mkString +
-          sc.url
-        else sc.url
+        val newurl = EESnakk.relativeUrl(sc.url)
 
         // with templates
 
@@ -107,15 +110,15 @@ class EESnakk extends EExecutor("snakk") {
           if (templateReq.flatMap(_.parms.get("protocol")).exists(_ == "telnet") ||
               in.entity == "snakk" && in.met == "telnet") {
 
-            eres += EInfo("Snakking TELNET ", Enc.escapeHtml(sc.toJson)).withPos(pos)
+            eres += EInfo("Snakking TELNET ", Enc.escapeHtml(trimmed(sc.toJson, 5000))).withPos(pos)
 
             val REX = """([.\w]+)[:/ ](\w+).*""".r
             val REX(host, port) = newurl
 
             response = sc.telnet(host, port, sc.postContent, Some(eres))
 
-            eres += EInfo("Response", Enc.escapeHtml(response))
-            val content = new EEContent(response, sc.iContentType.getOrElse(""), None)
+            eres += EInfo("Response", Enc.escapeHtml(trimmed(response)))
+            val content = new EEContent(response, sc.iContentType.getOrElse(""), sc.iHeaders.getOrElse(Map.empty))
             content
 
           } else {   // http
@@ -143,21 +146,22 @@ class EESnakk extends EExecutor("snakk") {
             urlx = x.toString
             sc.setUrl(x)
 
-            clog << "Snakking: " + sc.toJson
+            clog << "Snakking: " + trimmed(sc.toJson, 5000)
             clog << ""
             clog << "Snakking CURL: "
-            clog << sc.toCurl
+            clog << trimmed(sc.toCurl, 5000)
 
-            eres += EInfo("Snakking " + x.toString, Enc.escapeHtml(sc.toJson)).withPos(pos)
+            eres += EInfo("Snakking " + x.toString, Enc.escapeHtml(trimmed(sc.toCurl))).withPos(pos)
 
             response = sc.body // make the call
 
             if(response.length >= Comms.MAX_BUF_SIZE)
               eres += EError(s"BUF_SIZE - read too much from socket (${response.length} + bytes!)", "")
 
-            clog << ("RESPONSE: \n" + response)
-            eres += EInfo("Response", Enc.escapeHtml(response))
-            val content = new EEContent(response, sc.iContentType.getOrElse(""), sc.root)
+            clog << ("RESPONSE: " + trimmed(response))
+
+            val content = new EEContent(response, sc.iContentType.getOrElse(""), sc.iHeaders.getOrElse(Map.empty), sc.root)
+            eres += EInfo("Response", Enc.escapeHtml(trimmed(content.toString, 2000)))
             content
           }
 
@@ -185,7 +189,7 @@ class EESnakk extends EExecutor("snakk") {
             reply.extract(templateSpecs, specs, regex).map(t => new P(t._1, t._2))
           }.getOrElse (
             if(in.entity == "snakk" && in.met == "json") {
-              reply.asJsonResult :: Nil
+              reply.asJsonPayload :: Nil
             } else
               reply.extract(templateSpecs, specs, regex).map(t => new P(t._1, t._2))
           )
@@ -250,21 +254,21 @@ class EESnakk extends EExecutor("snakk") {
           urlx = ux.toString
           sc.setUrl(ux)
 
-          val content = {
+          val content : EEContent = {
             if (sc.method == "open") {
               val response = sc.telnet("localhost", "9000", sc.postContent, Some(eres))
-              new EEContent(sc.body, "application/text", None)
+              new EEContent(sc.body, "application/text")
             } else {
-              eres += EInfo("Snakking " + urlx, Enc.escapeHtml(sc.toJson)).withPos(pos)
+              eres += EInfo("Snakking " + urlx, Enc.escapeHtml(trimmed(sc.toJson, 5000))).withPos(pos)
               val response = sc.body
-              new EEContent(sc.body, sc.iContentType.getOrElse(""), sc.root)
+              new EEContent(sc.body, sc.iContentType.getOrElse(""), sc.iHeaders.getOrElse(Map.empty), sc.root)
             }
           }
 
           durationMillis = System.currentTimeMillis() - startMillis
           eres += EDuration(durationMillis)
 
-          eres += EInfo("Response", Enc.escapeHtml(content.body))
+          eres += EInfo("Response", Enc.escapeHtml(trimmed(content.toString, 2000)))
 
           // 2. extract values
           val x = if (in.ret.nonEmpty) in.ret else spec(in).toList.flatMap(_.ret)
@@ -277,6 +281,7 @@ class EESnakk extends EExecutor("snakk") {
             ctx.put(x)
             EVal(x).withPos(pos)
           } ::: new EVal("snakk.response", content.body) ::
+          // todo here's where i would add the response headers - make the snakk.response an object?
             new EVal("payload", content.body) ::
             Nil
         } getOrElse
@@ -285,6 +290,9 @@ class EESnakk extends EExecutor("snakk") {
     } catch {
       case t: Throwable => {
         razie.Log.log("error snakking", t)
+
+        durationMillis = System.currentTimeMillis() - startMillis
+        eres += EDuration(durationMillis)
 
         eres += //EError("Error snakking: " + urlx, t.toString) ::
           new EError("Exception : ", t) ::
@@ -375,6 +383,12 @@ object EESnakk {
     )
   }
 
+  def relativeUrl(u:String)(implicit ctx:ECtx) =
+    if (u startsWith "/") "http://" +
+      ctx.root.asInstanceOf[DomEngECtx].settings.hostport.mkString.mkString +
+      u
+    else u
+
   /** extract a snakk call from message args - good for snakk.json and snakk.xml */
   def scFromMsg(attrs: Attrs)(implicit ctx:ECtx) : SnakkCall = {
 
@@ -387,8 +401,8 @@ object EESnakk {
     val verb = f("verb", "GET")
     val url = f("url")
 
-    val xurlStr = "http://www.example.com/CEREC® Materials & Accessories/IPS Empress® CAD.pdf"
-    val xurl= new URL(url);
+//    val xurlStr = "http://www.example.com/CEREC® Materials & Accessories/IPS Empress® CAD.pdf"
+    val xurl= new URL(relativeUrl(url));
     val xuri = new URI(xurl.getProtocol(), xurl.getUserInfo(), xurl.getHost(), xurl.getPort(), xurl.getPath(), xurl.getQuery(), xurl.getRef());
 
     val encurl = xuri.toASCIIString();

@@ -98,12 +98,7 @@ abstract class ReactorImpl (val realm:String, val fallBacks:List[Reactor] = Nil,
 
   //todo fallback also in real time to rk, per prop
   // todo listen to updates and reload
-  lazy val props = {
-    we.orElse(WID("Reactor", realm).r(realm).page).map{p=>
-      new DslProps(Some(p), "properties")
-    } getOrElse
-      WikiReactors.fallbackProps
-  }
+  lazy val props = sectionProps ("properties")
 
   WikiObservers mini {
     case WikiEvent(_, "WikiEntry", _, Some(x), _, _, _) if props.we.exists(_.uwid == x.asInstanceOf[WikiEntry].uwid) => {

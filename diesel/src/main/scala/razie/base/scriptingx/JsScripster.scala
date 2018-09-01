@@ -66,7 +66,7 @@ object JsScripster extends Logging {
           (true, if (res != null) res.toString else "", res)
       } catch {
         case t: Throwable => {
-          log(s"while executing script\n$jscript", t)
+          log(s"while executing script\n${jscript.takeRight(300)}", t)
           // don't include the script body - security issue
             (false, t.toString, t)
         }
@@ -74,7 +74,7 @@ object JsScripster extends Logging {
 
         c.stop()
 
-        audit("SFIDDLE_EXEC JS" + (c.last - c.beg) + " msec" + jscript)
+        audit("SFIDDLE_EXEC JS (in " + (c.last - c.beg) + " msec) : " + jscript.takeRight(300))
         if (doAudit)
           Audit.logdb("SFIDDLE_EXEC", "JS", (c.last - c.beg) + " msec", jscript.takeRight(300))
       }
