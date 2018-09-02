@@ -37,8 +37,6 @@ trait Reactor {
   /** Admin:UserHome if user or Admin:Home or Reactor:realm if nothing else is defined */
   def mainPage(au:Option[WikiUser]) : WID
 
-  def sectionProps(section:String) :DslProps
-
   def websiteProps : DslProps
 
   //todo fallback also in real time to rk, per prop
@@ -55,9 +53,6 @@ trait Reactor {
   * Wikis can mixin other wikis - linearized multiple inheritance.
   */
 abstract class ReactorImpl (val realm:String, val fallBacks:List[Reactor] = Nil, val we:Option[WikiEntry]) extends Reactor {
-//  val wiki   : WikiInst   = new WikiInstImpl(realm, fallBacks.map(_.wiki))
-//  val domain : WikiDomain = new WikiDomain (realm, wiki)
-
   val mixins = new Mixins[Reactor](fallBacks)
   lazy val club = props.wprop("club").flatMap(Wikis.find)
 
@@ -87,18 +82,19 @@ abstract class ReactorImpl (val realm:String, val fallBacks:List[Reactor] = Nil,
     p
   }
 
-  def sectionProps(section:String) = {
+  private def sectionProps(section:String) = {
     we.orElse(WID("Reactor", realm).r(realm).page).map{p=>
-      new DslProps(Some(p), "website")
+      new DslProps(Some(p), section)
     } getOrElse
       WikiReactors.fallbackProps
   }
 
-  lazy val websiteProps = sectionProps("website")
+  /* deprecated - use props */
+  lazy val websiteProps = sectionProps("website")// :: sectionProps("properties")
 
   //todo fallback also in real time to rk, per prop
   // todo listen to updates and reload
-  lazy val props = sectionProps ("properties")
+  lazy val props = sectionProps ("properties") //:: sectionProps("website")
 
   WikiObservers mini {
     case WikiEvent(_, "WikiEntry", _, Some(x), _, _, _) if props.we.exists(_.uwid == x.asInstanceOf[WikiEntry].uwid) => {

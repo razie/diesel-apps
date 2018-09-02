@@ -5,6 +5,8 @@ import razie.wiki.model._
 
 /**
  * dsl processing - entries with a props section
+  *
+  * @param section comma separated list of sections
  */
 class DslProps (val we:Option[WikiPage], section:String, extra:Seq[(String,String)] = Seq()) {
   private var ipropSeq = extra
@@ -28,8 +30,14 @@ class DslProps (val we:Option[WikiPage], section:String, extra:Seq[(String,Strin
 
   // todo avoid reload, swap the entire class and use VAL instead of DEF in Website - stop parsing stuff all the time
   def reload(we:WikiPage): Unit = {
-    ipropSeq = extra ++ (we.section("section", section).toArray flatMap (ws=>WikiConfig.parsep(ws.content)))
+    ipropSeq = extra ++
+      section.split(",").toSeq.flatMap( sec=>
+        we.section("section", sec).toArray flatMap (ws=>WikiConfig.parsep(ws.content))
+    )
     iprops = ipropSeq.toMap[String,String]
   }
+
+  def :: (other:DslProps) : DslProps =
+    new DslProps (we, section, other.ipropSeq)
 }
 

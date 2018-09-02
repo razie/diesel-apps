@@ -9,7 +9,7 @@ import razie.wiki.util.{DslProps, PlayTools}
 /**
  * Multihosting - website settings - will collect website properties from the topic if it has a 'website' section
  */
-class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps(Some(we), "website", extra) {
+class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps(Some(we), "website,properties", extra) {
   def label:String = this prop "label" OR name
   def name:String = this prop "name" OR we.name //"-"
   def reactor:String = this prop "reactor" OR (this prop "realm" OR "rk")

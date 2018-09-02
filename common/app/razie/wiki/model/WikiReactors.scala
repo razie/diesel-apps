@@ -113,7 +113,7 @@ object WikiReactors {
 
   /** find the mixins from realm properties */
   private def getMixins (we:Option[WikiEntry]) =
-    new DslProps(we, "website")
+    new DslProps(we, "website,properties")
       .prop("mixins")
       .map(_.split(","))
       .getOrElse{
@@ -156,7 +156,7 @@ object WikiReactors {
   } // using RK as a fallback
 
   // todo listen to updates and reload
-  lazy val fallbackProps = new DslProps(WID("Reactor", "wiki").r("wiki").page, "properties")
+  lazy val fallbackProps = new DslProps(WID("Reactor", "wiki").r("wiki").page, "properties,properties")
 
   WikiObservers mini {
     case WikiEvent(_, "WikiEntry", _, Some(x), _, _, _) if fallbackProps.we.exists(_.uwid == x.asInstanceOf[WikiEntry].uwid) => {
