@@ -161,7 +161,7 @@ case class User(
 
   def myPages(realm:String, cat: String) = pages (realm, cat)
 
-  lazy val ownedReactors = ownedPages("rk", "Reactor").toList
+  lazy val memberReactors = (ownedPages("rk", "Reactor").map(_.name).toList ::: realms.toList).distinct
 
   def ownedPages(realm:String, cat: String) =
     Wikis(realm).weTable(cat).find(Map("props.owner" -> id, "category" -> cat)) map {o=>
@@ -216,7 +216,7 @@ case class User(
 
   var css = prefs.get("css")
 
-  private def mapRS(realm:String)(f: UserRealm => UserRealm) = {
+  def mapRS(realm:String)(f: UserRealm => UserRealm) = {
     // if not there, create record for this realm
     val x = if(realmSet.contains(realm))
       this
@@ -246,11 +246,11 @@ case class User(
   }
 
   def addPerm(realm:String, t: String) = mapRS(realm) {rs=>
-    rs.copy(perms = perms + t)
+    rs.copy(perms = rs.perms + t)
   }
 
   def removePerm(realm:String, t: String) = mapRS(realm) {rs=>
-    rs.copy(perms = perms - t)
+    rs.copy(perms = rs.perms - t)
   }
 
   def forRealm(realm:String) = {
