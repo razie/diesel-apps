@@ -15,6 +15,10 @@ msg types are msg, err
 
 @text
 
+@if(text.length > 0) {
+  <br><br>
+}
+
 <form action="@url" class="form-inline" method="post">
 
   @fields.map { f =>
