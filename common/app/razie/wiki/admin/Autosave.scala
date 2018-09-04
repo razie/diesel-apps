@@ -20,16 +20,23 @@ case class Autosave(
   updDtm: DateTime = DateTime.now,
   _id: ObjectId = new ObjectId()) extends REntity[Autosave] {
 
-  override def create(implicit txn: Txn=tx.auto) = RCreate.noAudit[Autosave](this)
-  override def update (implicit txn: Txn=tx.auto) = RUpdate.noAudit(Map("_id" -> _id), this)
-  override def delete(implicit txn: Txn=tx.auto) = RDelete.noAudit[Autosave](this)
+  // todo remove this
+  def fix = if("DomFidSpec" == what || "DomFidStory" == what) this.copy(what="wikie") else this
+
+  override def create(implicit txn: Txn=tx.auto) = RCreate.noAudit[Autosave](this.fix)
+  override def update (implicit txn: Txn=tx.auto) = RUpdate.noAudit(Map("_id" -> _id), this.fix)
+  override def delete(implicit txn: Txn=tx.auto) = RDelete.noAudit[Autosave](this.fix)
 }
 
 /** autosave utils */
 object Autosave {
 
-  private def rec(what:String, realm:String, name:String, userId: ObjectId) =
+  private def rec(iwhat:String, realm:String, name:String, userId: ObjectId) = {
+    // todo very ugly trick
+    val what = if("DomFidSpec" == iwhat || "DomFidStory" == iwhat) "wikie" else iwhat
+
     ROne[Autosave]("what" -> what, "realm" -> realm, "name" -> name, "userId" -> userId)
+  }
 
   def findAll(realm:String, name:String, userId: ObjectId) =
     ROne[Autosave]("realm" -> realm, "name" -> name, "userId" -> userId)
