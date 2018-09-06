@@ -8,8 +8,9 @@ package razie.diesel.engine
 
 import java.util.concurrent.TimeUnit
 
-import akka.actor.Actor
+import akka.actor.{Actor, Stash}
 import play.libs.Akka
+import razie.audit.Audit
 import razie.clog
 import razie.diesel.dom.DomAst
 
@@ -55,7 +56,15 @@ case class DEError      (engineId:String, msg:String) extends DEMsg
 class DomEngineRouter () extends Actor {
 
   def receive = {
-    case DEInit => { }
+    case DEInit => {
+      // todo is this fair?
+      // in case other services don't start me - i will start myself
+      Akka.system.scheduler.scheduleOnce(
+        Duration.create(7, TimeUnit.SECONDS),
+        this.self,
+        "startAll"
+      )
+    }
 
     case req @ DEReq(id, a, r, l) => route(id, req)
     case rep @ DERep(id, a, r, l, results) => route(id, rep)
@@ -63,6 +72,15 @@ class DomEngineRouter () extends Actor {
     case DEStop => {
 //      DieselAppContext.refMap.values.map(_ ! DEStop)
     }
+
+    case "startAll" => {
+      Audit.logdb("DEBUG", "DomEngineRouter startAll")
+      if (!DieselAppContext.serviceStarted) {
+        Audit.logdb("DEBUG-BAD", "DomEngineRouter self init")
+        DieselAppContext.start
+      }
+    }
+
   }
 
   def route (id:String, msg:DEMsg) = {
@@ -79,19 +97,30 @@ class DomEngineRouter () extends Actor {
   *
   * it will serialize status udpates and execution
   */
-class DomEngineActor (eng:DomEngine) extends Actor {
+class DomEngineActor (eng:DomEngine) extends Actor with Stash {
+
+  def checkInit : Boolean = {
+    if(!DieselAppContext.serviceStarted) {
+      stash()
+      false
+    } else
+      true
+  }
 
   def receive = {
+
     case DEInit => {
       //save refs for active engines
+      unstashAll()
     }
 
-    case req @ DEReq(eid, a, r, l) => {
+    case req @ DEReq(eid, a, r, l) if checkInit => {
       if(eng.id == eid) eng.processDEMsg(req)
       else DieselAppContext.router.map(_ ! req)
     }
 
-    case rep @ DERep(eid, a, r, l, results) => {
+    case rep @ DERep(eid, a, r, l, results) if checkInit => {
+      checkInit
       if(eng.id == eid) eng.processDEMsg(rep)
       else DieselAppContext.router.map(_ ! rep)
     }

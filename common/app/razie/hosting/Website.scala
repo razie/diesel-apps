@@ -119,7 +119,7 @@ object Website {
   def lookupSite (s:String) : Option[WikiEntry] = {
     synchronized {
       if(sites.isEmpty) {
-        // init
+//         init
         Wikis.rk.pageNames("Site").toList map (s=>sites.put(s,s))
       }
     }

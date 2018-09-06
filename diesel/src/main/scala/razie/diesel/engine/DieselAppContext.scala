@@ -7,6 +7,8 @@
 package razie.diesel.engine
 
 import akka.actor.{ActorRef, ActorSystem, Props}
+import razie.Logging
+import razie.audit.Audit
 import razie.diesel.dom.{RDomain, _}
 import razie.tconf.DSpec
 
@@ -14,7 +16,7 @@ import scala.collection.mutable
 
 
 /** an application static - engine factory and cache */
-object DieselAppContext {
+object DieselAppContext extends Logging {
   private var appCtx : Option[DieselAppContext] = None
   var engMap = new mutable.HashMap[String,DomEngine]()
   var refMap = new mutable.HashMap[String,ActorRef]()
@@ -66,20 +68,45 @@ object DieselAppContext {
   }
 
   /** the static version - delegates to factory */
-  def mkEngine(dom: RDomain, root: DomAst, settings: DomEngineSettings, pages : List[DSpec]) = {
+  def mkEngine(dom: RDomain, root: DomAst, settings: DomEngineSettings, pages : List[DSpec]) = synchronized {
     val eng = ctx.mkEngine(dom, root, settings, pages)
     val p = Props(new DomEngineActor(eng))
     val a = getActorSystem.actorOf(p, name = "engine-"+eng.id)
     DieselAppContext.engMap.put(eng.id, eng)
     DieselAppContext.refMap.put(eng.id, a)
-    a ! DEInit
+
+    if(serviceStarted) {
+      a ! DEInit
+    }
+
     eng
+  }
+
+  /** these actors won'y start processing unless this module/service is "started"
+    * they put a lot of load and slow down the init of the website and it's acting eratic
+    * so nothing is processed in the first 5 seconds or so...
+    */
+  @volatile var serviceStarted = false
+
+  /** start all actors */
+  def start = synchronized {
+    if(!serviceStarted) {
+      serviceStarted = true
+
+      init() // make sure it was init
+
+      refMap.values.foreach(_ ! DEInit)
+
+      Audit.logdb("DEBUG", s"Starting all engines... ${refMap.size} engines waiting")
+    }
   }
 
   def stop = {
   }
 
   def ctx = appCtx.getOrElse(init())
+
+  def report = s"Engines: ${engMap.size} - running: ${engMap.values.filter(_.status == DomState.DONE).size}"
 }
 
 /** a diesel app context

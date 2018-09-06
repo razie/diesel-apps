@@ -96,11 +96,6 @@ abstract class ReactorImpl (val realm:String, val fallBacks:List[Reactor] = Nil,
   // todo listen to updates and reload
   lazy val props = sectionProps ("properties") //:: sectionProps("website")
 
-  WikiObservers mini {
-    case WikiEvent(_, "WikiEntry", _, Some(x), _, _, _) if props.we.exists(_.uwid == x.asInstanceOf[WikiEntry].uwid) => {
-      props.reload(x.asInstanceOf[WikiEntry])
-    }
-  }
 }
 
 

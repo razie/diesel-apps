@@ -185,10 +185,10 @@ case class WID(
         WikiReactors(realm.get).websiteProps.prop("domain").get
       else
         //todo current realm
-        Services.config.hostport /* + realm.map(r => s"/w/$r").getOrElse("")*/
+        Services.config.hostport
     } + "/" + {
       if(realm.isDefined) "wiki/" + wpath
-      else canonpath //wpathnocats
+      else canonpath
     }
   }
 
@@ -199,7 +199,7 @@ case class WID(
   def urlRelative (fromRealm:String) : String =
   "/" + {
     if(realm.exists(_ != fromRealm)) "wiki/" + wpathFull
-    else canonpath //wpathnocats
+    else canonpath
   }
 
   /** canonical path - may be different from wpath */

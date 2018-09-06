@@ -252,7 +252,7 @@ object WikiIndex {
 
 /** generic instance mixin - wiki domains and indexes accept mixins */
 class Mixins[A <: {def mixins:Mixins[A]}] (val l:List[A]) {
-  val flatten = {
+  val flatten : List[A] = {
     var seen = new ListBuffer[A]()
     def see (a:A): Unit = {
       if(! (seen contains a)) {

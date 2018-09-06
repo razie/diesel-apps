@@ -43,7 +43,7 @@ class EESnakk extends EExecutor("snakk") {
     m.entity == "snakk" && m.met == "json"      ||
     m.entity == "snakk" && m.met == "xml"       ||
     m.entity == "snakk" && m.met == "text"      ||
-    m.entity == "snakk" && m.met == "telnet"      ||
+    m.entity == "snakk" && m.met == "telnet"    ||
     m.entity == "snakk" && m.met == "ffd"       ||
     m.entity == "snakk" && m.met == "ffdFormat" ||
     known(m.stype) ||
