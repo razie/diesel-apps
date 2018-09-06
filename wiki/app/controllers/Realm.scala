@@ -120,7 +120,7 @@ object Realm extends RazController with Logging {
           val co = Wikis.template(tm, parms)
           WikiEntry(cat, name, label, "md", co, au._id, tags.distinct.toSeq, name, 1, wid.parent,
             Map("owner" -> au.id,
-              WikiEntry.PROP_WVIS -> Visibility.PRIVATE))
+              WikiEntry.PROP_WVIS -> Visibility.MODERATOR))
           // the realm is changed later just before saving
         }
 
@@ -205,6 +205,7 @@ object Realm extends RazController with Logging {
         )
       }
 
+      request.au.get.update(request.au.get.addPerm(realm, Perm.Moderator.s))
      cleanAuth(request.au)
 
       Redirect(s"/wikie/switchRealm/$name", SEE_OTHER)

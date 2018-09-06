@@ -218,7 +218,7 @@ case class User(
 
   def mapRS(realm:String)(f: UserRealm => UserRealm) = {
     // if not there, create record for this realm
-    val x = if(realmSet.contains(realm))
+    val x = if(realmSet.contains(realm) || "*" == realm)
       this
     else {
       this.copy(
@@ -228,7 +228,7 @@ case class User(
 
     x.copy(
         realmSet = x.realmSet.map { rs =>
-        if (rs._1 == realm) (rs._1, f(rs._2))
+        if (rs._1 == realm || "*" == realm) (rs._1, f(rs._2))
         else rs
       })
   }
@@ -246,7 +246,7 @@ case class User(
   }
 
   def addPerm(realm:String, t: String) = mapRS(realm) {rs=>
-    rs.copy(perms = rs.perms + t)
+    rs.copy(perms = rs.perms + (if(t.startsWith("+")) t else "+"+t))
   }
 
   def removePerm(realm:String, t: String) = mapRS(realm) {rs=>

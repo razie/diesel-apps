@@ -184,10 +184,31 @@ trait DomParser extends ParserBase with ExprParser {
     * => z.role (attrs)
     */
   def pgen: Parser[EMap] =
-    ows ~> keyw(pArrow) ~ ows ~ opt(pif) ~ ows ~ (clsMet | justAttrs) ^^ {
+    ows ~> keyw(pArrow) ~ ows ~ opt(pif) ~ ows ~ (clsMet | justAttrs) <~ opt(";") ^^ {
       case arrow ~ _ ~ cond ~ _ ~ Tuple3(zc, zm, za) => {
         EMap(zc, zm, za, arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
         // EPos wpath set later
+      }
+    }
+
+  /**
+    * - text - i.e. step description
+    */
+  def pgenStep: Parser[EMap] =
+    ows ~> keyw("-") ~ ows ~ opt(pif) ~ ows ~ "[^\n\r;]+".r <~ opt(";") ^^ {
+      case arrow ~ _ ~ cond ~ _ ~ desc => {
+        EMap("diesel", "step", List(P("desc", desc)), arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
+      }
+    }
+
+  /**
+    * - text - i.e. step description
+    * todo is not working
+    */
+  def pgenText: Parser[EMap] =
+    ows ~> keyw("[^\n\r=\\-;]".r) ~ ows ~ opt(pif) ~ ows ~ "[^\n\r;]+".r <~ opt(";") ^^ {
+      case arrow ~ _ ~ cond ~ _ ~ desc => {
+        EMap("diesel", "step", List(P("desc", arrow.s+desc)), "-", cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
       }
     }
 
@@ -197,7 +218,7 @@ trait DomParser extends ParserBase with ExprParser {
     * .mock a.role (attrs) => z.role (attrs)
     */
   def linemock(wpath: String) =
-    keyw("""[.$]mock""".r) ~ ws ~ clsMatch ~ ws ~ opt(pif) ~ rep(pgen)  <~ " *".r ^^ {
+    keyw("""[.$]mock""".r) ~ ws ~ clsMatch ~ ws ~ opt(pif) ~ rep(pgen | pgenStep)  <~ " *".r ^^ {
       case k ~ _ ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ gen => {
         val x = EMatch(ac, am, aa, cond)
         val f = EMock(ERule(x, "mock", gen))
@@ -215,7 +236,7 @@ trait DomParser extends ParserBase with ExprParser {
     * - others like model or impl are specific
     */
   def pwhen: PS =
-    keyw("""[.$]when|[.$]mock""".r) ~ ws ~ optArch ~ clsMatch ~ ws ~ opt(pif) ~ rep(pgen) ^^ {
+    keyw("""[.$]when|[.$]mock""".r) ~ ws ~ optArch ~ clsMatch ~ ws ~ opt(pif) ~ rep(pgen | pgenStep ) ^^ {
       case k ~ _ ~ oarch ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ gens => {
         lazys { (current, ctx) =>
           val x = EMatch(ac, am, aa, cond)
