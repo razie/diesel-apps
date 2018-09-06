@@ -94,8 +94,12 @@ case class ExpectV(not: Boolean, pm: MatchAttrs, cond: Option[EIf] = None) exten
   /** check to match the arguments */
   def test(a: Attrs, cole: Option[MatchCollector] = None, nodes: List[DomAst])(implicit ctx: ECtx) = {
     testA(a, pm, cole, Some({ p =>
-      // start a new collector to mark this value
-      cole.foreach(c => nodes.find(_.value.asInstanceOf[EVal].p.name == p.name).foreach(n => c.newMatch(n)))
+      // start a new collector for each value we're looking for, to mark this value
+      cole.foreach{c=>
+        nodes
+          .find(_.value.asInstanceOf[EVal].p.name == p.name)
+          .foreach(n => c.newMatch(n))
+        }
     }))
     // we don't check the cond - it just doesn't apply
     // && cond.fold(true)(_.test(a, cole))
@@ -207,9 +211,9 @@ case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred:Bo
     m
   }
 
-  override def toHtml = arrow + " " + msg.toHtml
+  override def toHtml = (if (arrow != "-") arrow + " " else "") + msg.toHtml
 
-  override def toString = arrow + " " + msg.toString
+  override def toString = (if (arrow != "-") arrow + " " else "") + msg.toString
 }
 
 /** $when - match and decomposition rule

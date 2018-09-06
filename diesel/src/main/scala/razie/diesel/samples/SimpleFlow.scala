@@ -1,6 +1,6 @@
 package razie.diesel.samples
 
-import razie.{Audit, cout}
+import razie.{cout}
 import razie.diesel.dom._
 import razie.diesel.engine._
 import razie.diesel.ext.{EMsg, EVal}

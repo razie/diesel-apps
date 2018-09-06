@@ -14,8 +14,10 @@ import scala.collection.mutable.ListBuffer
 /** the kinds of nodes we understand */
 object AstKinds {
   final val ROOT = "root"
+  final val STORY = "story"
   final val RECEIVED = "received"
   final val SAMPLED = "sampled"
+  final val DEBUG = "debug"
   final val GENERATED = "generated"
   final val SUBTRACE = "subtrace"
   final val RULE = "rule"
@@ -25,16 +27,25 @@ object AstKinds {
   final val BUILTIN = "built-in"
   final val NEXT = "next"
 
-  def isGenerated  (k:String) = GENERATED==k || SKETCHED==k || MOCKED==k
+  def isGenerated  (k:String) = GENERATED==k || SKETCHED==k || MOCKED==k || DEBUG==k
   def shouldIgnore (k:String) = RULE==k || BUILTIN==k
   def shouldSkip (k:String) = NEXT==k
   def shouldRollup (k:String) = NEXT==k
+  def shouldPrune (k:String) = false
 }
 
 /** mix this in if you want to control display/traversal */
 trait DomAstInfo {
+  /** prune i.e. stop showing children */
+  def shouldPrune : Boolean
+
+  /** ignore this node and branch */
   def shouldIgnore : Boolean
+
+  /** skip this node */
   def shouldSkip : Boolean
+
+  /** don't show this node, just show it's children as if they'r eunder the parent */
   def shouldRollup : Boolean
 }
 
@@ -58,7 +69,7 @@ object DomState {
   * todo need ID conventions to suit distributed services
   */
 case class DomAst(
-  value: Any,
+  var value: Any,
   kind: String = AstKinds.GENERATED,
   children: ListBuffer[DomAst] = new ListBuffer[DomAst](),
   id : String = new ObjectId().toString
@@ -94,6 +105,10 @@ case class DomAst(
     this
   }
 
+  private def shouldPrune (k:DomAst) =
+    AstKinds.shouldPrune(k.kind) ||
+      k.value.isInstanceOf[DomAstInfo] && k.value.asInstanceOf[DomAstInfo].shouldPrune
+
   private def shouldIgnore (k:DomAst) =
     AstKinds.shouldIgnore(k.kind) ||
       k.value.isInstanceOf[DomAstInfo] && k.value.asInstanceOf[DomAstInfo].shouldIgnore
@@ -116,21 +131,27 @@ case class DomAst(
     def toschildren (level:Int, kids : List[DomAst]) : List[Any] =
       kids.filter(k=> !shouldIgnore(k)).flatMap{k=>
         if(shouldRollup(k) && k.children.size == 1) {
-          // rollup NEXT nodes and others - just show the children
+//           rollup NEXT nodes and others - just show the children
           toschildren(level+1, k.children.toList)
         } else
           List(k.tos(level+1, html))
       }
 
-    (" " * level) +
-      theKind +
-      "::" + {
-      value match {
-        case c:CanHtml if(html) => c.toHtml
-        case x => x.toString
-      }
-    }.lines.map((" " * 1) + _).mkString("\n") + moreDetails + "\n" +
+    if(!shouldSkip(this)) {
+      s"""<div kind="$kind" level="$level">""" +
+        (" " * level) +
+        theKind +
+        "::" + {
+        value match {
+          case c: CanHtml if (html) => c.toHtml
+          case x => x.toString
+        }
+      }.lines.map((" " * 1) + _).mkString("\n") + moreDetails + "\n" +
+        toschildren(level, children.toList).mkString +
+        "</div>"
+    } else {
       toschildren(level, children.toList).mkString
+    }
   }
 
 

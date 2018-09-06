@@ -29,7 +29,8 @@ object DomEngineSettings {
       userId = fqhParm(DIESEL_USER_ID),
       hostport = fqhParm(HOSTPORT),
       realm = fqhParm(REALM),
-      tagQuery = fqhParm(TAG_QUERY)
+      tagQuery = fqhParm(TAG_QUERY),
+      simMode = fqhoParm(SIM_MODE, "true").toBoolean
     )
   }
 
@@ -44,13 +45,14 @@ object DomEngineSettings {
   final val DIESEL_USER_ID = "dieselUserId"
   final val TAG_QUERY = "tagQuery"
   final val HOSTPORT = "hostport"
+  final val SIM_MODE = "simMode"
   final val REALM = "realm"
 
   final val DFIDDLE = "dfiddle"
   final val INCLUDE_FOR = "includeFor"
 
   // filter qeury parms
-  final val FILTER = Array(SKETCH_MODE, MOCK_MODE, BLENDER_MODE, DRAFT_MODE, EXEC_MODE, RESULT_MODE, DFIDDLE, INCLUDE_FOR)
+  final val FILTER = Array(SKETCH_MODE, MOCK_MODE, BLENDER_MODE, DRAFT_MODE, EXEC_MODE, RESULT_MODE, SIM_MODE, DFIDDLE, INCLUDE_FOR)
 }
 
 case class DomEngineSettings
@@ -79,7 +81,9 @@ case class DomEngineSettings
 
   var hostport : Option[String] = None,
 
-  var realm : Option[String] = None
+  var realm : Option[String] = None,
+
+  var simMode : Boolean = false
   ) {
   val node = DieselAppContext.localNode
 
@@ -107,7 +111,8 @@ case class DomEngineSettings
       Map(REALM -> x)
     ).getOrElse(Map.empty) ++ hostport.map(x=>
       Map(HOSTPORT -> x)
-    ).getOrElse(Map.empty)
+    ).getOrElse(Map.empty) ++
+    Map(SIM_MODE -> simMode.toString)
   }
 }
 

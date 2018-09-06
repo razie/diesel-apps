@@ -313,7 +313,7 @@ object RDExt {
 
       if(stories.size > 1 || addFiddles)
         root.children appendAll {
-          lastAst = List(DomAst(StoryNode(story.specPath), "story").withPrereq(lastAst.map(_.id)))
+          lastAst = List(DomAst(StoryNode(story.specPath), AstKinds.STORY).withPrereq(lastAst.map(_.id)))
           lastAst
         }
 

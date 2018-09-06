@@ -20,12 +20,21 @@ import scala.Option.option2Iterable
   * @param ret
   */
 case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:String="", ret: List[RDOM.P] = Nil, stype: String = "") extends CanHtml with HasPosition with DomAstInfo {
+  import EMsg._
+
   var spec: Option[EMsg] = None
   var pos : Option[EPos] = None
   def withPos(p:Option[EPos]) = {this.pos = p; this}
   def withSpec(p:Option[EMsg]) = {this.spec = p; this}
 
   def asCtx (implicit ctx:ECtx) : ECtx = new StaticECtx(this.attrs, Some(ctx))
+
+  /** copy doesn't copy over the vars */
+  def copiedFrom (from:EMsg) =  {
+    this.spec = from.spec
+    this.pos = from.pos
+    this
+  }
 
   def toj : Map[String,Any] =
     Map (
@@ -55,20 +64,22 @@ case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:Strin
     }
 
   // if this was an instance and you know of a spec
-  private def first: String = spec.map(_.first).getOrElse(
-    kspan("msg", resolved, spec.flatMap(_.pos)) + span(stype, "info")
-  )
+  private def first: String = spec.map(_.first).getOrElse{
+    // clean visual stypes annotations
+    val st = stype.replaceAllLiterally(",prune", "").replaceAllLiterally(",warn", "")
+    kspan("msg", msgLabelColor, spec.flatMap(_.pos)) + span(st, "info") + (if(st.trim.length > 0) " " else "")
+  }
 
   /** if has executor */
   def hasExecutor:Boolean = Executors.all.exists(_.test(this)(ECtx.empty))
 
   def isResolved:Boolean = if(spec.exists(_.isResolved)) true else (
-    if ((stype contains "GET") || (stype contains "POST") || hasExecutor ) true
+    if ((stype contains "GET") || (stype contains "POST") || hasExecutor || entity == "diesel") true
     else false
   )
 
   /** color - if has executor */
-  private def resolved: String = if(isResolved) "default" else "primary"
+  private def msgLabelColor: String = if(isResolved) "default" else if (stype contains WARNING) "warning" else "primary"
 
   /** extract a match from this message signature */
   def asMatch = EMatch(entity, met, attrs.filter(_.dflt != "").map {p=>
@@ -77,7 +88,7 @@ case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:Strin
 
   /** this html works well in a diesel fiddle, use toHtmlInPage elsewhere */
   override def toHtml = {
-  /*span(arch+"::")+*/first + s""" ${ea(entity,met)} """ + toHtmlAttrs(attrs)
+  /*span(arch+"::")+*/first + s"""${ea(entity,met)} """ + toHtmlAttrs(attrs)
   }
 
   /** as opposed to toHtml, this will produce an html that can be displayed in any page, not just the fiddle */
@@ -154,15 +165,27 @@ case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:Strin
     s"""<a target="_blank" href="${mapUrl(u)}">$text</a>"""
   }
 
-  override def shouldIgnore = this.stype contains "ignore"
-  override def shouldSkip = this.stype contains "skip"
+  override def shouldPrune = this.stype contains PRUNE
+  override def shouldIgnore = this.stype contains IGNORE
+  override def shouldSkip = this.stype contains SKIP
   override def shouldRollup =
     // rollup simple assignments - leave only the EVals
     entity == "" && met == "" ||
-      (this.stype contains "rollup")
+      (this.stype contains ROLLUP)
 
   /** is it public visilibity */
   def isPublic =
-    spec.map(_.arch).exists(_ contains "public") ||
-    spec.map(_.stype).exists(_ contains "public")
+    spec.map(_.arch).exists(_ contains PUBLIC) ||
+    spec.map(_.stype).exists(_ contains PUBLIC)
+}
+
+object EMsg {
+  val PRUNE = "prune"
+  val ROLLUP = "rollup"
+  val IGNORE = "ignore"
+  val SKIP = "skip"
+
+  val PUBLIC = "public"
+
+  val WARNING = "warn"
 }

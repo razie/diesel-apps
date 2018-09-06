@@ -455,7 +455,7 @@ class DomEngine(
         // no need to return anything - children have been decomposed
       }
 
-      case n1@ENext(m, "=>", cond, _) => {
+      case n1@ENext(m, ar, cond, _) if "-" == ar || "=>" == ar => {
         // message executed later
         implicit val ctx = new StaticECtx(n1.parent.map(_.attrs).getOrElse(Nil), Some(this.ctx), Some(a))
 
@@ -476,7 +476,7 @@ class DomEngine(
             } getOrElse
               DomAst(EError(p.dflt) withPos(x.pos), AstKinds.GENERATED).withSpec(x)
           } else
-            DomAst(EVal(p) withPos(x.pos), AstKinds.GENERATED).withSpec(x)
+            DomAst(EVal(p) withPos(x.pos), AstKinds.DEBUG).withSpec(x)
         }
         ctx putAll x.attrs
       }
@@ -487,7 +487,7 @@ class DomEngine(
 
       case n: EVal if !AstKinds.isGenerated(a.kind) => {
         // $val defined in scope
-        a.children append DomAst(EVal(n.p).withPos(n.pos), AstKinds.MOCKED)
+        a.children append DomAst(EVal(n.p).withPos(n.pos), AstKinds.DEBUG)
         ctx.put(n.p)
       }
 
@@ -510,7 +510,8 @@ class DomEngine(
         clog << "NOT KNOWN: " + s.toString
         a.children append DomAst(
           EWarning("NODE NOT KNOWN - " + s.getClass.getSimpleName, s.toString),
-          AstKinds.GENERATED)
+          AstKinds.GENERATED
+        )
       }
     }
     msgs
@@ -535,7 +536,7 @@ class DomEngine(
         // may depend on previous messages and can't be evaluated now
         //
         case x: EMsg if x.entity == "" && x.met == "" && r.i.size == 1 => {
-          a.children appendAll x.attrs.map(p => DomAst(EVal(p).withPos(x.pos), AstKinds.GENERATED).withSpec(r))
+          a.children appendAll x.attrs.map(p => DomAst(EVal(p).withPos(x.pos), AstKinds.DEBUG).withSpec(r))
           ctx putAll x.attrs
           None
         }
@@ -627,8 +628,8 @@ class DomEngine(
     var ruled = false
     // no mocks fit, so let's find rules
     // I run rules even if mocks fit - mocking mocks only going out, not decomposing
-    // todo - WHY ?
-    if (true || !mocked) {
+    // todo - WHY? only some systems may be mocked ???
+    if ((true || !mocked) && !settings.simMode) {
       rules.filter(_.e.test(n)).map { r =>
         // each matching rule
         ruled = true
@@ -642,7 +643,7 @@ class DomEngine(
     // no mocks, let's try executing it
     // todo WHY - I run snaks even if rules fit - but not if mocked
     // todo now I run only if nothing else fits
-    if (!mocked && !ruled) {
+    if (!mocked && !ruled && !settings.simMode) {
       Executors.all.filter { x =>
         // todo inconsistency: I am running rules if no mocks fit, so I should also run any executor ??? or only the isMocks???
         (true /*!settings.mockMode || x.isMock*/) && x.test(n)
@@ -672,8 +673,13 @@ class DomEngine(
             case e@_ => e
           }.map(x =>
             DomAst(x,
-              (if (x.isInstanceOf[DieselTrace]) AstKinds.SUBTRACE
-              else AstKinds.GENERATED)
+              (
+                if (x.isInstanceOf[DieselTrace]) AstKinds.SUBTRACE
+                else if (x.isInstanceOf[EInfo]) AstKinds.DEBUG
+                else if (x.isInstanceOf[EDuration]) AstKinds.DEBUG
+                else if (x.isInstanceOf[EVal]) AstKinds.DEBUG
+                else AstKinds.GENERATED
+                )
             ).withSpec(r)
           )
         } catch {
@@ -687,12 +693,24 @@ class DomEngine(
 
       if(newNodes.isEmpty) {
         clog << "NO matches: " + in.toString
+
+        // change the nodes' color to warning and add an ignorable warning
+        import EMsg._
+        a.value match {
+          case m: EMsg => findParent(a).foreach { parent =>
+            a.value = m.copy(
+                stype = s"${m.stype},$WARNING"
+              ).copiedFrom(m)
+//            parent.children.update(parent.children.indexWhere(_ eq initialA), a)
+          }
+        }
+
         a.children append DomAst(
           EWarning(
             "No rules, mocks or executors match for " + in.toString,
             "Review your engine configuration (blender, mocks, drafts, tags), " +
               "spelling of messages or rule clauses / pattern matches"),
-          AstKinds.GENERATED)
+          AstKinds.DEBUG)
       }
     }
 
