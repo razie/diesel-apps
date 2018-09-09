@@ -64,8 +64,13 @@ trait DomParser extends ParserBase with ExprParser {
           def mkList = s"""<a href="/diesel/list2/${c.name}">list</a>"""
 
           // todo delegate decision to tconf domain - when domain is refactored into tconf
-          def mkNew = "User" != name && "WikiLink" != name
-//            if (ctx.we.exists(w => WikiDomain.canCreateNew(w.specPath.realm.mkString, name))) s""" | <a href="/doe/diesel/create/${c.name}">new</a>""" else ""
+          def mkNew =
+            if("User" != name && "WikiLink" != name)
+            //todo move to RDomain
+            // if (ctx.we.exists(w => WikiDomain.canCreateNew(w.specPath.realm.mkString, name)))
+              s""" | <a href="/doe/diesel/create/${c.name}">new</a>"""
+            else
+              ""
 
           SState(
             s"""
@@ -371,7 +376,7 @@ trait DomParser extends ParserBase with ExprParser {
     * <> means it's a ref, not ownership
     * * means it's a list
     */
-  def pattr: Parser[RDOM.P] = " *".r ~> qident ~ opt(" *: *".r ~> opt("<>") ~ ident ~ optKinds) ~ opt(" *\\* *".r) ~ opt(" *~?= *".r ~> expr) ^^ {
+  def pattr: Parser[RDOM.P] = " *".r ~> qident ~ opt(" *: *".r ~> opt("<> *".r) ~ ident ~ optKinds) ~ opt(" *\\* *".r) ~ opt(" *~?= *".r ~> expr) ^^ {
     case name ~ t ~ multi ~ e => {
       val (dflt, ex) = e match {
 //        case Some(CExpr(ee, "String")) => (ee, None)

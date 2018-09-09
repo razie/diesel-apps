@@ -33,6 +33,8 @@ object RDOM {
 
   class CM // abstract Class Member
 
+  private def classLink (name:String) = s""" <b><a href="/wikie/show/Category:$name">$name</a></b> """
+
   /** represents a Class
     *
     * @param name         name of the class
@@ -48,12 +50,17 @@ object RDOM {
   case class C (name:String, archetype:String, stereotypes:String, base:List[String], typeParam:String, parms:List[P]=Nil, methods:List[F]=Nil, assocs:List[A]=Nil, props:List[P]=Nil) {
     override def toString = fullHtml
 
-    def fullHtml = span("class::") + s""" <b><a href="/wikie/show/Category:$name">$name</a></b> """ +
+    def fullHtml = span("class::") + classLink(name) +
       smap(typeParam) (" [" + _ + "]") +
       smap(archetype) (" &lt;" + _ + "&gt;") +
       smap(stereotypes) (" &lt;" + _ + "&gt;") +
       (if(base.exists(_.size>0)) "extends " else "") + base.map("<b>" + _ + "</b>").mkString +
-      mks(parms, " (", ", ", ") ", "&nbsp;&nbsp;") +
+      {
+        if(parms.size > 5)
+          mks(parms, " (", ",", ") ", "<br>&nbsp;&nbsp;", Some({p:P => p.toHtml}))
+        else
+          mks(parms, " (", ", ", ") ", "&nbsp;&nbsp;", Some({p:P => p.toHtml}))
+      } +
       mks(methods, "{<br><hr>", "<br>", "<br><hr>}", "&nbsp;&nbsp;") +
       mks(props, " PROPS(", ", ", ") ", "&nbsp;&nbsp;")
   }
@@ -153,7 +160,7 @@ object RDOM {
     // todo refs for type, docs, position etc
     override def toHtml =
       s"<b>$name</b>" +
-        (if(ttype.toLowerCase != "string") smap(ttype) (":" + ref + _) else "") +
+        (if(ttype.toLowerCase != "string") smap(ttype) (s=> ":" + ref + typeHtml(s)) else "") +
         smap(multi)(identity) +
         smap(Enc.escapeHtml(htrimmedDflt)) {s=>
           "=" + tokenValue(if("Number" == ttype) s else escapeHtml(quot(s)))
@@ -161,6 +168,13 @@ object RDOM {
 //        (if(dflt.length > 60) "<span class=\"label label-default\"><small>...</small></span>") +
         (if(dflt.length > 60) "<b><small>...</small></b>" else "") +
         (if(dflt=="") expr.map(x=>smap(x.toHtml) ("<-" + _)).mkString else "")
+
+    private def typeHtml(s:String) = {
+      s.toLowerCase match {
+        case "string" | "number" | "date" => s"<b>$s</b>"
+        case _ => classLink(s)
+      }
+    }
   }
 
   /** represents a parameter match expression

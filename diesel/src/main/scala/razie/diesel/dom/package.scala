@@ -17,9 +17,25 @@ package object dom {
   val ARCH_MI = "MI"
 
   /** like an Option from plain strings */
-  def smap(s:String) (f:String=>String) =  if(s != null && s.length > 0) f(s) else ""
-  def mks(l:List[_], pre:String, sep:String, post:String="", indent:String="") = if(l.size>0) pre + l.map(indent + _).mkString(sep) + post else ""
-  def span(s: String, k: String = "default") = s"""<span class="label label-$k">$s</span>"""
+  def smap(s:String) (f:String=>String) =  {
+    if(s != null && s.length > 0) f(s) else ""
+  }
+
+  def mks[T](l:List[T], pre:String, sep:String, post:String="", indent:String="", tos:Option[T => String]=None) = {
+    if (l.size > 0)
+      pre +
+        l
+          .map{y:T => tos.getOrElse{x:T=> x.toString}.apply(y)}
+          .map(indent + _)
+          .mkString(sep) +
+        post
+    else
+      ""
+  }
+
+  def span(s: String, k: String = "default") = {
+    s"""<span class="label label-$k">$s</span>"""
+  }
 
   def quot(s:String) = "\""+ s + "\""
   def escapeHtml(s:String) = Enc.escapeHtml(s)
