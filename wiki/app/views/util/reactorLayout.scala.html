@@ -3,45 +3,19 @@ default layout 9/3 with ads, top and bottom
 **************@
 @(content: Html, msg: Seq[(String, String)])(implicit stok: controllers.StateOk)
 
-@htmlHead(stok._title, Some(stok), None)(Map.empty, stok.au, stok.request)
-@navbar(stok.au, stok.realm)
+@web()=@{stok.website}
+@layout=@{web().layout}
 
-<!-- layout reactorLayout -->
-<div class="container" style="margin-top : 15 px">
-  <div class="row">
-    <div class="col-sm-9">
+  @{
+    layout.trim match {
+      case
+        "Play:wiki.layout.div12"         |
+        "Play:wiki.layout.div12FullPage" |
+        "Play:wiki.layout.div12Cool"     |
+        "Play:wiki.layout.div12Plain"    => util.reactorLayout12(content, msg)
 
-      @if(stok.msg.nonEmpty) {
-        @util.notesmsgDiv("notesmsg")
-        @util.notesmsgShow("notesmsg", stok.msg)
-      }
+      case _ => util.reactorLayout9(content, msg)
+    }
+  }
 
-      @content
-
-      <hr>
-        @htmlFooter(ads = stok.showBottomAds(None),
-          false,
-          stok.realm,
-          stok.request)
-
-    </div> <!-- /col-sm-9 -->
-
-    <div class="col-sm-3">
-      @stok.website.rightTop.map { rt =>
-        @wiki.wikiFrag(rt, None, true)
-      }
-
-      @if(stok.showSideAds(None)) {
-        @addRight()
-      }
-
-      @if(stok.website.rightTop.isEmpty) {
-        @wiki.wikiFrag(razie.wiki.model.WID("Admin", "Right").r(stok.realm), None, true)
-      }
-    </div>
-
-  </div> <!-- row -->
-</div> <!-- /container -->
-
-@htmlBottom(false, stok.request)
 
