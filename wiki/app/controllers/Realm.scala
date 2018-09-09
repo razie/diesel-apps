@@ -205,8 +205,9 @@ object Realm extends RazController with Logging {
         )
       }
 
-      request.au.get.update(request.au.get.addPerm(realm, Perm.Moderator.s))
-     cleanAuth(request.au)
+      // this will also copy verified etc
+      request.au.get.update(request.au.get.addPerm(name, Perm.Moderator.s))
+      cleanAuth(request.au)
 
       Redirect(s"/wikie/switchRealm/$name", SEE_OTHER)
     }) getOrElse

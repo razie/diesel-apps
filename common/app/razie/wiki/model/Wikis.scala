@@ -286,7 +286,8 @@ object Wikis extends Logging with Validation {
         })
 
         // check cat for preloaded cats that will trigger stackoverflow
-        if (firstTime && !hadTemplate && wid.cat != "Category" && wid.cat != "Reactor" && wid.cat != "DslDomain")
+        // also, while domain is loading itself, i'm not processing instance templates
+        if (firstTime && !hadTemplate && wid.cat != "Category" && wid.cat != "Reactor" && !WikiDomain(wid.getRealm).isLoading)
           WikiDomain(wid.getRealm).prop(wid.cat, "inst.template").map { t =>
             done = true
             val parms = WikiForm.parseFormData(c2)

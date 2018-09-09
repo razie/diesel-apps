@@ -134,30 +134,15 @@ object WikiSearch {
 
     //todo only filter if first is tag ?
     // array of array - first is AND second is OR
-    val qt = curTags.split("/").filter(_ != "tag").map(_.split(","))
+    val tagQuery = new TagQuery(curTags)
+    val qt = tagQuery.qt
 
     //todo optimize: run query straight in the database ?
     def filter (u:DBObject) = {
       def uf(n:String) = if(u.containsField(n)) u.get(n).asInstanceOf[String] else ""
 
-      def hasTags = {
-        val utags = if(u.containsField("tags")) u.get("tags").toString.toLowerCase else ""
+      def hasTags = tagQuery.matches(u)
 
-        def checkT(b:String) = {
-          utags.contains(b) ||
-          b == "*" ||
-          (b == "draft" && u.containsField("props") && u.getAs[DBObject]("props").exists(_.containsField("draft"))) ||
-          (b == "public" && u.containsField("props") && u.getAs[DBObject]("props").exists(_.getAsOrElse[String]("visibility", PUBLIC) == PUBLIC)) ||
-          u.get("category").toString.toLowerCase == b
-        }
-
-        qt.size > 0 &&
-          u.containsField("tags") &&
-          qt.foldLeft(true)((a, b) => a && (
-            if(b(0).startsWith("-")) ! checkT(b(0).substring(1))
-            else b.foldLeft(false)((a, b) => a || checkT(b))
-            ))
-      }
       if (qi.length <= 0) // just a tag search
         hasTags
       else

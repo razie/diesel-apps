@@ -14,6 +14,9 @@ trait WikiDomain {
 
   def rdom : RDomain
 
+  /* while loading, it may recursively try to do some stuff - */
+  def isLoading : Boolean
+
   def resetDom : Unit
 
   def isWikiCategory(cat: String): Boolean
@@ -94,15 +97,16 @@ object WikiDomain {
 
   WikiObservers mini {
     case WikiEvent(_, "WikiEntry", _, Some(x), _, _, _)
-      if x.asInstanceOf[WikiEntry].category == "DslDomain" &&
-        x.asInstanceOf[WikiEntry].category == "Category" &&
-        x.asInstanceOf[WikiEntry].tags.contains("dsldomain")
+      if domTagQuery.matches(x.asInstanceOf[WikiEntry])
     => {
       val we = x.asInstanceOf[WikiEntry]
 
       WikiDomain.apply(we.realm).resetDom
     }
   }
+
+  /** use with WikiSearch.getList */
+  val domTagQuery = new TagQuery("DslDomain,dsldomain,Category,domain")
 }
 
 case class WikiDTemplate (t:WikiSection) extends DTemplate {
