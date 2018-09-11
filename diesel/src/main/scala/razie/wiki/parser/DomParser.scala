@@ -59,7 +59,17 @@ trait DomParser extends ParserBase with ExprParser {
           attrs,
           funcs)
         lazys { (current, ctx) =>
-          collectDom(c, ctx.we)
+
+          // was it collected?
+          val collected = ctx.we.exists { w =>
+            val rest = w.collector.getOrElse(RDomain.DOM_LIST, List[Any]()).asInstanceOf[List[Any]]
+            rest.collect {
+              case wc: C if wc.name == c.name && (wc.parms.size > 0 || wc.methods.size > 0) => true
+            }.nonEmpty
+          }
+
+          // collect only if not meaningfully defined before, so you can reference a class with jsut '$class xx'
+          if (!collected) collectDom(c, ctx.we)
 
           def mkList = s"""<a href="/diesel/list2/${c.name}">list</a>"""
 

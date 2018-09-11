@@ -58,7 +58,7 @@ class TagQuery(val tags: String) {
         u.get("category").toString.toLowerCase == b
     }
 
-    qt.size > 0 &&
+    qt.size <= 0 ||
       u.containsField("tags") &&
       qt.foldLeft(true)((a, b) => a && (
         if(b(0).startsWith("-")) ! checkT(b(0).substring(1))
@@ -77,7 +77,7 @@ class TagQuery(val tags: String) {
         u.category.toLowerCase == b
     }
 
-    qt.size > 0 &&
+    qt.size <= 0 ||
       u.tags.size > 0 &&
       qt.foldLeft(true)((a, b) => a && (
         if (b(0).startsWith("-")) !checkT(b(0).substring(1))

@@ -80,6 +80,21 @@ case class AExpr2 (a:Expr, op:String, b:Expr) extends Expr {
     }
 
     op match {
+      case "*" => {
+        (a, b) match {
+          case _ if isNum(a) && isNum(b) => {
+            val ai = a(v).toString.toInt
+            val bi = b(v).toString.toInt
+            ai * bi
+            // todo float and type safe numb
+          }
+
+          case _ => {
+            "???"
+          }
+        }
+      }
+
       case "+" => {
         (a, b) match {
             // json exprs are different, like cart + { item:...}
@@ -90,6 +105,7 @@ case class AExpr2 (a:Expr, op:String, b:Expr) extends Expr {
             val ai = a(v).toString.toInt
             val bi = b(v).toString.toInt
             ai + bi
+            // todo float and type safe numb
           }
 
           case _ => {

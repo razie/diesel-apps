@@ -36,8 +36,6 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
     } OR ""
   }
 
-  //WID("Blog", "RacerKidz_Site_News").url
-
   def twitter:String = this prop "twitter" OR "racerkid"
   def gplus:Option[String] = this prop "gplus"
   def tos:String = this prop "tos" OR "/wiki/Terms_of_Service"
@@ -113,29 +111,13 @@ object Website {
   private val cache = new collection.mutable.HashMap[String,CacheEntry]()
   val EXP = 100000
 
-  /** cache existing sites - I get stupid lookups for sites that don't exist... and result in many lookups */
-  private val sites = new collection.mutable.HashMap[String,String]()
-
-  def lookupSite (s:String) : Option[WikiEntry] = {
-    synchronized {
-      if(sites.isEmpty) {
-//         init
-        Wikis.rk.pageNames("Site").toList map (s=>sites.put(s,s))
-      }
-    }
-
-    if(sites.contains(s)) Wikis.rk.find("Site", s)
-    else None
-  }
-
   // s is the host
   def forHost (s:String):Option[Website] = {
     val ce = cache.get(s)
     if (ce.isEmpty) {// || System.currentTimeMillis > ce.get.millis) {
-      var w = lookupSite(s) map (new Website(_))
-      if (w.isDefined)
-        cache.put(s, CacheEntry(w.get, System.currentTimeMillis()+EXP))
-      else RkReactors.forHost(s).map { r=>
+      var w : Option[Website] = None
+
+      RkReactors.forHost(s).map { r=>
         // auto-websites of type REACTOR.coolscala.com
         WikiReactors.findWikiEntry(r).map { rpage=> // todo no need to reload, the reactor now has the page
           // create an entry even if no website section present

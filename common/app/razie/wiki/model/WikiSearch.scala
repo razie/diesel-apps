@@ -146,7 +146,8 @@ object WikiSearch {
       if (qi.length <= 0) // just a tag search
         hasTags
       else
-        qnot((qi.length > 1 && uf("name").toLowerCase.contains(qi)) ||
+        qnot(
+          (qi.length > 1 && uf("name").toLowerCase.contains(qi)) ||
           (qi.length > 1 && uf("label").toLowerCase.contains(qi)) ||
           ((qi.length() > 3) && uf("content").toLowerCase.contains(qi))
         ) && hasTags
