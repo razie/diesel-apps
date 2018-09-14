@@ -285,7 +285,10 @@ class EESnakk extends EExecutor("snakk") {
             new EVal("payload", content.body) ::
             Nil
         } getOrElse
-          EError("no url attribute for RESTification - and no request template found") :: Nil
+        // need to create a val - otherwise DomApi.rest returns the last Val
+          EError("no url attribute for RESTification - and no request template found") ::
+          EVal(P("snakk.error", "no url attribute for RESTification - and no request template found")) ::
+            Nil
       }
     } catch {
       case t: Throwable => {
@@ -296,7 +299,10 @@ class EESnakk extends EExecutor("snakk") {
 
         eres += //EError("Error snakking: " + urlx, t.toString) ::
           new EError("Exception : ", t) ::
-          EInfo("Response: ", Enc.escapeHtml(response)) :: Nil
+          EInfo("Response: ", Enc.escapeHtml(response)) ::
+            // need to create a val - otherwise DomApi.rest returns the last Val
+          EVal(P("snakk.error", t.getMessage)) ::
+            Nil
       }
     }
   }
