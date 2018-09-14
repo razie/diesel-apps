@@ -8,6 +8,8 @@ package razie.wiki.parser
 
 import java.net.URI
 
+import admin.Config
+import razie.hosting.Website
 import razie.tconf.parser.{LazyState, ParserSettings, RState, SState}
 import razie.wiki.Services
 import razie.wiki.model._
@@ -211,7 +213,7 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
       SState(try {
         val u = new URI(url)
         val s = u.getHost
-        if(Services.isSiteTrusted(u.getHost)) ("<iframe" + a + "></iframe>")
+        if(Services.isSiteTrusted(realm, u.getHost)) ("<iframe" + a + "></iframe>")
         else ("&lt;iframe" + a + "&gt;")
       } catch {
         case _ : Throwable => ("&lt;iframe" + a + "&gt;")

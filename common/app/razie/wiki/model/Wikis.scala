@@ -674,7 +674,7 @@ object Wikis extends Logging with Validation {
       val A_PAT = """(<a +href="http://)([^>]*)>([^<]*)(</a>)""".r
       res = A_PAT replaceSomeIn (res, { m =>
         if (Option(m group 2) exists (s=> !s.startsWith(Services.config.hostport)  &&
-          !Services.isSiteTrusted(s))
+          !Services.isSiteTrusted("", s))
           )
           Some("""$1$2 title="External site"><i>$3</i>"""+sup+"$4")
         else None

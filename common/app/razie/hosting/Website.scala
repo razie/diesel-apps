@@ -25,19 +25,12 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
   def homePage:Option[WID] = this wprop "home"
   def userHomePage:Option[WID] = this wprop "userHome"
 
+  lazy val trustedSites:Array[String] = (this prop "trustedSites" OR "").split(",")
+
   def notifyList:Option[WID] = this wprop "notifyList"
   def footer:Option[WID] = this wprop "footer"
 
-  /** blog URL - can be http://xxx or CAT:NAME */
-  def blog:String = {
-    this prop "blog" flatMap {b=>
-      if(b startsWith "http") Some(b)
-      else this wprop "blog" map (_.url)
-    } OR ""
-  }
-
-  def twitter:String = this prop "twitter" OR "racerkid"
-  def gplus:Option[String] = this prop "gplus"
+  def twitter:String = this prop "bottom.Connect.Twitter" OR "coolscala"
   def tos:String = this prop "tos" OR "/wiki/Terms_of_Service"
   def privacy:String = this prop "privacy" OR "/wiki/Privacy_Policy"
 
@@ -67,7 +60,7 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
 
   def rightTop:Option[WID] = this wprop "rightTop"
   def rightBottom:Option[WID] = this wprop "rightBottom"
-  def about:Option[String] = this prop "about" flatMap {s=>
+  def about:Option[String] = this prop "bottom.More.About" flatMap {s=>
     if (s.startsWith("http") || (s startsWith "/")) Some(s)
     else WID.fromPath(s).map(_.url)
   }
@@ -100,7 +93,7 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
   def navTheme:String = this prop "nav.Theme" OR "/doe/selecttheme"
   def navBrand = this prop "navBrand"
 
-  def supportUrl:String = this prop "support.url" OR "/doe/support"
+  def supportUrl:String = this prop "bottom.Support.Support" OR "/doe/support"
   def supportEmail = this prop "support.email" OR "support@racerkidz.com"
   def SUPPORT2 = this prop "support.email" OR "support@effectiveskiing.com"
 }

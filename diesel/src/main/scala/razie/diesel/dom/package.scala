@@ -33,6 +33,13 @@ package object dom {
       ""
   }
 
+  def mksAttrs (parms : List[P]) : String = {
+    if(parms.size > 5)
+      mks(parms, " (", ",", ") ", "<br>&nbsp;&nbsp;", Some({p:P => p.toHtml}))
+    else
+      mks(parms, " (", ", ", ") ", "&nbsp;&nbsp;", Some({p:P => p.toHtml}))
+  }
+
   def span(s: String, k: String = "default") = {
     s"""<span class="label label-$k">$s</span>"""
   }

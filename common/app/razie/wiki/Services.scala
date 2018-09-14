@@ -47,7 +47,7 @@ object Services {
   }
 
   /** is this website trusted? if not links will have a "exit" warning */
-  var isSiteTrusted : String => Boolean = {s=>false }
+  var isSiteTrusted : (String,String) => Boolean = {(r,s)=>false }
 
 
   /** initialize the event processor */
