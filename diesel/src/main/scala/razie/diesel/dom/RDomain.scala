@@ -130,6 +130,7 @@ object RDomain {
 
   /** we cache key */
   final val DOM_LIST = "dom.list"
+  final val DOM_ANNO_LIST = "dom.anno.list"
 
   /** an empty domain - use it to fold */
   final val empty = new RDomain("EMPTY", Map.empty, Nil)

@@ -9,12 +9,14 @@ package razie.wiki.parser
 import mod.diesel.model.exec.EESnakk
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
+import razie.diesel.engine.DomEngine
 import razie.diesel.ext._
 import razie.tconf.parser.{FoldingContext, LazyState, SState}
 import razie.tconf.{DSpec, DUser}
 import razie.wiki.Enc
 
 import scala.Option.option2Iterable
+import scala.concurrent.Future
 import scala.util.Try
 import scala.util.parsing.input.Positional
 
@@ -29,7 +31,7 @@ trait DomParser extends ParserBase with ExprParser {
   import RDOM._
 
   def domainBlocks =
-    pobject | pclass | passoc | pfunc |
+    panno |  pobject | pclass | passoc | pfunc |
     pwhen | pflow | pmatch | psend | pmsg | pval | pexpect | passert
 
   def lazys (f:(SState, FoldingContext[DSpec,DUser]) => SState) =
@@ -45,6 +47,29 @@ trait DomParser extends ParserBase with ExprParser {
   }
 
   /**
+    * .anno (params)
+    *
+    * annotation - applied to the next element. you can have just one for now
+    *
+    * annotations have to be in the same page and are claimed by the first element that follows
+    */
+  def panno: PS =
+    """[.$]anno *""".r ~> ows ~> optAttrs ^^ {
+      case attrs => {
+        lazys { (current, ctx) =>
+          // was it collected? if so, merge the two defs
+          ctx.we.foreach { w =>
+            w.collector.put(RDomain.DOM_ANNO_LIST, attrs)
+          }
+
+          SState(
+            s"""${span("anno")} ${mksAttrs(attrs)}
+               """.stripMargin)
+        }
+      }
+    }
+
+  /**
     * .class X [T] (a,b:String) extends A,B {}
     */
   def pclass: PS =
@@ -53,38 +78,43 @@ trait DomParser extends ParserBase with ExprParser {
       opt(ws ~> "extends" ~> ws ~> repsep(ident, ",")) ~
       opt(ws ~> "<" ~> ows ~> repsep(ident, ",") <~ ">") ~ " *".r ~ optClassBody ^^ {
       case name ~ tParm ~ attrs ~ ext ~ stereo ~ _ ~ funcs => {
-        val c = C(name, "", stereo.map(_.mkString).mkString,
-          ext.toList.flatMap(identity),
-          tParm.map(_.mkString).mkString,
-          attrs,
-          funcs)
         lazys { (current, ctx) =>
 
-          // was it collected?
-          val collected = ctx.we.exists { w =>
-            val rest = w.collector.getOrElse(RDomain.DOM_LIST, List[Any]()).asInstanceOf[List[Any]]
-            rest.collect {
-              case wc: C if wc.name == c.name && (wc.parms.size > 0 || wc.methods.size > 0) => true
-            }.nonEmpty
+          val anno = ctx.we.get.collector.getOrElse(RDomain.DOM_ANNO_LIST, Nil).asInstanceOf[List[RDOM.P]]
+
+          ctx.we.get.collector.remove(RDomain.DOM_ANNO_LIST)
+
+          var c = C(name, "", stereo.map(_.mkString).mkString,
+            ext.toList.flatMap(identity),
+            tParm.map(_.mkString).mkString,
+            attrs,
+            funcs,
+            Nil,
+            anno)
+
+          // was it collected? if so, merge the two defs
+          ctx.we.foreach { w =>
+            val rest = w.collector.getOrElse(RDomain.DOM_LIST, List[Any]()).asInstanceOf[List[AnyRef]]
+
+
+            val collected = rest.collect {
+              case wc: C if wc.name == c.name && (wc.parms.size > 0 || wc.methods.size > 0) => wc
+            }
+
+            if(collected.size > 0) {
+              w.collector.put(RDomain.DOM_LIST, rest.filterNot(wc=> collected.exists(x=> x.eq(wc))))
+            }
+
+            // collect only if not meaningfully defined before, so you can reference a class with jsut '$class xx'
+            c = collected.foldLeft(c){(a,b) => a.plus(b)}
+            collectDom(c, ctx.we)
           }
 
-          // collect only if not meaningfully defined before, so you can reference a class with jsut '$class xx'
-          if (!collected) collectDom(c, ctx.we)
-
-          def mkList = s"""<a href="/diesel/list2/${c.name}">list</a>"""
-
-          // todo delegate decision to tconf domain - when domain is refactored into tconf
-          def mkNew =
-            if("User" != name && "WikiLink" != name)
-            //todo move to RDomain
-            // if (ctx.we.exists(w => WikiDomain.canCreateNew(w.specPath.realm.mkString, name)))
-              s""" | <a href="/doe/diesel/create/${c.name}">new</a>"""
-            else
-              ""
+          val actions = RDomainPlugins.plugins.foldLeft("")((a,b) => a + (if(a != "") " <b>|</b> " else "") + b.htmlActions(c))
 
           SState(
             s"""
-               |<div align="right"><small>$mkList $mkNew </small></div>
+               |<div align="right"><small>$actions </small></div>
                |<div class="well">
                |$c
                |</div>""".stripMargin)
@@ -410,7 +440,7 @@ trait DomParser extends ParserBase with ExprParser {
     case name ~ _ ~ v => V(name, v)
   }
 
-  def optClassBody: Parser[List[RDOM.F]] = opt(" *\\{".r ~> CRLF2 ~> rep1sep(fattrline, CRLF2) <~ CRLF2 <~ " *\\} *".r) ^^ {
+  def optClassBody: Parser[List[RDOM.F]] = opt(" *\\{".r ~> CRLF2 ~> rep1sep(defline | msgline, CRLF2) <~ CRLF2 <~ " *\\} *".r) ^^ {
     case Some(a) => a
     case None => List.empty
   }
@@ -553,7 +583,7 @@ trait DomParser extends ParserBase with ExprParser {
   def pfunc: PS = "[.$]def *".r ~> qident ~ optAttrs ~ opt(" *: *".r ~> ident) ~ optScript ~ optBlock ^^ {
     case name ~ a ~ t ~ s ~ b => {
       lazys { (current, ctx) =>
-        val f = F(name, a, t.mkString, s.fold(ctx).s, b)
+        val f = F(name, a, t.mkString, s.fold(ctx).s, "def", b)
         collectDom(f, ctx.we)
 
         def mkParms = f.parms.map { p => p.name + "=" + Enc.toUrl(p.dflt) }.mkString("&")
@@ -582,10 +612,21 @@ trait DomParser extends ParserBase with ExprParser {
   }
 
   /**
+    * msg name (a,b) : String
+    */
+  def defline: Parser[RDOM.F] = " *\\$?def *".r ~> ident ~ optAttrs ~ optType ~ " *".r ~ optBlock ^^ {
+    case name ~ a ~ t ~ _ ~ b => {
+      new F(name, a, t.mkString, "def", "", b)
+    }
+  }
+
+  /**
     * def name (a,b) : String
     */
-  def fattrline: Parser[RDOM.F] = " *def *".r ~> ident ~ optAttrs ~ optType ~ " *".r ~ optBlock ^^ {
-    case name ~ a ~ t ~ _ ~ b => F(name, a, t.mkString, "", b)
+  def msgline: Parser[RDOM.F] = " *\\$?msg *".r ~> ident ~ optAttrs ~ optType ~ " *".r ~ opt(pgen) ^^ {
+    case name ~ a ~ t ~ _ ~ m => {
+      new F(name, a, t.mkString, "msg", "", m.toList.map(x=>new ExecutableMsg(x)))
+    }
   }
 
   def optBlock: Parser[List[Executable]] = opt(" *\\{".r ~> CRLF2 ~> rep1sep(statement, CRLF2) <~ CRLF2 <~ " *\\} *".r) ^^ {
@@ -616,14 +657,21 @@ trait DomParser extends ParserBase with ExprParser {
 
 }
 
-class ExecutableValue(p: RDOM.P) extends Executable {
+class ExecutableValue(p: RDOM.P) extends ExecutableSync {
   def sForm = "val " + p.toString
 
   def exec(ctx: Any, parms: Any*): Any = ""
 }
 
-class ExecutableCall(cls: String, func: String, args: List[P]) extends Executable {
+class ExecutableCall(cls: String, func: String, args: List[P]) extends ExecutableSync {
   def sForm = s"call $cls.$func (${args.mkString})"
 
   def exec(ctx: Any, parms: Any*): Any = ""
 }
+
+class ExecutableMsg(m:EMap) extends ExecutableAsync {
+  def sForm = m.toHtml
+
+  override def start(ctx: Any, inEngine:Option[DomEngine]): Future[DomEngine] = ???
+}
+

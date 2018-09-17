@@ -13,7 +13,7 @@ import razie.diesel.engine.DomEngine
 /** this is the default engine per reactor and user, continuously running all the stories */
 object DomCollector {
 
-  final val MAX_SIZE = 100 // how many to keep
+  final val MAX_SIZE = 50 // how many to keep
 
   case class CollectedAst(stream:String, id:String, engine:DomEngine, details:String, dtm:DateTime=DateTime.now)
 
@@ -26,8 +26,7 @@ object DomCollector {
 
   /** statically collect more asts */
   def collectAst (stream:String, xid:String, eng:DomEngine, details:String="") = synchronized {
-    if (asts.size > MAX_SIZE) asts = asts.take(MAX_SIZE-1)
-    asts = CollectedAst(stream, xid, eng, details) :: asts.filter(_.id != xid)
+    asts = CollectedAst(stream, xid, eng, details) :: asts.filter(_.id != xid).take(MAX_SIZE-1)
   }
 
   /** statically collect more asts */

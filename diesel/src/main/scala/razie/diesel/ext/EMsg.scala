@@ -92,7 +92,7 @@ case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:Strin
   }
 
   /** as opposed to toHtml, this will produce an html that can be displayed in any page, not just the fiddle */
-  def toHtmlInPage = hrefBtn2+hrefBtn1 + toHtml.replaceAllLiterally("weref", "wefiddle") + "<br>"
+  def toHtmlInPage = hrefBtn2 /*+hrefBtn1*/ + toHtml.replaceAllLiterally("weref", "wefiddle") + "<br>"
 
   private def hrefBtn2 =
     s"""<a href="${url2("")}" class="btn btn-xs btn-primary" title="global link">
@@ -128,7 +128,7 @@ case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:Strin
 
   // reactor invocation url
   private def url2 (section:String="", resultMode:String="value") = {
-    var x = s"""/diesel/fiddle/react/$entity/$met?${attrsToUrl(attrs)}"""
+    var x = s"""/diesel/react/$entity/$met?${attrsToUrl(attrs)}"""
     if (x.endsWith("&") || x.endsWith("?")) ""
     else if (x contains "?") x = x + "&"
     else x = x + "?"

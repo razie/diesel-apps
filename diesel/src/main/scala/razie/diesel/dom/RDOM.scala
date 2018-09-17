@@ -1,6 +1,10 @@
 package razie.diesel.dom
 
+import razie.diesel.engine.DomEngine
+import razie.diesel.ext.CanHtml
 import razie.wiki.Enc
+
+import scala.concurrent.Future
 
 /** expression types */
 object WTypes {
@@ -32,6 +36,7 @@ object RDOM {
   // archtetypes
 
   class CM // abstract Class Member
+  trait DE // abstract Domain Element
 
   private def classLink (name:String) = s""" <b><a href="/wikie/show/Category:$name">$name</a></b> """
 
@@ -40,30 +45,50 @@ object RDOM {
     * @param name         name of the class
     * @param archetype
     * @param stereotypes
-    * @param base         name of base class
-    * @param typeParam    if higher kind, then type params
-    * @param parms        class members
-    * @param methods      class methods
-    * @param assocs       assocs to other classes
-    * @param props
+    * @param base        name of base class
+    * @param typeParam   if higher kind, then type params
+    * @param parms       class members
+    * @param methods     class methods
+    * @param assocs      assocs to other classes
+    * @param props       annotations and other properties
     */
-  case class C (name:String, archetype:String, stereotypes:String, base:List[String], typeParam:String, parms:List[P]=Nil, methods:List[F]=Nil, assocs:List[A]=Nil, props:List[P]=Nil) {
+  case class C (name:String, archetype:String, stereotypes:String, base:List[String], typeParam:String, parms:List[P]=Nil, methods:List[F]=Nil, assocs:List[A]=Nil, props:List[P]=Nil) extends DE {
     override def toString = fullHtml
 
-    def fullHtml = span("class::") + classLink(name) +
-      smap(typeParam) (" [" + _ + "]") +
-      smap(archetype) (" &lt;" + _ + "&gt;") +
-      smap(stereotypes) (" &lt;" + _ + "&gt;") +
-      (if(base.exists(_.size>0)) "extends " else "") + base.map("<b>" + _ + "</b>").mkString +
-      {
-        if(parms.size > 5)
-          mks(parms, " (", ",", ") ", "<br>&nbsp;&nbsp;", Some({p:P => p.toHtml}))
-        else
-          mks(parms, " (", ", ", ") ", "&nbsp;&nbsp;", Some({p:P => p.toHtml}))
-      } +
-      mks(methods, "{<br><hr>", "<br>", "<br><hr>}", "&nbsp;&nbsp;") +
-      mks(props, " PROPS(", ", ", ") ", "&nbsp;&nbsp;")
+    def fullHtml = {
+      span("class::") + classLink(name) +
+        smap(typeParam) (" [" + _ + "]") +
+        smap(archetype) (" &lt;" + _ + "&gt;") +
+        smap(stereotypes) (" &lt;" + _ + "&gt;") +
+        (if(base.exists(_.size>0)) "extends " else "") + base.map("<b>" + _ + "</b>").mkString +
+        mksAttrs(parms) +
+        mks(methods, "{<br><hr>", "<br>", "<br><hr>}", "&nbsp;&nbsp;") +
+        mks(props, " PROPS(", ", ", ") ", "&nbsp;&nbsp;")
+    }
+
+    /** combine two partial defs of the same thing */
+    def plus (b:C) = {
+      def combine (a:String, b:String) = {
+        val res = a+","+b
+        res.replaceFirst("^,", "").replaceFirst(",$", "")
+      }
+
+      val a = this
+
+      // todo should combine / oberwrite duplicates like methods or args with same name
+      C(name,
+        combine(a.archetype, b.archetype),
+        combine(a.stereotypes, b.stereotypes),
+        a.base ++ b.base,
+        combine(a.typeParam, b.typeParam),
+        a.parms ::: b.parms,
+        a.methods ::: b.methods,
+        a.assocs ::: b.assocs,
+        a.props ::: b.props
+      )
+    }
   }
+
 
   /** create a P with the best guess for type */
   def typified (n:String, s:Any) = {
@@ -76,6 +101,7 @@ object RDOM {
         else P(n, s.toString)
       }
     }
+
   }
 
   // todo complete type-aware
@@ -187,7 +213,7 @@ object RDOM {
     * @param dflt
     * @param expr
     */
-  case class PM (name:String, ttype:String, ref:String, multi:String, op:String, dflt:String, expr:Option[Expr] = None) extends CM with razie.diesel.ext.CanHtml {
+  case class PM (name:String, ttype:String, ref:String, multi:String, op:String, dflt:String, expr:Option[Expr] = None) extends CM with CanHtml {
 
     /** current calculated value if any or the expression */
     def valExpr = if(dflt.nonEmpty || expr.isEmpty) CExpr(dflt, ttype) else expr.get
@@ -207,9 +233,21 @@ object RDOM {
         (if(dflt=="") expr.map(x=>smap(x.toHtml) (" <b>"+op +"</b> "+ _)).mkString else "")
   }
 
-  /** a function / method */
-  case class F (name:String, parms:List[P], ttype:String, script:String="", body:List[Executable]=List.empty) extends CM {
-    override def toString = "   "+  span("def:") + s" <b>$name</b> " +
+  /** a function / method
+    *
+    * @param name
+    * @param parms
+    * @param ttype
+    * @param archetype def vs msg
+    * @param script
+    * @param body
+    */
+  case class F (name:String, parms:List[P], ttype:String, archetype:String, script:String="", body:List[Executable]=List.empty) extends CM with CanHtml {
+    override def toHtml = "   "+  span(s"$archetype:") + s" <b>$name</b> " +
+      mks(parms, " (", ", ", ") ") +
+      smap(ttype) (":" + _)
+
+    override def toString = "   "+  span(s"$archetype:") + s" <b>$name</b> " +
       mks(parms, " (", ", ", ") ") +
       smap(ttype) (":" + _)
   }
@@ -217,9 +255,17 @@ object RDOM {
   /** an executable statement */
   trait Executable {
     def sForm:String
-    def exec(ctx:Any, parms:Any*):Any
-
     override def toString = sForm
+  }
+
+  /** specific to sync executables: scripts, expressions etc */
+  trait ExecutableSync extends Executable {
+    def exec(ctx:Any, parms:Any*):Any
+  }
+
+  /** specific to async executables: messages, futures etc */
+  trait ExecutableAsync extends Executable {
+    def start(ctx: Any, inEngine:Option[DomEngine]): Future[DomEngine]
   }
 
   case class V (name:String, value:String)  // attr value
@@ -229,7 +275,7 @@ object RDOM {
   }
 
   /** Diamond */
-  class D  (val roles:List[(String, String)], val ac:Option[AC]=None) //diamond association
+  class D  (val roles:List[(String, String)], val ac:Option[AC]=None) extends DE //diamond association
 
   /** name is not required */
   case class A  (name:String, a:String, z:String, aRole:String, zRole:String, parms:List[P]=Nil, override val ac:Option[AC]=None) //association
@@ -241,11 +287,11 @@ object RDOM {
 
   // Diamond Class
 
-  case class E (name:String, parms:List[P], methods:List[F]) //event
-  case class R (name:String, parms:List[P], body:String) //rule
-  case class X (body:String) //expression
-  case class T (name:String, parms:List[P], body:String) //pattern
+  case class E (name:String, parms:List[P], methods:List[F]) extends DE //event
+  case class R (name:String, parms:List[P], body:String) extends DE //rule
+  case class X (body:String) extends DE //expression
+  case class T (name:String, parms:List[P], body:String) extends DE //pattern
 
-  case class TYP (name:String, ref:String, kind:String, multi:String)
+  case class TYP (name:String, ref:String, kind:String, multi:String) extends DE
 
 }
