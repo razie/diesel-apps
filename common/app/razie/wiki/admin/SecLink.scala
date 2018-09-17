@@ -118,5 +118,11 @@ object SecLink {
 
   /** find and delete - good for tokens */
   def findAndDelete (id: String) = find(id).map(_.delete)
+
+  /** purge expired links */
+  def purge = {
+    razie.clog << "------------------- Purging SecLink"
+    RMany[SecLink]().filter (_.expiry.isBeforeNow).toList.map(_.delete)
+  }
 }
 

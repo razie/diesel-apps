@@ -38,7 +38,7 @@ case class CommentStream(
     RMany.raw[Comment] ("streamId" -> _id).sort(Map("crDtm" -> 1)).map(grater[Comment].asObject(_)).toList
 
   def addComment(user: WikiUser, content: String, cid:String, link:Option[String], kind:Option[String], parentId: Option[ObjectId] = None) = {
-    val c = Comment (_id, user._id, parentId, content, link, kind, List.empty, List.empty, DateTime.now(), DateTime.now(), new ObjectId(cid))
+    val c = Comment (_id, user._id, user.userName, parentId, content, link, kind, List.empty, List.empty, DateTime.now(), DateTime.now(), new ObjectId(cid))
     comments += c
     c create user
   }
@@ -62,6 +62,7 @@ case class CommentStream(
 case class Comment (
   streamId: ObjectId, // the stream this comment is part of
   userId: ObjectId, // user that made the comment
+  userName: String, // user that made the comment
   parentId: Option[ObjectId], // in reply to...
   content: String,
   link: Option[String],
