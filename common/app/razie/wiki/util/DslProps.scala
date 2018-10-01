@@ -26,7 +26,7 @@ class DslProps (val we:Option[WikiPage], section:String, extra:Seq[(String,Strin
     p == "TRUE" || p == "YES" || p == "1" || p == "ON"
   }
 
-  override def toString = propSeq.mkString
+  override def toString = "AS seq: " + propSeq.mkString + "\nAs map: " + props.mkString
 
   // todo avoid reload, swap the entire class and use VAL instead of DEF in Website - stop parsing stuff all the time
   def reload(we:WikiPage): Unit = {

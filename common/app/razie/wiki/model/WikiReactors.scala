@@ -109,8 +109,8 @@ object WikiReactors extends Logging {
     * @param r
     * @param useThis when reloading a new version
     */
-  private def loadReactor(r:String, useThis:Option[WikiEntry] = None) : Unit = synchronized {
-      if (lowerCase.contains(r.toLowerCase) && useThis.isEmpty) return;
+  private def loadReactor(r:String, useThis:Option[WikiEntry] = None, reload:Boolean=false) : Unit = synchronized {
+      if (!reload && lowerCase.contains(r.toLowerCase) && useThis.isEmpty) return;
 
     try {
       var toLoad = new ListBuffer[WikiEntry]()
@@ -166,9 +166,14 @@ object WikiReactors extends Logging {
   def reload(r:String): Unit = synchronized  {
     // can't remove them first, so we can reload RK reactor
     findWikiEntry(r).foreach{we=>
+      // first, refresh the loaded copy
+      allReactors.put(r, we)
+
       // todo no mixins? just wiki ?
-      reactors.put (we.name, Services.mkReactor(we.name, List(wiki), Some(we)))
-      lowerCase.put(we.name.toLowerCase, we.name)
+      //      reactors.put (we.name, Services.mkReactor(we.name, List(wiki), Some(we)))
+
+      // then reload
+      loadReactor(r, Some(we), true)
     }
   }
 

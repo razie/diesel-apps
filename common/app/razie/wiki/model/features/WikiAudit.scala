@@ -13,6 +13,8 @@ import razie.db._
 
 /**
  * auditing events on wiki pages, like edits, views etc
+  *
+  * NOTE - this becomes a WikiEvent, in CQRS
  *
  * These backed up in their own table
  *

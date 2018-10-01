@@ -161,9 +161,9 @@ case class WikiEntry(
   def canonicalUrl =
     if (realm != Wikis.RK) {
       Wikis(realm).navTagFor(tags).map(x =>
-        s"http://www.racerkidz.com/wiki/${wid.wpath}") getOrElse
-        s"http://www.racerkidz.com/wiki/${wid.wpath}"
-    } else s"http://www.racerkidz.com/wiki/${wid.wpath}"
+        s"http://rk.dieselapps.com/wiki/${wid.wpath}") getOrElse
+        s"http://rk.dieselapps.com/wiki/${wid.wpath}"
+    } else s"http://rk.dieselapps.com.com/wiki/${wid.wpath}"
 
   def cloneContent(newcontent: String) = copy(content = newcontent)
 

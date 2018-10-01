@@ -233,11 +233,11 @@ trait WikiParserT extends WikiParserMini with CsvParser {
       rk match {
         case "rk" =>  what match {
           case Some("member") =>
-            SState("""<a class="badge badge-warning" href="http://www.racerkidz.com/wiki/Admin:Member_Benefits">RacerKidz</a>""")
+            SState("""<a class="badge badge-warning" href="http://rk.dieselapps.com/wiki/Admin:Member_Benefits">RacerKidz</a>""")
           case Some("club") =>
-            SState("""<a class="badge badge-warning" href="http://www.racerkidz.com/wiki/Admin:Club_Hosting">RacerKidz</a>""")
+            SState("""<a class="badge badge-warning" href="http://rk.dieselapps.com/wiki/Admin:Club_Hosting">RacerKidz</a>""")
           case _ =>
-            SState("""<a class="badge badge-warning" href="http://www.racerkidz.com">RacerKidz</a>""")
+            SState("""<a class="badge badge-warning" href="http://rk.dieselapps.com">RacerKidz</a>""")
         }
         case "wiki" =>
           SState("""<a class="badge badge-warning" href="http://wiki.dieselapps.com">DieselApps</a>""")

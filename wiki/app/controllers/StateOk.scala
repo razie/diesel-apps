@@ -31,7 +31,12 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
   def showBottomAd(yes:Boolean) = {bottomAd = yes}
 
   def isLocalhost = request.exists(_.host.startsWith("localhost:"))
+
+  /** current host and port */
   def hostPort:String = request.map(_.host).mkString
+
+  /** current complete url base like https://haha.com:56 */
+  val hostUrlBase = "http" + (if(this.request.get.secure) "s" else "") + "://" + this.hostPort
 
   lazy val form = request.flatMap(_.asInstanceOf[Request[AnyContent]].body.asFormUrlEncoded)
   lazy val query = request.map(_.queryString.map(t=>(t._1, t._2.mkString))).getOrElse(Map.empty)

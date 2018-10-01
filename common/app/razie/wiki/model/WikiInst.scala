@@ -91,6 +91,7 @@ trait WikiInst {
 
   def findAnyOne(name: String) : Option[WikiEntry]
 
+  /** internal find - cache or DB, but not fallbacks */
   def ifind(wid: WID) : Option[com.mongodb.DBObject]
 
   def categories : Iterable[razie.wiki.model.WikiEntry]

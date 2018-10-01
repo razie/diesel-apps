@@ -90,11 +90,11 @@ abstract class ReactorImpl (val realm:String, val fallBacks:List[Reactor] = Nil,
   }
 
   /* deprecated - use props */
-  lazy val websiteProps = sectionProps("website")// :: sectionProps("properties")
+  lazy val websiteProps = sectionProps("website,properties")// :: sectionProps("properties")
 
   //todo fallback also in real time to rk, per prop
   // todo listen to updates and reload
-  lazy val props = sectionProps ("properties") //:: sectionProps("website")
+  lazy val props = sectionProps ("properties,website") //:: sectionProps("website")
 
 }
 

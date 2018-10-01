@@ -85,6 +85,11 @@ object Wikis extends Logging with Validation {
 
   def fromGrated[T <: AnyRef](o: DBObject)(implicit m: Manifest[T]) = grater[T](ctx, m).asObject(o)
 
+  /** safe to call before reactors are initialized */
+  def findSimple (wid:WID) = {
+    RazMongo(Wikis.TABLE_NAME).findOne(Map("category" -> wid.cat, "name" -> wid.name)) map (grater[WikiEntry].asObject(_))
+  }
+
   // TODO refactor convenience
   def find(wid: WID): Option[WikiEntry] =
     apply(wid.getRealm).find(wid)
@@ -206,7 +211,7 @@ object Wikis extends Logging with Validation {
     val bigName = Wikis.apply(r).index.getForLower(name.toLowerCase())
     if (bigName.isDefined || wid.cat.matches("User")) {
       var newwid = Wikis.apply(r).index.getWids(bigName.get).headOption.map(_.copy(section = wid.section)) getOrElse wid.copy(name = bigName.get)
-      var u = Services.config.urlmap(newwid.formatted.urlRelative(curRealm))
+      var u = newwid.formatted.urlRelative(curRealm)
 
       if (rk && (u startsWith "/")) u = "http://" + Services.config.home + u
 
@@ -801,7 +806,7 @@ object Wikis extends Logging with Validation {
   
   def w(we: UWID):String = we.wid.map(wid=>w(wid)).getOrElse("ERR_NO_URL_FOR_"+we.toString)
   def w(we: WID, shouldCount: Boolean = true):String =
-    Services.config.urlmap(we.urlRelative + (if (!shouldCount) "?count=0" else ""))
+    we.urlRelative + (if (!shouldCount) "?count=0" else "")
 
   /** make a relative href for the given tag. give more tags with 1/2/3 */
   def hrefTag(wid:WID, t:String,label:String) = {

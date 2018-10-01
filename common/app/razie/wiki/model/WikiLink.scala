@@ -44,7 +44,7 @@ case class WikiLink(
 /** most information about a page - represents the z End of an association, as you get it from the a End */
 case class ILink(wid: WID, label: String, role:Option[String] = None, tags: Map[String, String] = Map(), ilinks: List[ILink] = Nil) {
   def this (wid:WID) = this(wid, wid.name)
-  def href = Services.config.urlmap("/wiki/%s".format(wid.wpath))
+  def href = "/wiki/%s".format(wid.wpath)
   def format = Wikis.formatWikiLink(Wikis.RK, wid, wid.name, label, None)
   def format (max:Int = -1) = Wikis.formatWikiLink(Wikis.RK, wid, wid.name, label, None, None, false, max)
 }
