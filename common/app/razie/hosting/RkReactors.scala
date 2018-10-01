@@ -34,11 +34,11 @@ object RkReactors {
     } else {
       // try to find one that has a website section with this url
       // todo perf keep parsing the webiste section all the time
-      WikiReactors.reactors.values.find(_.we.flatMap(_.section("section", "website")).exists {s=>
-        val propSeq = WikiConfig.parsep(s.content)
-
-        propSeq.exists(t=>t._1 == "domain" && t._2 == h)
-      }).map(_.realm)
+      WikiReactors
+        .reactors
+        .values
+        .find(_.props.prop("domain").exists(_ == h))
+        .map(_.realm)
     }
   }
 

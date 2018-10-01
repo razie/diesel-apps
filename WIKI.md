@@ -27,7 +27,8 @@ You can embedd this in any Java or Scala project. Here are a few websites built 
 - http://notes.razie.com - an online note taking application
 - http://www.effectiveskiing.com - online ski teaching app
 - http://www.coolscala.com and http://www.enduroschool.com - blogs
-- http://www.racerkidz.com - a sports wiki with calendar and forms extensions, club membership etc
+- http://rk.dieselapps.com - a sports wiki with calendar and forms extensions, club membership etc
+- http://www.dieselapps.com - rapid development and testing tools
 
 See the demos/samples included:
 
@@ -64,9 +65,9 @@ Details
 
 See the [http://www.dieselapps.com/engine]
 
-What's a wiki domain engine? Well, more than a plain wiki engine... read some of this wiki engine's features here: http://www.racerkidz.com/wiki/Admin:Wiki_Engine - it's got quite a bit of functionality I'm exploring... including:
+What's a wiki domain engine? Well, more than a plain wiki engine... read some of this wiki engine's features here: http://www.dieselapps.com/wiki/Admin:Wiki_Engine - it's got quite a bit of functionality I'm exploring... including:
 
-- [http://www.racerkidz.com/wiki/Admin:WikiPath]
+- [http://www.dieselapps.com/wiki/Admin:WikiPath]
 - [http://blog.razie.com/2012/05/free-flowing-wiki-domain-models-and.html]
 
 More details to come! 

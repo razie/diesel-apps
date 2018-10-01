@@ -2,6 +2,7 @@ package razie.hosting
 
 import play.api.mvc.{Request, RequestHeader}
 import razie.OR._
+import razie.cdebug
 import razie.wiki.Services
 import razie.wiki.model._
 import razie.wiki.util.{DslProps, PlayTools}
@@ -41,8 +42,6 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
   def stylesheet:Option[WID] = this wprop "stylesheet"
 
   def join:String = this prop "join" OR "/doe/join"
-  def parent:Option[WID] = this wprop "parent"
-  def skipParent:Option[WID] = this wprop "skipParent"
 
   def divMain:String = this prop "divMain" OR "9"
   def copyright:Option[String] = this prop "copyright"
@@ -110,9 +109,14 @@ object Website {
     if (ce.isEmpty) {// || System.currentTimeMillis > ce.get.millis) {
       var w : Option[Website] = None
 
+//      cdebug << s"  RkReactor looking for $s"
+
       RkReactors.forHost(s).map { r=>
+//        cdebug << s"  RkReactor found $r"
+
         // auto-websites of type REACTOR.coolscala.com
         WikiReactors.findWikiEntry(r).map { rpage=> // todo no need to reload, the reactor now has the page
+//          cdebug << s"  Wiki found $r"
           // create an entry even if no website section present
           w = Some(new Website(rpage, Seq("reactor" -> r)))
           cache.put(s, CacheEntry(w.get, System.currentTimeMillis()+EXP))
@@ -120,6 +124,7 @@ object Website {
       }
       w
     } else
+//      cdebug << s"  Cache found $s"
       ce.map(_.w)
   }
 

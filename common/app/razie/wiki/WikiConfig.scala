@@ -7,10 +7,12 @@
 package razie.wiki
 
 import com.google.inject.{Singleton, _}
+import com.novus.salat.grater
 import play.api.Configuration
 import play.api.mvc.Request
+import razie.db.RazMongo
 import razie.hosting.Website
-import razie.wiki.model.{WID, WikiConfigChanged, WikiUser, Wikis}
+import razie.wiki.model._
 import razie.wiki.util.PlayTools
 
 import scala.collection.mutable
@@ -67,9 +69,6 @@ abstract class WikiConfig {
   final val cacheFormat = prop("wiki.cacheformat", "false").toBoolean
   final val cacheDb     = prop("wiki.cachedb", "false").toBoolean
 
-  // preload these reactors - comma separated. make sure rk,notes,wiki are included in order
-  final val preload     = prop("wiki.preload", "rk,notes,wiki,ski,omniware,omni-prod,itelyap")
-
   final val clusterMode = prop("wiki.cluster", "no")
 
   final val CONNECTED   = prop("wiki.connected", "connected")
@@ -116,17 +115,6 @@ abstract class WikiConfig {
     res
   }
 
-  /** modify external sites mapped to external URLs - NOT when on localhost:9000 though */
-  def urlmap(u: String) = {
-    var res = u
-
-    //todo this looks stupid - use startsWith like in canon above
-    for (has <- config(URLMAP) if(! isLocalhost); site <- has) {
-      res = res.replaceFirst("^%s".format(site._1), site._2)
-    }
-    res
-  }
-
   /** modify external sites mapped to external URLs */
   def urlfwd(u: String) = config(URLFWD) flatMap (_.get(u))
 
@@ -152,10 +140,6 @@ abstract class WikiConfig {
 
   /** deprecated - use Website.usetTypes instead */
   def userTypes  = {
-//    if(realm == WikiConfig.NOTES)
-//       TODO configure these
-//      List("Individual", "Organization")
-//    else
       config(USERTYPES).toList.flatMap(_.keys.toList)
   }
 
@@ -168,7 +152,6 @@ abstract class WikiConfig {
   protected val xconfig = mutable.Map[String, mutable.Map[String, String]]()
 
   final val URLCANON = "urlcanon"
-  final val URLMAP = "urlmap"
   final val URLREWRITE = "urlrewrite"
   final val URLFWD = "urlfwd"
 
@@ -176,6 +159,9 @@ abstract class WikiConfig {
   final val SITECFG = "sitecfg"
   final val USERTYPES = "usertypes"
   final val BANURLS = "banurls"
+
+  // preload these reactors - comma separated. make sure rk,notes,wiki are included in order
+  def preload     = sitecfg("preload.reactors").getOrElse("rk,notes,wiki,ski,omniware")
 
   def getTheme (user:Option[WikiUser], request:Option[Request[_]]) = {
     // session settings override everything
@@ -216,12 +202,12 @@ abstract class WikiConfig {
     println("========================== RELOADING URL MAP ==============================")
 
     for (c <- Array(SITECFG, USERTYPES, BANURLS)) {
-      val urlmaps = Some(Seq(Wikis.find(WID("Admin", c)).map(_.content).getOrElse("")) flatMap parsep)
+      val urlmaps = Some(Seq(Wikis.findSimple(WID("Admin", c)).map(_.content).getOrElse("")) flatMap parsep)
       val xurlmap = (urlmaps.map(se => HashMap[String, String](se: _*)))
       xurlmap.map(xconfig.put(c, _))
     }
 
-    reload (Wikis.find(WID("Admin", URLCFG)).map(_.content).getOrElse(""))
+    reload (Wikis.findSimple(WID("Admin", URLCFG)).map(_.content).getOrElse(""))
   }
 
   def reload (cfg:String) : Unit = synchronized {
