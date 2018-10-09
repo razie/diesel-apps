@@ -15,7 +15,15 @@ case class EPos (wpath:String, line:Int, col:Int) {
     "col" -> col
   )
 
+  /** points to nothing */
+  def isEmpty = {
+    line == -1 && col == -1 && wpath.isEmpty
+  }
+
   override def toString = s"""{wpath:"$wpath", line:$line, col:$col}"""
   def toRef = s"""weref('$wpath', $line, $col)"""
 }
 
+object EPos {
+  val EMPTY = EPos("", -1, -1)
+}

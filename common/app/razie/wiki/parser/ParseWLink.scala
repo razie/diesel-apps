@@ -34,7 +34,10 @@ object ParseWLink {
         Some("""<a href="http://google.com/search?q=""" + Enc.toUrl(nm) + "\">" + nm + "</a>", None)
 
       case LIST(newr, cat) => Some({
-        val newRealm = if(newr == null || newr.isEmpty) realm else newr.substring(0,newr.length-1)
+        val newRealm =
+          if(newr == null || newr.isEmpty) realm
+          else newr.substring(0,newr.length-1)
+
         if(cat == "Domain") {
           val cats  = Wikis(newRealm).cats
 
@@ -45,6 +48,7 @@ object ParseWLink {
             if (cats.contains(c.name)) s"<b>$x</b>"
             else x
           }.mkString(" ")
+
         } else {
           Wikis(newRealm).pageNames(cat).take(50).toList.sortWith(_ < _).map { p =>
             Wikis.formatWikiLink(realm, WID(cat, p).r(newRealm), p, p, None)

@@ -185,9 +185,12 @@ package object ext {
   trait HasPosition {
     def pos : Option[EPos]
 
-    def kspan(s: String, k: String = "default", specPos:Option[EPos] = None) = {
-      def mkref: String = pos.orElse(specPos).map(_.toRef).mkString
-      pos.map(p =>
+    /** key span with possible link. pass None to not have a link */
+    def kspan(s: String, k: String = "default", overwritePos:Option[EPos] = Some(EPos.EMPTY)) = {
+      val actualPos = if(overwritePos.exists(_.isEmpty)) pos else overwritePos
+      def mkref: String = actualPos.map(_.toRef).mkString
+
+      actualPos.map(p =>
         s"""<span onclick="$mkref" style="cursor:pointer" class="label label-$k">$s</span>&nbsp;"""
       ) getOrElse
         s"""<span class="label label-$k">$s</span>&nbsp;"""

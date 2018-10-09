@@ -14,6 +14,7 @@ import razie.db.RazMongo.RazMongoTable
 import razie.db.RazSalatContext._
 import razie.db.{RMany, RazMongo}
 import razie.diesel.dom.{RDomain, WikiDomain}
+import razie.tconf.{DSpec, DSpecInventory, TSpecPath}
 import razie.wiki.parser.WikiParserT
 import razie.wiki.Services
 import razie.wiki.model.features.WeCache
@@ -25,7 +26,10 @@ import scala.collection.mutable.ListBuffer
   *
   * has a list of fallbacks / mixins
   * */
-trait WikiInst {
+trait WikiInst extends DSpecInventory {
+
+  def findSpec (path:TSpecPath) : Option[DSpec] = find (WID.fromSpecPath(path))
+
   def realm:String
   def fallBacks:List[WikiInst]
 

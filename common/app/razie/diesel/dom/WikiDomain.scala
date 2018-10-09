@@ -10,6 +10,8 @@ trait WikiDomain {
   def realm:String
   def wi:WikiInst
 
+  def plugins : List[RDomainPlugin]
+
   final val WIKI_CAT = "wikiCategory"
 
   def rdom : RDomain

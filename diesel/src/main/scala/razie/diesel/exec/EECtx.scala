@@ -250,6 +250,8 @@ class EECtx extends EExecutor(EECtx.CTX) {
 
       case "setAuthUser" => {
         /** run tests in the context of a user, configurable per domain */
+
+          // was this engine triggered for a user ? like in a fiddle? Use that one
         val uid = ctx.root.asInstanceOf[DomEngECtx].engine.flatMap(_.settings.userId)
 
         if(uid.isEmpty) {

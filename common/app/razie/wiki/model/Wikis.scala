@@ -61,6 +61,24 @@ object WikiCache {
 /** wiki factory and utils */
 object Wikis extends Logging with Validation {
 
+  /** create the data section */
+  def mkFormData(spec: WikiEntry, defaults: Map[String, String] = Map.empty) = {
+    // build the defaults - cross check with formSpec
+    var defaultStr = ""
+    defaults.filter(x=> spec.form.fields.contains(x._1)).map { t =>
+      val (k, v) = t
+      defaultStr = defaultStr + s""", "$k":"$v" """
+    }
+
+    val content = s"""
+{{.section:formData}}
+{"formState":"created" $defaultStr }
+{{/section}}
+"""
+
+    content
+  }
+
   def isEvent(cat: String) = "Race" == cat || "Event" == cat || "Training" == cat
 
   //todo configure per realm
@@ -613,10 +631,12 @@ object Wikis extends Logging with Validation {
   WikiObservers mini {
     case ev@WikiEvent(action, "WikiEntry", _, entity, _, _, _) => {
       action match {
+
         case WikiAudit.UPD_RENAME => {
           val oldWid = ev.oldId.flatMap(WID.fromPath)
           Wikis.clearCache(oldWid.get)
         }
+
         case a if WikiAudit.isUpd(a) => {
           val wid = WID.fromPath(ev.id)
           Wikis.clearCache(wid.get)

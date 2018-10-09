@@ -33,11 +33,11 @@ package object dom {
       ""
   }
 
-  def mksAttrs (parms : List[P]) : String = {
+  def mksAttrs (parms : List[P], tos:Option[P => String]=Some({p:P => p.toHtml})) : String = {
     if(parms.size > 5)
-      mks(parms, " (", ",", ") ", "<br>&nbsp;&nbsp;", Some({p:P => p.toHtml}))
+      mks(parms, " (", ",", ") ", "<br>&nbsp;&nbsp;", tos)
     else
-      mks(parms, " (", ", ", ") ", "&nbsp;&nbsp;", Some({p:P => p.toHtml}))
+      mks(parms, " (", ", ", ") ", "&nbsp;&nbsp;", tos)
   }
 
   def span(s: String, k: String = "default") = {

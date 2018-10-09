@@ -64,10 +64,16 @@ case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:Strin
     }
 
   // if this was an instance and you know of a spec
-  private def first: String = spec.map(_.first).getOrElse{
+  private def first(instPos:Option[EPos]) : String = spec.map(_.first(instPos)).getOrElse{
     // clean visual stypes annotations
-    val st = stype.replaceAllLiterally(",prune", "").replaceAllLiterally(",warn", "")
-    kspan("msg", msgLabelColor, spec.flatMap(_.pos)) + span(st, "info") + (if(st.trim.length > 0) " " else "")
+    val stypeStr = stype.replaceAllLiterally(",prune", "").replaceAllLiterally(",warn", "")
+    kspan("msg", msgLabelColor, instPos) + span(stypeStr, "info") + (if(stypeStr.trim.length > 0) " " else "")
+    //    kspan("msg", msgLabelColor, spec.flatMap(_.pos)) + span(stypeStr, "info") + (if(stypeStr.trim.length > 0) " " else "")
+  }
+
+  /** find the spec and get its pos */
+  private def specPos: Option[EPos] = {
+    spec.flatMap(_.pos)
   }
 
   /** if has executor */
@@ -86,9 +92,12 @@ case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:Strin
     PM (p.name, p.ttype, p.ref, p.multi, "==", p.dflt)
   })
 
+  /** message name as a nice link to spec as well */
+  private def eaHtml = kspan(ea(entity,met, spec.getOrElse("nope").toString), "default", specPos)
+
   /** this html works well in a diesel fiddle, use toHtmlInPage elsewhere */
   override def toHtml = {
-  /*span(arch+"::")+*/first + s"""${ea(entity,met)} """ + toHtmlAttrs(attrs)
+  /*span(arch+"::")+*/first(pos) + eaHtml + " " + toHtmlAttrs(attrs)
   }
 
   /** as opposed to toHtml, this will produce an html that can be displayed in any page, not just the fiddle */
@@ -176,7 +185,38 @@ case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:Strin
   /** is it public visilibity */
   def isPublic =
     spec.map(_.arch).exists(_ contains PUBLIC) ||
-    spec.map(_.stype).exists(_ contains PUBLIC)
+      spec.map(_.stype).exists(_ contains PUBLIC)
+  def isProtected =
+    spec.map(_.arch).exists(_ contains PROTECTED) ||
+    spec.map(_.stype).exists(_ contains PROTECTED)
+
+  /** use the right parm types **/
+  def typecastParms(spec: Option[EMsg]) : EMsg = {
+    spec.map { spec =>
+      val newParms = attrs.map { p =>
+        spec.attrs.find(_.name == p.name).map { s =>
+          if (s.ttype != "" && p.ttype == "") {
+            if (s.ttype == "Number") {
+              if (p.dflt.contains("."))
+                p.copy(ttype = s.ttype).withValue(p.dflt.toDouble)
+              else
+                p.copy(ttype = s.ttype).withValue(p.dflt.toInt)
+            } else {
+              p.copy(ttype = s.ttype)
+            }
+          } else {
+            p
+          }
+        }.getOrElse {
+          p
+        }
+      }
+
+      this.copy(attrs = newParms)
+    }.getOrElse {
+      this
+    }
+  }
 }
 
 object EMsg {
@@ -186,6 +226,7 @@ object EMsg {
   val SKIP = "skip"
 
   val PUBLIC = "public"
+  val PROTECTED = "protected"
 
   val WARNING = "warn"
 }

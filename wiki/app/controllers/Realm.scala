@@ -7,19 +7,23 @@
 package controllers
 
 import admin.Config
+import com.mongodb.DBObject
+import com.mongodb.casbah.Imports._
+import com.novus.salat._
 import com.typesafe.config.ConfigValue
+import controllers.Wikie._
 import model.{UserWiki, Users}
 import org.bson.types.ObjectId
 import play.api.mvc.Action
 import razie.Logging
 import razie.audit.Audit
-import controllers.Wikie._
+import org.joda.time.DateTime
 import razie.db._
 import razie.hosting.Website
 import razie.wiki.admin.SendEmail
 import razie.wiki.model._
 import razie.wiki.model.features.WForm
-import razie.wiki.util.PlayTools
+import razie.wiki.util.{PlayTools, Staged}
 import razie.wiki.{Base64, Enc, Sec, Services}
 
 /** overall settings and state for this deployment */
@@ -184,11 +188,13 @@ object Realm extends RazController with Logging {
           pages = pages.filter(_.name != name) map (_.copy (realm=name))
           au.update(au.copy(realms=au.realms+name))
         } else {
-          mainPage.create // create first, before using the reactor just below
+          applyStagedLinks(mainPage.wid, mainPage).create // create first, before using the reactor just below
         }
         cleanAuth(request.au)
         Services ! WikiAudit("CREATE_FROM_TEMPLATE", mainPage.wid.wpath, Some(au._id))
-        pages foreach(_.create)
+        pages foreach {p=>
+          applyStagedLinks(p.wid, p).create
+        }
       }
 
       SendEmail.withSession(request.realm) { implicit mailSession =>
@@ -209,7 +215,10 @@ object Realm extends RazController with Logging {
       request.au.get.update(request.au.get.addPerm(name, Perm.Moderator.s))
       cleanAuth(request.au)
 
-      Redirect(s"/wikie/switchRealm/$name", SEE_OTHER)
+      if("Reactor" == cat)
+        Redirect(s"/wikie/switchRealm/$name", SEE_OTHER)
+      else
+        Redirect(wid.urlRelative(request.realm))
     }) getOrElse
       noPerm(wid, s"Cant' create your $cat ...")
   }
@@ -319,11 +328,16 @@ object Realm extends RazController with Logging {
 
       // todo visibility? public unless you pay 20$ account
 
-      Services ! WikiAudit("CREATE_MOD", tw.wid.wpath, Some(au._id))
-
       razie.db.tx(s"addMod.$module", au.userName) { implicit txn =>
-        pages foreach(_.create)
+        pages foreach{we=>
+          we.create
+          Services ! WikiAudit(WikiAudit.CREATE_WIKI, we.wid.wpathFull, Some(au._id), None, Some(we))
+        }
       }
+
+      Services ! WikiAudit("CREATE_MOD", tw.wid.wpath, Some(au._id))
+      Services ! WikiAudit(WikiAudit.UPD_EDIT, reactor.wid.wpathFull, Some(au._id), None, Some(reactor), Some(reactor))
+      // clean caches etc
 
       SendEmail.withSession(request.realm) { implicit mailSession =>
         au.quota.incUpdates

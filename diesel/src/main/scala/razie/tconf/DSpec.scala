@@ -71,6 +71,9 @@ trait DSpec {
     * todo parsed should be an Either
     */
   def parsed : String
+
+  /** all properties contained in this spec, in various forms */
+  def allProps : Map[String,String]
 }
 
 /** a specification of a template */
@@ -99,7 +102,7 @@ trait DTemplate {
 
 /** can retrieve specs, by wpath and ver */
 trait DSpecInventory {
-  def find (path:TSpecPath) : Option[DSpec]
+  def findSpec (path:TSpecPath) : Option[DSpec]
 }
 
 /** the simplest spec - from a named string property */
@@ -148,5 +151,7 @@ class BaseTextSpec (val name:String, val text:String) extends DSpec {
     iparsed.get
   }
 
+  /** all properties contained in this spec, in various forms */
+  def allProps : Map[String,String] = Map.empty
 }
 

@@ -9,6 +9,7 @@ package razie.wiki.model
 import com.mongodb.casbah.Imports._
 import razie.base.data.TripleIdx
 import razie.diesel.dom.WikiDomain
+import razie.wiki.Services
 import razie.wiki.admin.GlobalData
 
 import scala.collection.mutable.{HashMap, ListBuffer}
@@ -140,10 +141,16 @@ class WikiIndex (val realm:String, val fallBacks : List[WikiIndex]) {
     up(newVer)
   }
 
+  /** call when new wiki created - add it to the index */
   def create(we: WikiEntry) = withIndex { idx =>
     idx.put(we.name, we.wid, we._id)
     lower.put(we.name.toLowerCase(), we.name)
     labels.put(we.name, we.label)
+
+    we.tags.foreach { t =>
+      usedTags.put(t, "")
+    }
+
     up(we)
   }
 
@@ -220,6 +227,17 @@ object WikiIndex {
 
       action match {
 
+        case WikiAudit.CREATE_WIKI => {
+          val swe = entity.asInstanceOf[Option[WikiEntry]]
+
+          // on local node, update directly
+          swe.orElse(wid.page).map {w=>
+            index.create(w)
+          }
+
+          WikiDomain(realm).resetDom
+        }
+
         case WikiAudit.UPD_RENAME => {
           val swe = entity.asInstanceOf[Option[WikiEntry]]
           val oswe = oldEntity.asInstanceOf[Option[WikiEntry]]
@@ -229,6 +247,7 @@ object WikiIndex {
             index.update(oswe.get, swe.get)
           else
             index.update(wid, oldWid.get)
+
           WikiDomain(realm).resetDom
         }
 

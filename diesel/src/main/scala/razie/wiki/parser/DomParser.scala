@@ -92,6 +92,8 @@ trait DomParser extends ParserBase with ExprParser {
             Nil,
             anno)
 
+          var actions = ""
+
           // was it collected? if so, merge the two defs
           ctx.we.foreach { w =>
             val rest = w.collector.getOrElse(RDomain.DOM_LIST, List[Any]()).asInstanceOf[List[AnyRef]]
@@ -108,9 +110,9 @@ trait DomParser extends ParserBase with ExprParser {
             // collect only if not meaningfully defined before, so you can reference a class with jsut '$class xx'
             c = collected.foldLeft(c){(a,b) => a.plus(b)}
             collectDom(c, ctx.we)
-          }
 
-          val actions = RDomainPlugins.plugins.foldLeft("")((a,b) => a + (if(a != "") " <b>|</b> " else "") + b.htmlActions(c))
+            actions = RDomainPlugins.plugins(w.specPath.realm).foldLeft("")((a,b) => a + (if(a != "") " <b>|</b> " else "") + b.htmlActions(c))
+          }
 
           SState(
             s"""
@@ -328,9 +330,9 @@ trait DomParser extends ParserBase with ExprParser {
     }
 
   def pobject: PS =
-    """[.$]object """.r ~> ident ~ " *".r ~ ident ~ opt(CRLF2 ~> rep1sep(vattrline, CRLF2)) ^^ {
-      case name ~ _ ~ c ~ l => {
-        val o = O(name, c, l.toList.flatMap(identity))
+    """[.$]object """.r ~> ident ~ " *".r ~ ident ~ optAttrs ^^ {
+      case name ~ _ ~ cls ~ l => {
+        val o = O(name, cls, l)
         lazys { (current, ctx) =>
           collectDom(o, ctx.we)
           SState(
@@ -412,7 +414,7 @@ trait DomParser extends ParserBase with ExprParser {
   }
 
   /**
-    * name:<>type[kind]*=default
+    * name:<>type[kind]*~=default
     * <> means it's a ref, not ownership
     * * means it's a list
     */
@@ -432,12 +434,6 @@ trait DomParser extends ParserBase with ExprParser {
           P(name, dflt, ex.map(_.getType).getOrElse(""), "", multi.mkString, ex)
       }
     }
-  }
-
-
-  // value assignment
-  def vattrline: Parser[V] = " *".r ~> ident ~ " *= *".r ~ any ^^ {
-    case name ~ _ ~ v => V(name, v)
   }
 
   def optClassBody: Parser[List[RDOM.F]] = opt(" *\\{".r ~> CRLF2 ~> rep1sep(defline | msgline, CRLF2) <~ CRLF2 <~ " *\\} *".r) ^^ {

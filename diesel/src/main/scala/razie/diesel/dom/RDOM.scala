@@ -1,5 +1,6 @@
 package razie.diesel.dom
 
+import org.json.JSONObject
 import razie.diesel.engine.DomEngine
 import razie.diesel.ext.CanHtml
 import razie.wiki.Enc
@@ -61,9 +62,16 @@ object RDOM {
         smap(archetype) (" &lt;" + _ + "&gt;") +
         smap(stereotypes) (" &lt;" + _ + "&gt;") +
         (if(base.exists(_.size>0)) "extends " else "") + base.map("<b>" + _ + "</b>").mkString +
-        mksAttrs(parms) +
+        mksAttrs(parms, Some({p:P =>
+          "<small>" + qspan("", p.name) + "</small> " + p.toHtml
+        })) +
         mks(methods, "{<br><hr>", "<br>", "<br><hr>}", "&nbsp;&nbsp;") +
         mks(props, " PROPS(", ", ", ") ", "&nbsp;&nbsp;")
+    }
+
+    def qspan(s: String, p:String, k: String = "default") = {
+      def mkref: String = s"weDomQuery('d365odata', 'default', '$name', '$p');"
+      s"""<span onclick="$mkref" style="cursor:pointer" class="label label-$k"><i class="glyphicon glyphicon-search" style="font-size:1"></i></span>&nbsp;"""
     }
 
     /** combine two partial defs of the same thing */
@@ -123,6 +131,10 @@ object RDOM {
                ) extends CM with razie.diesel.ext.CanHtml {
 
     def withValue[T](va:T, ctype:String="") = this.copy(value=Some(PValue[T](va, ctype)))
+
+    def isRef = {
+      ref != ""
+    }
 
     /** proper way to get the value */
     def calculatedValue(implicit ctx: ECtx) : String =
@@ -184,15 +196,17 @@ object RDOM {
         (if(dflt=="") expr.map(x=>smap(x.toString) ("=" + _)).mkString else "")
 
     // todo refs for type, docs, position etc
-    override def toHtml =
+    override def toHtml = toHtml(true)
+
+    def toHtml (shorten:Boolean = true)=
       s"<b>$name</b>" +
         (if(ttype.toLowerCase != "string") smap(ttype) (s=> ":" + ref + typeHtml(s)) else "") +
         smap(multi)(identity) +
-        smap(Enc.escapeHtml(htrimmedDflt)) {s=>
+        smap(Enc.escapeHtml(if(shorten) htrimmedDflt else dflt)) {s=>
           "=" + tokenValue(if("Number" == ttype) s else escapeHtml(quot(s)))
         } +
 //        (if(dflt.length > 60) "<span class=\"label label-default\"><small>...</small></span>") +
-        (if(dflt.length > 60) "<b><small>...</small></b>" else "") +
+        (if(shorten && dflt.length > 60) "<b><small>...</small></b>" else "") +
         (if(dflt=="") expr.map(x=>smap(x.toHtml) ("<-" + _)).mkString else "")
 
     private def typeHtml(s:String) = {
@@ -268,10 +282,36 @@ object RDOM {
     def start(ctx: Any, inEngine:Option[DomEngine]): Future[DomEngine]
   }
 
-  case class V (name:String, value:String)  // attr value
-
-  case class O (name:String, base:String, parms:List[V]) { // object = instance of class
+  case class O (name:String, base:String, parms:List[P]) { // object = instance of class
     def toJson = parms.map{p=> p.name -> p.value}.toMap
+
+    def fullHtml = {
+      span("object::") + " " + name + " : " + classLink(base) +
+//        smap(typeParam) (" [" + _ + "]") +
+//        smap(archetype) (" &lt;" + _ + "&gt;") +
+//        smap(stereotypes) (" &lt;" + _ + "&gt;") +
+//        (if(base.exists(_.size>0)) "extends " else "") + base.map("<b>" + _ + "</b>").mkString +
+        mksAttrs(parms, Some({p:P =>
+          p.toHtml(false) +
+            (
+              if(p.isRef)
+                s""" <small><a href="/diesel/objBrowserById/d365odata/default/${p.ttype}/${p.dflt}">browse</a></small>"""
+              else
+                ""
+              )
+        })) +
+//        mks(methods, "{<br><hr>", "<br>", "<br><hr>}", "&nbsp;&nbsp;") +
+//        mks(props, " PROPS(", ", ", ") ", "&nbsp;&nbsp;")
+      ""
+    }
+
+    /** get a nice display name - this assumes you merged it with its class, see OdataCrmDomainPlugin.oFromJ */
+    def getDisplayName = {
+      // todo use class def to find key parms
+      parms.filter(p=> p.name.contains("name") || p.name.contains("key")).map {p=>
+        p.name + "=" + p.dflt
+      }.mkString(" , ")
+    }
   }
 
   /** Diamond */

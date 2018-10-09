@@ -377,11 +377,11 @@ object RDExt {
       val hmore = Enc.escapeHtml(htrimmedDflt) + " " + moreHtml
 
       if (value == "ok")
-        kspan(value, "success", pos) + s" $hmore"
+        kspan(value, "success") + s" $hmore"
       else if (value startsWith "fail")
-        kspan(value, "danger", pos) + s" $hmore"
+        kspan(value, "danger") + s" $hmore"
       else
-        kspan(value, "warning", pos) + s" $hmore"
+        kspan(value, "warning") + s" $hmore"
     }
 
     override def toString =

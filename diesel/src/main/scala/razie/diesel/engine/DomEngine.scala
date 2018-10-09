@@ -435,6 +435,14 @@ class DomEngine(
       return Nil;
     }
 
+    // link the spec - some messages get here without a spec, because the DOM is not available when created
+    if(a.value.isInstanceOf[EMsg] && a.value.asInstanceOf[EMsg].spec.isEmpty) {
+      val m = a.value.asInstanceOf[EMsg]
+      val spec = dom.moreElements.collect {
+        case s: EMsg if s.entity == m.entity && s.met == m.met => m.withSpec(Some(s))
+      }.headOption
+    }
+
     a.value match {
 
       case stop : EEngStop => {

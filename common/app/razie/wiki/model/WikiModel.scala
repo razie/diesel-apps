@@ -205,9 +205,19 @@ case class WikiEntry(
       wid.urlRelative,
       "BY " + (WikiUsers.impl.findUserById(this.by).map(_.userName).getOrElse(this.by.toString)) +
         " " + category + ":" + name)
-    Wikis(realm).weTable(wid.cat) += grater[WikiEntry].asDBObject(Audit.createnoaudit(this))
+
+    // add form section if new wiki
+    if(this.ipreprocessed.isEmpty) {
+      this.preprocess(None)
+    }
+    var neww = this
+    if(fields.nonEmpty && !content.contains("{{.section:formData}}")) {
+      neww = this.copy(content=content + "\n" + Wikis.mkFormData(this))
+    }
+
+    Wikis(realm).weTable(wid.cat) += grater[WikiEntry].asDBObject(Audit.createnoaudit(neww))
     Wikis.shouldFlag(name, label, content).map(auditFlagged(_))
-    Wikis(realm).index.create(this)
+    Wikis(realm).index.create(neww)
   }
 
   /** backup old version and update entry, update index */
@@ -297,7 +307,6 @@ case class WikiEntry(
     }).toList
   }
 
-
   /** find a section */
   def section (stype: String, name: String) = {
     if(name contains ":") sections.find(x => x.stype == stype && x.name == name)
@@ -340,6 +349,17 @@ case class WikiEntry(
 
   /** tags collected during parsing of the content, with some static tags like url,label etc */
   def contentProps = preprocessed.props
+
+  /** all properties contained in this spec, in various forms */
+  def allProps : Map[String,String] = {
+    contentProps ++ props ++ (
+      if(fields.size > 0) {
+        this.form // parse form and populate fields
+        fields.map (t=> (t._1, t._2.value))
+      }
+      else Map.empty
+      )
+  }
 
   /** attributes are props perhaps overriden in content */
   def attr(name:String) : Option[String] =
