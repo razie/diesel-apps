@@ -113,7 +113,7 @@ object RDOM {
   }
 
   // todo complete type-aware
-  case class PValue[T] (value:T, contentType:String)
+  case class PValue[T] (value:T, contentType:String = WTypes.UNKNOWN)
 
   type NVP = Map[String,String]
 
@@ -143,9 +143,9 @@ object RDOM {
     /** proper way to get the value */
     def calculatedTypedValue(implicit ctx: ECtx) : PValue[_] =
       value.getOrElse(
-        if(dflt.nonEmpty || expr.isEmpty)
-          PValue(dflt, "") // someone already calculated a non-type safe value
-        else {
+        if(dflt.nonEmpty || expr.isEmpty) {
+          PValue(dflt, ttype) // someone already calculated a value, maybe a ttype as well...
+        } else {
           val v = expr.get.applyTyped("")
           value = v.value // update computed value
           value.getOrElse(PValue(v.dflt, ""))

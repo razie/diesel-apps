@@ -95,12 +95,20 @@ class RazController extends RazControllerBase with Logging {
 
   //================= RESPONSES
 
-  def noPerm(wid: WID, more: String = "", shouldAudit: Boolean = true, teaser:String = "", ostok:Option[RazRequest]=None)(implicit request: Request[_], errCollector: VErrors = IgnoreErrors) = {
+  def noPerm(
+              wid: WID,
+              more: String = "",
+              shouldAudit: Boolean = true,
+              teaser:String = "",
+              ostok:Option[RazRequest]=None,
+              showContinue:Boolean=true
+            )(implicit request: Request[_], errCollector: VErrors = IgnoreErrors) = {
+
     val stok = ostok.getOrElse(rhRequest)
 
     if (errCollector.hasCorrections) {
       val uname = auth.map(_.userName).getOrElse(if(isFromRobot) "ROBOT" else "")
-      val msg = Website.get.prop("msg.err.noPerm").getOrElse("Sorry, you don't have the permission to do this!")
+      val msg = Website.get.prop("msg.err.noPerm").getOrElse("Sorry, you don't have enough karma!")
 
       if (shouldAudit)
         Audit.auth("BY %s - Permission fail Page: %s Info: %s HEADERS: %s".format(uname, wid.toString, more + " " + errCollector.mkString, request.headers))
@@ -115,7 +123,9 @@ class RazController extends RazControllerBase with Logging {
              |>> $more
              |""".stripMargin +
             md("Admin:Unauthorized"),
-            Some(controllers.Wiki.w(wid).toString), auth)(stok), Seq.empty)(stok))
+            (if(showContinue)Some(controllers.Wiki.w(wid).toString) else None),
+            auth
+          )(stok), Seq.empty)(stok))
       else
       // with teasers, don't send the Unauthorized answer anymore
         Ok(
@@ -138,7 +148,7 @@ class RazController extends RazControllerBase with Logging {
   private def noPermOLD(wid: WID, more: String = "")(implicit request: Request[_]) = {
 //    implicit val stok = razRequest
     Audit.auth("BY %s - Permission fail Page: %s Info: %s HEADERS: %s".format((auth.map(_.userName).getOrElse("")), wid.toString, more, request.headers))
-    val msg = Website.get.prop("msg.err.noPerm").getOrElse("Sorry, you don't have the permission to do this!")
+    val msg = Website.get.prop("msg.err.noPerm").getOrElse("Sorry, you don't have enough karma!")
     Unauthorized(
       views.html.util.reactorLayout12(
       views.html.util.utilMsg(

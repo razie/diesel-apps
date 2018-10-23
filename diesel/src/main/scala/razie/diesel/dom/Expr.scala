@@ -2,7 +2,7 @@ package razie.diesel.dom
 
 import mod.diesel.model.exec.EESnakk
 import razie.clog
-import razie.diesel.dom.RDOM.P
+import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.exec.EEFunc
 import razie.diesel.ext.CanHtml
 import razie.wiki.parser.SimpleExprParser
@@ -64,7 +64,10 @@ abstract class Expr extends WFunc with HasDsl with CanHtml {
 case class AExpr2 (a:Expr, op:String, b:Expr) extends Expr {
   val expr = (a.toDsl + op + b.toDsl)
 
-  override def apply(v: Any)(implicit ctx: ECtx) = { //Try {
+  override def apply(v: Any)(implicit ctx: ECtx) = Some(applyTyped(v)).map(p=> p.value.map(_.value).getOrElse(p.dflt)).get
+
+  /** apply this function to an input value and a context */
+  override def applyTyped(v: Any)(implicit ctx: ECtx): P = { //Try {
 
     // resolve an expression to P with value and type
     def top (x:Expr) : Option[P] = x match {
@@ -79,18 +82,25 @@ case class AExpr2 (a:Expr, op:String, b:Expr) extends Expr {
       case _ => false
     }
 
-    op match {
+    val res:PValue[_] = op match {
       case "*" => {
         (a, b) match {
           case _ if isNum(a) && isNum(b) => {
-            val ai = a(v).toString.toInt
-            val bi = b(v).toString.toInt
-            ai * bi
+            val as = a(v).toString
+            if(as.contains(".")) {
+              val ai = as.toFloat
+              val bi = b(v).toString.toFloat
+              PValue(ai * bi, WTypes.NUMBER)
+            } else {
+              val ai = as.toInt
+              val bi = b(v).toString.toInt
+              PValue(ai * bi, WTypes.NUMBER)
+            }
             // todo float and type safe numb
           }
 
           case _ => {
-            "???"
+            PValue("???")
           }
         }
       }
@@ -99,32 +109,41 @@ case class AExpr2 (a:Expr, op:String, b:Expr) extends Expr {
         (a, b) match {
             // json exprs are different, like cart + { item:...}
           case (AExprIdent(aid), JBlockExpr(jb)) if ctx.getp(aid).exists(_.ttype == WTypes.JSON) =>
-            jsonExpr(op, a(v).toString, b(v).toString)
+            PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.JSON)
 
-          case _ if isNum(a) && isNum(b) => {
-            val ai = a(v).toString.toInt
-            val bi = b(v).toString.toInt
-            ai + bi
-            // todo float and type safe numb
+          case _ if isNum(a) => {
+            // if a is num, b will be converted to num
+            val as = a(v).toString
+            if(as.contains(".")) {
+              val ai = as.toFloat
+              val bi = b(v).toString.toFloat
+              PValue(ai + bi, WTypes.NUMBER)
+            } else {
+              val ai = as.toInt
+              val bi = b(v).toString.toInt
+              PValue(ai + bi, WTypes.NUMBER)
+            }
           }
 
           case _ => {
-            a(v).toString + b(v).toString
+            PValue(a(v).toString + b(v).toString)
           }
         }
       }
 
+        // WTF is this?
       case "||" if a.isInstanceOf[AExprIdent] => {
         a match {
           case AExprIdent(aid) =>
-            ctx.getp(aid).map(_.dflt).getOrElse(b(v).toString)
+            ctx.getp(aid).map(_.calculatedTypedValue).getOrElse(PValue(b(v).toString))
 
           case _ => {
+            PValue("")
           }
         }
       }
 
-      case _ => "[ERR unknown operator " + op + "]"
+      case _ => PValue("[ERR unknown operator " + op + "]")
     }
 //  }.recover {
 //    case t:Throwable => {
@@ -132,6 +151,8 @@ case class AExpr2 (a:Expr, op:String, b:Expr) extends Expr {
 //      t.toString
 //    }
 //  }.get
+
+    P("", res.toString, res.contentType).copy(value = Some(res))
   }
 
   /** process a js operation like obja + objb */
@@ -164,7 +185,7 @@ case class AExpr2 (a:Expr, op:String, b:Expr) extends Expr {
     razie.js.tojsons(res.toMap)
   }
 
-  override def getType = b.getType
+  override def getType = a.getType
 }
 
 /** a qualified identifier */
@@ -200,6 +221,7 @@ case class CExpr (ee : String, ttype:String="") extends Expr {
       // expand templates by default
       if (ee contains "${") {
         val PAT = """\$\{([^\}]*)\}""".r
+        val eeEscaped = ee.replaceAllLiterally("(", """\(""").replaceAllLiterally(")", """\)""")
         val s1 = PAT.replaceAllIn(ee, { m =>
           (new SimpleExprParser).parseExpr(m.group(1)).map { e =>
             P("x", "", "", "", "", Some(e)).calculatedValue

@@ -102,10 +102,13 @@ class EECtx extends EExecutor(EECtx.CTX) {
 
       case "echo" => {
         in.attrs.map { a =>
-          if (a.dflt != "")
-            new EVal(a.name, a.dflt) // todo calc exprs
+          val res = if (a.dflt != "")
+            a // todo calc exprs
           else
-            new EVal(a.name, ctx(a.name)) // if not given, then find it
+          // includes type annotations etc
+            P(a.name, ctx.getp(a.name).map(_.copy(name = a.name)).mkString) // if not given, then find it
+
+          EVal(res)
         }
       }
 
@@ -244,6 +247,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         if(uid.isDefined)
           new EInfo("User is auth ") :: Nil
         else
+          new EVal("payload", "Error: User not auth") :: // payload will be shown, needs reset
           new EError(s"ctx.authUser - User not auth") ::
           new EEngStop(s"User not auth") :: Nil
       }
