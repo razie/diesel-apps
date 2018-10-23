@@ -64,12 +64,16 @@ case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:Strin
     }
 
   // if this was an instance and you know of a spec
-  private def first(instPos:Option[EPos]) : String = spec.map(_.first(instPos)).getOrElse{
-    // clean visual stypes annotations
-    val stypeStr = stype.replaceAllLiterally(",prune", "").replaceAllLiterally(",warn", "")
-    kspan("msg", msgLabelColor, instPos) + span(stypeStr, "info") + (if(stypeStr.trim.length > 0) " " else "")
-    //    kspan("msg", msgLabelColor, spec.flatMap(_.pos)) + span(stypeStr, "info") + (if(stypeStr.trim.length > 0) " " else "")
-  }
+  private def first(instPos:Option[EPos]) : String =
+    spec
+      .filter(x=> !x.equals(this)) // avoid stackoverflow if self is spec
+      .map(_.first(instPos))
+      .getOrElse {
+        // clean visual stypes annotations
+        val stypeStr = stype.replaceAllLiterally(",prune", "").replaceAllLiterally(",warn", "")
+        kspan("msg", msgLabelColor, instPos) + span(stypeStr, "info") + (if (stypeStr.trim.length > 0) " " else "")
+        //    kspan("msg", msgLabelColor, spec.flatMap(_.pos)) + span(stypeStr, "info") + (if(stypeStr.trim.length > 0) " " else "")
+      }
 
   /** find the spec and get its pos */
   private def specPos: Option[EPos] = {
