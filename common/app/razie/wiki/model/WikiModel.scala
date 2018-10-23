@@ -258,6 +258,7 @@ case class WikiEntry(
 
   /** these are normal - all sections after include */
   lazy val sections = findSections(included, PATT_SEC) ::: findSections(included, PATT_TEM)
+  def sectionsNoInclude = findSections(content, PATT_SEC) ::: findSections(content, PATT_TEM)
 
   /** these are when used as a template - template sections do not resolve include */
   lazy val templateSections = findSections(included, PATT_TEM) ::: findSections(content, PATT_TEM)
@@ -315,6 +316,9 @@ case class WikiEntry(
 
   /** scripts are just a special section */
   lazy val scripts = sections.filter(x => "def" == x.stype || "lambda" == x.stype || "inline" == x.stype)
+
+  // when signing an edited page, we don't look at includes - big boom
+  def scriptsNoInclude = sectionsNoInclude.filter(x => "def" == x.stype || "lambda" == x.stype || "inline" == x.stype)
 
   /** pre processed form - parsed and graphed. No context is used when parsing - only when folding this AST, so you can reuse the AST */
   lazy val ast = Wikis.preprocess(this.wid, this.markup, Wikis.noBadWords(this.content), Some(this))
@@ -421,7 +425,7 @@ case class WikiSection(original:String, parent: WikiEntry, stype: String, name: 
 
   def wid = parent.wid.copy(section=Some(name))
 
-  override def toString = s"WikiSection(stype=$stype, name=$name, signature=$signature, args=$args, content=$content)"
+  override def toString = s"WikiSection(stype=$stype, name=$name, signature=$signature, args=$args, line=$line)"
 }
 
 object WikiEntry {

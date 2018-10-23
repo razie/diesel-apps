@@ -24,6 +24,8 @@ import razie.wiki.parser.WAST
 import razie.wiki.util.QueryParms
 import razie.wiki.{Enc, Services, WikiConfig}
 
+import scala.collection.mutable.ListBuffer
+
 object WikiCache {
 
   def set[T](id:String, w:T, i:Int) = {
@@ -454,6 +456,8 @@ object Wikis extends Logging with Validation {
       val S_PAT = """`\{\{(call):([^#}]*)#([^}]*)\}\}`""".r
 
       try {
+        val duplicates = new ListBuffer[String]()
+
       content = S_PAT replaceSomeIn (content, { m =>
         we.map(_.cacheable = false)
         try {
@@ -461,9 +465,16 @@ object Wikis extends Logging with Validation {
           // inline scripts are exanded into the html page
           val pageWithScripts = WID.fromPath(m group 2).flatMap(x => Wikis(x.getRealm).find(x)).orElse(we)
           val y=pageWithScripts.flatMap(_.scripts.find(_.name == (m group 3))).filter(_.checkSignature(user)).map{s=>
+            val warn = if(duplicates contains s.name) {
+              s"`WARNING: script named '${s.name}' duplicated - check your includes`\n\n"
+            } else ""
+
+            duplicates.append(s.name)
+
             if("inline" == s.stype) {
               val wix = Wikis(wid.getRealm).mkWixJson(we, user, Map.empty, "")
-              s"""<script>
+              warn + s"""<!-- WikiScript: ${s} -->
+                |<script>
                 |withJquery(function(){
                 |${wix}\n
                 |${s.content}
