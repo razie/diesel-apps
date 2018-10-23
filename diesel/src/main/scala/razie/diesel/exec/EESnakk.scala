@@ -36,6 +36,7 @@ class EESnakk extends EExecutor("snakk") {
   override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
     def known (s:String) =
       (s contains "GET") ||
+      (s contains "PATCH") ||
       (s contains "POST") ||
       (s contains "TELNET") ||
       (s contains "HTTP")
