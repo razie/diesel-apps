@@ -289,11 +289,11 @@ case class User(
   }
 
   def addModNote(realm:String, uname: String) = mapRS(realm) {rs=>
-    rs.copy(modNotes = rs.modNotes ++ Seq(uname.drop(1)))
+    rs.copy(modNotes = rs.modNotes ++ Seq(uname))
   }
 
   def removeModNote(realm:String, uname: String) = mapRS(realm) {rs=>
-    rs.copy(modNotes = rs.modNotes.filter(_ != uname.drop(1)))
+    rs.copy(modNotes = rs.modNotes.filter(_ != uname))
   }
 
 }
