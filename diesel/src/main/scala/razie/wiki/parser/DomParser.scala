@@ -394,7 +394,9 @@ trait DomParser extends ParserBase with ExprParser {
     *
     * pmatch is more than just a simple conditional expression
     */
-  def pmatchattr: Parser[RDOM.PM] = " *".r ~> qident ~ opt(" *: *".r ~> opt("<>") ~ ident ~ optKinds) ~ opt(" *\\* *".r) ~ opt(" *".r ~> OPS1 ~ " *".r ~ expr) ^^ {
+  def pmatchattr: Parser[RDOM.PM] = " *".r ~> qident ~ opt(" *: *".r ~> opt("<>") ~ ident ~ optKinds) ~
+    opt(" *\\* *".r) ~ opt(" *".r ~> OPS1 ~ " *".r ~ expr) ^^ {
+
     case name ~ t ~ multi ~ e => {
       var ttype = ""
       var dflt = ""
@@ -418,7 +420,9 @@ trait DomParser extends ParserBase with ExprParser {
     * <> means it's a ref, not ownership
     * * means it's a list
     */
-  def pattr: Parser[RDOM.P] = " *".r ~> qident ~ opt(" *: *".r ~> opt("<> *".r) ~ ident ~ optKinds) ~ opt(" *\\* *".r) ~ opt(" *~?= *".r ~> expr) ^^ {
+  def pattr: Parser[RDOM.P] = " *".r ~> qident ~ opt(" *: *".r ~> opt("<> *".r) ~ ident ~ optKinds) ~
+    opt(" *\\* *".r) ~ opt(" *~?= *".r ~> expr) ^^ {
+
     case name ~ t ~ multi ~ e => {
       val (dflt, ex) = e match {
 //        case Some(CExpr(ee, "String")) => (ee, None)

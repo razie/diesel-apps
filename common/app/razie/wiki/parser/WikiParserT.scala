@@ -288,11 +288,11 @@ trait WikiParserT extends WikiParserMini with CsvParser {
 
   //======================= forms
 
-  private def wikiPropField: PS = "{{" ~> "f:" ~> "[^:]+".r ~ optargs <~ "}}" ^^ {
+  private def wikiPropField: PS = "{{" ~> "f:" ~> "[^ :}]+".r ~ optargs <~ "}}" ^^ {
     case name ~ args => {
       lazyt { (current, ctx) =>
         ctx.we.foreach { we =>
-          we.fields = we.fields ++ Map(name -> FieldDef(name, "", args.map(t => t).toMap))
+          we.fields.put(name, FieldDef(name, "", args.map(t => t).toMap))
         }
         SState("`{{{f:%s}}}`".format(name))
       }

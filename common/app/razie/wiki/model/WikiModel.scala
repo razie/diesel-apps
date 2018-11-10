@@ -20,6 +20,8 @@ import razie.wiki.Services
 import razie.wiki.model.features.{FieldDef, FormStatus, WikiCount, WikiForm}
 import razie.wiki.parser.WAST
 
+import scala.collection.mutable
+
 /**
   * simple trait for a wiki
   */
@@ -390,7 +392,7 @@ case class WikiEntry(
   /** field definitions as parsed
     * fields are rendered in WForm
     */
-  var fields = new scala.collection.mutable.HashMap[String, FieldDef]()
+  var fields : mutable.Map[String,FieldDef] = new mutable.HashMap[String, FieldDef]()
   lazy val form = new WikiForm(this)
   def formRole = this.props.get(FormStatus.FORM_ROLE)
   def formState = this.props.get(FormStatus.FORM_STATE).orElse(form.formState)

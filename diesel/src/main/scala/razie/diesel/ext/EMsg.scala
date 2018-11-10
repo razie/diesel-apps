@@ -19,13 +19,28 @@ import scala.Option.option2Iterable
   * @param arch
   * @param ret
   */
-case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:String="", ret: List[RDOM.P] = Nil, stype: String = "") extends CanHtml with HasPosition with DomAstInfo {
+case class EMsg(
+                 entity: String,
+                 met: String,
+                 attrs: List[RDOM.P]=Nil,
+                 arch:String="",
+                 ret: List[RDOM.P] = Nil,
+                 stype: String = "") extends CanHtml with HasPosition with DomAstInfo {
+
   import EMsg._
 
+  /** my specification - has attributes like public etc */
   var spec: Option[EMsg] = None
+
+  /** the pos of the rule that decomposes me, as a spec */
+  var rulePos: Option[EPos] = None
+
+  /** the pos of the rule/map that generated me as an instance */
   var pos : Option[EPos] = None
-  def withPos(p:Option[EPos]) = {this.pos = p; this}
+
   def withSpec(p:Option[EMsg]) = {this.spec = p; this}
+  def withRulePos(p:Option[EPos]) = {this.rulePos = p; this}
+  def withPos(p:Option[EPos]) = {this.pos = p; this}
 
   def asCtx (implicit ctx:ECtx) : ECtx = new StaticECtx(this.attrs, Some(ctx))
 
@@ -33,6 +48,7 @@ case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:Strin
   def copiedFrom (from:EMsg) =  {
     this.spec = from.spec
     this.pos = from.pos
+    this.rulePos = from.rulePos
     this
   }
 
@@ -55,13 +71,17 @@ case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:Strin
         )
       },
       "stype" -> stype
-    ) ++ {
+    ) ++
       pos.map{p=>
         Map ("ref" -> p.toRef,
           "pos" -> p.toJmap
         )
+      }.getOrElse(Map.empty) ++
+      rulePos.map{p=>
+        Map ("ref" -> p.toRef,
+          "pos" -> p.toJmap
+        )
       }.getOrElse(Map.empty)
-    }
 
   // if this was an instance and you know of a spec
   private def first(instPos:Option[EPos]) : String =
@@ -77,15 +97,18 @@ case class EMsg(entity: String, met: String, attrs: List[RDOM.P]=Nil, arch:Strin
 
   /** find the spec and get its pos */
   private def specPos: Option[EPos] = {
-    spec.flatMap(_.pos)
+    // here is where you decide what to show: $msg (spec) or $when (rulePos)
+    rulePos orElse spec.flatMap(_.pos)
   }
 
   /** if has executor */
   def hasExecutor:Boolean = Executors.all.exists(_.test(this)(ECtx.empty))
 
-  def isResolved:Boolean = if(spec.exists(_.isResolved)) true else (
-    if ((stype contains "GET") || (stype contains "POST") || hasExecutor || entity == "diesel") true
-    else false
+  def isResolved:Boolean =
+    if(spec.filter(x=> !x.equals(this)).exists(_.isResolved)) true
+    else (
+      if ((stype contains "GET") || (stype contains "POST") || hasExecutor || entity == "diesel") true
+      else false
   )
 
   /** color - if has executor */

@@ -218,7 +218,7 @@ class WikiInstImpl (val realm:String, val fallBacks:List[WikiInst], mkDomain : W
           n.filter(x => !Wikis.PERSISTED.contains(wid.cat)).map {
             // only for main wikis with no parents
             // todo can refine this logic further
-            WikiCache.set(key, _, 300) // 10 minutes
+            WikiCache.set(key, _, 120) // 2 minutes
           }
           n
         }

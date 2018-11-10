@@ -202,7 +202,7 @@ case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred:Bo
     // if evaluation was deferred, do it
     val m = if (deferred) {
       parent.map { parent =>
-        msg.copy(attrs = EMap.sourceAttrs(parent, msg.attrs, spec.map(_.attrs))).withPos(msg.pos)
+        msg.copy(attrs = EMap.sourceAttrs(parent, msg.attrs, spec.map(_.attrs))).copiedFrom(msg)
       } getOrElse {
         msg // todo evaluate something here as well...
       }
@@ -228,8 +228,10 @@ case class ERule(e: EMatch, arch:String, i: List[EMap]) extends CanHtml with EAp
   override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
     e.test(m, cole)
 
-  override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] =
+  override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = {
+    in.withRulePos(pos) // set my pos on decomposed msg - I must have matched it
     i.flatMap(_.apply(in, destSpec, pos))
+  }
 
   override def toHtml = span(arch+"::", "default") + s" ${e.toHtml} <br>${i.map(_.toHtml).mkString("<br>")} <br>"
 
