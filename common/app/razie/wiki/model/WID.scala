@@ -49,9 +49,6 @@ case class WID(
   /** find the page for this, if any - respects the NOCATS */
   lazy val page = {
     val w = if (Services.config.cacheWikis) {
-      import play.api.Play.current
-      import play.api.cache._
-
       WikiCache.getEntry(this.wpath+".page").map { x =>x
       }
     } else None

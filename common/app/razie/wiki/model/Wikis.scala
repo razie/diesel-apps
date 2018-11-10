@@ -58,8 +58,8 @@ object WikiCache {
     clog << "WIKI_CACHE_CLEAR - "+id
     Cache.remove(id)
   }
-
 }
+
 /** wiki factory and utils */
 object Wikis extends Logging with Validation {
 

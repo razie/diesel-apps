@@ -87,9 +87,9 @@ case class EMap(cls: String, met: String, attrs: Attrs, arrow:String="=>", cond:
       val m = EMsg(
          cls, met,
         EMap.sourceAttrs(in, attrs, destSpec.map(_.attrs), deferEvaluation),
-        AstKinds.GENERATED).
-        withPos(this.pos.orElse(apos)).
-        withSpec(destSpec)
+        AstKinds.GENERATED)
+        .withPos(this.pos.orElse(apos))
+        .withSpec(destSpec)
 
       if(arrow == "==>" || cond.isDefined || deferEvaluation)
         ENext(m, arrow, cond, deferEvaluation).withParent(in).withSpec(destSpec)
