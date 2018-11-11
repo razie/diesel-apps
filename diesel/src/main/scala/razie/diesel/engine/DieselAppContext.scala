@@ -68,8 +68,8 @@ object DieselAppContext extends Logging {
   }
 
   /** the static version - delegates to factory */
-  def mkEngine(dom: RDomain, root: DomAst, settings: DomEngineSettings, pages : List[DSpec]) = synchronized {
-    val eng = ctx.mkEngine(dom, root, settings, pages)
+  def mkEngine(dom: RDomain, root: DomAst, settings: DomEngineSettings, pages : List[DSpec], description:String) = synchronized {
+    val eng = ctx.mkEngine(dom, root, settings, pages, description)
     val p = Props(new DomEngineActor(eng))
     val a = getActorSystem.actorOf(p, name = "engine-"+eng.id)
     DieselAppContext.engMap.put(eng.id, eng)
@@ -114,8 +114,8 @@ object DieselAppContext extends Logging {
   * todo properly injecting these */
 class DieselAppContext (node:String, app:String) {
   /** make an engine instance for the given AST root */
-  def mkEngine(dom: RDomain, root: DomAst, settings: DomEngineSettings, pages : List[DSpec]) =
-    new DomEngine(dom, root, settings, pages)
+  def mkEngine(dom: RDomain, root: DomAst, settings: DomEngineSettings, pages : List[DSpec], description:String) =
+    new DomEngine(dom, root, settings, pages, description)
 }
 
 

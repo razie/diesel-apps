@@ -57,7 +57,7 @@ $msg home.guest_arrived(name="Jane")
     // 4. rules configuration
 
     // 5. start processing
-    val engine = DieselAppContext.mkEngine(dom, root, settings, story :: specs)
+    val engine = DieselAppContext.mkEngine(dom, root, settings, story :: specs, "simpleFlow")
 
     // 6. when done...
     val future = engine.process
@@ -155,7 +155,7 @@ object DomEngineUtils {
     // 4. rules configuration
 
     // 5. start processing
-    val engine = DieselAppContext.mkEngine(dom, root, settings, stories ::: specs)
+    val engine = DieselAppContext.mkEngine(dom, root, settings, stories ::: specs, "simpleFlow")
 
     engine
   }
@@ -191,7 +191,7 @@ object DomEngineUtils {
     RDExt.addStoryToAst(root, stories)
 
     // start processing all elements
-    val engine = DieselAppContext.mkEngine(dom plus idom, root, settings, stories ::: specs)
+    val engine = DieselAppContext.mkEngine(dom plus idom, root, settings, stories ::: specs, "simpleFlow")
 
     engine.process.map { engine =>
 

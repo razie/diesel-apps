@@ -74,6 +74,7 @@ class DomEngine(
   val root: DomAst,
   val settings: DomEngineSettings,
   val pages : List[DSpec],
+  val description:String,
   val id:String = new ObjectId().toString) {
 
   var status = DomState.INIT
@@ -167,7 +168,7 @@ class DomEngine(
   def spawn (nodes:List[DomAst]) = {
     val newRoot = DomAst("root", AstKinds.ROOT).withDetails("(spawned)")
     evAppChildren(newRoot, nodes)
-    val engine = DieselAppContext.mkEngine(dom, newRoot, settings, pages)
+    val engine = DieselAppContext.mkEngine(dom, newRoot, settings, pages, "engine:spawn")
     engine.ctx.root._hostname = ctx.root._hostname
     engine
   }
