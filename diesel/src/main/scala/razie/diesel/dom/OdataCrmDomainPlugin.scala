@@ -37,7 +37,7 @@ class CRMRDomainPlugin (
   def URL = props.getOrElse("odata.url", "")
 
   override def name = "d365odata"
-  override def conn = props.getOrElse("conn.name", "na")
+  override def conn = props.getOrElse("conn.name", "default")
 
   final val ODATA_NAME = "odata.name"
 
@@ -78,8 +78,9 @@ class CRMRDomainPlugin (
         def mkMetA = s"""<a href="/diesel/plugin/$name/$conn/attrs/${c.name}">attrs</a>"""
         def mkMet = s"""<a href="$URL/EntityDefinitions(LogicalName='$oname')">def</a>"""
         def mkSample = s"""<a href="$URL/${oname}s?$$top=1">sample</a>"""
+        def mkListAll = s"""<a href="/diesel/plugin/$name/$conn/listAll/${c.name}">listAll</a>"""
 
-        s"$mkMet | $mkMetA | $mkSample"
+        s"$mkMet | $mkMetA | $mkSample | $mkListAll"
       }
 
       case _ => "?"
@@ -95,7 +96,7 @@ class CRMRDomainPlugin (
     * @param epath       id of the entity
     * @return
     */
-  def doAction(dom: RDomain, action: String, completeUri: String, epath: String): String = {
+  def doAction(dom: RDomain, conn:String, action: String, completeUri: String, epath: String): String = {
     this.completeUri = completeUri
 
     action match {
@@ -110,7 +111,8 @@ class CRMRDomainPlugin (
       case "testConnection" => testConnection(dom, epath)
       case "findByRef" => findByRefs(dom, epath)
       case "findByQuery" => findByQuerys(dom, epath)
-      case _ => ???
+      case "listAll" => listAll(dom, epath)
+      case _ => throw new NotImplementedError(s"doAction $action - $completeUri - $epath")
     }
   }
 
@@ -295,10 +297,29 @@ class CRMRDomainPlugin (
     val host = new URI(completeUri).getHost
     val PAT = """([^/]+)/(.+)/(.+)""".r
     val PAT(cls, field, id) = epath
+    val filter = Sec.encUrl(s"$field eq $id")
+
+    doQuery(cls, dom, filter, collectRefs)
+  }
+
+  /**
+    * list all
+    */
+  private def listAll(dom:RDomain, epath: String, collectRefs:Option[mutable.HashMap[String,String]]=None): String = {
+    doQuery(epath, dom, "", collectRefs)
+  }
+
+  /**
+    * list all
+    */
+  private def doQuery (cls:String, dom:RDomain, filter: String, collectRefs:Option[mutable.HashMap[String,String]]=None): String = {
+    val host = new URI(completeUri).getHost
 
     dom.classes.get(cls).map { classDef=>
       val oname = classOname(classDef)
-      val u = URL + s"/api/data/v8.2/${oname}s?$$filter=" + Sec.encUrl(s"$field eq $id")
+      val u =
+        if(filter.length > 0) URL + s"/api/data/v8.2/${oname}s?$$filter=" + filter
+        else URL + s"/api/data/v8.2/${oname}s?$$top=100"
 
       val b1 = crmJson(u)
 

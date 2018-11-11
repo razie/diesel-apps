@@ -33,7 +33,7 @@ trait RDomainPlugin {
     * @param epath       id of the entity
     * @return
     */
-  def doAction(r: RDomain, action: String, completeUri: String, epath: String): String
+  def doAction(r: RDomain, conn:String, action: String, completeUri: String, epath: String): String
 
   def mkInstance(realm: String, wi: DSpecInventory): List[RDomainPlugin] = Nil
 
@@ -83,7 +83,7 @@ class DefaultRDomainPlugin (override val conn:String="all") extends RDomainPlugi
     }
   }
 
-  def doAction(r: RDomain, action: String, uri: String, epath: String) = ???
+  def doAction(r: RDomain, conn:String, action: String, uri: String, epath: String) = ???
 }
 
 
