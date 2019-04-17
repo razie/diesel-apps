@@ -41,11 +41,6 @@ trait DomParser extends ParserBase with ExprParser {
 
   // ----------------------
 
-  def optKinds: PS = opt(ows ~> "[" ~> ows ~> repsep(ident, ",") <~ "]") ^^ {
-    case Some(tParm) => tParm.mkString
-    case None => ""
-  }
-
   /**
     * .anno (params)
     *
@@ -54,7 +49,7 @@ trait DomParser extends ParserBase with ExprParser {
     * annotations have to be in the same page and are claimed by the first element that follows
     */
   def panno: PS =
-    """[.$]anno *""".r ~> ows ~> optAttrs ^^ {
+    """[.$]anno(tate)? +""".r ~> ows ~> optAttrs ^^ {
       case attrs => {
         lazys { (current, ctx) =>
           // was it collected? if so, merge the two defs
@@ -81,7 +76,6 @@ trait DomParser extends ParserBase with ExprParser {
         lazys { (current, ctx) =>
 
           val anno = ctx.we.get.collector.getOrElse(RDomain.DOM_ANNO_LIST, Nil).asInstanceOf[List[RDOM.P]]
-
           ctx.we.get.collector.remove(RDomain.DOM_ANNO_LIST)
 
           var c = C(name, "", stereo.map(_.mkString).mkString,
@@ -111,7 +105,7 @@ trait DomParser extends ParserBase with ExprParser {
             c = collected.foldLeft(c){(a,b) => a.plus(b)}
             collectDom(c, ctx.we)
 
-            actions = RDomainPlugins.plugins(w.specPath.realm).foldLeft("")((a,b) => a + (if(a != "") " <b>|</b> " else "") + b.htmlActions(c))
+            actions = RDomainPlugins.htmlActions(w.specPath.realm, c)
           }
 
           SState(
@@ -197,7 +191,7 @@ trait DomParser extends ParserBase with ExprParser {
   /**
     */
   def pifc: Parser[EIf] =
-    """[.$]ifc""".r ~> ows ~> optCond ^^ {
+    """[.$]ifc?""".r ~> ows ~> optCond ^^ {
             case b : Option[BExpr] if b.isDefined => EIfc(b.get)
             case _ => EIfc(BExprFALSE)
     }
@@ -205,7 +199,7 @@ trait DomParser extends ParserBase with ExprParser {
   /**
     */
   def pifm: Parser[EIf] =
-    """[.$]if""".r ~> ows ~> optMatchAttrs ^^ {
+    """[.$]match""".r ~> ows ~> optMatchAttrs ^^ {
       case a : List[PM] => EIfm(a)
     }
 
@@ -347,12 +341,12 @@ trait DomParser extends ParserBase with ExprParser {
   /**
     * optional attributes
     */
-  def attrs: Parser[List[RDOM.P]] = " *\\(".r ~> ows ~> repsep(pattr, ows ~ "," ~ ows) <~ ows <~ ")"
+  def XXattrs: Parser[List[RDOM.P]] = " *\\(".r ~> ows ~> repsep(pattr, ows ~ "," ~ ows) <~ ows <~ ")"
 
   /**
     * optional attributes
     */
-  def optAttrs: Parser[List[RDOM.P]] = opt(attrs) ^^ {
+  def XXoptAttrs: Parser[List[RDOM.P]] = opt(attrs) ^^ {
     case Some(a) => a
     case None => List.empty
   }
@@ -402,7 +396,7 @@ trait DomParser extends ParserBase with ExprParser {
       var dflt = ""
       val exp = e match {
         case Some(op ~ _ ~ v) => {
-          if(v.isInstanceOf[CExpr]) ttype = v.asInstanceOf[CExpr].ttype
+          if(v.isInstanceOf[CExpr[_]]) ttype = v.asInstanceOf[CExpr[_]].ttype
           (op, Some(v))
         }
         case None => ("", None)
@@ -415,32 +409,7 @@ trait DomParser extends ParserBase with ExprParser {
     }
   }
 
-  /**
-    * name:<>type[kind]*~=default
-    * <> means it's a ref, not ownership
-    * * means it's a list
-    */
-  def pattr: Parser[RDOM.P] = " *".r ~> qident ~ opt(" *: *".r ~> opt("<> *".r) ~ ident ~ optKinds) ~
-    opt(" *\\* *".r) ~ opt(" *~?= *".r ~> expr) ^^ {
-
-    case name ~ t ~ multi ~ e => {
-      val (dflt, ex) = e match {
-//        case Some(CExpr(ee, "String")) => (ee, None)
-          // todo good optimization but I no longer know if some parm is erased like (a="a", a="").
-        case Some(expr) => ("", Some(expr))
-        case None => ("", None)
-      }
-      t match {
-          // k - kind is [String] etc
-        case Some(ref ~ tt ~ k) => // ref or no archetype
-          P(name, dflt, tt + k.s, ref.mkString, multi.mkString, ex)
-        case None => // infer type from expr
-          P(name, dflt, ex.map(_.getType).getOrElse(""), "", multi.mkString, ex)
-      }
-    }
-  }
-
-  def optClassBody: Parser[List[RDOM.F]] = opt(" *\\{".r ~> CRLF2 ~> rep1sep(defline | msgline, CRLF2) <~ CRLF2 <~ " *\\} *".r) ^^ {
+ def optClassBody: Parser[List[RDOM.F]] = opt(" *\\{".r ~> CRLF2 ~> rep1sep(defline | msgline, CRLF2) <~ CRLF2 <~ " *\\} *".r) ^^ {
     case Some(a) => a
     case None => List.empty
   }
@@ -510,6 +479,9 @@ trait DomParser extends ParserBase with ExprParser {
               EESnakk.parseTemplate(t, sc, attrs).method
             }.getOrElse("") else ""
           }
+
+        val anno = ctx.we.get.collector.getOrElse(RDomain.DOM_ANNO_LIST, Nil).asInstanceOf[List[RDOM.P]]
+        ctx.we.get.collector.remove(RDomain.DOM_ANNO_LIST)
 
         val f = EMsg(qcm._1, qcm._2, attrs, "def", ret.toList.flatten(identity), archn)
 
@@ -581,9 +553,9 @@ trait DomParser extends ParserBase with ExprParser {
     * .func name (a,b) : String
     */
   def pfunc: PS = "[.$]def *".r ~> qident ~ optAttrs ~ opt(" *: *".r ~> ident) ~ optScript ~ optBlock ^^ {
-    case name ~ a ~ t ~ s ~ b => {
+    case name ~ attrs ~ optType ~ script ~ block => {
       lazys { (current, ctx) =>
-        val f = F(name, a, t.mkString, s.fold(ctx).s, "def", b)
+        val f = F(name, attrs, optType.mkString, "def", script.fold(ctx).s, block)
         collectDom(f, ctx.we)
 
         def mkParms = f.parms.map { p => p.name + "=" + Enc.toUrl(p.dflt) }.mkString("&")

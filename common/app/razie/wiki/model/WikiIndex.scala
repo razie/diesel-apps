@@ -227,7 +227,7 @@ object WikiIndex {
 
       action match {
 
-        case WikiAudit.CREATE_WIKI => {
+        case c if WikiAudit.isCreate(c) => {
           val swe = entity.asInstanceOf[Option[WikiEntry]]
 
           // on local node, update directly
@@ -238,7 +238,11 @@ object WikiIndex {
           WikiDomain(realm).resetDom
         }
 
-        case WikiAudit.UPD_RENAME => {
+        case d if WikiAudit.isDelete(d) =>
+          if (wid.shouldIndex) index.delete(wid, new ObjectId(ev.oldId.mkString))
+
+          // this needs to be last, look at the impl
+        case u if WikiAudit.isUpd(u) => {
           val swe = entity.asInstanceOf[Option[WikiEntry]]
           val oswe = oldEntity.asInstanceOf[Option[WikiEntry]]
 
@@ -250,9 +254,6 @@ object WikiIndex {
 
           WikiDomain(realm).resetDom
         }
-
-        case WikiAudit.DELETE_WIKI =>
-          if (wid.shouldIndex) index.delete(wid, new ObjectId(ev.oldId.mkString))
 
         case _ => {
           val swe = entity.asInstanceOf[Option[WikiEntry]]
@@ -289,6 +290,10 @@ class Mixins[A <: {def mixins:Mixins[A]}] (val l:List[A]) {
 
   def first[B] (f:A=>Option[B]) : Option[B] = {
     l.map(f).collectFirst {case x if !x.isEmpty => x }.flatten
+  }
+
+  def firstFlat[B] (f:A=>Option[B]) : Option[B] = {
+    flatten.map(f).collectFirst {case x if !x.isEmpty => x }.flatten
   }
 
   def firstThat[B] (f:A=>B)(cond:B=>Boolean)(unit: =>B) : B = {

@@ -6,9 +6,10 @@
   **/
 package razie.wiki.parser
 
+import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
 import razie.diesel.ext.{BFlowExpr, FlowExpr, MsgExpr, SeqExpr}
-import razie.tconf.parser.SState
+import razie.tconf.parser.{PState, SState}
 
 import scala.util.parsing.combinator.RegexParsers
 
@@ -25,6 +26,15 @@ trait ExprParser extends RegexParsers {
   def ident: P = """[a-zA-Z_][\w]*""".r | """'[\w@. -]+'""".r ^^ {
     case s =>
       if(s.startsWith("'") && s.endsWith("'"))
+        s.substring(1, s.length-1)
+      else
+        s
+  }
+
+  /** allow JSON ids with double quotes */
+  def jsonIdent: P = """[a-zA-Z_][\w]*""".r | """'[\w@. -]+'""".r | """"[\w@. -]+"""".r ^^ {
+    case s =>
+      if(s.startsWith("'") && s.endsWith("\'") || s.startsWith("\"") && s.endsWith("\""))
         s.substring(1, s.length-1)
       else
         s
@@ -69,7 +79,7 @@ trait ExprParser extends RegexParsers {
     )
   }
 
-  def pterm1: Parser[Expr] = numexpr | bcexpr | cexpr | xident | jsexpr1 | jsexpr2 | aident | jss | exregex | eblock | js
+  def pterm1: Parser[Expr] = numexpr | bcexpr | escexpr | cexpr | xpident | jsexpr1 | jsexpr2 | scexpr1 | scexpr2 | afunc | aident | jss | exregex | eblock | js
 
   def eblock: Parser[Expr] = "(" ~ ows ~> expr <~ ows ~ ")" ^^ { case ex => BlockExpr(ex) }
 
@@ -78,9 +88,12 @@ trait ExprParser extends RegexParsers {
   def js: Parser[Expr] = "{" ~ ows ~> repsep(jnvp <~ ows, ",") <~ ows ~ "}" ^^ { case li => JBlockExpr(li.mkString(",")) }
 //  def js: Parser[Expr] = "{" ~ ows ~> jexpr <~ ows ~ "}" ^^ { case ex => JBlockExpr(ex) }
 
+
+  // json object
+
   def jobj: Parser[String] = "{" ~ ows ~> repsep(jnvp <~ ows, ",") <~ ows ~ "}" ^^ { case li => "{ " + li.mkString(",") + " }" } // just because type of parser is String not Expr
 
-  def jnvp: Parser[String] = ows ~> ident ~ " *: *".r ~ jexpr ^^ { case name ~ _ ~ ex =>  name +":" + ex.toString }
+  def jnvp: Parser[String] = ows ~> jsonIdent ~ " *: *".r ~ jexpr ^^ { case name ~ _ ~ ex =>  name +":" + ex.toString }
 
   def jarray: Parser[String] = "[" ~ ows ~> repsep(jexpr <~ ows, ",") <~ ows ~ "]" ^^ { case li => "[ " + li.mkString(",") + " ]" }
 
@@ -96,6 +109,11 @@ trait ExprParser extends RegexParsers {
     case e => new CExpr(e.replaceAll("\\\\(.)", "$1"), WTypes.STRING)
   }
 
+  // escaped multiline string const with escaped chars
+  def escexpr: Parser[Expr] = "\"\"\"" ~> """(?s)((?!\"\"\").)*""".r <~ "\"\"\"" ^^ {
+    case e => new CExpr(e.replaceAll("\\\\(.)", "$1"), WTypes.STRING)
+  }
+
   def bcexpr: Parser[Expr] = ("true" | "false") ^^ {
     case b => new CExpr(b, WTypes.BOOLEAN)
   }
@@ -104,48 +122,119 @@ trait ExprParser extends RegexParsers {
   def aident: Parser[Expr] = qident ^^ { case i => new AExprIdent(i) }
 
   // XP identifier (either json or xml)
-  def xident: Parser[Expr] = "xp:" ~> xpath ^^ { case i => new XPathIdent(i) }
+  def xpident: Parser[Expr] = "xp:" ~> xpath ^^ { case i => new XPathIdent(i) }
 
   def jsexpr1: Parser[Expr] = "js:" ~> ".*(?=[,)])".r ^^ { case li => JSSExpr(li) }
   def jsexpr2: Parser[Expr] = "js:{" ~> ".*(?=})".r <~ "}" ^^ { case li => JSSExpr(li) }
+
+  def scexpr1: Parser[Expr] = "sc:" ~> ".*(?=[,)])".r ^^ { case li => SCExpr(li) }
+  def scexpr2: Parser[Expr] = "sc:{" ~> ".*(?=})".r <~ "}" ^^ { case li => SCExpr(li) }
 
   // regular expression, JS style
   def exregex: Parser[Expr] =
     """/[^/]*/""".r ^^ { case x => new CExpr(x, WTypes.REGEX) }
 
-  //------------ conditions
+  //==================================== F U N C T I O N S
 
-  def cond: Parser[BExpr] = boolexpr
+  def afunc: Parser[Expr] = qident ~ attrs ^^ { case i ~ a => new AExprFunc(i, a) }
 
-  def boolexpr: Parser[BExpr] = bterm1 | bterm1 ~ ("||" | "or") ~ bterm1 ^^ { case a ~ s ~ b => bcmp(a, s.trim, b) }
-
-  def bterm1: Parser[BExpr] = bfactor1 | bfactor1 ~ ("&&" | "and") ~ bfactor1 ^^ { case a ~ s ~ b => bcmp(a, s.trim, b) }
-
-  def bConst: Parser[BExpr] = ("true" | "false") ^^ {
-    case b => BCMPConst(b)
+  def optKinds: Parser[PState] = opt(ows ~> "[" ~> ows ~> repsep(ident, ",") <~ "]") ^^ {
+    case Some(tParm) => tParm.mkString
+    case None => ""
   }
 
-  def bfactor1: Parser[BExpr] = eq | neq | lte | gte | lt | gt
+  /**
+    * name:<>type[kind]*~=default
+    * <> means it's a ref, not ownership
+    * * means it's a list
+    */
+  def pattr: Parser[RDOM.P] = " *".r ~> qident ~ opt(" *: *".r ~> opt("<> *".r) ~ ident ~ optKinds) ~
+    opt(" *\\* *".r) ~ opt(" *~?= *".r ~> expr) ^^ {
 
-  def like: Parser[BExpr] = expr ~ "~=" ~ expr ^^ { case a ~ s ~ b => cmp(a, s.trim, b) }
+    case name ~ t ~ multi ~ e => {
+      val (dflt, ex) = e match {
+        //        case Some(CExpr(ee, "String")) => (ee, None)
+        // todo good optimization but I no longer know if some parm is erased like (a="a", a="").
+        case Some(expr) => ("", Some(expr))
+        case None => ("", None)
+      }
+      t match {
+        // k - kind is [String] etc
+        case Some(ref ~ tt ~ k) => // ref or no archetype
+          P(name, dflt, tt + k.s, ref.mkString, multi.mkString, ex)
+        case None => // infer type from expr
+          P(name, dflt, ex.map(_.getType).getOrElse(""), "", multi.mkString, ex)
+      }
+    }
+  }
 
-  def df: Parser[BExpr] = expr ~ "?=" ~ expr ^^ { case a ~ s ~ b => cmp(a, s.trim, b) }
+  /**
+    * optional attributes
+    */
+  def optAttrs: Parser[List[RDOM.P]] = opt(attrs) ^^ {
+    case Some(a) => a
+    case None => List.empty
+  }
 
-  def eq: Parser[BExpr] = expr ~ ("==" | "is") ~ expr ^^ { case a ~ s ~ b => cmp(a, s.trim, b) }
+  /**
+    * optional attributes
+    */
+  def attrs: Parser[List[RDOM.P]] = " *\\(".r ~> ows ~> repsep(pattr, ows ~ "," ~ ows) <~ ows <~ ")"
 
-  def neq: Parser[BExpr] = expr ~ ("!=" | "not") ~ expr ^^ { case a ~ s ~ b => cmp(a, s.trim, b) }
+  //==================================== C O N D I T I O N S
 
-  def lte: Parser[BExpr] = expr ~ "<=" ~ expr ^^ { case a ~ s ~ b => cmp(a, s.trim, b) }
 
-  def gte: Parser[BExpr] = expr ~ ">=" ~ expr ^^ { case a ~ s ~ b => cmp(a, s.trim, b) }
+  def cond: Parser[BExpr] = orexpr
 
-  def lt: Parser[BExpr] = expr ~ "<" ~ expr ^^ { case a ~ s ~ b => cmp(a, s.trim, b) }
+  def orexpr: Parser[BExpr] = bterm1 ~ rep(ows ~> ("or") ~ ows ~ bterm1 ) ^^ {
+    case a ~ l => l.foldLeft(a)((a, b) =>
+      b match {
+        case op ~ _ ~ p => bcmp (a, op, p)
+      }
+    )
+  }
 
-  def gt: Parser[BExpr] = expr ~ ">" ~ expr ^^ { case a ~ s ~ b => cmp(a, s.trim, b) }
+  def bterm1: Parser[BExpr] = bfactor1 ~ rep(ows ~> ("and") ~ ows ~ bfactor1 ) ^^ {
+    case a ~ l => l.foldLeft(a)((a, b) =>
+      b match {
+        case op ~ _ ~ p => bcmp (a, op, p)
+      }
+    )
+  }
 
-  def bcmp(a: BExpr, s: String, b: BExpr) = new BCMP1(a, s, b)
+  def bfactor1: Parser[BExpr] = notbfactor1 | bfactor2
 
-  def cmp(a: Expr, s: String, b: Expr) = new BCMP2(a, s, b)
+  def notbfactor1: Parser[BExpr] = ows ~> ("not" | "NOT") ~> ows ~> bfactor2 ^^ { BCMPNot }
+
+  def bfactor2: Parser[BExpr] = bConst | eq | neq | lte | gte | lt | gt | like | bvalue | condBlock
+
+  private def condBlock: Parser[BExpr] = ows ~> "(" ~> ows ~> cond <~ ows <~ ")" ^^ { BExprBlock }
+
+  private def cmp(a: Expr, s: String, b: Expr) = new BCMP2(a, s, b)
+
+  private def ibex(op: => Parser[String]) : Parser[BExpr] = expr ~ (ows ~> op <~ ows) ~ expr ^^ {
+    case a ~ s ~ b => cmp(a, s.trim, b)
+  }
+
+  def bConst: Parser[BExpr] = ("true" | "false") ^^ { BCMPConst }
+
+  def eq: Parser[BExpr]   = ibex("==" | "is")
+  def neq: Parser[BExpr]  = ibex("!=" | "not")
+  def like: Parser[BExpr] = ibex("~=")
+  def lte: Parser[BExpr]  = ibex("<=")
+  def gte: Parser[BExpr]  = ibex(">=")
+  def lt: Parser[BExpr]   = ibex("<")
+  def gt: Parser[BExpr]   = ibex(">")
+
+  // default - only used in PM, not conditions
+  def df: Parser[BExpr]   = ibex("?=")
+
+  def bvalue : Parser[BExpr] = expr ^^ {
+    case a => BCMPSingle(a)
+  }
+
+  private def bcmp(a: BExpr, s: String, b: BExpr) = new BCMP1(a, s, b)
+
 
   // ---------------------- flow expressions
 

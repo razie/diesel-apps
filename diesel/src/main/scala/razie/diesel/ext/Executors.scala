@@ -42,6 +42,8 @@ trait EApplicable {
   /** do it !
     *
     * @return a list of elements - these will be wrapped in DomAst and added to the tree, so a value should be EVal etc
+    *
+    * When starting an async action yourself, just return an EEngSuspend and schedule a later DERep to complete this actibity
     */
   def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any]
 }

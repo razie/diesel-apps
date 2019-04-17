@@ -209,7 +209,10 @@ class WikiInstImpl (val realm:String, val fallBacks:List[WikiInst], mkDomain : W
         weTable(wid.cat).findOne(Map(REALM, "category" -> wid.cat, "name" -> wid.name, "parent" -> p))
     } getOrElse {
       if (Services.config.cacheDb) {
-        val key = wid.copy(section = None).wpath+".db"
+        // set the realm, so no key clash across realms
+        val tempw = if(wid.realm.isDefined) wid else wid.r(realm)
+        // reset section to find the container
+        val key = tempw.copy(section = None).wpath+".db"
 
         WikiCache.getDb(key).map{x=>
           x
@@ -265,7 +268,7 @@ class WikiInstImpl (val realm:String, val fallBacks:List[WikiInst], mkDomain : W
         category(wid.name)
       else
 //        ifind(wid) map (grater[WikiEntry].asObject(_)) orElse fallback.flatMap(_.find(wid))
-      ifind(wid) orElse mixins.first(_.ifind(wid)) map (grater[WikiEntry].asObject(_))
+      ifind(wid) orElse mixins.firstFlat(_.ifind(wid)) map (grater[WikiEntry].asObject(_))
     }
 
   def find(uwid: UWID): Option[WikiEntry] = findById(uwid.cat, uwid.id)

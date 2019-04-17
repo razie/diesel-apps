@@ -52,7 +52,7 @@ object DomEngineSettings {
   final val INCLUDE_FOR = "includeFor"
 
   // filter qeury parms
-  final val FILTER = Array(SKETCH_MODE, MOCK_MODE, BLENDER_MODE, DRAFT_MODE, EXEC_MODE, RESULT_MODE, SIM_MODE, DFIDDLE, INCLUDE_FOR)
+  final val FILTER = Array(SKETCH_MODE, MOCK_MODE, BLENDER_MODE, DRAFT_MODE, EXEC_MODE, RESULT_MODE, SIM_MODE, DFIDDLE, INCLUDE_FOR, "saveMode")
 }
 
 case class DomEngineSettings

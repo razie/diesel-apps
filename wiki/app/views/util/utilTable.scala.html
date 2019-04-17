@@ -22,15 +22,26 @@ cols = (key,label)
   filterFunc.map(_.apply(entry)) getOrElse true
 }
 
+@** try to sort if not too many records *@
 @ccol() = @{
   val m = razie.db.RazMongo(name).m
-  if (criteria.isDefined)
-    (sortby.map(p=>m.find(criteria.get).sort(Map(p -> -1)).take(2000)).getOrElse(m.find(criteria.get).take(2000)))
-  else
-    (sortby.map(p=>m.find.sort(Map(p -> -1)).take(2000)).getOrElse(m.find()))
+  if(m.size < 30000) {
+    if(criteria.isDefined)
+      (sortby.map(p => m.find(criteria.get).sort(Map(p -> -1)).take(2000)).getOrElse(m.find(criteria.get).take(2000)))
+    else
+      (sortby.map(p => m.find.sort(Map(p -> -1)).take(2000)).getOrElse(m.find()))
+  } else {
+    criteria.map(p => m.find(p).take(2000)).getOrElse(m.find().take(2000))
+  }
 }
 
 <hr>
+
+@if(razie.db.RazMongo(name).m.size >= 30000) {
+  <div class="alert alert-danger">
+  Table is not sorted... too many events!! (@razie.db.RazMongo(name).m.size)
+  </div>
+}
 
 <table id="@name" class="table table-striped">
 <thead>

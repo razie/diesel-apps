@@ -7,9 +7,12 @@
 package razie.diesel.dom
 
 import org.bson.types.ObjectId
+import razie.diesel.engine.RDExt.TestResult
 import razie.diesel.ext._
 
 import scala.collection.mutable.ListBuffer
+
+import razie.diesel.utils.DomHtml.quickBadge
 
 /** the kinds of nodes we understand */
 object AstKinds {
@@ -19,6 +22,7 @@ object AstKinds {
   final val SAMPLED = "sampled"
   final val DEBUG = "debug"
   final val GENERATED = "generated"
+  final val ERROR = "error"
   final val SUBTRACE = "subtrace"
   final val RULE = "rule"
   final val SKETCHED = "sketched"
@@ -27,7 +31,7 @@ object AstKinds {
   final val BUILTIN = "built-in"
   final val NEXT = "next"
 
-  def isGenerated  (k:String) = GENERATED==k || SKETCHED==k || MOCKED==k || DEBUG==k
+  def isGenerated  (k:String) = GENERATED==k || SKETCHED==k || MOCKED==k || DEBUG==k || ERROR==k
   def shouldIgnore (k:String) = RULE==k || BUILTIN==k
   def shouldSkip (k:String) = NEXT==k
   def shouldRollup (k:String) = NEXT==k
@@ -121,12 +125,27 @@ case class DomAst(
     AstKinds.shouldRollup(k.kind) ||
       k.value.isInstanceOf[DomAstInfo] && k.value.asInstanceOf[DomAstInfo].shouldRollup
 
-  /** recursive tostring */
-  private def tos(level: Int, html:Boolean): String = {
+  /** non-recursive tostring */
+  def meTos(level: Int, html:Boolean): String = {
 
     def theKind =
       if(html) s"""<span title="$kind">${kind.take(3)}</span>"""
       else kind
+
+    (" " * level) +
+    theKind +
+    "::" + {
+    value match {
+      case c: CanHtml if (html) => c.toHtml
+      case x => x.toString
+    }
+    }.lines.map((" " * 1) + _).mkString("\n") + moreDetails
+  }
+
+  /** recursive tostring */
+  private def tos(level: Int, html:Boolean): String = {
+
+    def h(s:String) = if(html) s else ""
 
     def toschildren (level:Int, kids : List[DomAst]) : List[Any] =
       kids.filter(k=> !shouldIgnore(k)).flatMap{k=>
@@ -138,22 +157,14 @@ case class DomAst(
       }
 
     if(!shouldSkip(this)) {
-      s"""<div kind="$kind" level="$level">""" +
-        (" " * level) +
-        theKind +
-        "::" + {
-        value match {
-          case c: CanHtml if (html) => c.toHtml
-          case x => x.toString
-        }
-      }.lines.map((" " * 1) + _).mkString("\n") + moreDetails + "\n" +
+        h(s"""<div kind="$kind" level="$level">""") +
+        meTos(level, html) + "\n" +
         toschildren(level, children.toList).mkString +
-        "</div>"
+        h("</div>")
     } else {
       toschildren(level, children.toList).mkString
     }
   }
-
 
   override def toString = tos(0, false)
 
@@ -217,6 +228,45 @@ case class DomAst(
   def find(id:String) : Option[DomAst] =
     if(this.id == id) Some(this)
     else children.foldLeft(None:Option[DomAst])((a,b)=>a orElse b.find(id))
+
+  def storySummary = {
+    val zip = children.zipWithIndex
+    val stories = zip.filter(_._1.kind == "story")
+
+    val resl = Range(0, stories.size).map { i =>
+      val s = stories(i)
+      val nodes =
+        if(i < stories.size - 1) children.slice(s._2+1, stories(i+1)._2 - 1)
+        else children.slice(s._2+1, children.size - 1)
+
+      val failed = s._1.failedTestCount(nodes.toList)
+      val total = s._1.totalTestCount(nodes.toList)
+      quickBadge(failed, total, -1, "") +
+        s._1.meTos(1, true)
+    }
+
+    resl.mkString("\n")
+  }
+
+  def failedTestCount: Int = failedTestCount(List(this))
+
+  def successTestCount : Int = successTestCount(List(this))
+
+  def totalTestCount : Int = totalTestCount(List(this))
+
+  def totalTestCount(nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {
+    case d@DomAst(n: TestResult, _, _, _) => n
+  })).size
+
+  def failedTestCount(nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {
+    case d@DomAst(n: TestResult, _, _, _) if n.value.startsWith("fail") => n
+    case d@DomAst(n: EError, _, _, _) => n
+  })).size
+
+  def successTestCount (nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {
+    case d@DomAst(n: TestResult, _, _, _) if n.value.startsWith("ok") => n
+  })).size
+
 }
 
 

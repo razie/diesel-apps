@@ -421,6 +421,11 @@ object RkViewService extends RazController with ViewService {
         Seq.empty)(rhRequest)
     )
   }
+
+  def md (wpath:String)(implicit request: RequestHeader) : String =
+    WID.fromPath(wpath).map(_.r(rhRequest(request).realm)).flatMap(_.page).map{p=>
+      Wikis.format(p, None)
+    }.getOrElse("")
 }
 
 

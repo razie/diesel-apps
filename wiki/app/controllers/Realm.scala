@@ -79,7 +79,7 @@ object Realm extends RazController with Logging {
       r1 <- au.hasPerm(Perm.uWiki) orCorr cNoPermission;
       n1 <- name.matches("[a-zA-Z0-9_ -]+") orErr "no special characters in the name";
       n2 <- (name.length >= 3 && name.length < 20) orErr "name too short or too long";
-      twid <- WID.fromPath(templateWpath) orErr s"template/spec wpath $templateWpath not found";
+      twid <- WID.fromPath(templateWpath) orErr s"template/spec wpath $templateWpath not parsed";
       tw <- Wikis(realm).find(twid) orErr s"template/spec $twid not found";
       hasQuota <- (au.isAdmin || au.quota.canUpdate) orCorr cNoQuotaUpdates
     ) yield {

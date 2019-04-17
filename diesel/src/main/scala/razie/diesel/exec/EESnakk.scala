@@ -134,11 +134,11 @@ class EESnakk extends EExecutor("snakk") {
               (
                 sc.headers ++ {
                   ctx.curNode.map(node =>
-                    ("dieselNodeId" -> node.id)).toList ++
+                    ("dieselNodeId" -> node.id)).toList.filter(x=> ! sc.headers.contains("dieselNodeId")) ++
                     ctx.root.asInstanceOf[DomEngECtx].settings.userId.map(x =>
-                      ("dieselUserId" -> x)).toList ++
+                      ("dieselUserId" -> x)).toList.filter(x=> ! sc.headers.contains("dieselUserId")) ++
                     ctx.root.asInstanceOf[DomEngECtx].settings.configTag.map(x =>
-                      ("dieselConfigTag" -> x)).toList
+                      ("dieselConfigTag" -> x)).toList.filter(x=> ! sc.headers.contains("dieselConfigTag"))
                 }.toMap
                 ),
               sc.method
@@ -464,23 +464,26 @@ object EESnakk {
     val c = content.replaceFirst("^\n", "") // multiline template start with \n
 
     val v = c.split(" ").head
-    val url = c.split(" ").tail.head.replaceFirst("(?s)\\?.*", "").replaceFirst("(?s)\n.*", "")
+    var url = c.split(" ").tail.head.replaceFirst("(?s)\\?.*", "").replaceFirst("(?s)\n.*", "")
     val tpath = c.split("\\?").head
 
-    val apath = path.split("/")
-    val atpath = tpath.split("/")
-
+    // remove known prefixes for URL
     if(url.startsWith("/diesel/")) {
-      val u = url.replaceFirst("/diesel/(mock|rest|wreact/[^/]+/react)/", "")
-      val a = u.split("/")
-      val b = path.split("/")
+      url = url.replaceFirst("/diesel/(mock|rest|wreact/[^/]+/react)/", "")
+    }
 
-      val c = a.zip(b)
-      val res = c.foldLeft(true)((x,y) => x && (y._1 == y._2 || y._1.startsWith("$")))
+    // split in segments and match them - each segment to be the same or a variable
 
-      res
-    } else
-      false
+    val t = url.split("/")
+    val p = path.split("[/.]") // todo I'm doing this because some places rely on react/class/action works as well as react/class.action
+
+    val zipped = t.zip(p)
+    val res = t.size == p.size && zipped.size == t.size && zipped.foldLeft(true)((x,y) => x && (y._1 == y._2 || y._1.startsWith("$")))
+
+    // maybe use a better matches below...
+//    a.zip(b).foldLeft(true)((a, b) => a && b._1 == b._2 || b._2.matches("""\$\{([^\}]*)\}"""))
+
+    res
   }
 
   /** prepare the template content - expand $parm expressions */
@@ -497,6 +500,30 @@ object EESnakk {
       s1
     } else
       prepStr(content, attrs, Some(ctx))
+  }
+
+  /** prepare the template content - expand $parm expressions */
+  def expandExpr(url: String, attrs: Option[Attrs], ctx:Option[ECtx]):String = {
+    val PATTERN = """\$\{([^\}]*)\}""".r
+    //    val eeEscaped = es.replaceAllLiterally("(", """\(""").replaceAllLiterally(")", """\)""")
+
+    var u = ""
+    try {
+      u = PATTERN.replaceSomeIn(url, { m =>
+        val n = m.group(1)
+        attrs.flatMap(_.find(_.name == n)).orElse(ctx.flatMap(_.getp(n))).map(x =>
+          ctx.map { implicit ctx =>
+            stripQuotes(x.calculatedValue)
+          }.getOrElse {
+            stripQuotes(x.dflt)
+          }
+        )
+      })
+    } catch {
+      case e : Exception => throw new IllegalArgumentException(s"REGEX err for $url ").initCause(e)
+    }
+
+    u
   }
 
   /** prepare the template content - expand $parm expressions */
@@ -518,20 +545,7 @@ object EESnakk {
 
   /** prepare the URL - expand $parm expressions */
   def prepUrl(url: String, attrs: Attrs, ctx:Option[ECtx]) : String = {
-    //todo add expressions like ${...}
-    val PATTERN = """(\$\w+)*""".r
-    var u = PATTERN.replaceSomeIn(url, { m =>
-      val n = if (m.matched.length > 0) m.matched.substring(1) else ""
-      attrs.find(_.name == n).orElse(ctx.flatMap(_.getp(n))).map(x =>
-        // todo should encurl whatever is after ? so the :// and : stay the same
-//        Enc.toUrl(stripQuotes(x.dflt))
-        ctx.map{implicit ctx=>
-          stripQuotes(x.calculatedValue)
-        }.getOrElse{
-          stripQuotes(x.dflt)
-        }
-      )
-    })
+    val u = expandExpr(url, Some(attrs), ctx)
 
     val res =
       if(u contains "$") // in case we parse template /cust/$id/...
@@ -544,18 +558,15 @@ object EESnakk {
 
   def formatTemplate (content:String, ctx:ECtx) = {
     // todo either this or prepUrl not both
-    val PATTERN = """(\$\w+)*""".r
-    var s1 = PATTERN.replaceSomeIn(content, { m =>
-      val n = if (m.matched.length > 0) m.matched.substring(1) else ""
-      if(n.length > 1)
-        ctx.get(n) orElse Some("") // orElse causes $msg to expand to nothing if no msg
-      else None
-//        stripQuotes(x.dflt)
-    })
+    var s1 = expandExpr(content, None, Some(ctx))
+
     val PAT = """\$\{([^\}]*)\}""".r
     s1 = PAT.replaceSomeIn(s1, { m =>
       val n = m.group(1)
-      if(n.length > 1) ctx.get(n) else None
+      if(n.length > 1)
+        ctx.get(n) orElse Some("") // orElse causes $msg to expand to nothing if no msg
+      else None
+//      if(n.length > 1) ctx.get(n) else None
     })
     s1
   }

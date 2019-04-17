@@ -11,7 +11,8 @@ import razie.clog
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom.{RDOM, _}
 import razie.diesel.engine.DomEngineSettings.DIESEL_USER_ID
-import razie.diesel.engine.{DEStartTimer, DieselAppContext, DomEngECtx}
+import razie.diesel.engine._
+import razie.diesel.ext
 import razie.diesel.ext.{MatchCollector, _}
 import razie.wiki.Base64
 
@@ -106,7 +107,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
             a // todo calc exprs
           else
           // includes type annotations etc
-            P(a.name, ctx.getp(a.name).map(_.copy(name = a.name)).mkString) // if not given, then find it
+            P("echo_"+a.name, ctx.getp(a.name).map(_.copy(name = a.name)).mkString) // if not given, then find it
 
           EVal(res)
         }
@@ -155,12 +156,6 @@ class EECtx extends EExecutor(EECtx.CTX) {
             None
           }
         }.filter(_.isDefined).map(_.get)
-      }
-
-      case "sleep" => {
-        val d = in.attrs.find(_.name == "duration").map(_.dflt.toInt).getOrElse(1000)
-        Thread.sleep(d)
-        new EInfo("ctx.sleep - slept " + d) :: Nil
       }
 
       // debug current context
@@ -234,6 +229,13 @@ class EECtx extends EExecutor(EECtx.CTX) {
         val m = in.attrs.find(_.name == "msg").map(_.dflt).getOrElse("$msg ctx.echo (msg=\"timer without message\")")
         DieselAppContext.router.map(_ ! DEStartTimer("x", d, Nil))
         new EInfo("ctx.timer - start " + d) :: Nil
+      }
+
+      case "sleep" => {
+        val d = in.attrs.find(_.name == "duration").map(_.dflt.toInt).getOrElse(1000)
+        new EInfo("ctx.sleep - slept " + d) :: ext.EEngSuspend("ctx.sleep", "", Some((e,a,l) => {
+          DieselAppContext.router.map(_ ! DELater(e.id, d, DEComplete(e.id, a, true, l, Nil)))
+        })) :: Nil
       }
 
       case "authUser" => {

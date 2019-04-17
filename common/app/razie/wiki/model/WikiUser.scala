@@ -73,7 +73,7 @@ abstract class WikiUser extends DUser {
   def isSuspended : Boolean
 
   // users can be, in order of access: mods, devs or admins
-  def isMod = isAdmin || hasPerm(Perm.Moderator) || hasPerm(Perm.codeMaster)
+  def isMod = isAdmin || hasPerm(Perm.Moderator)
   def isDev = isAdmin || hasPerm(Perm.codeMaster)
   def isAdmin = hasPerm(Perm.adminDb) || hasPerm(Perm.adminWiki)
 }

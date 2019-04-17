@@ -76,7 +76,8 @@ trait PState {
       ifold(SState.EMPTY, ctx)
     } catch {
       case t: Throwable =>
-        audit.Audit.logdb("EXCEPTION_PARSING.folding - " + ctx.wpath + " " + t.getLocalizedMessage())
+        audit.Audit.logdb("EXCEPTION_PARSING.folding - " + ctx.wpath + " " + t.getMessage)
+        razie.Log.error("EXCEPTION_PARSING.folding - " + ctx.wpath + " ", t)
         SState("EXCEPTION_PARSING.folding - " + t.getLocalizedMessage())
     }
   }

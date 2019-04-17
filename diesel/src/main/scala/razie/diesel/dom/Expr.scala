@@ -71,7 +71,7 @@ case class AExpr2 (a:Expr, op:String, b:Expr) extends Expr {
 
     // resolve an expression to P with value and type
     def top (x:Expr) : Option[P] = x match {
-      case CExpr(aa, tt) => Some(P ("", aa, tt))
+      case CExpr(aa, tt) => Some(P ("", aa.toString, tt).withValue(aa, tt))
       case AExprIdent(aid) => ctx.getp(aid)
       case _ => Some(P("", a(v).toString))
     }
@@ -111,6 +111,13 @@ case class AExpr2 (a:Expr, op:String, b:Expr) extends Expr {
           case (AExprIdent(aid), JBlockExpr(jb)) if ctx.getp(aid).exists(_.ttype == WTypes.JSON) =>
             PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.JSON)
 
+          // json exprs are different, like cart + { item:...}
+          case (AExprIdent(aid), AExprIdent(bid)) if
+            ctx.getp(aid).exists(_.ttype == WTypes.JSON) &&
+            ctx.getp(bid).exists(_.ttype == WTypes.JSON) =>
+
+            PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.JSON)
+
           case _ if isNum(a) => {
             // if a is num, b will be converted to num
             val as = a(v).toString
@@ -135,7 +142,13 @@ case class AExpr2 (a:Expr, op:String, b:Expr) extends Expr {
       case "||" if a.isInstanceOf[AExprIdent] => {
         a match {
           case AExprIdent(aid) =>
-            ctx.getp(aid).map(_.calculatedTypedValue).getOrElse(PValue(b(v).toString))
+            ctx.getp(aid).map(_.calculatedTypedValue).getOrElse(
+              // had type issues with this:
+              // PValue(b(v).toString)
+
+              // this makes more sense
+              b.applyTyped(v).calculatedTypedValue
+            )
 
           case _ => {
             PValue("")
@@ -152,7 +165,7 @@ case class AExpr2 (a:Expr, op:String, b:Expr) extends Expr {
 //    }
 //  }.get
 
-    P("", res.toString, res.contentType).copy(value = Some(res))
+    P("", res.value.toString, res.contentType).copy(value = Some(res))
   }
 
   /** process a js operation like obja + objb */
@@ -195,42 +208,85 @@ case class AExprIdent (val expr:String) extends Expr {
   override def applyTyped (v:Any)(implicit ctx:ECtx) : P = ctx.getp(expr).getOrElse(P(expr, ""))
 }
 
+/** a function */
+case class AExprFunc (val expr:String, parms:List[RDOM.P]) extends Expr {
+
+  override def apply (v:Any)(implicit ctx:ECtx) = applyTyped(v).calculatedValue
+  override def applyTyped (v:Any)(implicit ctx:ECtx) : P = {
+    expr match {
+      case "sizeOf" => {
+        parms.headOption.map {p=>
+          val pv = p.calculatedTypedValue
+          if(pv.contentType == WTypes.ARRAY) {
+            val sz = pv.value.asInstanceOf[List[_]].size
+            P("", sz.toString, WTypes.NUMBER).withValue(sz, WTypes.NUMBER)
+          } else {
+            throw new IllegalArgumentException ("Not array: " + p.name + " is:" + pv.toString)
+          }
+        }.getOrElse(
+          throw new IllegalArgumentException ("No arguments for sizeOf")
+        )
+      }
+
+      case _ => throw new IllegalArgumentException ("Function not found: " + expr)
+    }
+
+  }
+
+  override def toDsl = expr + "()"
+  override def toHtml = tokenValue(toDsl)
+}
+
 /** a qualified identifier */
 case class XPathIdent (val expr:String) extends Expr {
   override def apply (v:Any)(implicit ctx:ECtx) = ctx.apply(expr)
 }
 
-/** constant expression
-  *
-  *  TODO i'm loosing the type definition
+/**
+  * constant expression - similar to PValue
   */
-case class CExpr (ee : String, ttype:String="") extends Expr {
+case class CExpr[T] (ee : T, ttype:String="") extends Expr {
   val expr = ee.toString
 
   override def apply (v:Any)(implicit ctx:ECtx) = applyTyped(v).dflt
 
   override def applyTyped (v:Any)(implicit ctx:ECtx) : P = {
+    val es = ee.toString
+
     if (ttype == WTypes.NUMBER) {
-      if (ee.contains("."))
-        P("", ee, ttype).withValue(ee.toDouble)
+      if (es.contains("."))
+        P("", es, ttype).withValue(es.toDouble, WTypes.NUMBER)
       else
-        P("", ee, ttype).withValue(ee.toInt)
+        P("", es, ttype).withValue(es.toInt, WTypes.NUMBER)
     } else if (ttype == WTypes.BOOLEAN) {
-      P("", ee, ttype).withValue(ee.toBoolean)
+      P("", es, ttype).withValue(es.toBoolean, WTypes.BOOLEAN)
     } else {
       // expand templates by default
-      if (ee contains "${") {
-        val PAT = """\$\{([^\}]*)\}""".r
-        val eeEscaped = ee.replaceAllLiterally("(", """\(""").replaceAllLiterally(")", """\)""")
-        val s1 = PAT.replaceAllIn(ee, { m =>
-          (new SimpleExprParser).parseExpr(m.group(1)).map { e =>
-            P("x", "", "", "", "", Some(e)).calculatedValue
-          } getOrElse
-            s"{ERROR: ${m.group(1)}"
-        })
+      if (es contains "${") {
+        var s1 = ""
+        try {
+          val PAT = """\$\{([^\}]*)\}""".r
+          val eeEscaped = es.replaceAllLiterally("(", """\(""").replaceAllLiterally(")", """\)""")
+          s1 = PAT.replaceAllIn(es, { m =>
+            (new SimpleExprParser).parseExpr(m.group(1)).map { e =>
+              val res = P("x", "", "", "", "", Some(e)).calculatedValue
+
+              // if the parm's value contains $ it would not be expanded - that's enough, eh?
+              // todo recursive expansions?
+              val escaped = res
+                .replaceAllLiterally("\\", "\\\\")
+                .replaceAll("\\$", "\\\\\\$")
+
+              escaped
+            } getOrElse
+              s"{ERROR: ${m.group(1)}"
+          })
+        } catch {
+          case e : Exception => throw new IllegalArgumentException(s"REGEX err for $es ").initCause(e)
+        }
         P("", s1, ttype)
       } else
-        P("", ee, ttype)
+        P("", es, ttype).withValue(ee, ttype)
     }
   }
 
@@ -269,6 +325,20 @@ case class JSSExpr (s : String) extends Expr {
   }
 }
 
+/** a scala expression
+  * sc:a.b
+  * sc:{...}
+  */
+case class SCExpr (s : String) extends Expr {
+  val expr = "sc{{ " + s + " }}"
+
+  override def getType: String = WTypes.UNKNOWN
+
+  override def apply (v:Any)(implicit ctx:ECtx) = ???
+
+  override def applyTyped (v:Any)(implicit ctx:ECtx) : P = ???
+}
+
 /** a json block */
 case class JBlockExpr (ex : String) extends Expr {
   val expr = "{ " + ex.toString + " }"
@@ -303,9 +373,16 @@ abstract class BExpr(e: String) extends HasDsl {
   override def toDsl = e
 }
 
+/** boolean expression block - show the () when printing */
+case class BExprBlock(a: BExpr) extends BExpr("") {
+  override def apply(e: Any)(implicit ctx: ECtx) = a.apply(e)
+  override def toDsl = "(" + a.toDsl + ")"
+}
+
 /** negated boolean expression */
 case class BCMPNot(a: BExpr) extends BExpr("") {
   override def apply(e: Any)(implicit ctx: ECtx) = !a.apply(e)
+  override def toDsl = "NOT (" + a.toDsl + ")"
 }
 
 /** const boolean expression */
@@ -316,8 +393,8 @@ case class BCMPConst(a: String) extends BExpr(a) {
 /** composed boolean expression */
 case class BCMP1(a: BExpr, op: String, b: BExpr) extends BExpr(a.toDsl + " " + op + " " + b.toDsl) {
   override def apply(in: Any)(implicit ctx: ECtx) = op match {
-    case "||" => a.apply(in) || b.apply(in)
-    case "&&" => a.apply(in) && b.apply(in)
+    case "||" | "or" => a.apply(in) || b.apply(in)
+    case "&&" | "and" => a.apply(in) && b.apply(in)
     case _ => {
       clog << "[ERR Operator " + op + " UNKNOWN!!!]"; false
     }
@@ -328,40 +405,26 @@ case class BCMP1(a: BExpr, op: String, b: BExpr) extends BExpr(a.toDsl + " " + o
 
 /** simple boolean expression */
 case class BCMP2(a: Expr, op: String, b: Expr) extends BExpr(a.toDsl + " " + op + " " + b.toDsl) {
-  override def apply(in: Any)(implicit ctx: ECtx) = {
+
+  override def apply(in: Any)(implicit ctx: ECtx): Boolean = {
     (a, b) match {
       case (CExpr(aa, WTypes.NUMBER), CExpr(bb, WTypes.NUMBER)) => {
-        val ai = {
-          if(aa.contains(".")) aa.toDouble
-          else aa.toInt
-        }
-        val bi = {
-          if(bb.contains(".")) bb.toDouble
-          else bb.toInt
-        }
+        val as = aa.toString
+        val bs = bb.toString
 
-        op match {
-          case "?=" => true
-          case "==" => ai == bi
-          case "!=" => ai != bi
-          case "<=" => ai <= bi
-          case ">=" => ai >= bi
-          case "<" => ai < bi
-          case ">" => ai > bi
-          case "is" => ai == bi
-          case "not" => ai != bi
-          case _ => {
-            clog << "[ERR Operator " + op + " UNKNOWN!!!]";
-            false
-          }
-        }
-      }
+        cmpNums(as, bs, op)
+     }
 
       case _ => {
-        def ap = a.applyTyped(in)
-        def bp = b.applyTyped(in)
-        def as = ap.calculatedValue
+        lazy val ap = a.applyTyped(in)
+        lazy val bp = b.applyTyped(in)
+        lazy val as = ap.calculatedValue
+
         def b_is (s:String) = b.isInstanceOf[AExprIdent] && s == b.asInstanceOf[AExprIdent].expr.toLowerCase
+
+        if (ap.ttype == WTypes.NUMBER && bp.ttype == WTypes.NUMBER) {
+          return cmpNums(ap.calculatedValue, bp.calculatedValue, op)
+        }
 
         op match {
           case "?=" => a(in).toString.length >= 0 // anything with a default
@@ -381,30 +444,37 @@ case class BCMP2(a: Expr, op: String, b: Expr) extends BExpr(a.toDsl + " " + op 
           case "is" if b.toString == "empty" || b.toString == "undefined" => as.length == 0
 
           case "is" if b_is("number")  => as.matches("[0-9.]+")
-          case "is" if b_is("boolean") => a.getType == WTypes.BOOLEAN
+          case "is" if b_is("boolean") => a.getType == WTypes.BOOLEAN || ap.calculatedTypedValue.contentType == WTypes.BOOLEAN
+          case "is" if b_is("json") => ap.calculatedTypedValue.contentType == WTypes.JSON
+
+          case "is" if b_is("array") => {
+            val av = ap.calculatedTypedValue
+            av.contentType == WTypes.ARRAY
+          }
 
           case "is" => { // is nuber or is date or is string etc
+            /* x is TYPE */
+            if(b.isInstanceOf[AExprIdent]) (
               /* x is TYPE */
-              if(b.isInstanceOf[AExprIdent]) (
-                /* x is TYPE */
-                a.getType.toLowerCase == b.asInstanceOf[AExprIdent].expr.toLowerCase ||
+              a.getType.toLowerCase == b.asInstanceOf[AExprIdent].expr.toLowerCase ||
 
                 /* x is string */
-//                "string" == b.asInstanceOf[AExprIdent].expr.toLowerCase &&
-//                  a.getType.length == 0 ||
+                //                "string" == b.asInstanceOf[AExprIdent].expr.toLowerCase &&
+                //                  a.getType.length == 0 ||
 
                 /** just evaluate b */
-                  (as equals bp.calculatedValue)
-                )
-              else
-                /* if type expr not known, then behave like equals */
-                (as == b(in).toString)
+                (as equals bp.calculatedValue)
+              )
+            else
+            /* if type expr not known, then behave like equals */
+              (as == b(in).toString)
           }
 
           case "not" if b.toString == "defined" => a(in).toString.length <= 0
-          case "not" if b.toString == "empty" => a(in).toString.length > 0
+          case "not" if b.toString == "empty" || b.toString == "undefined" => a(in).toString.length > 0
 
-            // also should be
+          // also should be
+          // todo why also should be ???
           case "not" => a(in).toString.length > 0 && a(in) != b(in)
 
           case _ if op.trim == "" => {
@@ -419,6 +489,92 @@ case class BCMP2(a: Expr, op: String, b: Expr) extends BExpr(a.toDsl + " " + op 
         }
       }
     }
+  }
+
+  private def cmpNums (as:String, bs:String, op:String): Boolean = {
+    val ai = {
+      if(as.contains(".")) as.toDouble
+      else as.toInt
+    }
+    val bi = {
+      if(bs.contains(".")) bs.toDouble
+      else bs.toInt
+    }
+
+    op match {
+      case "?=" => true
+      case "==" => ai == bi
+      case "!=" => ai != bi
+      case "<=" => ai <= bi
+      case ">=" => ai >= bi
+      case "<" => ai < bi
+      case ">" => ai > bi
+      case "is" => ai == bi
+      case "not" => ai != bi
+      case _ => {
+        clog << "[ERR Operator " + op + " UNKNOWN!!!]";
+        false
+      }
+    }
+  }
+}
+
+/** single term bool expression */
+case class BCMPSingle(a: Expr) extends BExpr(a.toDsl) {
+
+  def toBoolean(in: P)(implicit ctx: ECtx) = {
+    a.getType match {
+
+      case WTypes.NUMBER => {
+        throw new IllegalArgumentException("Found :number expected :boolean")
+      }
+
+      case WTypes.BOOLEAN => {
+        "true" == in.dflt
+      }
+
+      case _ if "true" == in.dflt => {
+        true
+      }
+
+      case _ if "false" == in.dflt => {
+        false
+      }
+
+      case s @ _ => {
+        // it was some parameter that apply() evaluated
+
+        in.ttype match {
+
+          case WTypes.NUMBER => {
+            throw new IllegalArgumentException("Found :number expected :boolean")
+          }
+
+          case WTypes.BOOLEAN => {
+            "true" == in.dflt
+          }
+
+          case _ if "true" == in.dflt => {
+            true
+          }
+
+          case _ if "false" == in.dflt => {
+            false
+          }
+
+          case s @ _ => {
+            val t = if(s.length > 0) s else ":unknown"
+            clog << (s"Found $t expected :boolean")
+            throw new IllegalArgumentException(s"Found $t expected :boolean details: ($a)")
+          }
+        }
+      }
+    }
+  }
+
+  override def apply(in: Any)(implicit ctx: ECtx) = {
+    val ap = a.applyTyped(in)
+    toBoolean(ap)
   }
 }
 

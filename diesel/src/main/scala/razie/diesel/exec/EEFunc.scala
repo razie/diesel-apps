@@ -52,7 +52,7 @@ class EEFunc extends EExecutor("func") {
     } getOrElse s"no func ${in.met} in domain"
 
     in.ret.headOption.orElse(spec(in).flatMap(_.ret.headOption)).orElse(
-      Some(new P("result", ""))
+      Some(new P("payload", ""))
     ).map(_.copy(dflt = res)).map(x => EVal(x)).toList
   }
 

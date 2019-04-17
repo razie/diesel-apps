@@ -36,7 +36,7 @@ trait ECtx {
 
   /** find the template corresponding to the ea and direction (direction is optional
     *
-    * @param ea entity.action OR URL
+    * @param ea entity.action
     * @param direction "request" vs "response"
     * @return
     */
@@ -59,7 +59,7 @@ trait ECtx {
 
   /** see if this is a qualified name in a structure */
   def sourceStruc (name:String, root:Option[Map[String,Any]] = None) : Option[P] = {
-    val x:Option[String] = if (name contains ".") {
+    val x:Option[_] = if (name contains ".") {
       val R = """([^.]+)\.(.*)""".r
       val R(n,rest) = name
       root.flatMap(_.get(n)).orElse {
@@ -76,12 +76,20 @@ trait ECtx {
           Map.empty
         }.get
       }.collect {
-        case x:Map[String, _] => sourceStruc(rest, Some(x)).map(_.dflt)
+        case x:Map[String, _] => sourceStruc(rest, Some(x))
       }.flatten
     } else {
-      root.flatMap(_.get(name)).map(razie.js.anytojsons)
+      val xxx = root.flatMap(_.get(name))
+      val s = xxx.map(razie.js.anytojsons)
+      s.map { s =>
+        P(name, s, WTypes.typeOf(xxx.get)).withValue(xxx.get, WTypes.typeOf(xxx.get))
+      }
     }
-    x.map(x=>P(name, x))
+
+    if(x.exists(_.isInstanceOf[P]))
+      Some(x.get.asInstanceOf[P])
+    else
+      x.map(x=>P(name, x.toString))
   }
 }
 
@@ -174,10 +182,29 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
 
 /** static context will delegate updates to parent - good as temporary override when evaluating a message */
 class StaticECtx(cur: List[P] = Nil, base: Option[ECtx] = None, curNode:Option[DomAst]=None) extends SimpleECtx(cur, base, curNode) {
-  //todo should I throw up if no base?
-  override def put(p: P): Unit = base.map(_.put(p))
 
-  override def putAll(p: List[P]): Unit = base.map(_.putAll(p))
+  // check for overwriting values - not always, just for put, eh?
+//  cur.filter(p=> base.exists(_.getp(p.name).isDefined)).map { p =>
+//    razie.Log.warn("WARNING_OVERWRITE at ctor - you may be overwriting side-effects: "+p.name)
+//  }
+
+  // check for overwriting values
+  private def check (p:P) = {
+    if(cur.exists(_.name == p.name)) {
+      razie.Log.warn("WARNING_OVERWRITE at put - you may be overwriting side-effects: "+p.name)
+    }
+  }
+
+  //todo should I throw up if no base?
+  override def put(p: P): Unit = {
+    check(p)
+    base.map(_.put(p))
+  }
+
+  override def putAll(p: List[P]): Unit = {
+    p.map(check)
+    base.map(_.putAll(p))
+  }
 
   override def remove (name: String): Option[P] = base.flatMap(_.remove(name))
 }

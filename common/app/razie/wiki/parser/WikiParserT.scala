@@ -315,6 +315,9 @@ trait WikiParserT extends WikiParserMini with CsvParser {
           if(stype == "template" && ctx.we.isDefined)
             // hide it
             RState(s"""`{{$stype $name:$signature}}` (<small><a href="${ctx.we.get.wid.urlRelative}#$name">view</a></small>)<br>""", "", "").fold(ctx)
+          else if ("properties" == stype || "properties" == name)
+            // show it
+            RState(s"`{{$stype $name:$signature}}`<br><pre>", lines, s"</pre><br>`{{/$stype}}` ").fold(ctx)
           else
             // show it
             RState(s"`{{$stype $name:$signature}}`<br>", lines, s"<br>`{{/$stype}}` ").fold(ctx)

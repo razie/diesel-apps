@@ -8,6 +8,7 @@ package razie.diesel.ext
 
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
+import razie.wiki.Enc
 
 import scala.Option.option2Iterable
 
@@ -143,7 +144,8 @@ case class EMsg(
   private def attrsToUrl (attrs: Attrs) = {
     attrs.map{p=>
       // todo only if the expr is constant?
-      val v = p.expr.map(_.expr).getOrElse(p.dflt)
+      var v = p.expr.map(_.expr).getOrElse(p.dflt)
+      v = Enc.toUrl(v) // escape special chars
       s"""${p.name}=$v"""
     }.mkString("&")
   }

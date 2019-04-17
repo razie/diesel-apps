@@ -49,6 +49,8 @@ trait TPersonInfo {
   def ename = if (firstName != null && firstName.size > 0) firstName else emailDec.replaceAll("@.*", "")
   def fullName = firstName + " " + lastName
   def role = roles.head
+
+  def organization:Option[String]
 }
 
 /** account - Minimal user info - loaded all the time for a user */
@@ -71,6 +73,8 @@ case class User(
   gid: Option[String] = None, // google id
   modNotes: Seq[String] = Seq.empty, // google id
   clubSettings : Option[String] = None, // if it's a club - settings
+
+  organization : Option[String] = None, // possibly name of org
 
   perms: Set[String] = Set(),
 

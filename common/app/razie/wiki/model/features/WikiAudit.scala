@@ -70,7 +70,9 @@ object WikiAudit {
 
   final val DELETE_WIKI = "delete.wiki"
 
-  def isUpd(s:String) = s.startsWith("create.") || s.startsWith("update.") || s.startsWith("delete.")
+  def isUpd(s:String)    = s.startsWith("create.") || s.startsWith("update.") || s.startsWith("delete.")
+  def isCreate(s:String) = s.startsWith("create.")
+  def isDelete(s:String) = s.startsWith("delete.")
 
   def findForWid(wid:WID) = RMany[WikiAudit]("wpath" -> wid.wpath)
 }

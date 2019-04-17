@@ -41,6 +41,8 @@ trait WikiPage {
   def updDtm: DateTime
   def _id: ObjectId
 
+  def included: String
+
   def wid : WID
   def uwid : UWID
   def section (stype: String, name: String) : Option[WikiSection]
@@ -442,7 +444,7 @@ object WikiEntry {
 
 /** old wiki entries - a copy of each older version is archived when udpated or deleted */
 @RTable
-case class WikiEntryOld(entry: WikiEntry, reason:Option[String], _id: ObjectId = new ObjectId()) {
+case class WikiEntryOld(entry: WikiEntry, reason:Option[String],   crDtm: Option[DateTime] = Some(DateTime.now), _id: ObjectId = new ObjectId()) {
   def create (implicit txn:Txn) = RCreate.noAudit[WikiEntryOld](this)
 }
 

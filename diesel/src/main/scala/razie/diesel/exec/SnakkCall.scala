@@ -203,7 +203,7 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
 //      clog << "XML "+node.getClass.getName + "-"+ node.label + "-"+node.text
       // find the xpath for value $name
         // is this it?
-      if(node.text == "$"+name) Some(path)
+      if(node.text == s"$${$name}") Some(path)
       else {
         (node.child collect  {
           case t:scala.xml.Text => None //findExprFor(t, name, path+"/"+t.label)

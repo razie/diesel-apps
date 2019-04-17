@@ -129,7 +129,7 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
     case http ~ urlx => {
       val url = urlx.trim
       // auto expand videos
-      val yt1 = """http[s]?://youtu.be/([^?]+)(\?t=.*)?""".r
+      val yt1 = """http[s]?://youtu.be/([^?]+)(\?t=[^{}]+)?""".r
       val yt2 = """http[s]?://www.youtube.com/watch?.*v=([^?&]+).*""".r
       val vm3 = """http[s]?://vimeo.com/([^?&]+)""".r
 
@@ -153,7 +153,7 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
     val caption = getCaption(args, "left")
     what match {
       case "video" => {
-        val yt1 = """http[s]?://youtu.be/([^?]+)(\?t=.*)?""".r
+        val yt1 = """http[s]?://youtu.be/([^?]+)(\?t=[^{}]+)?""".r
         val yt2 = """http[s]?://www.youtube.com/watch?.*v=([^?&]+).*""".r
         val vm3 = """http[s]?://vimeo.com/([^?&]+)""".r
         val vp4 = """http[s]?://videopress.com/v/([^?&]+)""".r
@@ -167,10 +167,18 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
               SState(xt(a)+s"<br>$caption<br>")
             } else {
               // turn 1m1s into 61
-              val ts = """\?t=([0-9]+m)?([0-9]+s)?""".r
-              val ts(g2,g3) = g1
-              val sec = (if(g2 == null) 0 else g2.substring(0,g2.length-1).toInt * 60) + (if(g3 == null) 0 else g3.substring(0,g3.length-1).toInt)
-              SState(xt(a, Option(if(sec == 0) null else sec.toString))+s"<br>$caption<br>")
+              val start = if ((g1 contains "s") || (g1 contains "m")) {
+                val ts = """\?t=([0-9]+m)?([0-9]+s)?""".r
+                val ts(g2,g3) = g1
+                val sec = (if(g2 == null) 0 else g2.substring(0,g2.length-1).toInt * 60) + (if(g3 == null) 0 else g3.substring(0,g3.length-1).toInt)
+                Option(if(sec == 0) null else sec.toString)
+              } else {
+                val ts = """\?t=([0-9]+)""".r
+                val ts(g2) = g1
+                val sec = (if (g2 == null) "0" else g2)
+                Option(sec)
+              }
+              SState(xt(a, start)+s"<br>$caption<br>")
             }
           }
           case yt2(a) => SState(xt(a)+s"<br>$caption<br>")

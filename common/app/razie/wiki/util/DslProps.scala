@@ -20,6 +20,7 @@ class DslProps (val we:Option[WikiPage], section:String, extra:Seq[(String,Strin
   def propSeq = {init; ipropSeq}
   def props = {init; iprops}
 
+  def propDflt (s:String, dflt:String) = (props get s) getOrElse dflt
   def prop (s:String) = props get s
   def wprop (s:String) = (this prop s).flatMap(x=>WID.fromPath(x))
   def bprop (s:String) = (this prop s).map(_.toUpperCase).map {p=>

@@ -149,9 +149,8 @@ case class WID(
   override def equals (other:Any) = other match {
     case o: WID =>
       this.cat == o.cat && this.name == o.name &&
-        (this.getRealm == o.getRealm ||
-          this.realm.isEmpty ||
-          o.realm.isEmpty)
+      (this.getRealm == o.getRealm || this.realm.isEmpty || o.realm.isEmpty) &&
+      (this.section.isEmpty && o.section.isEmpty || this.section == o.section)
     case _ => false
   }
   def uwid = findCatId() map {x=>UWID(x._1, x._2, realm)}

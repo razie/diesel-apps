@@ -218,6 +218,7 @@ object DomEngineUtils {
       var m = Map(
         "value" -> values.headOption.map(_._2).map(stripQuotes).getOrElse(""),
         "values" -> values.toMap,
+        "totalCount" -> (engine.totalTestCount),
         "failureCount" -> engine.failedTestCount,
         "errors" -> errors.toList,
         "root" -> root,

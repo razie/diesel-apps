@@ -8,7 +8,7 @@ package razie.diesel.ext
 
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
-import razie.diesel.engine.InfoNode
+import razie.diesel.engine.{DEMsg, DomEngine, InfoNode}
 import razie.wiki.Enc
 
 /** test - expect a message m. optional guard */
@@ -166,7 +166,7 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
   def asMsg = EMsg(cls, met, attrs.map { p =>
     // extract the sample value
     val df = if (p.dflt.nonEmpty) p.dflt else p.expr match {
-      case Some(CExpr(e, _)) => e
+      case Some(CExpr(e, _)) => e.toString
       case _ => ""
     }
     P(p.name, df, p.ttype, p.ref, p.multi)
@@ -185,6 +185,7 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
   * @param msg the message wrapped / to be executed next
   * @param arrow - how to call next: wait => or no wait ==>
   * @param cond optional condition for this step
+  * @param deferred
   */
 case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred:Boolean=false) extends CanHtml {
   var parent:Option[EMsg] = None
@@ -365,6 +366,27 @@ case class EEngStop(msg: String, details: String = "") extends CanHtml with HasP
       span("error::", "danger", details) + " " + msg
 
   override def toString = "error::" + msg
+}
+
+/** suspend execution - presumably waiting for someone to continue this
+  *
+  * use onSuspend to start the async message  (like sending a DeRep) - you'll have control next
+  */
+case class EEngSuspend(msg: String, details: String = "", onSuspend:Option[(DomEngine, DomAst, Int) => Unit]) extends CanHtml with HasPosition with InfoNode {
+
+  var pos: Option[EPos] = None
+
+  def withPos(p: Option[EPos]) = {
+    this.pos = p; this
+  }
+
+  override def toHtml =
+    if (details.length > 0)
+      span("suspend::", "warning", details, "style=\"cursor:help\"") + " " + msg
+    else
+      span("suspend::", "warning", details) + " " + msg
+
+  override def toString = "suspend::" + msg
 }
 
 /** a simple info node with a message and details - details are displayed as a popup */

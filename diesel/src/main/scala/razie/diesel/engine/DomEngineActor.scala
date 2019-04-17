@@ -21,7 +21,9 @@ import scala.concurrent.duration.Duration
 /** ====================== Actor infrastructure =============== */
 
 /** base class for engine internal message */
-class DEMsg ()
+trait DEMsg {
+  def engineId: String
+}
 
 /** a message - request to decompose
   *
@@ -34,10 +36,17 @@ case class DEReq (engineId:String, a:DomAst, recurse:Boolean, level:Int) extends
   * The engine will stich the AST together and continue
   */
 case class DERep (engineId:String, a:DomAst, recurse:Boolean, level:Int, results:List[DomAst]) extends DEMsg
+case class DEComplete (engineId:String, a:DomAst, recurse:Boolean, level:Int, results:List[DomAst]) extends DEMsg
 
 /** initialize and stop the engine */
-case object DEInit extends DEMsg
-case object DEStop extends DEMsg
+case object DEInit extends DEMsg { override def engineId = ""}
+case object DEStop extends DEMsg { override def engineId = ""}
+
+/** suspend the engine for async messages - to continue you have to fire off a DERep yourself, later */
+case object DESuspend extends DEMsg { override def engineId = ""}
+
+/** send the next message later */
+case class  DELater (engineId:String, d:Int, next:DEMsg) extends DEMsg
 
 case class DEStartTimer (engineId:String, d:Int, results:List[DomAst]) extends DEMsg
 case class DETimer      (engineId:String, results:List[DomAst]) extends DEMsg
@@ -66,8 +75,9 @@ class DomEngineRouter () extends Actor {
       )
     }
 
-    case req @ DEReq(id, a, r, l) => route(id, req)
-    case rep @ DERep(id, a, r, l, results) => route(id, rep)
+//    case req @ DEReq(id, a, r, l) => route(id, req)
+//    case rep @ DERep(id, a, r, l, results) => route(id, rep)
+//    case rep @ DEComplete(id, a, r, l, results) => route(id, rep)
 
     case DEStop => {
 //      DieselAppContext.refMap.values.map(_ ! DEStop)
@@ -80,6 +90,8 @@ class DomEngineRouter () extends Actor {
         DieselAppContext.start
       }
     }
+
+    case m : DEMsg => route(m.engineId, m)
 
   }
 
@@ -125,6 +137,14 @@ class DomEngineActor (eng:DomEngine) extends Actor with Stash {
       else DieselAppContext.router.map(_ ! rep)
     }
 
+    case rep @ DEComplete(eid, a, r, l, results) if checkInit => {
+      checkInit
+      if(eng.id == eid) {
+        eng.processDEMsg(rep)
+      }
+      else DieselAppContext.router.map(_ ! rep)
+    }
+
     case DEStop => {
       //remove refs for active engines
       DieselAppContext.engMap.remove(eng.id)
@@ -132,10 +152,21 @@ class DomEngineActor (eng:DomEngine) extends Actor with Stash {
       context stop self
     }
 
+    case timer @ DELater(id,d,m) => {
+      if(eng.id == id) {
+        Akka.system.scheduler.scheduleOnce(
+          Duration.create(d, TimeUnit.MILLISECONDS),
+          this.self,
+          m
+        )
+      }
+      else DieselAppContext.router.map(_ ! timer)
+    }
+
     case timer @ DEStartTimer(id,d,m) => {
       if(eng.id == id) {
         Akka.system.scheduler.scheduleOnce(
-          Duration.create(1, TimeUnit.MINUTES),
+          Duration.create(d, TimeUnit.MILLISECONDS),
           this.self,
           DETimer(id,m)
         )

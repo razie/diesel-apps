@@ -11,13 +11,15 @@ import scala.concurrent.Future
 object WTypes {
   final val NUMBER="Number"
   final val STRING="String"
-  final val JSON="JSON"
   final val DATE="Date"
   final val REGEX="Regex"
 
   final val INT="Int"
   final val FLOAT="Float"
   final val BOOLEAN="Boolean"
+
+  final val JSON="JSON"
+  final val ARRAY="Array"
 
   final val BYTES="Bytes"
 
@@ -26,6 +28,20 @@ object WTypes {
   final val UNKNOWN=""
 
   final val appJson = "application/json"
+
+  def typeOf (x:Any) = {
+    val t = x match {
+      case m: Map[_, _] => JSON
+      case s: String => STRING
+      case i: Int => NUMBER
+      case f: Double => NUMBER
+      case f: Float => NUMBER
+      case l: List[_] => ARRAY
+      case h @ _ => UNKNOWN
+    }
+
+    t
+  }
 }
 
 /**

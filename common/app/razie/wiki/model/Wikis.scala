@@ -411,6 +411,7 @@ object Wikis extends Logging with Validation {
       }
     } catch {
       case t: Throwable =>
+        razie.Log.error("EXCEPTION_PARSING " + markup + " - " + wid.wpath, t)
         razie.audit.Audit.logdb("EXCEPTION_PARSING " + markup + " - " + wid.wpath + " " + t.getLocalizedMessage())
         SState("EXCEPTION_PARSING " + markup + " - " + t.getLocalizedMessage() + " - " + content)
     }
@@ -456,6 +457,10 @@ object Wikis extends Logging with Validation {
       val S_PAT = """`\{\{(call):([^#}]*)#([^}]*)\}\}`""".r
 
       try {
+        // to evaluate scripts wihtout a page, we need this trick:
+        val tempPage = we orElse None //Some(new WikiEntry("Temp", "fiddle", "fiddle", "md", content, new ObjectId(), Seq("temp"), ""))
+
+        // warn against duplicated included scripts
         val duplicates = new ListBuffer[String]()
 
       content = S_PAT replaceSomeIn (content, { m =>
@@ -463,8 +468,10 @@ object Wikis extends Logging with Validation {
         try {
           // find the page with signed scripts and call them
           // inline scripts are exanded into the html page
-          val pageWithScripts = WID.fromPath(m group 2).flatMap(x => Wikis(x.getRealm).find(x)).orElse(we)
-          val y=pageWithScripts.flatMap(_.scripts.find(_.name == (m group 3))).filter(_.checkSignature(user)).map{s=>
+          val scriptName = m group 3
+          val scriptPath = m group 2
+          val pageWithScripts = WID.fromPath(scriptPath).flatMap(x => Wikis(x.getRealm).find(x)).orElse(tempPage)
+          val y=pageWithScripts.flatMap(_.scripts.find(_.name == scriptName)).filter(_.checkSignature(user)).map{s=>
             val warn = if(duplicates contains s.name) {
               s"`WARNING: script named '${s.name}' duplicated - check your includes`\n\n"
             } else ""
@@ -484,7 +491,12 @@ object Wikis extends Logging with Validation {
             } else
               runScript(s.content, "js", we, user)
         }
-          y.map(_.replaceAll("\\$", "\\\\\\$"))
+          // dolar sign (jquery) in embedded JS needs to be escaped ... don't remember why
+          y
+            .map(_.replaceAll("\\$", "\\\\\\$"))
+            // also, any escaped double quote needs re-escaped... likely same reason as dolar sign
+            // wix.toJson can escape realm props including "" and they get lost somehow if I don't do this
+            .map(_.replaceAll("\\\"", "\\\\\\\""))
         } catch {
           case t: Throwable => {
             log("exception in script", t)
@@ -876,6 +888,11 @@ object Wikis extends Logging with Validation {
         .visibilityFor(wid.cat)
         .headOption
         .getOrElse(PUBLIC))
+
+  /** see if a exists otherwise return b */
+  def fallbackPage (a:String, b:String) : String = {
+    WID.fromPath(a).flatMap(find).map(x => a).getOrElse(b)
+  }
 }
 
 
