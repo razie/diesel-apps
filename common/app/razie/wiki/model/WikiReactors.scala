@@ -201,20 +201,24 @@ object WikiReactors extends Logging {
   lazy val fallbackProps = new DslProps(WID("Reactor", "wiki").r("wiki").page, "properties,properties")
 
   WikiObservers mini {
-    case WikiEvent(_, "WikiEntry", _, Some(x), _, _, _) if fallbackProps.we.exists(_.uwid == x.asInstanceOf[WikiEntry].uwid) => {
-      fallbackProps.reload(x.asInstanceOf[WikiEntry])
-    }
+    // todo on remote nodes, load the Some(x) from id
+    case WikiEvent(_, "WikiEntry", _, Some(x), _, _, _) => {
 
-    case WikiEvent(_, "WikiEntry", _, Some(x), _, _, _)
-      if x.isInstanceOf[WikiEntry] &&
-        x.asInstanceOf[WikiEntry].category == "Reactor" => {
-      val we = x.asInstanceOf[WikiEntry]
-      razie.audit.Audit.logdb("DEBUG", "event.reloadreactor", we.wid.wpath)
-      loadReactor(we.name, Some(we))
-//        WikiReactors.reload(we.name);
-        Website.clean (we.name+".dieselapps.com")
-        new Website(we).prop("domain").map (Website.clean)
+      // reload fallbacks when mixins change
+      if (fallbackProps.we.exists(_.uwid == x.asInstanceOf[WikiEntry].uwid)) {
+        fallbackProps.reload(x.asInstanceOf[WikiEntry])
       }
+
+      // reload reactor when changes
+      if (x.isInstanceOf[WikiEntry] && x.asInstanceOf[WikiEntry].category == "Reactor") {
+        val we = x.asInstanceOf[WikiEntry]
+        razie.audit.Audit.logdb("DEBUG", "event.reloadreactor", we.wid.wpath)
+        loadReactor(we.name, Some(we))
+        //        WikiReactors.reload(we.name);
+        Website.clean(we.name + ".dieselapps.com")
+        new Website(we).prop("domain").map(Website.clean)
+      }
+    }
   }
 
   WikiIndex.init()
