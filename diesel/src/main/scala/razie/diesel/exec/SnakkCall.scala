@@ -164,7 +164,7 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
     } catch {
       case e: Throwable => {
         razie.Log.log("snakk.telnet Exception", e)
-        info map (_ += new EError("telnet Exception:", e))
+        info map (_ += new EWarning("telnet Exception:", e))
         ibody = Some(res)
         pingSocket.close();
         return res;

@@ -176,7 +176,7 @@ If you got this message in error, please describe the issue in a <a href="/doe/s
           s"""
 
 ${errCollector.mkString}
-
+<br><br>
 """+md("Admin:Unauthorized"), None, xauth)(rhRequest), Seq.empty)(rhRequest))
   }
 

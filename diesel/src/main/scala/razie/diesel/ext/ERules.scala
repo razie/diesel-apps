@@ -305,17 +305,6 @@ case class EVal(p: RDOM.P) extends CanHtml with HasPosition {
   override def toString = "val " + p.toString
 }
 
-/** some error, with a message and details */
-case class EWarning(msg: String, details: String = "") extends CanHtml with InfoNode {
-  override def toHtml =
-    if (details.length > 0)
-      span("warning", "warning", details, "style=\"cursor:help\"") + " " + msg
-    else
-      span("warning", "warning", details) + " " + msg
-
-  override def toString = "warning: " + "x"//msg
-}
-
 object EErrorUtils {
   def ttos (t:Throwable) = {
     razie.Log.log("error snakking", t)
@@ -349,6 +338,27 @@ case class EError(msg: String, details: String = "") extends CanHtml with HasPos
 
   override def toString = "fail-error::" + msg
 }
+
+/** some error, with a message and details */
+case class EWarning(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {
+  def this(msg:String, t:Throwable) =
+    this(msg + t.toString, EErrorUtils.ttos(t))
+
+  var pos: Option[EPos] = None
+
+  def withPos(p: Option[EPos]) = {
+    this.pos = p; this
+  }
+
+  override def toHtml =
+    if (details.length > 0)
+      spanClick("warn::", "warning", details) + msg
+    else
+      span("warn::", "warning", details) + " " + msg
+
+  override def toString = "fail-warn::" + msg
+}
+
 
 /** error and stop engine */
 case class EEngStop(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {

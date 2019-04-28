@@ -38,7 +38,6 @@ object UserTasks {
   def userNameChgDenied(u: User) = UserTask(u._id, "userNameChgDenied")
   def changePass(u: User) = UserTask(u._id, "changePass")
   def verifyEmail(u: User) = UserTask(u._id, "verifyEmail")
-  def addParent(u: User) = UserTask(u._id, "addParent")
   def chooseTheme(u: User) = UserTask(u._id, "chooseTheme")
   def setupRegistration(u: User) = UserTask(u._id, "setupRegistration")
   def setupCalendars(u: User) = UserTask(u._id, "setupCalendars")

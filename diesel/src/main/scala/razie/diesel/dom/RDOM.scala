@@ -201,7 +201,7 @@ object RDOM {
       else dflt
 
     def htrimmedDflt =
-      if(dflt.size > 80) dflt.take(60)
+      if(dflt.size > 80) dflt.replaceAll("\n", "").take(60)
       else dflt
 
     override def toString =

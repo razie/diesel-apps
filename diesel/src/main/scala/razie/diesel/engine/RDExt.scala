@@ -274,7 +274,8 @@ object RDExt {
 
   /** nice links to stories in AST trees */
   case class StoryNode (path:TSpecPath) extends CanHtml with InfoNode {
-    override def toHtml = "Story " + path.ahref
+    def x = s"""<a id="${path.wpath.replaceAll("^.*:", "")}"></a>""" // from wpath leave just name
+    override def toHtml = x + s"""Story ${path.ahref.mkString}"""
     override def toString = "Story " + path.wpath
   }
 
@@ -309,7 +310,6 @@ object RDExt {
       var savedInSequence = inSequence
 
       story.parsed
-      println(story.collector.mkString)
 
       if(stories.size > 1 || addFiddles)
         root.children appendAll {
