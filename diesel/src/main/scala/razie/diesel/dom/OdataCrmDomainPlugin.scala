@@ -18,17 +18,25 @@ class CRMRDomainPlugin (
                          var props : Map[String,String] = Map.empty
                        ) extends RDomainPlugin {
 
-  override def mkInstance(realm:String, wi:DSpecInventory) : List[RDomainPlugin] = {
+  var realm:String = ""
+  var specInv : Option[DSpecInventory] = None
+
+  override def mkInstance(irealm:String, wi:DSpecInventory) : List[RDomainPlugin] = {
+    realm = irealm
+    specInv = Some(wi)
+    reset()
+  }
+
+  private def reset() : List[RDomainPlugin] = {
     val pspec = SpecPath ("", realm+".ReactorMod:ODataCrmDomainPlugin", realm)
     val props = SpecPath ("", realm+".Form:ODataCrmDomainProps", realm)
 
-    wi.findSpec(pspec).flatMap(x=>wi.findSpec(props)).toList.map {wprops =>
+    specInv.flatMap(_.findSpec(pspec)).flatMap(x=>specInv.flatMap(_.findSpec(props))).toList.map {wprops =>
       new CRMRDomainPlugin (wprops.allProps)
     }
 
-    // todo add observer when form changes
+    // todo add observer when form changes and not reset all the time
     // todo design mechanism for wiki changes propagating and objects changing state
-
   }
 
   def authUrl = props.getOrElse("odata.authUrl", "")
@@ -45,15 +53,23 @@ class CRMRDomainPlugin (
     val j = Snakk.json(
       url (
         authUrl,
-        Map("Content-type" -> "application/x-www-form-urlencoded"),
-        "POST"
+        Map("Content-type" -> "application/x-www-form-urlencoded")
       ).form(
         Map(
           "grant_type" -> "client_credentials",
           "client_id" -> authClient,
           "client_secret" -> (authSecret),
           "resource" -> URL
-        )
+        ) ++ {
+          // todo ugliest hack - when using backend, put the sud/iss sequence as authClient
+          if(authClient.contains("iss=Omniware"))
+            authClient.split("&").filter(_.contains("=")).map {a=>
+              val x = a.split("=")
+              (x(0), Sec.decUrl(x(1)))
+            }.toList.toMap
+          else
+            Map.empty[String,String]
+        }
       )
     )
 
@@ -97,22 +113,32 @@ class CRMRDomainPlugin (
     * @return
     */
   def doAction(dom: RDomain, conn:String, action: String, completeUri: String, epath: String): String = {
-    this.completeUri = completeUri
+    try {
+      // todo for now to force reloading the attributes
+      reset()
 
-    action match {
-      case "accessToken" => accessToken
-      case "attrs" => getEntityAttrs(dom, action, epath)
-      case "sample" => redirectToSample(dom, action, epath)
-      case "listClasses" => listClasses(dom, epath)
-      case "metaClass" => metaClass(dom, epath)
-      case "metaAttrs" => metaAttrs(dom, epath)
-      case "makeClass" => makeClass(dom, epath, loadClasses(dom))
-      case "makeAllClasses" => makeAllClasses(dom, action, epath)
-      case "testConnection" => testConnection(dom, epath)
-      case "findByRef" => findByRefs(dom, epath)
-      case "findByQuery" => findByQuerys(dom, epath)
-      case "listAll" => listAll(dom, epath)
-      case _ => throw new NotImplementedError(s"doAction $action - $completeUri - $epath")
+      this.completeUri = completeUri
+
+      action match {
+        case "accessToken" => accessToken
+        case "attrs" => getEntityAttrs(dom, action, epath)
+        case "sample" => redirectToSample(dom, action, epath)
+        case "listClasses" => listClasses(dom, epath)
+        case "metaClass" => metaClass(dom, epath)
+        case "metaAttrs" => metaAttrs(dom, epath)
+        case "makeClass" => makeClass(dom, epath, loadClasses(dom))
+        case "makeAllClasses" => makeAllClasses(dom, action, epath)
+        case "testConnection" => testConnection(dom, epath)
+        case "findByRef" => findByRefs(dom, epath)
+        case "findByQuery" => findByQuerys(dom, epath)
+        case "listAll" => listAll(dom, epath)
+        case _ => throw new NotImplementedError(s"doAction $action - $completeUri - $epath")
+      }
+    } catch {
+      case e:Throwable =>
+        // protection against stale tokens
+        this.iAccessToken = None
+        throw e
     }
   }
 

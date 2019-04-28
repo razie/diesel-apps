@@ -44,6 +44,7 @@ trait RDomainPlugin {
 
 /** some helpers */
 object RDomainPlugins {
+  // todo add the CRMR plugin only if the reactor has one...
   val pluginFactories: List[RDomainPlugin] = new CRMRDomainPlugin :: new DefaultRDomainPlugin :: Nil
 
   var plugins : String => List[RDomainPlugin] = (x => Nil) // you must provide factory
