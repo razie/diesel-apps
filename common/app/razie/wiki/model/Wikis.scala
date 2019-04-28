@@ -17,7 +17,7 @@ import razie.audit.Audit
 import razie.db.RazSalatContext._
 import razie.db.{RMany, RazMongo}
 import razie.diesel.dom.WikiDomain
-import razie.tconf.parser.{OState, PState, ParserSettings, SState}
+import razie.tconf.parser.{LeafAstNode, BaseAstNode, ParserSettings, StrAstNode}
 import razie.wiki.model.Visibility.PUBLIC
 import razie.wiki.model.features.{WForm, WikiForm}
 import razie.wiki.parser.WAST
@@ -354,7 +354,7 @@ object Wikis extends Logging with Validation {
   }
 
   // TODO better escaping of all url chars in wiki name
-  def preprocess(wid: WID, markup: String, content: String, page: Option[WikiEntry]) : PState = {
+  def preprocess(wid: WID, markup: String, content: String, page: Option[WikiEntry]) : BaseAstNode = {
     implicit val errCollector = new VErrors()
     
     def includes (c:String) = {
@@ -400,20 +400,20 @@ object Wikis extends Logging with Validation {
           cdebug << s"wikis.preprocessed ${t2 - t1} millis for ${wid.name}"
           res
 
-        case TEXT => SState(content.replaceAll("""\[\[([^]]*)\]\]""", """[[\(1\)]]"""))
-        case JSON | XML | JS | SCALA => SState(content)
+        case TEXT => StrAstNode(content.replaceAll("""\[\[([^]]*)\]\]""", """[[\(1\)]]"""))
+        case JSON | XML | JS | SCALA => StrAstNode(content)
         case HTML => {
           // trick: parse it like we normally would, for properties and includes, but then discard
-          OState(includes(content), preprocess(wid, MD, content, page))
+          LeafAstNode(includes(content), preprocess(wid, MD, content, page))
         }
 
-        case _ => SState("UNKNOWN_MARKUP " + markup + " - " + content)
+        case _ => StrAstNode("UNKNOWN_MARKUP " + markup + " - " + content)
       }
     } catch {
       case t: Throwable =>
         razie.Log.error("EXCEPTION_PARSING " + markup + " - " + wid.wpath, t)
         razie.audit.Audit.logdb("EXCEPTION_PARSING " + markup + " - " + wid.wpath + " " + t.getLocalizedMessage())
-        SState("EXCEPTION_PARSING " + markup + " - " + t.getLocalizedMessage() + " - " + content)
+        StrAstNode("EXCEPTION_PARSING " + markup + " - " + t.getLocalizedMessage() + " - " + content)
     }
   }
 

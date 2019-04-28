@@ -67,18 +67,18 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       case "clear" => {
-        //          contexts.put(ctx("kind") + ctx("id"), ctx.root) // should I save this one?
+        ctx.root.asInstanceOf[DomEngECtx].reset
+        Nil
+      }
+
+      case "reset" => {
+        ctx.root.asInstanceOf[DomEngECtx].reset
         Nil
       }
 
       case "engineSync" => {
         // turn the engine sync
         ctx.root.asInstanceOf[DomEngECtx].engine.map(_.synchronous = true)
-        Nil
-      }
-
-      case "reset" => {
-        //          ctx.root.asInstanceOf[DomEngECtx].reset
         Nil
       }
 
@@ -102,7 +102,9 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       case "echo" => {
-        in.attrs.map { a =>
+        val toPrint = if(in.attrs.size > 0) in.attrs else List(P("payload", ""))
+
+        toPrint.map { a =>
           val res = if (a.dflt != "")
             a // todo calc exprs
           else
@@ -118,7 +120,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         val v = in.attrs.find(_.name == "value")
 
         // at this point the
-        n.flatMap { name =>
+        val res = n.flatMap { name =>
           if (v.exists(_.dflt != ""))
             Some(new EVal(name, v.get.dflt))
           else if (v.exists(_.expr.isDefined))
@@ -138,6 +140,8 @@ class EECtx extends EExecutor(EECtx.CTX) {
         }.orElse{
           v.map(_.calculatedP) // just v - copy it
         }.toList
+
+        res
       }
 
       case "setAll" => {
@@ -285,6 +289,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
       EMsg(CTX, "storySync") :: // processed by the story teller
       EMsg(CTX, "storyAsync") :: // processed by the story teller
       EMsg(CTX, "clear") ::
+      EMsg(CTX, "reset") ::
       EMsg(CTX, "timer") ::
       EMsg(CTX, "sleep") ::
       EMsg(CTX, "set") ::

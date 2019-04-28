@@ -47,9 +47,17 @@ case class DieselTrace (
 
   def toJson = toj
 
-  override def toHtml = span("trace::", "primary") + s"$details (node=$node, engine=$engineId, app=$app) :: " + root.toHtml
+  override def toHtml =
+    span("trace::", "primary") +
+      s"$details (node=$node, engine=$engineId, app=$app) :: " //+ root.toHtml
 
   override def toString = toHtml
+
+  def toAst  = {
+    val me = new DomAst (this, AstKinds.SUBTRACE)
+    me.children.append(root)
+    me
+  }
 }
 
 
@@ -78,6 +86,8 @@ class DomEngine(
   val description:String,
   val id:String = new ObjectId().toString) {
 
+  assert(settings.realm.isDefined, "need realm defined for engine settings")
+
   var status = DomState.INIT
   var synchronous = false
 
@@ -94,6 +104,7 @@ class DomEngine(
   def href (format:String="") = s"/diesel/engine/view/$id?format=$format"
 
   def failedTestCount = root.failedTestCount
+  def errorCount = root.errorCount
   def successTestCount = root.successTestCount
   def totalTestCount = root.totalTestCount
 
@@ -181,7 +192,7 @@ class DomEngine(
   def stopNow = {
       status = DomState.DONE
       clog << "DomEng "+id+" stopNow"
-      DomCollector.collectAst ("engine", id, this)
+      DomCollector.collectAst ("engine", settings.realm.mkString, id, settings.userId, this)
       finishP.success(this)
       DieselAppContext.stopActor(id)
   }
@@ -371,7 +382,7 @@ class DomEngine(
     if(root.status == DomState.DONE && status != DomState.DONE) {
       status = DomState.DONE
       clog << "DomEng "+id+" finish"
-      DomCollector.collectAst ("engine", id, this)
+      DomCollector.collectAst ("engine", settings.realm.mkString, id, settings.userId, this)
       finishP.success(this)
       DieselAppContext.refMap.get(id).map(_ ! DEStop) // stop the actor and remove engine
     }
@@ -505,11 +516,11 @@ class DomEngine(
         ctx.put(n.p)
       }
 
-      case e: ExpectM => expandExpectM(a, e)
+      case e: ExpectM => if(!settings.simMode) expandExpectM(a, e)
 
-      case e: ExpectV => expandExpectV(a, e)
+      case e: ExpectV => if(!settings.simMode) expandExpectV(a, e)
 
-      case e: ExpectAssert => expandExpectAssert(a, e)
+      case e: ExpectAssert => if(!settings.simMode) expandExpectAssert(a, e)
 
       case e:InfoNode =>  // ignore
       case e:EVal =>  // ignore
@@ -517,7 +528,7 @@ class DomEngine(
       // todo should execute
       case s: EApplicable =>  {
         clog << "EXEC KNOWN: " + s.toString
-        a.children append DomAst(EError("Can't EApplicable KNOWN - " + s.getClass.getSimpleName, s.toString), AstKinds.GENERATED)
+        a.children append DomAst(EError("Can't EApplicable KNOWN - " + s.getClass.getSimpleName, s.toString), AstKinds.ERROR)
       }
 
       case s@_ => {
@@ -536,9 +547,9 @@ class DomEngine(
     a.children appendAll attrs.map{p =>
       if(p.ttype == WTypes.EXCEPTION) {
         p.value.map {v=>
-          DomAst(new EError(p.dflt, v.value.asInstanceOf[Throwable]) withPos(x.pos), AstKinds.GENERATED).withSpec(x)
+          DomAst(new EError(p.dflt, v.value.asInstanceOf[Throwable]) withPos(x.pos), AstKinds.ERROR).withSpec(x)
         } getOrElse
-          DomAst(EError(p.dflt) withPos(x.pos), AstKinds.GENERATED).withSpec(x)
+          DomAst(EError(p.dflt) withPos(x.pos), AstKinds.ERROR).withSpec(x)
       } else
         DomAst(EVal(p) withPos(x.pos), AstKinds.GENERATED).withSpec(x)
     }
@@ -707,17 +718,22 @@ class DomEngine(
             }
 //            case l@List => e
             case e@_ => e
-          }.map(x =>
-            DomAst(x,
+          }.map{x =>
+            (
+              if((x.isInstanceOf[DieselTrace]))
+                x.asInstanceOf[DieselTrace].toAst
+            else
+              DomAst(x,
               (
-                if (x.isInstanceOf[DieselTrace]) AstKinds.SUBTRACE
-                else if (x.isInstanceOf[EInfo]) AstKinds.DEBUG
+                if (x.isInstanceOf[EInfo]) AstKinds.DEBUG
                 else if (x.isInstanceOf[EDuration]) AstKinds.DEBUG
-                else if (x.isInstanceOf[EVal]) AstKinds.DEBUG
+                else if (x.isInstanceOf[EVal]) AstKinds.GENERATED
+                else if (x.isInstanceOf[EError]) AstKinds.ERROR
                 else AstKinds.GENERATED
                 )
-            ).withSpec(r)
-          )
+            )
+              ).withSpec(r)
+          }
         } catch {
           case e: Throwable =>
             razie.Log.alarmThis("wtf", e)
@@ -727,7 +743,8 @@ class DomEngine(
         newNodes = newNodes ::: news
       }
 
-      if(newNodes.isEmpty) {
+      // nothing matched ?
+      if(!mocked && newNodes.isEmpty) {
         clog << "NO matches: " + in.toString
 
         // change the nodes' color to warning and add an ignorable warning
@@ -903,6 +920,14 @@ class DomEngine(
             TestResult("ok").withPos(e.pos),
             AstKinds.TEST
           ).withSpec(e)
+        } else if (vvals.size == 0 &&
+          e.test(Nil, Some(cole), vvals)(newctx)) {
+          // previous generated no values, so this is a global state condition
+
+          a.children append DomAst(
+            TestResult("ok").withPos(e.pos),
+            AstKinds.TEST
+          ).withSpec(e)
         } else
         //if no rules succeeded and there were vals, collect the misses
           values.map(v=> cole.missed(v.name))
@@ -920,7 +945,7 @@ class DomEngine(
         a.children append DomAst(
           TestResult(
             "fail",
-            "",
+            "no rules succeeded",
             cole.toHtml
           ),
           AstKinds.TEST
@@ -966,7 +991,7 @@ class DomEngine(
         a.children append DomAst(
           TestResult(
             "fail",
-            "",
+            "Exception: " + t.toString,
             cole.toHtml
           ),
           AstKinds.TEST

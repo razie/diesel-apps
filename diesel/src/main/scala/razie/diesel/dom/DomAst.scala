@@ -7,11 +7,10 @@
 package razie.diesel.dom
 
 import org.bson.types.ObjectId
-import razie.diesel.engine.RDExt.TestResult
+import razie.diesel.engine.RDExt.{StoryNode, TestResult}
 import razie.diesel.ext._
 
 import scala.collection.mutable.ListBuffer
-
 import razie.diesel.utils.DomHtml.quickBadge
 
 /** the kinds of nodes we understand */
@@ -170,6 +169,7 @@ case class DomAst(
 
   /** this html works well in a diesel fiddle, use toHtmlInPage elsewhere */
   override def toHtml = tos(0, true)
+  def toHtml (level : Int) = tos(level, true)
 
   /** as opposed to toHtml, this will produce an html that can be displayed in any page, not just the fiddle */
   def toHtmlInPage = toHtml.replaceAllLiterally("weref", "wefiddle")
@@ -241,14 +241,24 @@ case class DomAst(
 
       val failed = s._1.failedTestCount(nodes.toList)
       val total = s._1.totalTestCount(nodes.toList)
+
+      s"""<a href="#${s._1.value.asInstanceOf[StoryNode].path.wpath.replaceAll("^.*:", "")}">[details]</a>""" +
       quickBadge(failed, total, -1, "") +
-        s._1.meTos(1, true)
+        (s._1.value match {
+            // doing this to avoid getting the a name at the top and confuse the scrolling
+        case sn : StoryNode => s""" Story ${sn.path.ahref.mkString}"""
+        case _ => s._1.meTos(1, true)
+      })
     }
 
     resl.mkString("\n")
   }
 
+  // failed tests
   def failedTestCount: Int = failedTestCount(List(this))
+
+  // exceptions and errors other than failed tests
+  def errorCount: Int = errorCount(List(this))
 
   def successTestCount : Int = successTestCount(List(this))
 
@@ -260,6 +270,10 @@ case class DomAst(
 
   def failedTestCount(nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {
     case d@DomAst(n: TestResult, _, _, _) if n.value.startsWith("fail") => n
+    case d@DomAst(n: EError, _, _, _) => n
+  })).size
+
+  def errorCount(nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {
     case d@DomAst(n: EError, _, _, _) => n
   })).size
 

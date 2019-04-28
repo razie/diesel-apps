@@ -10,12 +10,12 @@ import org.joda.time.DateTime
 import razie.diesel.engine.DomEngine
 
 // todo make instance in Reactor instead of a static
-/** this is the default engine per reactor and user, continuously running all the stories */
+/** collects the last engine traces */
 object DomCollector {
 
-  final val MAX_SIZE = 50 // how many to keep
+  final val MAX_SIZE = 100 // how many to keep
 
-  case class CollectedAst(stream:String, id:String, engine:DomEngine, details:String, dtm:DateTime=DateTime.now)
+  case class CollectedAst(stream:String, realm:String, id:String, userId:Option[String], engine:DomEngine, details:String, dtm:DateTime=DateTime.now)
 
   // statically collecting the last 100 results sets
   private var asts: List[CollectedAst] = Nil
@@ -25,8 +25,8 @@ object DomCollector {
   }
 
   /** statically collect more asts */
-  def collectAst (stream:String, xid:String, eng:DomEngine, details:String="") = synchronized {
-    asts = CollectedAst(stream, xid, eng, details) :: asts.filter(_.id != xid).take(MAX_SIZE-1)
+  def collectAst (stream:String, realm:String, xid:String, userId:Option[String], eng:DomEngine, details:String="") = synchronized {
+    asts = CollectedAst(stream, realm, xid, userId, eng, details) :: asts.filter(_.id != xid).take(MAX_SIZE-1)
   }
 
   /** statically collect more asts */

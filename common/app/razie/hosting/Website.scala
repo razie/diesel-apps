@@ -84,8 +84,7 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
   def navrMenuRemove () = propFilter(s"navr.remove.").map(_._1)
 
   def navMenu () =
-    propFilter(s"nav.") ++
-      Seq("admin.badgeRefreshAllTests" -> "/diesel/statusAll")
+    propFilter(s"nav.")
 
   def metas () = propFilter(s"meta.")
 

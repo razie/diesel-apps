@@ -23,7 +23,7 @@ object DomEngineSettings {
       draftMode = fqhoParm(DRAFT_MODE, "true").toBoolean,
       sketchMode = fqhoParm(SKETCH_MODE, "false").toBoolean,
       execMode = fqhoParm(EXEC_MODE, "sync"),
-      resultMode = fqhoParm(RESULT_MODE, "json"),
+      resultMode = fqhoParm(RESULT_MODE, ""),
       parentNodeId = fqhParm(DIESEL_NODE_ID),
       configTag = fqhParm(DIESEL_CONFIG_TAG),
       userId = fqhParm(DIESEL_USER_ID),
@@ -62,7 +62,7 @@ case class DomEngineSettings
   var draftMode   : Boolean = true,
   var sketchMode  : Boolean = true,
   var execMode    : String = "sync",
-  var resultMode    : String = "json",
+  var resultMode    : String = "",
 
   // when ran for a separate request
   var parentNodeId: Option[String] = None,
@@ -115,5 +115,4 @@ case class DomEngineSettings
     Map(SIM_MODE -> simMode.toString)
   }
 }
-
 

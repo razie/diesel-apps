@@ -237,9 +237,10 @@ case class AExprFunc (val expr:String, parms:List[RDOM.P]) extends Expr {
   override def toHtml = tokenValue(toDsl)
 }
 
-/** a qualified identifier */
+/** an xpath expr */
 case class XPathIdent (val expr:String) extends Expr {
   override def apply (v:Any)(implicit ctx:ECtx) = ctx.apply(expr)
+  override def applyTyped (v:Any)(implicit ctx:ECtx) : P = ???
 }
 
 /**
@@ -470,7 +471,10 @@ case class BCMP2(a: Expr, op: String, b: Expr) extends BExpr(a.toDsl + " " + op 
               (as == b(in).toString)
           }
 
-          case "not" if b.toString == "defined" => a(in).toString.length <= 0
+          case "not" if b.toString == "defined" => {
+            val x = a(in)
+            a(in).toString.length <= 0
+          }
           case "not" if b.toString == "empty" || b.toString == "undefined" => a(in).toString.length > 0
 
           // also should be

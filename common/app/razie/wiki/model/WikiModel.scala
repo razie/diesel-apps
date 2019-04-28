@@ -14,7 +14,7 @@ import razie.{AA, Log, cdebug}
 import razie.db.RazSalatContext._
 import razie.db._
 import razie.diesel.dom.WikiDTemplate
-import razie.tconf.parser.SState
+import razie.tconf.parser.StrAstNode
 import razie.tconf.{DSpec, DTemplate, SpecPath}
 import razie.wiki.Services
 import razie.wiki.model.features.{FieldDef, FormStatus, WikiCount, WikiForm}
@@ -328,7 +328,7 @@ case class WikiEntry(
   lazy val ast = Wikis.preprocess(this.wid, this.markup, Wikis.noBadWords(this.content), Some(this))
 
   /** AST folded with a context */
-  var ipreprocessed : Option[(SState, Option[WikiUser])] = None;
+  var ipreprocessed : Option[(StrAstNode, Option[WikiUser])] = None;
   //todo don't hold the actual user, but someone that can get the user... prevents caching?
 
   override def parsed = preprocessed.s
@@ -338,7 +338,7 @@ case class WikiEntry(
     val t1 = System.currentTimeMillis
     val s = ast.fold(WAST.context(Some(this), au)) // fold the AST
     // add hardcoded attribute - these can be overriden by tags in content
-    val res = SState(s.s,
+    val res = StrAstNode(s.s,
       Map("category" -> category, "name" -> name, "label" -> label, "url" -> (wid.urlRelative),
         "id" -> _id.toString, "tags" -> tags.mkString(",")) ++ s.props,
       s.ilinks)
