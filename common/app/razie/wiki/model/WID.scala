@@ -49,7 +49,7 @@ case class WID(
   /** find the page for this, if any - respects the NOCATS */
   lazy val page = {
     val w = if (Services.config.cacheWikis) {
-      WikiCache.getEntry(this.wpath+".page").map { x =>x
+      WikiCache.getEntry(this.wpathFull+".page").map { x =>x
       }
     } else None
 
@@ -84,7 +84,12 @@ case class WID(
   def r(r:String) =
     if(CAT.unapply(cat).flatMap(_.realm).isDefined || r.length <= 0) this
     else this.copy(realm = Some(r))
-//  def r(r:String) = if(Wikis.DFLT == r || CAT.unapply(cat).flatMap(_.realm).isDefined) this else this.copy(realm = Some(r))
+  //  def r(r:String) = if(Wikis.DFLT == r || CAT.unapply(cat).flatMap(_.realm).isDefined) this else this.copy(realm = Some(r))
+
+  /** withRealm - dn't overwrite realm if set already */
+  def defaultRealmTo(r:String) =
+    if (realm.isDefined) this
+    else this.r(r)
 
   /** if wid has no realm, should get the realm or the default - note taht the CAT prefix rules */
   def getRealm = realm orElse CAT.unapply(cat).flatMap(_.realm) getOrElse Wikis.DFLT
@@ -276,6 +281,19 @@ object WID {
       val a = path.split("/")
       widFromSeg(a, curRealm)
     }
+  }
+
+  /** more weird parse - never returs a None, also use realm as default, if none in wpath */
+  def fromPathWithRealm(path: String, curRealm: String): Option[WID] = {
+    val ret = if (path == null || path.length() == 0)
+      Some(WID("",""))
+    else {
+      val a = path.split("/")
+      widFromSeg(a, curRealm)
+    }
+
+    if(ret.exists(_.realm.isDefined)) ret
+    else ret.map(_.r(curRealm))
   }
 
   /** parse CMDWID in path */
