@@ -8,7 +8,7 @@ package razie.tconf.parser
 
 object ParserSettings {
   /** debug the buildig of AST while pasing */
-  var debugStates = false
+  var debugAstNodes = false
 
   //todo load from some config source
 

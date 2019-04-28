@@ -6,7 +6,7 @@
  */
 package razie.wiki.parser
 
-import razie.tconf.parser.{FoldingContext, LState, LazyState, RState, SState}
+import razie.tconf.parser.{FoldingContext, ListAstNode, LazyAstNode, TriAstNode, StrAstNode}
 import razie.wiki.model.WikiSearch
 import razie.wiki.Enc
 import razie.wiki.model._
@@ -39,8 +39,8 @@ import scala.Option.option2Iterable
 trait WikiParserT extends WikiParserMini with CsvParser {
   import WAST._
 
-  def lazyt(f:(SState, FoldingContext[WikiEntry,WikiUser]) => SState) =
-    LazyState[WikiEntry, WikiUser] (f)
+  def lazyt(f:(StrAstNode, FoldingContext[WikiEntry,WikiUser]) => StrAstNode) =
+    LazyAstNode[WikiEntry, WikiUser] (f)
 
   //======================= {{name:value}}
 
@@ -49,7 +49,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
     wikiPropWhereName | wikiPropLocName | wikiPropRoles | wikiProp |
     xstatic) ^^ {
     // LEAVE this as a SState - don't make it a LState or you will have da broblem
-    case l => SState(l.map(_.s).mkString, l.flatMap(_.props).toMap, l.flatMap(_.ilinks))
+    case l => StrAstNode(l.map(_.s).mkString, l.flatMap(_.props).toMap, l.flatMap(_.ilinks))
   }
 
   // this is used for contents of a topic
@@ -69,9 +69,9 @@ trait WikiParserT extends WikiParserMini with CsvParser {
     case value => {
       val p = parseAll(dates, value)
       if (p.successful) {
-        SState("""{{Date %s}}""".format(value), Map("date" -> value))
+        StrAstNode("""{{Date %s}}""".format(value), Map("date" -> value))
       } else {
-        SState("""{{??? %s}}""".format(value), Map("magic" -> value))
+        StrAstNode("""{{??? %s}}""".format(value), Map("magic" -> value))
       }
     }
   }
@@ -79,60 +79,60 @@ trait WikiParserT extends WikiParserMini with CsvParser {
     case value => {
       val p = parseAll(dates, value)
       if (p.successful) {
-        SState("""{{date %s}}""".format(value), Map("date" -> value))
+        StrAstNode("""{{date %s}}""".format(value), Map("date" -> value))
       } else {
-        SState("""{{??? %s}}""".format(value), Map("magic" -> value))
+        StrAstNode("""{{??? %s}}""".format(value), Map("magic" -> value))
       }
     }
   }
 
   def dotPropTags: PS = """^\.t """.r ~> """[^\n\r]*""".r  ^^ {
-    case value => SState("", Map("inlinetags" -> value)) // hidden
+    case value => StrAstNode("", Map("inlinetags" -> value)) // hidden
   }
 
   def dotPropName: PS = """^\.n """.r ~> """[^\n\r]*""".r  ^^ {
-    case value => SState(s"""<small><span style="font-weight:bold;">$value</span></small><br>""", Map("name" -> value))
+    case value => StrAstNode(s"""<small><span style="font-weight:bold;">$value</span></small><br>""", Map("name" -> value))
   }
 
   private def wikiPropHeading: PS = """^#+ +""".r ~ """[^\n\r]*""".r  ^^ {
     case head ~ name => {
       val u = Enc toUrl name.replaceAll(" ", "_")
-      SState(s"""<a name="$u"></a>\n$head $name""") // hidden
+      StrAstNode(s"""<a name="$u"></a>\n$head $name""") // hidden
     }
   }
 
   private def wikiPropByName: PS = ("\\{\\{[Bb]y[: ]+".r | "\\{\\{[Cc]lub[: ]+".r) ~> """[^}]*""".r <~ "}}" ^^ {
-    case place => SState("""{{by %s}}""".format(place), Map("by" -> place))
+    case place => StrAstNode("""{{by %s}}""".format(place), Map("by" -> place))
   }
 
   private def wikiPropBy: PS = ("\\{\\{[Bb]y[: ]+".r | "\\{\\{[Cc]lub[: ]+".r) ~> """[^}]*""".r <~ "}}" ^^ {
-    case place => SState("{{by " + parseW2("""[[Club:%s]]""".format(place)).s + "}}", Map("club" -> place), ILink(WID("Club", place), place) :: Nil)
+    case place => StrAstNode("{{by " + parseW2("""[[Club:%s]]""".format(place)).s + "}}", Map("club" -> place), ILink(WID("Club", place), place) :: Nil)
   }
 
   private def wikiPropWhere: PS = ("\\{\\{where[: ]".r | "\\{\\{[Aa]t[: ]+".r | "\\{\\{[Pp]lace[: ]+".r | "\\{\\{[Vv]enue[: ]+".r) ~> """[^}]*""".r <~ "}}" ^^ {
-    case place => SState("{{at " + parseW2("""[[Venue:%s]]""".format(place)).s + "}}", Map("venue" -> place), ILink(WID("Venue", place), place) :: Nil)
+    case place => StrAstNode("{{at " + parseW2("""[[Venue:%s]]""".format(place)).s + "}}", Map("venue" -> place), ILink(WID("Venue", place), place) :: Nil)
   }
 
   private def wikiPropWhereName: PS = ("\\{\\{where[: ]".r | "\\{\\{[Aa]t[: ]+".r | "\\{\\{[Pp]lace[: ]+".r | "\\{\\{[Vv]enue[: ]+".r) ~> """[^}]*""".r <~ "}}" ^^ {
-    case place => SState("""{{at %s}}""".format(place), Map("venue" -> place), ILink(WID("Venue", place), place) :: Nil)
+    case place => StrAstNode("""{{at %s}}""".format(place), Map("venue" -> place), ILink(WID("Venue", place), place) :: Nil)
   }
 
   private def wikiPropLoc: PS = "{{" ~> "loc" ~> """[: ]""".r ~> """[^}:]*""".r ~ ":".r ~ """[^}]*""".r <~ "}}" ^^ {
     case what ~ _ ~ loc => {
       if ("ll" == what)
-        SState("""{{[Location](http://maps.google.com/maps?ll=%s&z=15)}}""".format(loc), Map("loc" -> (what + ":" + loc)))
+        StrAstNode("""{{[Location](http://maps.google.com/maps?ll=%s&z=15)}}""".format(loc), Map("loc" -> (what + ":" + loc)))
       else if ("s" == what)
-        SState("""{{[Location](http://www.google.com/maps?hl=en&q=%s)}}""".format(loc.replaceAll(" ", "+")), Map("loc" -> (what + ":" + loc)))
+        StrAstNode("""{{[Location](http://www.google.com/maps?hl=en&q=%s)}}""".format(loc.replaceAll(" ", "+")), Map("loc" -> (what + ":" + loc)))
       else if ("url" == what)
-        SState("""{{[Location](%s)}}""".format(loc), Map("loc" -> (what + ":" + loc)))
+        StrAstNode("""{{[Location](%s)}}""".format(loc), Map("loc" -> (what + ":" + loc)))
       else
-        SState("""{{Unknown location spec: %s value %s}}""".format(what, loc), Map("loc" -> (what + ":" + loc)))
+        StrAstNode("""{{Unknown location spec: %s value %s}}""".format(what, loc), Map("loc" -> (what + ":" + loc)))
     }
   }
 
   private def wikiPropLocName: PS = "{{" ~> "loc" ~> """[: ]""".r ~> """[^:]*""".r ~ ":".r ~ """[^}]*""".r <~ "}}" ^^ {
     case what ~ _ ~ loc => {
-      SState("""{{at:%s:%s)}}""".format(what, loc), Map("loc:" + what -> loc))
+      StrAstNode("""{{at:%s:%s)}}""".format(what, loc), Map("loc:" + what -> loc))
     }
   }
 
@@ -140,9 +140,9 @@ trait WikiParserT extends WikiParserMini with CsvParser {
     case date => {
       val p = parseAll(dates, date)
       if (p.successful) {
-        SState("""{{Date %s}}""".format(date), Map("date" -> date))
+        StrAstNode("""{{Date %s}}""".format(date), Map("date" -> date))
       } else {
-        SState("""{{Date ???}}""".format(date), Map())
+        StrAstNode("""{{Date ???}}""".format(date), Map())
       }
     }
   }
@@ -151,9 +151,9 @@ trait WikiParserT extends WikiParserMini with CsvParser {
     case date => {
       val p = parseAll(dates, date)
       if (p.successful) {
-        SState(s"""{{date $date}}""", Map("date" -> date))
+        StrAstNode(s"""{{date $date}}""", Map("date" -> date))
       } else {
-        SState(s"""$date??""", Map())
+        StrAstNode(s"""$date??""", Map())
       }
     }
   }
@@ -170,11 +170,11 @@ trait WikiParserT extends WikiParserMini with CsvParser {
 
   // reused
   private def a(name:String, kind:String,d:String="") =
-    SState(s"Attr: <b>$name</b>", Map("attr:" + name -> kind))
+    StrAstNode(s"Attr: <b>$name</b>", Map("attr:" + name -> kind))
 
   private def wikiPropAttrs: PS = "{{attrs" ~> """[: ]""".r ~> """[^:}]*""".r <~ "}}" ^^ {
     case names => {
-      LState(SState("Attrs:") :: names.split(",").map(name=>a(name, "")).toList )
+      ListAstNode(StrAstNode("Attrs:") :: names.split(",").map(name=>a(name, "")).toList )
     }
   }
 
@@ -189,7 +189,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
       val r = if(Wikis.RK == realm) "Category" else realm+".Category"
       val cats = "<b>"+parseW2(s"[[$r:$cat | $cat]]").s+"</b>"
 
-      SState(
+      StrAstNode(
         how match {
           case "Child"     =>  s"{{Has $cats(s)}}"
           case "Parent"    =>  s"{{Owned by $cats(s)}}"
@@ -222,7 +222,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
             "ERR Can't list userlist"
           }
         }
-        SState(res)
+        StrAstNode(res)
       }
     }
   }
@@ -233,28 +233,28 @@ trait WikiParserT extends WikiParserMini with CsvParser {
       rk match {
         case "rk" =>  what match {
           case Some("member") =>
-            SState("""<a class="badge badge-warning" href="http://rk.dieselapps.com/wiki/Admin:Member_Benefits">RacerKidz</a>""")
+            StrAstNode("""<a class="badge badge-warning" href="http://rk.dieselapps.com/wiki/Admin:Member_Benefits">RacerKidz</a>""")
           case Some("club") =>
-            SState("""<a class="badge badge-warning" href="http://rk.dieselapps.com/wiki/Admin:Club_Hosting">RacerKidz</a>""")
+            StrAstNode("""<a class="badge badge-warning" href="http://rk.dieselapps.com/wiki/Admin:Club_Hosting">RacerKidz</a>""")
           case _ =>
-            SState("""<a class="badge badge-warning" href="http://rk.dieselapps.com">RacerKidz</a>""")
+            StrAstNode("""<a class="badge badge-warning" href="http://rk.dieselapps.com">RacerKidz</a>""")
         }
         case "wiki" =>
-          SState("""<a class="badge badge-warning" href="http://wiki.dieselapps.com">DieselApps</a>""")
+          StrAstNode("""<a class="badge badge-warning" href="http://wiki.dieselapps.com">DieselApps</a>""")
         case "ski" =>
-          SState("""<a class="badge badge-warning" href="http://www.effectiveskiing.com">EffectiveSkiing</a>""")
+          StrAstNode("""<a class="badge badge-warning" href="http://www.effectiveskiing.com">EffectiveSkiing</a>""")
         case _ =>
-          SState("""<a class="badge badge-warning" href="http://www.dieselapps.com">DieselApps</a>""")
+          StrAstNode("""<a class="badge badge-warning" href="http://www.dieselapps.com">DieselApps</a>""")
       }
     }
   }
 
   private def wikiPropRed: PS = "{{" ~> "red" ~> opt("[: ]".r ~> """[^}]*""".r) <~ "}}" ^^ {
-    case what => SState(s"""<span style="color:red;font-weight:bold;">${what.mkString}</span>""")
+    case what => StrAstNode(s"""<span style="color:red;font-weight:bold;">${what.mkString}</span>""")
   }
 
   private def wikiPropLater: PS = "{{" ~> "later" ~> "[: ]".r ~> """[^ :]*""".r ~ "[: ]".r ~ """[^}]*""".r <~ "}}" ^^ {
-    case id~ _ ~ url => SState(Wikis.propLater(id, url))
+    case id~ _ ~ url => StrAstNode(Wikis.propLater(id, url))
   }
 
   private def wikiPropWidgets: PS = "{{" ~> "widget[: ]".r ~> "[^: ]+".r ~ optargs <~ "}}" ^^ {
@@ -262,7 +262,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
       lazyt { (current, ctx) =>
         findWidget(name, ctx.we)
           .map(expandWidget(args)(_))
-          .getOrElse(SState(""))
+          .getOrElse(StrAstNode(""))
       }
     }.cacheOk
   }
@@ -281,7 +281,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
   }
 
   private def expandWidget (args:List[(String,String)])(content:String) = {
-      SState(
+      StrAstNode(
           args.foldLeft(content)((c, a) => c.replaceAll(a._1, a._2))
       )
   }
@@ -294,7 +294,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
         ctx.we.foreach { we =>
           we.fields.put(name, FieldDef(name, "", args.map(t => t).toMap))
         }
-        SState("`{{{f:%s}}}`".format(name))
+        StrAstNode("`{{{f:%s}}}`".format(name))
       }
     }.cacheOk
   }
@@ -311,16 +311,16 @@ trait WikiParserT extends WikiParserMini with CsvParser {
           // todo note that more tags are parsed in the WikiEntry, like def/inline/lambda etc
           //          w.collectedSections += WikiSection(ctx.we.get, stype, name, signature, lines.toString)
         }
-        hidden.map(x => SState.EMPTY) getOrElse {
+        hidden.map(x => StrAstNode.EMPTY) getOrElse {
           if(stype == "template" && ctx.we.isDefined)
             // hide it
-            RState(s"""`{{$stype $name:$signature}}` (<small><a href="${ctx.we.get.wid.urlRelative}#$name">view</a></small>)<br>""", "", "").fold(ctx)
+            TriAstNode(s"""`{{$stype $name:$signature}}` (<small><a href="${ctx.we.get.wid.urlRelative}#$name">view</a></small>)<br>""", "", "").fold(ctx)
           else if ("properties" == stype || "properties" == name)
             // show it
-            RState(s"`{{$stype $name:$signature}}`<br><pre>", lines, s"</pre><br>`{{/$stype}}` ").fold(ctx)
+            TriAstNode(s"`{{$stype $name:$signature}}`<br><pre>", lines, s"</pre><br>`{{/$stype}}` ").fold(ctx)
           else
             // show it
-            RState(s"`{{$stype $name:$signature}}`<br>", lines, s"<br>`{{/$stype}}` ").fold(ctx)
+            TriAstNode(s"`{{$stype $name:$signature}}`<br>", lines, s"<br>`{{/$stype}}` ").fold(ctx)
         }
       }.cacheOk
     }
@@ -347,7 +347,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
         case "black" => "black"
       }
       // todo someone mangles the quotes if this is just {{}}
-      RState(s"""{{div class="alert alert-$color" ${attrs.mkString} }}""", lines, s"{{/div}}")
+      TriAstNode(s"""{{div class="alert alert-$color" ${attrs.mkString} }}""", lines, s"{{/div}}")
     }
   }
 
@@ -358,9 +358,9 @@ trait WikiParserT extends WikiParserMini with CsvParser {
           //          val res = ctx.eval(, expr)
           val res = Wikis.runScript(expr, "js", ctx.we, ctx.au)
           if(res == "true") lines.fold(ctx)
-          else SState.EMPTY
+          else StrAstNode.EMPTY
         } getOrElse {
-          SState.EMPTY
+          StrAstNode.EMPTY
         }
       }
     }
@@ -374,9 +374,9 @@ trait WikiParserT extends WikiParserMini with CsvParser {
       lazyt { (current, ctx) =>
         ctx.we.map { we =>
           val res = Wikis.runScript(expr, "js", ctx.we, ctx.au)
-          SState(res)
+          StrAstNode(res)
         } getOrElse {
-          SState.EMPTY
+          StrAstNode.EMPTY
         }
       }
     }
@@ -388,16 +388,16 @@ trait WikiParserT extends WikiParserMini with CsvParser {
         ctx.we.map { we =>
           var desc = attrs.map("("+ _ +")").getOrElse("<small>("+lines.fold(ctx).s.split("(?s)\\s+").size +" words)</small>")
           if(ctx.au.exists(_.hasMembershipLevel(expr)))
-            SState(
+            StrAstNode(
               s"""{{div class="alert alert-success"}}""" + s"<b>Member-only content/discussion begins</b> ($expr)" + s"{{/div}}" +
                 lines.fold(ctx).s
             )
           else if(expr != "Moderator")
-            SState(s"""{{div class="alert alert-danger"}}""" + s"<b>Member-only content avilable <i>$desc</i></b>. <br>To see more on this topic, you need a membership. ($expr)" + s"{{/div}}")
+            StrAstNode(s"""{{div class="alert alert-danger"}}""" + s"<b>Member-only content avilable <i>$desc</i></b>. <br>To see more on this topic, you need a membership. ($expr)" + s"{{/div}}")
           else
-            SState.EMPTY
+            StrAstNode.EMPTY
         } getOrElse {
-          SState.EMPTY
+          StrAstNode.EMPTY
         }
       }
     }
@@ -415,7 +415,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
   // to not parse the content, use slines instead of lines
   def wikiPropISection: PS = "{{`" ~> """[^}]*""".r <~ "}}" ^^ {
     case whatever => {
-      SState("{{`"+ whatever+ "}}")
+      StrAstNode("{{`"+ whatever+ "}}")
     }
   }
 
@@ -428,7 +428,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
   def wikiPropExprS: PS = """\{\{\$\$?""".r ~ """[^}]*""".r <~ "}}" ^^ {
     case kind ~ expr => {
       lazyt { (current, ctx) =>
-        SState(ctx.eval(kind.substring(2), expr))
+        StrAstNode(ctx.eval(kind.substring(2), expr))
       }
     }
   }
@@ -438,7 +438,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
     case name => {
       lazyt { (current, ctx) =>
         val html = Some(Wikis.hrefTag(ctx.we.get.wid, name, name))
-        SState(html.get)
+        StrAstNode(html.get)
       }.cacheOk
     }
   }
@@ -461,8 +461,8 @@ trait WikiParserT extends WikiParserMini with CsvParser {
       val caption = getCaption(iargs)
       // no alt when contains links
       skind match {
-        case "img" =>   SState(s"""<img src="$name" $width $alt ${htmlArgs(args)} /><br>$caption<br>""")
-        case "photo" => SState(s"""<div style="text-align:center"><a href="$name"><img src="$name" $width $alt ${htmlArgs(args)} ></a></div>$caption\n<br>""")
+        case "img" =>   StrAstNode(s"""<img src="$name" $width $alt ${htmlArgs(args)} /><br>$caption<br>""")
+        case "photo" => StrAstNode(s"""<div style="text-align:center"><a href="$name"><img src="$name" $width $alt ${htmlArgs(args)} ></a></div>$caption\n<br>""")
       }
     }
   }
@@ -476,13 +476,13 @@ trait WikiParserT extends WikiParserMini with CsvParser {
     case xurl => {
       val id = System.currentTimeMillis().toString
 
-      SState(s"""<div id="$id">""" + Wikis.propLater(id, "/wikie/feed?url="+Enc.toUrl(xurl)) + "</div>")
+      StrAstNode(s"""<div id="$id">""" + Wikis.propLater(id, "/wikie/feed?url="+Enc.toUrl(xurl)) + "</div>")
     }
   }
 
   def wikiPropCode: PS = "{{" ~> """code""".r ~ "[: ]".r ~ """[^:}]*""".r ~ "}}" ~ opt(CRLF1 | CRLF3 | CRLF2) ~ slines <~ "{{/code}}" ^^ {
     case stype ~ _ ~ name ~ _ ~ crlf ~ lines => {
-      RState(
+      TriAstNode(
         s"""<pre><code language="$name">""",
         if(name != "xml" && name != "html") lines else {
           Enc.escapeHtml(lines.s)
@@ -513,7 +513,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
             case ex: Throwable => Some("`{{ERROR: "+ex.toString+"}}`")
           }
 
-        SState(html.mkString)
+        StrAstNode(html.mkString)
       }
     }
   }
@@ -521,7 +521,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
   private def wikiPropXp: PS = "{{" ~> """xpl?""".r ~ """[: ]""".r ~ """[^}]*""".r <~ "}}" ^^ {
     case what ~ _ ~ path => {
       lazyt { (current, ctx) =>
-        SState( s"""`{{{$what:$path}}}`""", Map())
+        StrAstNode( s"""`{{{$what:$path}}}`""", Map())
       }
       // can't expand this during parsing as it will recursively mess up XP
       //      LazyState {(current, we) =>
@@ -543,11 +543,11 @@ trait WikiParserT extends WikiParserMini with CsvParser {
         ctx.we.map{x =>
           val wl = WikiSearch.getList(x.realm, "", parent.mkString, path, 100)
 
-        SState(
+        StrAstNode(
           Wikis.toUl(wl.map(w=>
             Wikis.formatWikiLink(w.realm, w.wid, w.wid.name, w.label, None)._1
           )))
-        } getOrElse SState("?")
+        } getOrElse StrAstNode("?")
       }
     }
   }
@@ -562,9 +562,9 @@ trait WikiParserT extends WikiParserMini with CsvParser {
       //          if ("_" == c._2) c._1 else "{{" + c._2 + " " + c._1 + "}}"
       //        }.mkString(" ") + "]]")
       //      }.reduce(_ + _) + "\n"
-      RState(a.s,
+      TriAstNode(a.s,
         c.filter(_.size > 0).map { l =>
-          RState(
+          TriAstNode(
             "\n* ",
             parseW2("[[" + a.what + ":" + l.zip(a.h).filter(c => c._1.length > 0).map {c =>
               if ("_" == c._2) c._1 else "{{" + c._2 + " " + c._1 + "}}"
@@ -581,29 +581,29 @@ trait WikiParserT extends WikiParserMini with CsvParser {
       def ecell(cat: String, p: String, a: String, b: String) =
         parseW2("[[" + cat + ":" + p + " " + a + " " + b + "]]")
 
-      RState(a.s,
+      TriAstNode(a.s,
         body.map(l =>
-          if (l.size > 0) RState(
+          if (l.size > 0) TriAstNode(
             "\n<tr>",
-            l.map{c => RState(
+            l.map{c => TriAstNode(
               "<td>" + c + "</td>",
-              a.h.tail.map(b => RState("<td>", ecell(cat, prefix, c, b), "</td>")),
+              a.h.tail.map(b => TriAstNode("<td>", ecell(cat, prefix, c, b), "</td>")),
               "")},
             "</tr>")
-          else SState.EMPTY),
+          else StrAstNode.EMPTY),
         "\n</table>")
     }
   }
 
   def wikiPropTable: PS = "{{" ~> "r1.table:" ~> (wikiPropTableStart >> { h: CsvHeading => csv(h.delim) ^^ { x => (h, x) } }) <~ "{{/r1.table}}" ^^ {
     case (a, body) => {
-      RState(a.s,
+      TriAstNode(a.s,
         body.map(l =>
-          if (l.size > 0) RState(
+          if (l.size > 0) TriAstNode(
             "\n<tr>",
-            l.map(c => RState("<td>", parseLine(c), "</td>")),
+            l.map(c => TriAstNode("<td>", parseLine(c), "</td>")),
             "</tr>")
-          else SState.EMPTY),
+          else StrAstNode.EMPTY),
         "\n</table>")
     }
   }

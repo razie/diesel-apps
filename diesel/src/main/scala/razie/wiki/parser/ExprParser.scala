@@ -9,7 +9,7 @@ package razie.wiki.parser
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
 import razie.diesel.ext.{BFlowExpr, FlowExpr, MsgExpr, SeqExpr}
-import razie.tconf.parser.{PState, SState}
+import razie.tconf.parser.{BaseAstNode, StrAstNode}
 
 import scala.util.parsing.combinator.RegexParsers
 
@@ -138,7 +138,7 @@ trait ExprParser extends RegexParsers {
 
   def afunc: Parser[Expr] = qident ~ attrs ^^ { case i ~ a => new AExprFunc(i, a) }
 
-  def optKinds: Parser[PState] = opt(ows ~> "[" ~> ows ~> repsep(ident, ",") <~ "]") ^^ {
+  def optKinds: Parser[BaseAstNode] = opt(ows ~> "[" ~> ows ~> repsep(ident, ",") <~ "]") ^^ {
     case Some(tParm) => tParm.mkString
     case None => ""
   }

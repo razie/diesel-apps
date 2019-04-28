@@ -14,12 +14,12 @@ package object parser {
   final val T_TEMPLATE = "template"
 
 
-  implicit def toSState(s: String) : PState = SState(s)
-  implicit def toLState(s: Seq[PState]) : PState = s match {
+  implicit def toSState(s: String) : BaseAstNode = StrAstNode(s)
+  implicit def toLState(s: Seq[BaseAstNode]) : BaseAstNode = s match {
     // optimixze empty lists away
-    case x :: Nil if (x.isInstanceOf[LState]) => x.asInstanceOf[LState]
+    case x :: Nil if (x.isInstanceOf[ListAstNode]) => x.asInstanceOf[ListAstNode]
     case x :: Nil => x
-    case _ => LState(s: _*)
+    case _ => ListAstNode(s: _*)
   }
 
 }

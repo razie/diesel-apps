@@ -6,7 +6,7 @@
  */
 package razie.wiki.parser
 
-import razie.tconf.parser.{PState, RState, SState}
+import razie.tconf.parser.{BaseAstNode, TriAstNode, StrAstNode}
 import razie.wiki.Enc
 
 import scala.Option.option2Iterable
@@ -67,21 +67,21 @@ trait ParserCommons extends RegexParsers {
 /** wiki parser base definitions shared by different wiki parsers */
 trait ParserBase extends ParserCommons {
 
-  def apply(input: String) : PState
+  def apply(input: String) : BaseAstNode
 
   /** provide a realm */
   def realm:String
 
-  type PS = Parser[PState]
+  type PS = Parser[BaseAstNode]
 
-  val moreDotProps = new ListBuffer[Parser[PState]]()
-  val moreWikiProps = new ListBuffer[Parser[PState]]()
-  val moreBlocks = new ListBuffer[Parser[PState]]()
+  val moreDotProps = new ListBuffer[Parser[BaseAstNode]]()
+  val moreWikiProps = new ListBuffer[Parser[BaseAstNode]]()
+  val moreBlocks = new ListBuffer[Parser[BaseAstNode]]()
 
   // todo half combinators to allow user modules to define new rules
-  def withDotProp  (p:Parser[PState]) : ParserBase = {moreDotProps append p; this }
-  def withWikiProp (p:Parser[PState]) : ParserBase = {moreWikiProps append p; this}
-  def withBlocks   (p:Parser[PState]) : ParserBase = {moreBlocks append p; this}
+  def withDotProp  (p:Parser[BaseAstNode]) : ParserBase = {moreDotProps append p; this }
+  def withWikiProp (p:Parser[BaseAstNode]) : ParserBase = {moreWikiProps append p; this}
+  def withBlocks   (p:Parser[BaseAstNode]) : ParserBase = {moreBlocks append p; this}
 
   //=========================== forward defs - these are used in other mini-parsers but can't break them out of main
 
@@ -105,7 +105,7 @@ trait ParserBase extends ParserCommons {
   def escaped1: PS = "``" ~ opt(""".*""".r) ~ "``" ^^ { case a ~ b ~ c => a + b.mkString + c }
   def escaped2: PS = "```" ~ opt("js"|"scala"|"xml"|"html"|"diesel"|"sh"|"java") ~ opt(CRLF1 | CRLF3 | CRLF2) ~ """(?s)[^`]*""".r ~ "```" ^^ {
     case a ~ name ~ _ ~ b ~ c => {
-      RState(
+      TriAstNode(
         s"""<pre><code language="${name.mkString}">""",
         name match {
           case Some("xml") | Some("html") => Enc.escapeHtml(b)
@@ -124,34 +124,34 @@ trait ParserBase extends ParserCommons {
   def lastLine: PS = ("""^[\s]+$""".r) ^^ { case a => "\n"}
 
   // block static, used for blocks of code or DSL etc
-  def sstatic: PS = not("{{/" | "{{xx`/" | "```" | """^\./""".r ) ~> (""".""".r) ~ ("""[^{}\[\]`\r\n]""".r*) ^^ { case a ~ b => SState(a + b.mkString) }
+  def sstatic: PS = not("{{/" | "{{xx`/" | "```" | """^\./""".r ) ~> (""".""".r) ~ ("""[^{}\[\]`\r\n]""".r*) ^^ { case a ~ b => StrAstNode(a + b.mkString) }
   def sline: PS = rep(lastLine | sstatic) ^^ {
     // leave as SState for DSL parser
-    case l => SState(l.map(_.s).mkString, l.flatMap(_.props).toMap, l.flatMap(_.ilinks))
+    case l => StrAstNode(l.map(_.s).mkString, l.flatMap(_.props).toMap, l.flatMap(_.ilinks))
   }
 
-  def sstatic(tag:String): PS = not(s"{{/$tag" | "{{xx`/" | "```" | """^\./""".r ) ~> (""".""".r) ~ ("""[^{}\[\]`\r\n]""".r*) ^^ { case a ~ b => SState(a + b.mkString) }
+  def sstatic(tag:String): PS = not(s"{{/$tag" | "{{xx`/" | "```" | """^\./""".r ) ~> (""".""".r) ~ ("""[^{}\[\]`\r\n]""".r*) ^^ { case a ~ b => StrAstNode(a + b.mkString) }
   def sline(tag:String): PS = rep(lastLine | sstatic(tag)) ^^ {
     // leave as SState for DSL parser
-    case l => SState(l.map(_.s).mkString, l.flatMap(_.props).toMap, l.flatMap(_.ilinks))
+    case l => StrAstNode(l.map(_.s).mkString, l.flatMap(_.props).toMap, l.flatMap(_.ilinks))
   }
 
-  def soptline: PS = opt(sline) ^^ { case o => o.map(identity).getOrElse(SState.EMPTY) }
-  def soptline(tag:String): PS = opt(sline(tag)) ^^ { case o => o.map(identity).getOrElse(SState.EMPTY) }
+  def soptline: PS = opt(sline) ^^ { case o => o.map(identity).getOrElse(StrAstNode.EMPTY) }
+  def soptline(tag:String): PS = opt(sline(tag)) ^^ { case o => o.map(identity).getOrElse(StrAstNode.EMPTY) }
 
-  def slines: Parser[SState] = rep(soptline ~ (CRLF1 | CRLF3 | CRLF2)) ~ opt(sline) ^^ {
+  def slines: Parser[StrAstNode] = rep(soptline ~ (CRLF1 | CRLF3 | CRLF2)) ~ opt(sline) ^^ {
     case l ~ c =>
       // leave as SState for DSL parser
-      SState(
+      StrAstNode(
         l.map(t => t._1.s + t._2).mkString + c.map(_.s).getOrElse(""),
         l.flatMap(_._1.props).toMap ++ c.map(_.props).getOrElse(Map()),
         l.flatMap(_._1.ilinks) ++ c.map(_.ilinks).getOrElse(Nil))
   }
 
-  def slinesUntil(tag:String): Parser[SState] = rep(soptline(tag) ~ (CRLF1 | CRLF3 | CRLF2)) ~ opt(sline(tag)) ^^ {
+  def slinesUntil(tag:String): Parser[StrAstNode] = rep(soptline(tag) ~ (CRLF1 | CRLF3 | CRLF2)) ~ opt(sline(tag)) ^^ {
     case l ~ c =>
       // leave as SState for DSL parser
-      SState(
+      StrAstNode(
         l.map(t => t._1.s + t._2).mkString + c.map(_.s).getOrElse(""),
         l.flatMap(_._1.props).toMap ++ c.map(_.props).getOrElse(Map()),
         l.flatMap(_._1.ilinks) ++ c.map(_.ilinks).getOrElse(Nil))

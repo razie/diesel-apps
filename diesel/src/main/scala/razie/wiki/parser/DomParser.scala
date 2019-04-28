@@ -11,7 +11,7 @@ import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.DomEngine
 import razie.diesel.ext._
-import razie.tconf.parser.{FoldingContext, LazyState, SState}
+import razie.tconf.parser.{FoldingContext, LazyAstNode, StrAstNode}
 import razie.tconf.{DSpec, DUser}
 import razie.wiki.Enc
 
@@ -34,8 +34,8 @@ trait DomParser extends ParserBase with ExprParser {
     panno |  pobject | pclass | passoc | pfunc |
     pwhen | pflow | pmatch | psend | pmsg | pval | pexpect | passert
 
-  def lazys (f:(SState, FoldingContext[DSpec,DUser]) => SState) =
-    LazyState[DSpec, DUser] (f)
+  def lazys (f:(StrAstNode, FoldingContext[DSpec,DUser]) => StrAstNode) =
+    LazyAstNode[DSpec, DUser] (f)
 
   // todo replace $ with . i.e. .class
 
@@ -57,7 +57,7 @@ trait DomParser extends ParserBase with ExprParser {
             w.collector.put(RDomain.DOM_ANNO_LIST, attrs)
           }
 
-          SState(
+          StrAstNode(
             s"""${span("anno")} ${mksAttrs(attrs)}
                """.stripMargin)
         }
@@ -108,7 +108,7 @@ trait DomParser extends ParserBase with ExprParser {
             actions = RDomainPlugins.htmlActions(w.specPath.realm, c)
           }
 
-          SState(
+          StrAstNode(
             s"""
                |<div align="right"><small>$actions </small></div>
                |<div class="well">
@@ -171,7 +171,7 @@ trait DomParser extends ParserBase with ExprParser {
   def addToDom(c: Any) = {
     lazys { (current, ctx) =>
       collectDom(c, ctx.we)
-      SState(
+      StrAstNode(
         c match {
           case x: CanHtml => x.toHtml
           case s@_ =>
@@ -315,7 +315,7 @@ trait DomParser extends ParserBase with ExprParser {
         val c = A(n.mkString, a, z, arole, zrole, p)
         lazys { (current, ctx) =>
           collectDom(c, ctx.we)
-          SState(
+          StrAstNode(
             """<span class="label label-default">""" +
               c.toString +
               """</span>""")
@@ -324,12 +324,12 @@ trait DomParser extends ParserBase with ExprParser {
     }
 
   def pobject: PS =
-    """[.$]object """.r ~> ident ~ " *".r ~ ident ~ optAttrs ^^ {
+    keyw("""[.$]object """.r) ~> ident ~ " *".r ~ ident ~ optAttrs ^^ {
       case name ~ _ ~ cls ~ l => {
         val o = O(name, cls, l)
         lazys { (current, ctx) =>
           collectDom(o, ctx.we)
-          SState(
+          StrAstNode(
             """<div class="well">""" +
               s"object $name (" + l.mkString(", ") +
               ")" +
@@ -419,12 +419,12 @@ trait DomParser extends ParserBase with ExprParser {
     *
     * use them to set options
     */
-  def pval: PS = "[.$]val *".r ~> pattr ^^ {
-    case a => {
+  def pval: PS = keyw("[.$]val *".r) ~ pattr ^^ {
+    case k ~ a => {
       lazys { (current, ctx) =>
-        val v = EVal(a)
+        val v = EVal(a).withPos(pos(k))
         collectDom(v, ctx.we)
-        SState(v.toHtml)
+        StrAstNode(v.toHtml)
       }
     }
   }
@@ -439,6 +439,14 @@ trait DomParser extends ParserBase with ExprParser {
     case s => Keyw(s)
   }
 
+  def pos (k:Keyw, ctx:FoldingContext[DSpec,DUser]) = {
+    Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
+  }
+
+  def pos (k:Keyw) = {
+    Some(EPos("", k.pos.line, k.pos.column))
+  }
+
   /**
     * .receive object.func (a,b)
     *
@@ -448,9 +456,9 @@ trait DomParser extends ParserBase with ExprParser {
     case k ~ stype ~ qcm ~ attrs ~ ret => {
       lazys { (current, ctx) =>
         val f = EMsg(qcm._1, qcm._2, attrs, "send", ret.toList.flatten(identity), stype.mkString.trim)
-        f.pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
+        f.pos = pos(k, ctx)
         collectDom(f, ctx.we)
-        SState(f.kspan("send::") + f.toHtmlInPage + "<br>")
+        StrAstNode(f.kspan("send::") + f.toHtmlInPage + "<br>")
       }
     }
   }
@@ -487,7 +495,7 @@ trait DomParser extends ParserBase with ExprParser {
 
         f.pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
         collectDom(f, ctx.we)
-        SState(f.toHtmlInPage + "<br>")
+        StrAstNode(f.toHtmlInPage + "<br>")
       }
     }
   }
@@ -516,7 +524,7 @@ trait DomParser extends ParserBase with ExprParser {
           ExpectM(not.isDefined, EMatch(qcm._1, qcm._2, attrs, cond)).withPos(pos))
           .getOrElse(ExpectV(not.isDefined, attrs, cond).withPos(pos))
         collectDom(f, ctx.we)
-        SState(f.toHtml + "<br>")
+        StrAstNode(f.toHtml + "<br>")
       }
     }
   }
@@ -537,7 +545,7 @@ trait DomParser extends ParserBase with ExprParser {
         val pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
         val f = ExpectAssert(not.isDefined, exprs).withPos(pos)
         collectDom(f, ctx.we)
-        SState(f.toHtml + "<br>")
+        StrAstNode(f.toHtml + "<br>")
       }
     }
   }
@@ -567,7 +575,7 @@ trait DomParser extends ParserBase with ExprParser {
         def mkCall =
           s"""<a href="/diesel/fcall/${f.name}/${ctx.we.map(_.specPath.wpath).mkString}?$mkParms">fcall</a>$mkjPlay$mksPlay""".stripMargin
 
-        SState(
+        StrAstNode(
           s"""
              |<div align="right"><small>$mkCall</small></div>
              |<div class="well">

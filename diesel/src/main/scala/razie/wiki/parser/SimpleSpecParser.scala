@@ -6,7 +6,7 @@
  */
 package razie.wiki.parser
 
-import razie.tconf.parser.{RState, SState}
+import razie.tconf.parser.{TriAstNode, StrAstNode}
 
 import scala.util.parsing.combinator.token.Tokens
 
@@ -19,12 +19,12 @@ trait SimpleSpecParser extends ParserBase with Tokens {
     parseAll(wiki, input) match {
       case Success(value, _) => value
       // don't change the format of this message
-      case NoSuccess(msg, next) => SState(s"[[CANNOT PARSE]] [${next.pos.toString}] : ${msg}")
+      case NoSuccess(msg, next) => StrAstNode(s"[[CANNOT PARSE]] [${next.pos.toString}] : ${msg}")
     }
   }
 
   /** use this to parse wiki markdown on the spot - it is meant for short strings within like a cell or something */
-  def parseLine(input: String) = parseAll(line, input) getOrElse SState("[[CANNOT PARSE]]")
+  def parseLine(input: String) = parseAll(line, input) getOrElse StrAstNode("[[CANNOT PARSE]]")
 
   //============================== wiki parsing
 
@@ -34,9 +34,9 @@ trait SimpleSpecParser extends ParserBase with Tokens {
     case l => l
   }
 
-  def optline: PS = opt(escaped2 | dotProps | line) ^^ { case o => o.map(identity).getOrElse(SState.EMPTY) }
+  def optline: PS = opt(escaped2 | dotProps | line) ^^ { case o => o.map(identity).getOrElse(StrAstNode.EMPTY) }
 
-  private def TSNB : PS = "^THISSHALTNOTBE$" ^^ { case x => SState(x) }
+  private def TSNB : PS = "^THISSHALTNOTBE$" ^^ { case x => StrAstNode(x) }
   private def blocks : PS = moreBlocks.fold(TSNB)((x,y) => x | y)
 
   def lines: PS = rep((blocks ~ CRLF2) | (optline ~ (CRLF1 | CRLF3 | CRLF2))) ~ opt(escaped2 | dotProps | line) ^^ {
@@ -44,7 +44,7 @@ trait SimpleSpecParser extends ParserBase with Tokens {
       l.map(t => t._1 match {
         // just optimizing to reduce the number of resulting elements
         //        case ss:SState => ss.copy(s = ss.s+t._2)
-        case _ => RState("", t._1, t._2)
+        case _ => TriAstNode("", t._1, t._2)
       }) ::: c.toList
   }
 
@@ -58,7 +58,7 @@ trait SimpleSpecParser extends ParserBase with Tokens {
   // this is used when matching a link/name
   protected def wikiPropsRep: PS = rep(wikiProp | xstatic) ^^ {
     // LEAVE this as a SState - don't make it a LState or you will have da broblem
-    case l => SState(l.map(_.s).mkString, l.flatMap(_.props).toMap, l.flatMap(_.ilinks))
+    case l => StrAstNode(l.map(_.s).mkString, l.flatMap(_.props).toMap, l.flatMap(_.ilinks))
   }
 
   // this is used for contents of a topic
@@ -69,27 +69,27 @@ trait SimpleSpecParser extends ParserBase with Tokens {
   def wikiProp: PS = "{{" ~> """[^}: ]+""".r ~ """[: ]""".r ~ """[^}]*""".r <~ "}}" ^^ {
     case name ~ _ ~ value => {
         if (name startsWith ".")
-          SState("", Map(name.substring(1) -> value)) // hidden
+          StrAstNode("", Map(name.substring(1) -> value)) // hidden
         else
-          SState(s"""<span style="font-weight:bold">{{Property $name=$value}}</span>\n\n""", Map(name -> value))
+          StrAstNode(s"""<span style="font-weight:bold">{{Property $name=$value}}</span>\n\n""", Map(name -> value))
       }
   }
 
   def dotProp: PS = """^\.""".r ~> """[.]?[^.: ][^: ]+""".r ~ """[: ]""".r ~ """[^\r\n]*""".r ^^ {
     case name ~ _ ~ value => {
         if (name startsWith ".")
-          SState ("", Map (name.substring (1) -> value) ) // hidden
+          StrAstNode ("", Map (name.substring (1) -> value) ) // hidden
         else
-          SState (s"""<span style="font-weight:bold">{{Property $name=$value}}</span>\n\n""", Map (name -> value) )
+          StrAstNode (s"""<span style="font-weight:bold">{{Property $name=$value}}</span>\n\n""", Map (name -> value) )
       }
   }
 
   private def wikiPropNothing: PS = "\\{\\{nothing[: ]".r ~> """[^}]*""".r <~ "}}" ^^ {
-    case x => SState(s"""{{Nothing $x}}""", Map.empty)
+    case x => StrAstNode(s"""{{Nothing $x}}""", Map.empty)
   }
 
   private def dotPropNothing: PS = """^\.nothing """.r ~> """[^\n\r]*""".r  ^^ {
-    case value => SState(s"""<small><span style="font-weight:bold;">$value</span></small><br>""", Map("name" -> value))
+    case value => StrAstNode(s"""<small><span style="font-weight:bold;">$value</span></small><br>""", Map("name" -> value))
   }
 
 }

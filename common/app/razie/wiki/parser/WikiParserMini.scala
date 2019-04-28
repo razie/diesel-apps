@@ -10,7 +10,7 @@ import java.net.URI
 
 import admin.Config
 import razie.hosting.Website
-import razie.tconf.parser.{LazyState, ParserSettings, RState, SState}
+import razie.tconf.parser.{LazyAstNode, ParserSettings, TriAstNode, StrAstNode}
 import razie.wiki.Services
 import razie.wiki.model._
 import razie.wiki.mods.WikiMods
@@ -33,16 +33,16 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
     parseAll(wiki, input) match {
       case Success(value, _) => value
       // don't change the format of this message
-      case NoSuccess(msg, next) => SState(s"[[CANNOT PARSE]] [${next.pos.toString}] : ${msg}")
+      case NoSuccess(msg, next) => StrAstNode(s"[[CANNOT PARSE]] [${next.pos.toString}] : ${msg}")
     }
   }
   //  def applys(input: String) = apply(input).s
 
   /** use this to expand `[[xxx]]` on the spot */
-  def parseW2(input: String) = parseAll(wiki2, input) getOrElse SState("[[CANNOT PARSE]]")
+  def parseW2(input: String) = parseAll(wiki2, input) getOrElse StrAstNode("[[CANNOT PARSE]]")
 
   /** use this to parse wiki markdown on the spot - it is meant for short strings within like a cell or something */
-  def parseLine(input: String) = parseAll(line, input) getOrElse SState("[[CANNOT PARSE]]")
+  def parseLine(input: String) = parseAll(line, input) getOrElse StrAstNode("[[CANNOT PARSE]]")
 
   //============================== wiki parsing
 
@@ -52,9 +52,9 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
     case ol ~ l => ol.toList ::: l
   }
 
-  def optline: PS = opt(escaped2 | dotProps | videoUrlOnaLine | line) ^^ { case o => o.map(identity).getOrElse(SState.EMPTY) }
+  def optline: PS = opt(escaped2 | dotProps | videoUrlOnaLine | line) ^^ { case o => o.map(identity).getOrElse(StrAstNode.EMPTY) }
 
-  private def TSNB : PS = "^THISSHALTNOTBE$" ^^ { case x => SState(x) }
+  private def TSNB : PS = "^THISSHALTNOTBE$" ^^ { case x => StrAstNode(x) }
   private def blocks : PS = moreBlocks.fold(TSNB)((x,y) => x | y)
 
   def lines: PS = rep((blocks ~ CRLF2) | (optline ~ (CRLF1 | CRLF3 | CRLF2))) ~ opt(escaped2 | dotProps | videoUrlOnaLine | line) ^^ {
@@ -62,7 +62,7 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
       l.map(t => t._1 match {
         // just optimizing to reduce the number of resulting elements
         //        case ss:SState => ss.copy(s = ss.s+t._2)
-        case _ => RState("", t._1, t._2)
+        case _ => TriAstNode("", t._1, t._2)
       }) ::: c.toList
   }
 
@@ -78,7 +78,7 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
         // for now, reformat the link to allow props and collect them in the ILInk
         ParseWLink(realm, identity, p.get.s)
           .map(x =>
-            SState(
+            StrAstNode(
               x._1,
               Map(),
               x._2.map(x =>
@@ -90,10 +90,10 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
                   p.get.ilinks.filter(_.isInstanceOf[ILink]).asInstanceOf[List[ILink]]))
                 .toList)
           )
-          .getOrElse(SState("")) // TODO something with the props
+          .getOrElse(StrAstNode("")) // TODO something with the props
       } else {
         // this is a normal ilink
-        ParseWLink(realm, Wikis.formatName _, name).map(x => SState(x._1, Map(), x._2.toList)).getOrElse(SState(""))
+        ParseWLink(realm, Wikis.formatName _, name).map(x => StrAstNode(x._1, Map(), x._2.toList)).getOrElse(StrAstNode(""))
       }
     }
   }
@@ -139,14 +139,14 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
           (http+url).matches(vm3.regex)
       ) wpVideo("video", http+url, Nil)
       else
-        SState(s"""<a href="$http$url">$http$url</a>""")
+        StrAstNode(s"""<a href="$http$url">$http$url</a>""")
     }
   }
 
   /** simplify url - don't require markup for urls so http://xxx works */
   private def linkUrl: PS = not("""[\[(]""".r) ~> """http[s]?://""".r ~ """[^\s\]]+""".r ^^ {
     case http ~ url =>
-      SState(s"""<a href="$http$url">$http$url</a>""")
+      StrAstNode(s"""<a href="$http$url">$http$url</a>""")
   }
 
   protected def wpVideo (what:String, url:String, args:List[(String,String)]) = {
@@ -164,7 +164,7 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
         url match {
           case yt1(a, g1) => {
             if(g1 == null) { // no time info
-              SState(xt(a)+s"<br>$caption<br>")
+              StrAstNode(xt(a)+s"<br>$caption<br>")
             } else {
               // turn 1m1s into 61
               val start = if ((g1 contains "s") || (g1 contains "m")) {
@@ -178,21 +178,21 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
                 val sec = (if (g2 == null) "0" else g2)
                 Option(sec)
               }
-              SState(xt(a, start)+s"<br>$caption<br>")
+              StrAstNode(xt(a, start)+s"<br>$caption<br>")
             }
           }
-          case yt2(a) => SState(xt(a)+s"<br>$caption<br>")
-          case vm3(a) => SState(vm(a)+s"<br>$caption<br>")
-          case vp4(a) => SState(vp(a)+s"<br>$caption<br>")
-          case _ => SState("""{{Unsupported video source - please report to support: <a href="%s">url</a>}}""".format(url))
+          case yt2(a) => StrAstNode(xt(a)+s"<br>$caption<br>")
+          case vm3(a) => StrAstNode(vm(a)+s"<br>$caption<br>")
+          case vp4(a) => StrAstNode(vp(a)+s"<br>$caption<br>")
+          case _ => StrAstNode("""{{Unsupported video source - please report to support: <a href="%s">url</a>}}""".format(url))
         }
       }
       case "slideshow" => {
         val yt1 = """(.*)""".r
         def xt(id: String) = """<a href="%s">Slideshow</a><br>""".format(id)
         url match {
-          case yt1(a) => SState(xt(a)+s"<br>$caption<br>")
-          case _ => SState("""{{Unsupported slideshow source - please report to support: %s}}""".format(url))
+          case yt1(a) => StrAstNode(xt(a)+s"<br>$caption<br>")
+          case _ => StrAstNode("""{{Unsupported slideshow source - please report to support: %s}}""".format(url))
         }
       }
     }
@@ -218,7 +218,7 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
   def iframe: PS = "<iframe" ~> """[^>]*""".r <~ ">" <~ opt(""" *</iframe>""".r) ^^ {
     case a => {
       val url = a.replaceAll(""".*src="([^"]*)".*""", "$1")
-      SState(try {
+      StrAstNode(try {
         val u = new URI(url)
         val s = u.getHost
         if(Services.isSiteTrusted(realm, u.getHost)) ("<iframe" + a + "></iframe>")
@@ -243,7 +243,7 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
   // this is used when matching a link/name
   protected def wikiPropsRep: PS = rep(wikiProp | xstatic) ^^ {
     // LEAVE this as a SState - don't make it a LState or you will have da broblem
-    case l => SState(l.map(_.s).mkString, l.flatMap(_.props).toMap, l.flatMap(_.ilinks))
+    case l => StrAstNode(l.map(_.s).mkString, l.flatMap(_.props).toMap, l.flatMap(_.ilinks))
   }
 
   // this is used for contents of a topic
@@ -256,21 +256,21 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
     case name ~ _ ~ value => {
       // default to widgets
       if(Wikis(realm).index.containsName("widget_" + name.toLowerCase()))
-        SState(
+        StrAstNode(
           Wikis(realm).find(WID("Admin", "widget_" + name.toLowerCase())).map(_.content).map { c =>
             //            (List(("WIDGET_ARGS", value)) ::: args).foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
             (List(("WIDGET_ARGS", value)) ).foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
           } getOrElse "")
       else if(WikiMods.index.contains(name.toLowerCase)) {
-        LazyState[WikiEntry,WikiUser] {(current, ctx) =>
+        LazyAstNode[WikiEntry,WikiUser] { (current, ctx) =>
           //todo the mod to be able to add some properties in the context of the current topic
-          SState(WikiMods.index(name.toLowerCase).modProp(name, value, ctx.we))
+          StrAstNode(WikiMods.index(name.toLowerCase).modProp(name, value, ctx.we))
         }
       } else {
         if (name startsWith ".")
-          SState("", Map(name.substring(1) -> value)) // hidden
+          StrAstNode("", Map(name.substring(1) -> value)) // hidden
         else
-          SState(s"""<span style="font-weight:bold">{{Property $name=$value}}</span>\n\n""", Map(name -> value))
+          StrAstNode(s"""<span style="font-weight:bold">{{Property $name=$value}}</span>\n\n""", Map(name -> value))
       }
     }
   }
@@ -279,25 +279,25 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
     case name ~ _ ~ value => {
       // default to widgets
       if(Wikis(realm).index.containsName("widget_" + name.toLowerCase()))
-        SState(
+        StrAstNode(
           Wikis(realm).find(WID("Admin", "widget_" + name.toLowerCase())).map(_.content).map { c =>
             List(("WIDGET_ARGS", value)).foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
           } getOrElse "")
       else {
         if (name startsWith ".")
-          SState ("", Map (name.substring (1) -> value) ) // hidden
+          StrAstNode ("", Map (name.substring (1) -> value) ) // hidden
         else
-          SState (s"""<span style="font-weight:bold">{{Property $name=$value}}</span>\n\n""", Map (name -> value) )
+          StrAstNode (s"""<span style="font-weight:bold">{{Property $name=$value}}</span>\n\n""", Map (name -> value) )
       }
     }
   }
 
   private def wikiPropNothing: PS = "\\{\\{nothing[: ]".r ~> """[^}]*""".r <~ "}}" ^^ {
-    case x => SState(s"""{{Nothing $x}}""", Map.empty)
+    case x => StrAstNode(s"""{{Nothing $x}}""", Map.empty)
   }
 
   private def dotPropNothing: PS = """^\.nothing """.r ~> """[^\n\r]*""".r  ^^ {
-    case value => SState(s"""<small><span style="font-weight:bold;">$value</span></small><br>""", Map("name" -> value))
+    case value => StrAstNode(s"""<small><span style="font-weight:bold;">$value</span></small><br>""", Map("name" -> value))
   }
 
 }
