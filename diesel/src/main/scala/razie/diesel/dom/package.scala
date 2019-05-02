@@ -73,6 +73,7 @@ package object dom {
       else if (v.startsWith("\'")) v.replaceAll("\'", "")
       else v
 
+    // take it from the function def or not?
     val p = f.flatMap(_.parms.find(_.name == t._1)).getOrElse(t._2)
 
     if (p.ttype == "Int" || p.ttype == WTypes.NUMBER) (t._1+"",

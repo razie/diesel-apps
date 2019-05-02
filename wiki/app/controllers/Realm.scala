@@ -78,7 +78,7 @@ object Realm extends RazController with Logging {
       hasQuota <- (au.isAdmin || au.quota.canUpdate) orCorr cNoQuotaUpdates;
       r1 <- au.hasPerm(Perm.uWiki) orCorr cNoPermission;
       n1 <- name.matches("[a-zA-Z0-9_ -]+") orErr "no special characters in the name";
-      n2 <- (name.length >= 3 && name.length < 20) orErr "name too short or too long";
+      n2 <- (name.length >= 3 && name.length < 30) orErr "name too short or too long";
       twid <- WID.fromPath(templateWpath) orErr s"template/spec wpath $templateWpath not parsed";
       tw <- Wikis(realm).find(twid) orErr s"template/spec $twid not found";
       hasQuota <- (au.isAdmin || au.quota.canUpdate) orCorr cNoQuotaUpdates
@@ -186,7 +186,8 @@ object Realm extends RazController with Logging {
           mainPage.copy(realm=name).create // create first, before using the reactor just below
           WikiReactors.add(name, mainPage)
           pages = pages.filter(_.name != name) map (_.copy (realm=name))
-          au.update(au.copy(realms=au.realms+name))
+          // this will also copy verified etc
+          request.au.get.update(request.au.get.addPerm(name, Perm.Moderator.s).copy(realms=au.realms+name))
         } else {
           applyStagedLinks(mainPage.wid, mainPage).create // create first, before using the reactor just below
         }
@@ -210,10 +211,6 @@ object Realm extends RazController with Logging {
           addMod2(m, name).apply(request.req).value.get.get
         )
       }
-
-      // this will also copy verified etc
-      request.au.get.update(request.au.get.addPerm(name, Perm.Moderator.s))
-      cleanAuth(request.au)
 
       if("Reactor" == cat)
         Redirect(s"/wikie/switchRealm/$name", SEE_OTHER)

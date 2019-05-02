@@ -68,7 +68,9 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
       overwritten = Some(ctx)
 
   /** reset this engine's values */
-  def reset = {
+  override def clear = {
     this.attrs = Nil
+    this.overwritten.map(_.clear)
+    this.base.map(_.clear)
   }
 }

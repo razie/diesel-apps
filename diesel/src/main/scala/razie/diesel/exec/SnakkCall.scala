@@ -162,6 +162,14 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
 
       res
     } catch {
+      // for timeouts, don't print stack traces, it's confusing
+      case e: java.net.SocketTimeoutException => {
+        razie.Log.log("snakk.telnet Exception" + e.getMessage)
+        info map (_ += new EWarning("telnet Exception:", e.getMessage))
+        ibody = Some(res)
+        pingSocket.close();
+        return res;
+      }
       case e: Throwable => {
         razie.Log.log("snakk.telnet Exception", e)
         info map (_ += new EWarning("telnet Exception:", e))

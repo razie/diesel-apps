@@ -293,16 +293,23 @@ class EESnakk extends EExecutor("snakk") {
       }
     } catch {
       case t: Throwable => {
-        razie.Log.log("error snakking", t)
+        val cause =
+        if(t.getCause != null && t.getCause.isInstanceOf[java.net.SocketTimeoutException]) {
+          razie.Log.log("error snakking" + t.getMessage)
+          t.getCause
+        } else {
+          razie.Log.log("error snakking", t)
+          t
+        }
 
         durationMillis = System.currentTimeMillis() - startMillis
         eres += EDuration(durationMillis)
 
         eres += //EError("Error snakking: " + urlx, t.toString) ::
-          new EError("Exception : ", t) ::
+          new EError("Exception : ", cause) ::
           EInfo("Response: ", Enc.escapeHtml(response)) ::
             // need to create a val - otherwise DomApi.rest returns the last Val
-          EVal(P("snakk.error", t.getMessage)) ::
+          EVal(P("snakk.error", cause.getMessage)) ::
             Nil
       }
     }

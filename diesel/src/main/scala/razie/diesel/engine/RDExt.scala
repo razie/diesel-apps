@@ -334,9 +334,11 @@ object RDExt {
           Nil
         }
         case v: EMsg => addMsg(v)
-        case v: EVal => List(DomAst(v, AstKinds.RECEIVED))
-        case v: ERule => List(DomAst(v, AstKinds.RULE))
-        case v: EMock => List(DomAst(v, AstKinds.RULE))
+        case v: EVal => {
+          // vals are also in sequence... because they use values in context
+          lastAst = List(DomAst(v, AstKinds.RECEIVED).withPrereq(lastAst.map(_.id)))
+          lastAst
+        }
         case e: ExpectM if (!justMocks) => {
           lastAst = List(DomAst(e.withGuard(lastMsg.map(_.asMatch)).withTarget(lastMsgAst), "test").withPrereq(lastAst.map(_.id)))
           lastAst
@@ -349,6 +351,10 @@ object RDExt {
           lastAst = List(DomAst(e.withGuard(lastMsg.map(_.asMatch)).withTarget(lastMsgAst), "test").withPrereq(lastAst.map(_.id)))
           lastAst
         }
+          // these don't wait - they don't run, they are collected together
+          // todo this is a bit inconsistent - if one declares vals and then a mock then a val
+        case v: ERule => List(DomAst(v, AstKinds.RULE))
+        case v: EMock => List(DomAst(v, AstKinds.RULE))
       }.flatten
 
       if(stories.size > 1) root.children appendAll addMsg(EMsg("diesel.scope", "pop"))

@@ -11,7 +11,7 @@ import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.DomEngine
 import razie.diesel.ext._
-import razie.tconf.parser.{FoldingContext, LazyAstNode, StrAstNode}
+import razie.tconf.parser.{FoldingContext, LazyAstNode, StrAstNode, TriAstNode}
 import razie.tconf.{DSpec, DUser}
 import razie.wiki.Enc
 
@@ -254,13 +254,27 @@ trait DomParser extends ParserBase with ExprParser {
     }
 
   /**
-    * this one used for fiddles
+    * this one used for fiddles, see FiddleParser
+    *
+    * this is not parsed in the context of a wiki, it's just for a fiddle display...
+    */
+  def fiddleBlocks (wpath:String) = linemsg(wpath) | linemock(wpath)
+  def noFiddleB  = not("""[.$]mock""" | "[.$]send")
+  def fiddleLines (wpath:String) =
+    rep(fiddleBlocks(wpath) | (fiddleBlocks(wpath) ~ CRLF2) | ( (noFiddleB | "") ~ ".*".r ~ (CRLF1 | CRLF3 | CRLF2))) ^^ {
+    case l => l
+  }
+
+  /**
+    * this one used for fiddles, see FiddleParser
+    *
+    * this is not parsed in the context of a wiki, it's just for a fiddle display...
     *
     * .mock a.role (attrs) => z.role (attrs)
     */
   def linemock(wpath: String) =
-    keyw("""[.$]mock""".r) ~ ws ~ clsMatch ~ ws ~ opt(pif) ~ rep(pgen | pgenStep)  <~ " *".r ^^ {
-      case k ~ _ ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ gen => {
+    keyw("""[.$]mock""".r) ~ ws ~ optArch ~ clsMatch ~ ws ~ opt(pif) ~ rep(pgen | pgenStep) ^^ {
+      case k ~ _ ~ oarch ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ gen => {
         val x = EMatch(ac, am, aa, cond)
         val f = EMock(ERule(x, "mock", gen))
         f.pos = Some(EPos(wpath, k.pos.line, k.pos.column))
@@ -501,7 +515,9 @@ trait DomParser extends ParserBase with ExprParser {
   }
 
   /**
-    * this one's used for fiddles
+    * this one used for fiddles, see FiddleParser
+    *
+    * just for display, not in the context of a wiki
     *
     * .msg object.func (a,b) : (out)
     */

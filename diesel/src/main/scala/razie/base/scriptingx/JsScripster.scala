@@ -16,9 +16,9 @@ import scala.util.Try
 // todo use MiniScripster and WikiScripster when decoupled
 object JsScripster extends Logging {
 
-  //todo deprecate
-  def isfiddleMap(script: String, lang: String, q: Map[String, String], typed: Option[Map[String, Any]] = None) =
-    newsfiddleMap(script, lang, q, typed, false)
+ //todo deprecate - use EEFunc.newestFiddle(
+  def isfiddleMap(script: String, lang: String, q: Map[String, String], typed: Option[Map[String, Any]] = None, exprs:Map[String,String] = Map.empty) =
+    newsfiddleMap(script, lang, q, typed, false, exprs)
 
   /** run a fiddle with a map of arguments "queryParms"
     *
@@ -31,7 +31,7 @@ object JsScripster extends Logging {
     * @return (succ/fail, x.toString, x)
     */
   // todo protect calls to this
-  def newsfiddleMap(script: String, lang: String, q: Map[String, String], typed: Option[Map[String, Any]] = None, doAudit: Boolean = true) : (Boolean, String, Any) = {
+  def newsfiddleMap(script: String, lang: String, q: Map[String, String], typed: Option[Map[String, Any]] = None, doAudit: Boolean = true, exprs:Map[String,String] = Map.empty) : (Boolean, String, Any) = {
 //    val wix = api.wix(we, au, q, "")
     val c = new CSTimer("script", "?")
     c.start()
@@ -40,7 +40,13 @@ object JsScripster extends Logging {
 
       val qj = qtojson(q)
 //      val jscript = s"""var queryParms = $qj;\n${wix.json}\n$script"""
-      val jscript = s"""var queryParms = $qj;\n$script"""
+
+      val expressions = exprs.map {
+        t=> s"${t._1} = ${t._2} ;\n"
+      }.mkString
+
+      val jscript = s"""var queryParms = $qj;\n$expressions\n$script"""
+
       try {
         //        val factory = new ScriptEngineManager()
         //        val engine = factory.getEngineByName("JavaScript")
@@ -51,7 +57,11 @@ object JsScripster extends Logging {
         val bindings = engine.createBindings()
 
         // attempt to use typed bindings, if available
-        q.foreach(t => bindings.put(t._1, typed.flatMap(_.get(t._1)).getOrElse(jstypeSafe(t._2))))
+        q.foreach{t =>
+          val v = typed.flatMap(_.get(t._1)).getOrElse(jstypeSafe(t._2))
+          trace("SFIDDLE_EXEC JS bind: " + t._1 + " = " + v)
+          bindings.put(t._1, v)
+        }
 //        bindings.put("wixj", wix)
 
         val res = engine.eval(jscript, bindings)
@@ -74,7 +84,7 @@ object JsScripster extends Logging {
 
         c.stop()
 
-        audit("SFIDDLE_EXEC JS (in " + (c.last - c.beg) + " msec) : " + jscript.takeRight(300))
+        audit("xSFIDDLE_EXEC JS (in " + (c.last - c.beg) + " msec) : " + jscript.takeRight(300))
         if (doAudit)
           Audit.logdb("SFIDDLE_EXEC", "JS", (c.last - c.beg) + " msec", jscript.takeRight(300))
       }

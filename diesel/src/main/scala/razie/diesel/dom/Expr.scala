@@ -1,10 +1,12 @@
 package razie.diesel.dom
 
 import mod.diesel.model.exec.EESnakk
+import org.json.JSONObject
 import razie.clog
 import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.exec.EEFunc
 import razie.diesel.ext.CanHtml
+import razie.js.fromObject
 import razie.wiki.parser.SimpleExprParser
 
 import scala.collection.mutable
@@ -344,7 +346,11 @@ case class SCExpr (s : String) extends Expr {
 case class JBlockExpr (ex : String) extends Expr {
   val expr = "{ " + ex.toString + " }"
 
-  override def apply (v:Any)(implicit ctx:ECtx) = template(expr)
+  override def apply (v:Any)(implicit ctx:ECtx) = {
+    val orig = template(expr)
+    // parse and clean it up so it blows up right here if invalid
+    new JSONObject(orig).toString()
+  }
 
   override def getType: String = WTypes.JSON
 

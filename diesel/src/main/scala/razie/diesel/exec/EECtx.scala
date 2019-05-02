@@ -67,12 +67,12 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       case "clear" => {
-        ctx.root.asInstanceOf[DomEngECtx].reset
+        ctx.clear
         Nil
       }
 
       case "reset" => {
-        ctx.root.asInstanceOf[DomEngECtx].reset
+        ctx.clear
         Nil
       }
 
@@ -115,7 +115,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         }
       }
 
-      case "set" => {
+      case "setVal" => {
         val n = in.attrs.find(_.name == "name").map(_.dflt)
         val v = in.attrs.find(_.name == "value")
 
@@ -144,7 +144,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         res
       }
 
-      case "setAll" => {
+      case "set" => {
         // set all parms passed in
         in.attrs.map { p =>
           if (p.dflt != "")
@@ -189,7 +189,6 @@ class EECtx extends EExecutor(EECtx.CTX) {
 
         // take all args and create a json doc with them
       case "json" => {
-
         val res = in.attrs.map (a=>(a.name, a.calculatedTypedValue.value)).toMap
 
         new EVal(RDOM.P("payload", razie.js.tojsons(res), WTypes.JSON, "", "", None, Some(PValue(res, WTypes.appJson)))) :: Nil
@@ -293,7 +292,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
       EMsg(CTX, "timer") ::
       EMsg(CTX, "sleep") ::
       EMsg(CTX, "set") ::
-      EMsg(CTX, "setAll") ::
+      EMsg(CTX, "setVal") ::
       EMsg(CTX, "sha1") ::
       EMsg(CTX, "foreach") ::
       EMsg(CTX, "debug") ::

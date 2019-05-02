@@ -53,6 +53,7 @@ trait ECtx {
   def get    (name: String): Option[String] = getp(name).map(_.dflt)
   def put    (p: P): Unit
   def putAll (p: List[P]): Unit
+  def clear  : Unit
   def listAttrs: List[P]
 
   def curNode : Option[DomAst]
@@ -147,6 +148,11 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
     } orElse base.flatMap(_.remove(name))
   }
 
+  override def clear = {
+    attrs = Nil
+    base.map(_.clear)
+  }
+
   /** we delegate on empty values - empty is the same as missing then
     *
     * this is relevant - current message won't work otherwise, like ctx.echo(parm)
@@ -207,6 +213,9 @@ class StaticECtx(cur: List[P] = Nil, base: Option[ECtx] = None, curNode:Option[D
   }
 
   override def remove (name: String): Option[P] = base.flatMap(_.remove(name))
+  override def clear = {
+    base.map(_.clear)
+  }
 }
 
 /** context for an internal scope - parent is scope or Eng
@@ -221,6 +230,12 @@ class ScopeECtx(cur: List[P] = Nil, base: Option[ECtx] = None, curNode:Option[Do
 
   override def putAll(p: List[P]): Unit =
     attrs = p ::: attrs.filter(x => !p.exists(_.name == x.name))
+
+  override def clear = {
+    attrs = Nil
+    // don't cascade to base
+  }
+
 }
 
 object ECtx {

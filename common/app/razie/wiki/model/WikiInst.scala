@@ -218,10 +218,14 @@ class WikiInstImpl (val realm:String, val fallBacks:List[WikiInst], mkDomain : W
           x
         }.orElse {
           val n = weTable(wid.cat).findOne(Map(REALM, "category" -> wid.cat, "name" -> Wikis.formatName(wid.name)))
-          n.filter(x => !Wikis.PERSISTED.contains(wid.cat)).map {
+          n.filter(x => !Wikis.PERSISTED.contains(wid.cat)).map {pageFound=>
             // only for main wikis with no parents
             // todo can refine this logic further
-            WikiCache.set(key, _, 120) // 2 minutes
+
+            // only store in cache if it's the exact realm we're looking for, not some mixin - otherwise it's misleading
+            // during realm creation when new pages are created...
+            if(pageFound.getAs[String]("realm") == tempw.getRealm)
+              WikiCache.set(key, pageFound, 120) // 2 minutes
           }
           n
         }
