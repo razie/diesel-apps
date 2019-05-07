@@ -353,6 +353,7 @@ class DomEngine(
 
   /** add built-in triggers */
   private def prepRoot(l:ListBuffer[DomAst]) : ListBuffer[DomAst] = {
+    // todo what about dependencies?
     l.prepend(DomAst(EMsg("diesel", "before"), AstKinds.BUILTIN))
     l.append(DomAst(EMsg("diesel", "after"), AstKinds.BUILTIN))
     l
@@ -590,7 +591,7 @@ class DomEngine(
     } else if(in.entity == "diesel.scope" && in.met == "pop" && this.ctx.isInstanceOf[ScopeECtx]) {
       this.ctx = this.ctx.base.get
       true
-    } else if(in.entity == "diesel.engine" && in.met == "debug" && this.ctx.isInstanceOf[ScopeECtx]) {
+    } else if(in.entity == "diesel.engine" && in.met == "debug") {
       val s = this.settings.toJson
       val c = this.ctx.toString
       val e = this.toString
@@ -607,7 +608,8 @@ class DomEngine(
   private def expandEMsg(a: DomAst, in: EMsg, recurse: Boolean, level: Int, parentCtx:ECtx) : List[DEMsg] = {
     var newNodes : List[DomAst] = Nil // nodes generated this call collect here
 
-    implicit val ctx = new StaticECtx(in.attrs, Some(parentCtx), Some(a))
+//    implicit var ctx = new StaticECtx(in.attrs, Some(parentCtx), Some(a))
+    implicit var ctx = parentCtx
 
     // if the message attrs were expressions, calculate their values
     val n: EMsg = in.copy(
@@ -615,6 +617,8 @@ class DomEngine(
         p.calculatedP // only calculate if not already calculated =likely in a different context=
       }
     )
+
+    ctx = new StaticECtx(n.attrs, Some(parentCtx), Some(a))
 
     // 1. look for mocks
     var mocked = expandEngineEMsg(a, n)
@@ -638,7 +642,7 @@ class DomEngine(
     // 2. rules
 
     var ruled = false
-    // no mocks fit, so let's find rules
+    // no engine messages fit, so let's find rules
     // I run rules even if mocks fit - mocking mocks only going out, not decomposing
     // todo - WHY? only some systems may be mocked ???
     if ((true || !mocked) && !settings.simMode) {
@@ -1062,11 +1066,27 @@ class DomEngine(
     }
   }
 
+  /** extract the resulting values from this engine */
   def extractValues (e:String, a:String) = {
     // find the spec and check its result
     // then find the resulting value.. if not, then json
     val oattrs = dom.moreElements.collect {
-      //      case n:EMsg if n.entity == e && n.met == a => n
+      case n: EMsg if n.entity == e && n.met == a => n
+    }.headOption.toList.flatMap(_.ret)
+
+    // collect values
+    val valuesp = root.collect {
+      case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined => p
+    }
+
+    valuesp
+  }
+
+  /** extract the resulting values from this engine */
+  def extractFinalValue (e:String, a:String) = {
+    // find the spec and check its result
+    // then find the resulting value.. if not, then json
+    val oattrs = dom.moreElements.collect {
       case n: EMsg if n.entity == e && n.met == a => n
     }.headOption.toList.flatMap(_.ret)
 
@@ -1075,11 +1095,19 @@ class DomEngine(
     //    }
 
     // collect values
-    val values = root.collect {
+    val valuesp = root.collect {
       case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined => p
     }
 
-    values
+    // extract one value - try:
+    // 1. defined response oattrs
+    // 2. last valuep - the last message produced in the flow
+    // 3. payload
+    val resp = oattrs.headOption.flatMap(oa=> valuesp.find(_.name == oa.name))
+      .orElse(valuesp.lastOption)
+      .orElse(valuesp.find(_.name == "payload"))
+
+    resp
   }
 
   def finalContext (e:String, a:String) = {

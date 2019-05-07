@@ -321,7 +321,10 @@ object EErrorUtils {
 /** some error, with a message and details */
 case class EError(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {
   def this(msg:String, t:Throwable) =
-    this(msg + t.toString, EErrorUtils.ttos(t))
+    this(
+      Enc.escapeHtml(msg + t.toString),
+      Enc.escapeHtml(EErrorUtils.ttos(t))
+    ) // escape html - some exc contain html content
 
   var pos: Option[EPos] = None
 
@@ -342,7 +345,10 @@ case class EError(msg: String, details: String = "") extends CanHtml with HasPos
 /** some error, with a message and details */
 case class EWarning(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {
   def this(msg:String, t:Throwable) =
-    this(msg + t.toString, EErrorUtils.ttos(t))
+    this(
+      Enc.escapeHtml(msg + t.toString),
+      Enc.escapeHtml(EErrorUtils.ttos(t))
+    ) // escape html - some exc contain html content
 
   var pos: Option[EPos] = None
 

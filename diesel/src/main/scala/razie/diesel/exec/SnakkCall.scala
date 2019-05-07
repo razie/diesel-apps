@@ -68,6 +68,7 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
     val is = conn.getInputStream()
     ibody = Some(Comms.readStream(is))
 
+    // process result
     iContentType = conn.getHeaderField("Content-Type") match {
       case s if s != null && s.length > 0 => Some(s.toLowerCase)
       case null => {

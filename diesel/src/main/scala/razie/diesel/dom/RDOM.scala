@@ -18,6 +18,7 @@ object WTypes {
   final val FLOAT="Float"
   final val BOOLEAN="Boolean"
 
+  final val XML="JSON"
   final val JSON="JSON"
   final val ARRAY="Array"
 

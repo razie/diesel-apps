@@ -269,7 +269,7 @@ class EESnakk extends EExecutor("snakk") {
           durationMillis = System.currentTimeMillis() - startMillis
           eres += EDuration(durationMillis)
 
-          eres += EInfo("Response", Enc.escapeHtml(trimmed(content.toString, 2000)))
+          eres += EInfo("Response", html(content.toString))
 
           // 2. extract values
           val x = if (in.ret.nonEmpty) in.ret else spec(in).toList.flatMap(_.ret)
@@ -307,13 +307,15 @@ class EESnakk extends EExecutor("snakk") {
 
         eres += //EError("Error snakking: " + urlx, t.toString) ::
           new EError("Exception : ", cause) ::
-          EInfo("Response: ", Enc.escapeHtml(response)) ::
+          EInfo("Response: ", html(response)) ::
             // need to create a val - otherwise DomApi.rest returns the last Val
-          EVal(P("snakk.error", cause.getMessage)) ::
+          EVal(P("snakk.error", html(cause.getMessage, 10000))) ::
             Nil
       }
     }
   }
+
+  def html(s:String, len:Int = 2000) = Enc.escapeHtml(trimmed(s, len))
 
   override def toString = "$executor::snakk "
 
@@ -422,9 +424,18 @@ object EESnakk {
     val encurl = xuri.toASCIIString();
 
     val C = "url,verb,body,result".split(",")
-    val headers = attrs.filter(p=> !(C contains p.name))
+    var headers = attrs.filter(p=> !(C contains p.name))
+    val fbody = attrs.find(_.name == "body")
     var content = f("body")
     content = content
+
+    // figure out content type ?
+    if(!attrs.exists(_.name.toLowerCase == "content-type")) {
+      if(fbody.exists(_.ttype == WTypes.JSON))
+        headers = P("Content-Type", "application/json") :: headers
+      else if(fbody.exists(_.ttype == WTypes.XML))
+        headers = P("Content-Type", "application/xml") :: headers
+    }
 
     val hattr = headers.map(p=> (p.name, p.calculatedValue)).toSeq.toMap
 

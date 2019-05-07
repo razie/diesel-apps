@@ -11,8 +11,9 @@ import razie.tconf.{SpecPath, TSpecPath}
 case class DieselMsgString (msg:String, target:DieselTarget = DieselTarget("rk"), ctxParms:Map[String,String]=Map.empty) {
   def mkMsgString : String = {
     if(ctxParms.nonEmpty) {
+      // add the params to the context with an artificial ctx.set message
       val extra = ctxParms.map(t=> s"""${t._1} = "${t._2}"""").mkString(", ")
-      s"""$$msg ctx.setAll($extra)\n\n$msg"""
+      s"""$$msg ctx.set($extra)\n\n$msg"""
     } else
       msg
   }
