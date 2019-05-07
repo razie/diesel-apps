@@ -23,8 +23,11 @@ object WeCache {
   // special extra cache of categories per [realm, [name, entry]]
   private var icats = new collection.mutable.HashMap[String,Map[String, WikiEntry]]()
 
-  private var cache = new collection.mutable.HashMap[UWID,WikiEntry]()
-  private var depys = new collection.mutable.HashMap[UWID,List[UWID]]()
+  // actual cache
+  private var cache = new collection.mutable.HashMap[String,WikiEntry]()
+
+  // dependencies between pages, includes etc me -> who depends on me
+  private var depys = new collection.mutable.HashMap[String,List[UWID]]()
 
   /** while starting up, we can't process wikis */
   def preload (we:WikiEntry) = {
@@ -42,26 +45,37 @@ object WeCache {
   }
 
   /** cache wiki */
-  def put (we:WikiEntry, withDepy:Boolean=true) = synchronized {
-    cache.put(we.uwid, we)
-    if (we.category == "Category") {
+  def put (we:WikiEntry, withDepy:Boolean=true, preprocess:Boolean = true) = synchronized {
+    cache.put(we._id.toString, we)
+
+    if (we.category == "Category" ) {
       // categories sit also in the special icats
       val x:Map[String, WikiEntry] = icats.get(we.realm) getOrElse Map.empty
       icats.put(we.realm, x + (we.name -> we))
     }
+
     if(withDepy)  {
-      we.included
-      depys.put(we.uwid, we.depys)
+      if(preprocess) we.included
+
+      // todo cleanup by removing old depys
+      we.depys.map {d =>
+        // filter myself since I'll add me again anyways
+        val cur = depys.getOrElse(d.id.toString, Nil).filter(_.id != we._id)
+        depys.put (d.id.toString, we.uwid :: cur)
+      }
     }
   }
 
   /** update cached wiki and recalculate dependencies */
   def update (we:WikiEntry): Unit = synchronized {
-    we.sections
-    val more = depys.get(we.uwid).toList.flatten
-    cache.put(we.uwid, we)
-    depys.put(we.uwid, we.depys)
-    more.foreach(u=>update(u.page.get))
+    we.sections // calculate includes etc
+
+    // find dependents
+    val dependants = depys.get(we._id.toString).toList.flatten
+
+    put(we, true, false)
+
+    dependants.foreach(u=>update(u.page.get))
   }
 
   def get (realm:String, cat:String, name:String) = synchronized {
@@ -78,12 +92,6 @@ object WeCache {
     load()
     icats.getOrElse(realm, Map.empty)
   }
-
-  def passthrough (ObjectId:String) = synchronized {
-    load()
-//    icats.getOrElse(realm, Map.empty)
-  }
-
 }
 
 

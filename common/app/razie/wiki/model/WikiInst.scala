@@ -305,12 +305,7 @@ class WikiInstImpl (val realm:String, val fallBacks:List[WikiInst], mkDomain : W
     cats.get(cat).orElse(mixins.first(_.category(cat)))
 
   def refreshCat (we:WikiEntry): Unit = {
-    WeCache.put(we)
-// scan all other realms that may [[include:: this category
-//    Reactors.reactors.values.filter(_.realm != realm).map{r=>
-//      if(r.wiki.cats contains we.wid.name)
-//        r.wiki.cats.remove(we.wid.name)
-//    }
+    WeCache.update(we)
   }
 
   /** can override in cat, fallback to reactor, fallback to what's here */

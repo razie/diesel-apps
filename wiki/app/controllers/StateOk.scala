@@ -39,6 +39,7 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
   val hostUrlBase = "http" + (if(this.request.get.secure) "s" else "") + "://" + this.hostPort
 
   lazy val form = request.flatMap(_.asInstanceOf[Request[AnyContent]].body.asFormUrlEncoded)
+
   lazy val query = request.map(_.queryString.map(t=>(t._1, t._2.mkString))).getOrElse(Map.empty)
 
   def formParms = form.map(_.collect { case (k, v) => (k, v.head) }).get

@@ -87,7 +87,7 @@ class WikiIndex (val realm:String, val fallBacks : List[WikiIndex]) {
     } else if (we.category == "DslDomain") {
       WikiDomain(realm).resetDom
     } else if (we.category == "Tag") {
-      Wikis(realm).tags.put(we.name, we)
+      Wikis(realm).tags.put(we.name, we )
     }
     parsed.put(we._id, PEntry(we.ilinks))
   }
