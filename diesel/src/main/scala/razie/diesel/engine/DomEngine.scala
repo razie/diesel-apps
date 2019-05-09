@@ -345,7 +345,7 @@ class DomEngine(
       clog << "DomEng "+id+" finish"
       DomCollector.collectAst ("engine", settings.realm.mkString, id, settings.userId, this)
       finishP.success(this)
-      DieselAppContext.refMap.get(id).map(_ ! DEStop) // stop the actor and remove engine
+      DieselAppContext.activeActors.get(id).map(_ ! DEStop) // stop the actor and remove engine
     }
 
     result

@@ -6,7 +6,10 @@
   **/
 package razie.wiki
 
-/** central point of customization - aka service registry
+/** central point of customization - aka service registry. We're using it mainly to make processing certain events lazy
+  * (audit logs etc)
+  *
+  * pass the event to the observers - some will do something about it
   *
   * todo use some proper injection pattern - this is not MT-safe
   *
@@ -26,6 +29,10 @@ object BasicServices {
     handlers ! a
   }
 
+  /** stub implementation - does nothing */
+  private class NeverReally extends EventProcessor {
+    def !(a: Any) {}
+  }
 }
 
 /** this is a generic event and/or task dispatcher - I simply ran out of names...
@@ -35,11 +42,7 @@ object BasicServices {
   * some are just stuff to do later.
   */
 trait EventProcessor {
+
   /** execute work request later */
   def !(a: Any)
-}
-
-/** stub implementation - does nothing */
-class NeverReally extends EventProcessor {
-  def !(a: Any) {}
 }

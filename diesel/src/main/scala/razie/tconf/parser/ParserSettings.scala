@@ -1,12 +1,13 @@
 /**
- *   ____    __    ____  ____  ____,,___     ____  __  __  ____
- *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
- *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
- *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
- */
+  *   ____    __    ____  ____  ____,,___     ____  __  __  ____
+  *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+ **/
 package razie.tconf.parser
 
 object ParserSettings {
+
   /** debug the buildig of AST while pasing */
   var debugAstNodes = false
 
@@ -31,7 +32,6 @@ object ParserSettings {
     "optgroup|option|param|samp|script|title|tt|var"
 
   final val mth1 = "Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec"
-  final val mth2 = "January|February|March|April|May|June|July|August|September|October|November|December"
+  final val mth2 =
+    "January|February|March|April|May|June|July|August|September|October|November|December"
 }
-
-

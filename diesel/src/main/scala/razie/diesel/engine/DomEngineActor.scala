@@ -96,7 +96,7 @@ class DomEngineRouter () extends Actor {
   }
 
   def route (id:String, msg:DEMsg) = {
-    DieselAppContext.refMap.get(id).map(_ ! msg).getOrElse(
+    DieselAppContext.activeActors.get(id).map(_ ! msg).getOrElse(
       clog << "DomEngine Router DROP message "+msg
       // todo recover failed workflows
       // todo distributed routing
@@ -147,8 +147,8 @@ class DomEngineActor (eng:DomEngine) extends Actor with Stash {
 
     case DEStop => {
       //remove refs for active engines
-      DieselAppContext.engMap.remove(eng.id)
-      DieselAppContext.refMap.remove(eng.id)
+      DieselAppContext.activeEngines.remove(eng.id)
+      DieselAppContext.activeActors.remove(eng.id)
       context stop self
     }
 

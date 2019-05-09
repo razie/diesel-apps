@@ -19,7 +19,7 @@ import scala.collection.mutable
   */
 object SpecCache {
 
-  // max entries
+  // todo configure max entries - monitor with mem per box size etc
   final val MAX = 100
 
   // stupid LRU expiry

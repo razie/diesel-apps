@@ -16,42 +16,43 @@ import razie.wiki.parser.{ParserBase, SimpleSpecParser}
   * @param draft - optionally identify a certain temporary variant (i.e. autosaved by username)
   */
 trait TSpecPath {
-  def source:String
-  def wpath:String
-  def realm:String
-  def ver:Option[String]
-  def draft:Option[String]
-  def ahref:Option[String]
+  def source: String
+  def wpath: String
+  def realm: String
+  def ver: Option[String]
+  def draft: Option[String]
+  def ahref: Option[String]
 }
 
-case class SpecPath (
-  source:String,
-  wpath:String,
-  realm:String,
-  ver:Option[String]=None,
-  draft:Option[String]=None) extends TSpecPath {
+/** basic implmentation */
+case class SpecPath(source: String,
+                    wpath: String,
+                    realm: String,
+                    ver: Option[String] = None,
+                    draft: Option[String] = None)
+    extends TSpecPath {
 
-  def ahref:Option[String] = None
+  def ahref: Option[String] = None
 }
 
-/** a specification - can be a text, a wiki or anything else we can parse to extract a diesel
+/** a specification - can be a text, a wiki or anything else we can parse to extract some piece of configuration
   *
   * Specifications are meant to be parsed and DOM/diesel elements collected.
   *
-  * We do not concern with the way these are found but with
+  * We do not concern with the way these are found
   */
 trait DSpec {
-  def specPath : TSpecPath
+  def specPath: TSpecPath
 
   // todo this is too specific - need to refactor out
-  def findTemplate (name:String, direction:String="") : Option[DTemplate]
+  def findTemplate(name: String, direction: String = ""): Option[DTemplate]
 
   /** find template with predicate */
-  def findTemplate (p : DTemplate => Boolean) : Option[DTemplate]
+  def findTemplate(p: DTemplate => Boolean): Option[DTemplate]
 
   /** other parsing artifacts to be used by knowledgeable modules.
     * Parsers can put stuff in here. */
-  def collector : scala.collection.mutable.HashMap[String, Any]
+  def collector: scala.collection.mutable.HashMap[String, Any]
 
   /** set during parsing and folding - false if page has any user-specific elements
     *  any scripts or such will make this false
@@ -62,7 +63,7 @@ trait DSpec {
   /**
     * original text content
     */
-  def content : String
+  def content: String
 
   /** the assumption is that specs can parse themselves and cache the AST elements
     *
@@ -70,20 +71,20 @@ trait DSpec {
     *
     * todo parsed should be an Either
     */
-  def parsed : String
+  def parsed: String
 
   /** all properties contained in this spec, in various forms */
-  def allProps : Map[String,String]
+  def allProps: Map[String, String]
 }
 
 /** a specification of a template */
 trait DTemplate {
-  def name : String
-  def content : String
-  def parmStr : String
-  def specPath : TSpecPath
-  def pos : EPos
-  def parms : Map[String,String]
+  def name: String
+  def content: String
+  def parmStr: String
+  def specPath: TSpecPath
+  def pos: EPos
+  def parms: Map[String, String]
 
   /** resolve a parm, case-insensitive and stip quotes */
   def parm(name: String): Option[String] =
@@ -91,29 +92,24 @@ trait DTemplate {
       .find(_._1.compareToIgnoreCase(name) == 0)
       .map(_._2)
       .map(ext.stripQuotes)
-
-  /** template attributes, like content-type etc */
-//  lazy val parms =
-//    if(parmStr.trim.length > 0)
-//      parmStr.trim.split("[, \n\t]").map(s=>s.split("=")).filter(_.size == 2).map(a=> (a(0).trim, a(1).trim)).toMap
-//    else Map.empty[String,String]
-
 }
 
 /** can retrieve specs, by wpath and ver */
 trait DSpecInventory {
-  def findSpec (path:TSpecPath) : Option[DSpec]
+  def findSpec(path: TSpecPath): Option[DSpec]
 }
 
 /** the simplest spec - from a named string property */
-case class TextSpec (override val name:String, override val text:String) extends BaseTextSpec(name, text) {
-}
+case class TextSpec(override val name: String, override val text: String)
+    extends BaseTextSpec(name, text) {}
 
-class BaseTextSpec (val name:String, val text:String) extends DSpec {
-  def specPath : TSpecPath = new SpecPath("local", name, "")
+/** most specifications are made of a text content, which is parsed */
+class BaseTextSpec(val name: String, val text: String) extends DSpec {
+  def specPath: TSpecPath = new SpecPath("local", name, "")
 
-  def findTemplate (name:String, direction:String="") : Option[DTemplate] = None
-  def findTemplate (p : DTemplate => Boolean) : Option[DTemplate] = None
+  def findTemplate(name: String, direction: String = ""): Option[DTemplate] =
+    None
+  def findTemplate(p: DTemplate => Boolean): Option[DTemplate] = None
 
   /** other parsing artifacts to be used by knowledgeable modules.
     * Parsers can put stuff in here. */
@@ -141,7 +137,8 @@ class BaseTextSpec (val name:String, val text:String) extends DSpec {
     res
   }
 
-  def mkParser : ParserBase = new SimpleSpecParser {
+  def mkParser: ParserBase = new SimpleSpecParser {
+
     /** provide a realm */
     override def realm: String = "rk"
   }
@@ -152,6 +149,5 @@ class BaseTextSpec (val name:String, val text:String) extends DSpec {
   }
 
   /** all properties contained in this spec, in various forms */
-  def allProps : Map[String,String] = Map.empty
+  def allProps: Map[String, String] = Map.empty
 }
-

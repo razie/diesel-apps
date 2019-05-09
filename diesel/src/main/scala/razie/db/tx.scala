@@ -6,11 +6,7 @@
  */
 package razie.db
 
-import org.bson.types.ObjectId
 import razie.{cdebug, clog}
-import com.mongodb.casbah.Imports._
-import com.novus.salat._
-import com.novus.salat.annotations._
 
 /** playing with "transactions" i.e. a set of related db ops
   *

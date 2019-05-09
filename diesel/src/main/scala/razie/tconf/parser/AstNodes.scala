@@ -1,53 +1,66 @@
 /**
- *   ____    __    ____  ____  ____,,___     ____  __  __  ____
- *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
- *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
- *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
- */
+  *   ____    __    ____  ____  ____,,___     ____  __  __  ____
+  *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+ **/
 package razie.tconf.parser
 
 import razie.tconf.{DSpec, DUser}
 import razie.{audit, cdebug}
 
-
-/** folding context base class - page being parsed and for which user */
+/** folding context base class - contains the page being parsed and for which user
+  *
+  * we use these to defer execution of different elements during parsing. These contain the
+  * context in which the parse works.
+  * */
 abstract class FoldingContext[+T <: DSpec, +U <: DUser] {
-  def we:Option[T]
-  def au:Option[U]
-  def target:String        // why is this being parsed? template, view or pre-processed
+
+  /** current spec being parsed */
+  def we: Option[T]
+
+  /** user, if any, for which this is parsed */
+  def au: Option[U]
+
+  /** why is this being parsed? template, view or pre-processed */
+  def target: String
 
   /** evaluate expressions in the folded content
     * kind can be "$" or "$$"
     *
     * Expressions can be simple parm access like $name OR api.wix
     */
-  def eval (kind:String, expr:String) : String
+  def eval(kind: String, expr: String): String
 
   def wpath = we.map(_.specPath.wpath)
 
-  def cacheable:Boolean = we.map(_.cacheable).getOrElse(false)
-  def cacheable_= (v:Boolean) = we.foreach(_.cacheable = v)
+  /** is this cacheable as parsed or not? */
+  def cacheable: Boolean = we.map(_.cacheable).getOrElse(false)
+  def cacheable_=(v: Boolean) = we.foreach(_.cacheable = v)
 }
 
 /** folding context using a map for the properties available to evaluate expressions */
-class JMapFoldingContext[T <: DSpec, U <: DUser] (
-  val we:Option[T],
-  val au:Option[U],
-  val target:String = T_VIEW,
-  val ctx:Map[String,Any]=Map.empty
-  ) extends FoldingContext[T,U] {
+class JMapFoldingContext[T <: DSpec, U <: DUser](val we: Option[T],
+                                                 val au: Option[U],
+                                                 val target: String = T_VIEW,
+                                                 val ctx: Map[String, Any] =
+                                                   Map.empty)
+    extends FoldingContext[T, U] {
 
   /** kind can be "$" or "$$" */
-  def eval (kind:String, expr:String) : String =
-    (if(kind == "$$" && target == T_TEMPLATE || kind == "$") ex(ctx, expr.split("\\.")) else None) getOrElse s"`{{$kind$expr}}`"
+  def eval(kind: String, expr: String): String =
+    (if (kind == "$$" && target == T_TEMPLATE || kind == "$")
+       ex(ctx, expr.split("\\."))
+     else None) getOrElse s"`{{$kind$expr}}`"
 
-  /** resolve a name a.b.c in a given context */
-  private def ex (m:Map[String, Any], terms:Array[String]) : Option[String] =
-    if(terms.size > 0 && m.contains(terms(0))) m(terms(0)) match {
-      case m: Map[_, _] if terms.size>1 => ex(m.asInstanceOf[Map[String,Any]], terms.drop(1))
-      case s: String => Some(s)
+  /** resolve a name a.b.c in a given context, for simple expressions */
+  private def ex(m: Map[String, Any], terms: Array[String]): Option[String] =
+    if (terms.size > 0 && m.contains(terms(0))) m(terms(0)) match {
+      case m: Map[_, _] if terms.size > 1 =>
+        ex(m.asInstanceOf[Map[String, Any]], terms.drop(1))
+      case s: String  => Some(s)
       case l: List[_] => Some(l.mkString)
-      case h @ _ => Some(h.toString)
+      case h @ _      => Some(h.toString)
     } else None
 }
 
@@ -63,10 +76,10 @@ trait BaseAstNode {
   def ilinks: List[Any]
 
   /** composing AST elements */
-  def + (other: BaseAstNode) : BaseAstNode = ListAstNode (this, other)
+  def +(other: BaseAstNode): BaseAstNode = ListAstNode(this, other)
 
   /** lazy unfolding of AST tree */
-  def fold(ctx:FoldingContext[_,_]) : StrAstNode = {
+  def fold(ctx: FoldingContext[_, _]): StrAstNode = {
     try {
       if (ParserSettings.debugAstNodes) {
         cdebug << "======================= F O L D ========================="
@@ -76,15 +89,17 @@ trait BaseAstNode {
       ifold(StrAstNode.EMPTY, ctx)
     } catch {
       case t: Throwable =>
-        audit.Audit.logdb("EXCEPTION_PARSING.folding - " + ctx.wpath + " " + t.getMessage)
+        audit.Audit.logdb(
+          "EXCEPTION_PARSING.folding - " + ctx.wpath + " " + t.getMessage
+        )
         razie.Log.error("EXCEPTION_PARSING.folding - " + ctx.wpath + " ", t)
         StrAstNode("EXCEPTION_PARSING.folding - " + t.getLocalizedMessage())
     }
   }
-  def ifold(current:StrAstNode, ctx:FoldingContext[_,_]) : StrAstNode
+  def ifold(current: StrAstNode, ctx: FoldingContext[_, _]): StrAstNode
 
-  def print (level:Int) : String = ("--" * level) + this.toString
-  def printHtml (level:Int) : String = "<ul>"+this.toString+"</ul>"
+  def print(level: Int): String = ("--" * level) + this.toString
+  def printHtml(level: Int): String = "<ul>" + this.toString + "</ul>"
 }
 
 object StrAstNode {
@@ -94,10 +109,15 @@ object StrAstNode {
 
 /** leaf AST node - final computed value
   */
-case class LeafAstNode(s: String, other:BaseAstNode, props: Map[String, String] = Map.empty, ilinks: List[Any] = List.empty) extends BaseAstNode {
+case class LeafAstNode(s: String,
+                       other: BaseAstNode,
+                       props: Map[String, String] = Map.empty,
+                       ilinks: List[Any] = List.empty)
+    extends BaseAstNode {
   if (ParserSettings.debugAstNodes) cdebug << this.toString
 
-  override def ifold(current:StrAstNode, ctx:FoldingContext[_,_]) : StrAstNode =
+  override def ifold(current: StrAstNode,
+                     ctx: FoldingContext[_, _]): StrAstNode =
     other.ifold(current, ctx).copy(s = s)
 
   override def toString = s"SSTATE ($s)"
@@ -109,18 +129,22 @@ case class LeafAstNode(s: String, other:BaseAstNode, props: Map[String, String] 
   * @param props the tags collected from this section, will be added to the page's tags
   * @param ilinks the links to other pages collected in this rule
   */
-case class StrAstNode (s: String, props: Map[String, String] = Map.empty, ilinks: List[Any] = List.empty) extends BaseAstNode {
+case class StrAstNode(s: String,
+                      props: Map[String, String] = Map.empty,
+                      ilinks: List[Any] = List.empty)
+    extends BaseAstNode {
   if (ParserSettings.debugAstNodes) cdebug << this.toString
 
   def this(s: String, ilinks: List[Any]) = this(s, Map.empty, ilinks)
 
-  override def ifold(current:StrAstNode, ctx:FoldingContext[_,_]) : StrAstNode = this
+  override def ifold(current: StrAstNode,
+                     ctx: FoldingContext[_, _]): StrAstNode = this
   override def toString = s"SSTATE ($s)"
 }
 
 /** a list of AST nodes - it's a branch in the AST tree */
-case class ListAstNode (states:BaseAstNode*) extends BaseAstNode {
-  def this(l:List[BaseAstNode]) = this ()
+case class ListAstNode(states: BaseAstNode*) extends BaseAstNode {
+  def this(l: List[BaseAstNode]) = this()
 
   if (ParserSettings.debugAstNodes) cdebug << this.toString
 
@@ -130,24 +154,30 @@ case class ListAstNode (states:BaseAstNode*) extends BaseAstNode {
   override def ilinks: List[Any] = ???
 
   /** optimize composiiotn of lists */
-  override def +(other: BaseAstNode) : BaseAstNode = other match {
-    case ls:ListAstNode => ListAstNode(states ++ ls.states)
-    case ps:BaseAstNode => ListAstNode(states ++ Seq(ps))
+  override def +(other: BaseAstNode): BaseAstNode = other match {
+    case ls: ListAstNode => ListAstNode(states ++ ls.states)
+    case ps: BaseAstNode => ListAstNode(states ++ Seq(ps))
   }
 
-  override def ifold(current:StrAstNode, ctx:FoldingContext[_,_]) : StrAstNode = {
-    states.foldLeft(StrAstNode.EMPTY) { (a, b)=>
+  override def ifold(current: StrAstNode,
+                     ctx: FoldingContext[_, _]): StrAstNode = {
+    states.foldLeft(StrAstNode.EMPTY) { (a, b) =>
       val c = b.ifold(a, ctx)
       StrAstNode(a.s + c.s, a.props ++ c.props, a.ilinks ++ c.ilinks)
     }
   }
   override def toString = s"LSTATE (${states.mkString})"
-  override def print (level:Int):String = ("--" * level) + "LState" + states.map (_.print(level+1)).mkString
-  override def printHtml (level:Int):String = "LState" + "<ul>"+states.map (x=>"<li>"+x.printHtml(level+1)).mkString + "</ul>"
+  override def print(level: Int): String =
+    ("--" * level) + "LState" + states.map(_.print(level + 1)).mkString
+  override def printHtml(level: Int): String =
+    "LState" + "<ul>" + states
+      .map(x => "<li>" + x.printHtml(level + 1))
+      .mkString + "</ul>"
 }
 
 /** an aggregation AST node - pattern is: prefix+midAST+suffix */
-case class TriAstNode (prefix:String, mid:BaseAstNode, suffix:String)  extends BaseAstNode {
+case class TriAstNode(prefix: String, mid: BaseAstNode, suffix: String)
+    extends BaseAstNode {
   if (ParserSettings.debugAstNodes) cdebug << this.toString
 
   // nobody should ask for these - fold the parse result into a SState always
@@ -155,20 +185,25 @@ case class TriAstNode (prefix:String, mid:BaseAstNode, suffix:String)  extends B
   override def props: Map[String, String] = ???
   override def ilinks: List[Any] = ???
 
-  override def ifold(current:StrAstNode, ctx:FoldingContext[_,_]) : StrAstNode = {
+  override def ifold(current: StrAstNode,
+                     ctx: FoldingContext[_, _]): StrAstNode = {
     val c = mid.ifold(current, ctx)
     StrAstNode(prefix + c.s + suffix, c.props, c.ilinks)
   }
   override def toString = s"RSTATE ($prefix, $mid, $suffix)"
-  override def print (level:Int):String = ("--" * level) + s"RSTATE ($prefix, $suffix)" +  mid.print(level+1)
-  override def printHtml (level:Int):String = s"RSTATE ($prefix, $suffix)" +  "<ul><li>"+mid.printHtml(level+1)+"</ul>"
+  override def print(level: Int): String =
+    ("--" * level) + s"RSTATE ($prefix, $suffix)" + mid.print(level + 1)
+  override def printHtml(level: Int): String =
+    s"RSTATE ($prefix, $suffix)" + "<ul><li>" + mid.printHtml(level + 1) + "</ul>"
 }
 
 /** lazy AST node - value computed when they're folded.
   *
   * By default a lazy state will cause a non cacheable wiki
   */
-case class LazyAstNode[T <: DSpec, U <: DUser](f:(StrAstNode, FoldingContext[T,U]) => StrAstNode) extends BaseAstNode {
+case class LazyAstNode[T <: DSpec, U <: DUser](
+  f: (StrAstNode, FoldingContext[T, U]) => StrAstNode
+) extends BaseAstNode {
   var dirty = true
 
   if (ParserSettings.debugAstNodes) cdebug << this.toString
@@ -178,14 +213,12 @@ case class LazyAstNode[T <: DSpec, U <: DUser](f:(StrAstNode, FoldingContext[T,U
   override def props: Map[String, String] = ???
   override def ilinks: List[Any] = ???
 
-  override def ifold(current:StrAstNode, ctx:FoldingContext[_,_]) : StrAstNode = {
-    if(dirty) ctx.cacheable = false
-    f(current, ctx.asInstanceOf[FoldingContext[T,U]])
+  override def ifold(current: StrAstNode,
+                     ctx: FoldingContext[_, _]): StrAstNode = {
+    if (dirty) ctx.cacheable = false
+    f(current, ctx.asInstanceOf[FoldingContext[T, U]])
   }
-  override def toString =  s"LazySTATE ()"
+  override def toString = s"LazySTATE ()"
 
-  def cacheOk = {this.dirty=false; this}
+  def cacheOk = { this.dirty = false; this }
 }
-
-
-
