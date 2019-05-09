@@ -28,11 +28,11 @@ import razie.wiki.{Base64, Enc, Sec, Services}
 
 /** overall settings and state for this deployment */
 @RTable
-case class DieselSettings (name:String, value:String, _id:ObjectId = new ObjectId) {
+case class DieselSettings (uid:Option[String], realm:Option[String], name:String, value:String, _id:ObjectId = new ObjectId) {
   def set() = {
     import razie.db.tx.txn
 
-    ROne[DieselSettings]("name"->name).map {s=>
+    ROne[DieselSettings]("uid" -> uid, "realm" -> realm, "name"->name).map {s=>
       // todo cluster propagate notification?
       RUpdate[DieselSettings](s.copy(value = this.value))
     }.getOrElse {
@@ -42,11 +42,11 @@ case class DieselSettings (name:String, value:String, _id:ObjectId = new ObjectI
 }
 
 object DieselSettings {
-  def findOrElse (name:String, default:String) : String =
-    ROne[DieselSettings]("name"->name).map(_.value).getOrElse(default)
+  def findOrElse (uid:Option[String], realm:Option[String], name:String, default:String) : String =
+    ROne[DieselSettings]("uid" -> uid, "realm" -> realm, "name"->name).map(_.value).getOrElse(default)
 
-  def find(name:String) : Option[String] =
-    ROne[DieselSettings]("name"->name).map(_.value)
+  def find(uid:Option[String], realm:Option[String], name:String) : Option[String] =
+    ROne[DieselSettings]("uid" -> uid, "realm" -> realm, "name"->name).map(_.value)
 }
 
 
@@ -187,7 +187,11 @@ object Realm extends RazController with Logging {
           WikiReactors.add(name, mainPage)
           pages = pages.filter(_.name != name) map (_.copy (realm=name))
           // this will also copy verified etc
-          request.au.get.update(request.au.get.addPerm(name, Perm.Moderator.s).copy(realms=au.realms+name))
+          request.au.get.update(
+            request.au.get.addPerm(
+              name, Perm.Moderator.s
+            ).copy(realms=au.realms+name)
+          )
         } else {
           applyStagedLinks(mainPage.wid, mainPage).create // create first, before using the reactor just below
         }
@@ -239,7 +243,7 @@ object Realm extends RazController with Logging {
     // if active and owns target, then sso -
     if (Services.config.isLocalhost) {
       Config.isimulateHost = s"$realm.dieselapps.com"
-      DieselSettings("isimulateHost", Config.isimulateHost).set
+      DieselSettings(None, None, "isimulateHost", Config.isimulateHost).set
       Redirect("/", SEE_OTHER)
     } else {
       // send user id and encripted

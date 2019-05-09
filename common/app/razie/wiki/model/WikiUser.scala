@@ -76,6 +76,8 @@ abstract class WikiUser extends DUser {
   def isMod = isAdmin || hasPerm(Perm.Moderator)
   def isDev = isAdmin || hasPerm(Perm.codeMaster)
   def isAdmin = hasPerm(Perm.adminDb) || hasPerm(Perm.adminWiki)
+
+  def realmPrefs (realm:String) = Map.empty[String,String]
 }
 
 /** user factory and utils */

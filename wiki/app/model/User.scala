@@ -8,22 +8,18 @@ package model
 
 import razie.wiki.Sec._
 import com.mongodb.casbah.Imports._
-import com.mongodb.util.JSON
 import org.bson.types.ObjectId
 import org.joda.time.DateTime
 import com.novus.salat._
 import com.novus.salat.annotations._
 import razie.db.RazSalatContext._
 import razie.Log
-import controllers.Maps
-import razie.wiki.Services
 import razie.wiki.model._
-import com.mongodb.DBObject
 import razie.db._
 import razie.db.tx.txn
-import controllers.Club
 import razie.audit.Audit
 import razie.diesel.dom.WikiDomain
+import razie.wiki.util.Maps
 
 import scala.collection.mutable
 
@@ -99,8 +95,8 @@ case class User(
   def isUnder13 = DateTime.now.year.get - yob <= 12
 
   /** is this a group admin for a group the page belongs to ? */
-  def canAdmin (we:WikiEntry) : Boolean = isAdmin ||
-    we.wid.parentOf(WikiDomain(we.realm).isA("Club", _)).flatMap(Club.apply).exists(_.isClubAdmin(this))
+  def canAdmin (we:WikiEntry) : Boolean = isAdmin //||
+//    we.wid.parentOf(WikiDomain(we.realm).isA("Club", _)).flatMap(Club.apply).exists(_.isClubAdmin(this))
 
   /** is this a group admin for a group the page belongs to ? */
   def canAdmin (wid:WID) : Boolean = isAdmin || wid.page.exists(canAdmin)
@@ -226,7 +222,10 @@ case class User(
       this
     else {
       this.copy(
-        realmSet = this.realmSet ++ Seq((realm -> UserRealm( status, roles, perms, prefs, modNotes, consent )))
+        realmSet =
+          this.realmSet ++
+          Seq((realm -> UserRealm( status, roles, perms, prefs - "dieselEnv", modNotes, consent )))
+        // don't copy the dieselEnv
       )
     }
 
@@ -275,6 +274,9 @@ case class User(
   def setPrefs(realm:String, p:Map[String,String]) = mapRS(realm) {rs=>
     rs.copy(prefs = rs.prefs ++ p)
   }
+
+  override def realmPrefs(realm:String) =
+    realmSet.get(realm).map(_.prefs).getOrElse(Map.empty)
 
   def setRoles(realm:String, s: String) = mapRS(realm) {rs=>
     rs.copy(roles = s.split("[, ]").toSet)

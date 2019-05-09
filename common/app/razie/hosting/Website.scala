@@ -38,6 +38,7 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
   def dieselReactor:String = this prop "dieselReactor" OR reactor
   def dieselVisiblity:String = this prop "diesel.visibility" OR "public"
   def dieselTrust:String = this prop "diesel.trust" OR ""
+  def dieselEnvList:String = this prop "diesel.envList" OR ""
 
   def stylesheet:Option[WID] = this wprop "stylesheet"
 
@@ -68,6 +69,7 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
   def userTypeDesc(ut:String):Option[String] = this prop ("userType."+ut)
 
   def layout:String = this prop "layout" OR "Play:classicLayout"
+  def kind = this prop "kind"
 
 
   def useWikiPrefix:Boolean = this bprop "useWikiPrefix" OR true

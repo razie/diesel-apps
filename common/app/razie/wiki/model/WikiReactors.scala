@@ -33,7 +33,7 @@ object WikiReactors extends Logging {
 
   final val ALIASES = Map ("www" -> "wiki")
 
-  /** lower case index - reactor names are insensitive */
+  /** lower case index of loaded reactors - reactor names are insensitive */
   val lowerCase = new collection.mutable.HashMap[String,String]()
 
   // loaded in Global
@@ -41,6 +41,7 @@ object WikiReactors extends Logging {
 
   // all possible reactors, some loaded some not
   val allReactors = new collection.mutable.HashMap[String,WikiEntry]()
+  var allLowercase = List[String]()
 
   @volatile var loading = false
 
@@ -67,6 +68,12 @@ object WikiReactors extends Logging {
       .toList
       .foreach(we=>allReactors.put(we.name, we))
 
+    allLowercase = allReactors.keySet.map(_.toLowerCase).toList
+
+    // filter toload and keep only what's actually there - on localhost, not all are there
+    toload = toload.filter(allLowercase.contains)
+    clog << "Preloading reactors: " + toload.mkString
+
     // load the basic reactors ahead of everyone that might depend on them
     if(toload contains RK) loadReactor(RK)
     if(toload contains NOTES) { // todo does not have a wiki - damn, can't use loadReactor
@@ -82,14 +89,11 @@ object WikiReactors extends Logging {
           // the basic were already loaded, will be ignored
           Audit.logdb("DEBUG", "Loading reactors " + Thread.currentThread().getName)
 
-          Services.config.preload
-            .split(",")
-            .foreach(loadReactor(_, None))
+          toload.foreach(loadReactor(_, None))
 
           // now load the rest
           val rest = allReactors.filter(x => !reactors.contains(x._1)).map(_._1)
           rest.foreach(loadReactor(_, None))
-
         } catch {
           case t: Throwable =>
             error("while loading reactors", t)
@@ -110,7 +114,9 @@ object WikiReactors extends Logging {
     * @param useThis when reloading a new version
     */
   private def loadReactor(r:String, useThis:Option[WikiEntry] = None, reload:Boolean=false) : Unit = synchronized {
-      if (!reload && lowerCase.contains(r.toLowerCase) && useThis.isEmpty) return;
+    clog << "loadReactor " + r
+
+    if (!reload && lowerCase.contains(r.toLowerCase) && useThis.isEmpty) return;
 
     try {
       var toLoad = new ListBuffer[WikiEntry]()
