@@ -267,6 +267,12 @@ ${errCollector.mkString}
     else None
   }
 
+  def isMod (stok:RazRequest) : Option[Result] = {
+    if(! stok.au.exists(a=> a.isMod))
+      Some(Unauthorized("You are not a mod"))
+    else None
+  }
+
   def adminUser (stok:RazRequest) : Option[Result] = {
     if(! stok.au.exists(a=> checkActive(a).exists(_ == true) && a.isAdmin))
       Some(Unauthorized("Need to have an active admin account"))

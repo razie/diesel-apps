@@ -1,7 +1,8 @@
-package controllers
+package razie.wiki.util
 
-import razie.RString._
 import razie.Snakk
+import razie.wiki.Sec._
+import razie.RString._
 
 object Maps extends razie.Logging {
 

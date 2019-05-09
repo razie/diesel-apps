@@ -7,7 +7,7 @@
 package razie.diesel.exec
 
 import jdk.nashorn.api.scripting.ScriptObjectMirror
-import razie.base.scriptingx.JsScripster
+import razie.base.scriptingx.DieselScripster
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.DieselJs
@@ -114,7 +114,7 @@ object EEFunc {
       exprs = exprs + (p.name -> s"JSON.parse(${p.name}AsString)")
     }
 
-    val r = JsScripster.isfiddleMap(script, "js", q, Some(typed), exprs)
+    val r = DieselScripster.isfiddleMap(script, "js", q, Some(typed), exprs, ctx)
 
     r
   }

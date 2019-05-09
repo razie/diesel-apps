@@ -6,19 +6,26 @@
  */
 package razie.base.scriptingx
 
+import java.util
+
+import api.dwix
 import javax.script.ScriptEngineManager
 import jdk.nashorn.api.scripting.{ClassFilter, NashornScriptEngineFactory, ScriptObjectMirror}
+import org.bson.types.ObjectId
 import razie.audit.Audit
+import razie.diesel.dom.ECtx
+import razie.diesel.engine.DomEngECtx
 import razie.{CSTimer, Logging, csys, js}
+import razie.wiki.model.WikiUsers
 
 import scala.util.Try
 
 // todo use MiniScripster and WikiScripster when decoupled
-object JsScripster extends Logging {
+object DieselScripster extends Logging {
 
  //todo deprecate - use EEFunc.newestFiddle(
-  def isfiddleMap(script: String, lang: String, q: Map[String, String], typed: Option[Map[String, Any]] = None, exprs:Map[String,String] = Map.empty) =
-    newsfiddleMap(script, lang, q, typed, false, exprs)
+  def isfiddleMap(script: String, lang: String, q: Map[String, String], typed: Option[Map[String, Any]] = None, exprs:Map[String,String] = Map.empty, ctx:ECtx) =
+    newsfiddleMap(script, lang, q, typed, false, exprs, ctx)
 
   /** run a fiddle with a map of arguments "queryParms"
     *
@@ -31,8 +38,7 @@ object JsScripster extends Logging {
     * @return (succ/fail, x.toString, x)
     */
   // todo protect calls to this
-  def newsfiddleMap(script: String, lang: String, q: Map[String, String], typed: Option[Map[String, Any]] = None, doAudit: Boolean = true, exprs:Map[String,String] = Map.empty) : (Boolean, String, Any) = {
-//    val wix = api.wix(we, au, q, "")
+  def newsfiddleMap(script: String, lang: String, q: Map[String, String], typed: Option[Map[String, Any]] = None, doAudit: Boolean = true, exprs:Map[String,String] = Map.empty, ctx:ECtx) : (Boolean, String, Any) = {
     val c = new CSTimer("script", "?")
     c.start()
 
@@ -62,7 +68,28 @@ object JsScripster extends Logging {
           trace("SFIDDLE_EXEC JS bind: " + t._1 + " = " + v)
           bindings.put(t._1, v)
         }
-//        bindings.put("wixj", wix)
+
+        {
+          val root = ctx.root
+          val settings = root.engine.map(_.settings)
+          val au = settings.flatMap(_.userId).map(new ObjectId(_))
+            .flatMap(WikiUsers.impl.findUserById)
+
+//          val diesel = new util.HashMap[String, String]()
+//          diesel.put("env", dwix.dieselEnvFor(settings.flatMap(_.realm).mkString, au))
+
+//          val wix = new util.HashMap[String, Any]()
+//          wix.put("diesel", diesel)
+
+          val wix = razie.js toJava Map(
+            "diesel" -> Map(
+              "env" -> dwix.dieselEnvFor(settings.flatMap(_.realm).mkString, au)
+            )
+          )
+
+          bindings.put("wixj", wix)
+          bindings.put("wix", wix)
+        }
 
         val res = engine.eval(jscript, bindings)
 
