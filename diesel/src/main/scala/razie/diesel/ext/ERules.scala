@@ -231,7 +231,7 @@ case class ERule(e: EMatch, arch:String, i: List[EMap]) extends CanHtml with EAp
 
   override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = {
     in.withRulePos(pos) // set my pos on decomposed msg - I must have matched it
-    i.flatMap(_.apply(in, destSpec, pos))
+    i.flatMap(_.apply(in, destSpec, pos, false, arch))
   }
 
   override def toHtml = span(arch+"::", "default") + s" ${e.toHtml} <br>${i.map(_.toHtml).mkString("<br>")} <br>"
@@ -239,12 +239,12 @@ case class ERule(e: EMatch, arch:String, i: List[EMap]) extends CanHtml with EAp
   override def toString = arch+":: " + e + " => " + i.mkString
 }
 
-// a simple condition
+// base for conditions
 trait EIf extends CanHtml {
   def test(e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) : Boolean
 }
 
-// a simple condition
+// a match condition
 case class EIfm(attrs: MatchAttrs) extends CanHtml with EIf {
   def test(e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
     testA(e, attrs, cole)
@@ -254,7 +254,7 @@ case class EIfm(attrs: MatchAttrs) extends CanHtml with EIf {
   override def toString = "$ifm " + attrs.mkString
 }
 
-// a simple condition
+// an expression condition
 case class EIfc(cond: BExpr) extends CanHtml with EIf {
   def test(e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
     cond.apply("")
@@ -304,136 +304,4 @@ case class EVal(p: RDOM.P) extends CanHtml with HasPosition {
 
   override def toString = "val " + p.toString
 }
-
-object EErrorUtils {
-  def ttos (t:Throwable) = {
-    razie.Log.log("error snakking", t)
-
-    val sw = new java.io.StringWriter()
-    val pw = new java.io.PrintWriter(sw)
-    t.printStackTrace(pw)
-
-    val s = sw.toString
-    s
-  }
-}
-
-/** some error, with a message and details */
-case class EError(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {
-  def this(msg:String, t:Throwable) =
-    this(
-      Enc.escapeHtml(msg + t.toString),
-      Enc.escapeHtml(EErrorUtils.ttos(t))
-    ) // escape html - some exc contain html content
-
-  var pos: Option[EPos] = None
-
-  def withPos(p: Option[EPos]) = {
-    this.pos = p; this
-  }
-
-  override def toHtml =
-    if (details.length > 0)
-      spanClick("fail-error::", "danger", details) + msg
-//      span("error::", "danger", details, "style=\"cursor:help\"") + " " + msg
-    else
-      span("fail-error::", "danger", details) + " " + msg
-
-  override def toString = "fail-error::" + msg
-}
-
-/** some error, with a message and details */
-case class EWarning(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {
-  def this(msg:String, t:Throwable) =
-    this(
-      Enc.escapeHtml(msg + t.toString),
-      Enc.escapeHtml(EErrorUtils.ttos(t))
-    ) // escape html - some exc contain html content
-
-  var pos: Option[EPos] = None
-
-  def withPos(p: Option[EPos]) = {
-    this.pos = p; this
-  }
-
-  override def toHtml =
-    if (details.length > 0)
-      spanClick("warn::", "warning", details) + msg
-    else
-      span("warn::", "warning", details) + " " + msg
-
-  override def toString = "fail-warn::" + msg
-}
-
-
-/** error and stop engine */
-case class EEngStop(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {
-
-  var pos: Option[EPos] = None
-
-  def withPos(p: Option[EPos]) = {
-    this.pos = p; this
-  }
-
-  override def toHtml =
-    if (details.length > 0)
-      span("error::", "danger", details, "style=\"cursor:help\"") + " " + msg
-    else
-      span("error::", "danger", details) + " " + msg
-
-  override def toString = "error::" + msg
-}
-
-/** suspend execution - presumably waiting for someone to continue this
-  *
-  * use onSuspend to start the async message  (like sending a DeRep) - you'll have control next
-  */
-case class EEngSuspend(msg: String, details: String = "", onSuspend:Option[(DomEngine, DomAst, Int) => Unit]) extends CanHtml with HasPosition with InfoNode {
-
-  var pos: Option[EPos] = None
-
-  def withPos(p: Option[EPos]) = {
-    this.pos = p; this
-  }
-
-  override def toHtml =
-    if (details.length > 0)
-      span("suspend::", "warning", details, "style=\"cursor:help\"") + " " + msg
-    else
-      span("suspend::", "warning", details) + " " + msg
-
-  override def toString = "suspend::" + msg
-}
-
-/** a simple info node with a message and details - details are displayed as a popup */
-case class EInfo(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {
-  var pos: Option[EPos] = None
-
-  def withPos(p: Option[EPos]) = {
-    this.pos = p; this
-  }
-
-  override def toHtml =
-    if (details.length > 0) {
-      spanClick(
-        "info::",
-        "info",
-        details,
-        msg
-      )
-    } else {
-      span("info::", "info", details) + " " + msg
-    }
-
-  override def toString = "info::" + msg
-}
-
-/** duration of the curent op */
-case class EDuration(millis:Long, msg: String="") extends CanHtml with InfoNode {
-
-  override def toHtml = span("info::", "info") + s" $millis ms - $msg"
-
-  override def toString = "info::" + s" $millis ms - $msg"
-}
-
 

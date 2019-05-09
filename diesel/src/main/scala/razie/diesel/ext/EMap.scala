@@ -82,12 +82,15 @@ case class EMap(cls: String, met: String, attrs: Attrs, arrow:String="=>", cond:
   /** count the number of applications of this rule */
   var count = 0;
 
-  def apply(in: EMsg, destSpec: Option[EMsg], apos:Option[EPos], deferEvaluation:Boolean=false)(implicit ctx: ECtx): List[Any] = {
+  def apply(in: EMsg, destSpec: Option[EMsg], apos:Option[EPos], deferEvaluation:Boolean=false, arch:String = "")(implicit ctx: ECtx): List[Any] = {
+
+    val kind = AstKinds.kindOf(arch)
+
     var e = Try {
       val m = EMsg(
          cls, met,
         EMap.sourceAttrs(in, attrs, destSpec.map(_.attrs), deferEvaluation),
-        AstKinds.GENERATED)
+        kind)
         .withPos(this.pos.orElse(apos))
         .withSpec(destSpec)
 

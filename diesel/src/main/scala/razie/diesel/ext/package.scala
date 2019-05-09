@@ -186,14 +186,15 @@ package object ext {
     def pos : Option[EPos]
 
     /** key span with possible link. pass None to not have a link */
-    def kspan(s: String, k: String = "default", overwritePos:Option[EPos] = Some(EPos.EMPTY)) = {
+    def kspan(s: String, k: String = "default", overwritePos:Option[EPos] = Some(EPos.EMPTY), title:Option[String]=None) = {
       val actualPos = if(overwritePos.exists(_.isEmpty)) pos else overwritePos
       def mkref: String = actualPos.map(_.toRef).mkString
+      val t = title.map(CanHtml.prepTitle)
 
       actualPos.map(p =>
-        s"""<span onclick="$mkref" style="cursor:pointer" class="label label-$k">$s</span>&nbsp;"""
+        s"""<span onclick="$mkref" style="cursor:pointer" class="label label-$k" ${t.mkString}>$s</span>&nbsp;"""
       ) getOrElse
-        s"""<span class="label label-$k">$s</span>&nbsp;"""
+        s"""<span class="label label-$k" ${t.mkString}>$s</span>&nbsp;"""
     }
   }
 
@@ -245,19 +246,21 @@ package object ext {
       ) + " " + extra
     }
 
-    /** format an html message span
+    /**
+      * format an html message span
       *
-      * @param e entity
-      * @param a action
-      * @param title optional hover title
-      * @return
+      * wrap for EMsg where the kspan will wrap it anyways
       */
-    def ea(e: String, a: String, title:String="") = {
+    def ea(e: String, a: String, title:String="", wrap:Boolean=true) = {
       val t = CanHtml.prepTitle(title)
-      s"""<span class="label label-default" xstyle="background:lightgray" $t><span style="font-weight:bold; color:lightblue">$e</span>.<span class="" style="font-weight:bold; color:moccasin">$a</span></span>"""
+      (if(wrap) s"""<span class="label label-default" $t>""" else "") +
+         s"""<span style="font-weight:bold; color:moccasin">$e</span>.<span
+         |      class="" style="font-weight:bold; color:lightblue">$a</span>""".stripMargin +
+       (if(wrap)  """ </span>""" else "")
     }
 
-    /** format an html element span
+    /** *
+      * format an html element span
       */
     def token(s: String, title:String="", extra:String="") = {
       val t = CanHtml.prepTitle(title)

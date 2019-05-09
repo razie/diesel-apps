@@ -19,22 +19,38 @@ object AstKinds {
   final val STORY = "story"
   final val RECEIVED = "received"
   final val SAMPLED = "sampled"
-  final val DEBUG = "debug"
-  final val GENERATED = "generated"
+
   final val ERROR = "error"
+  final val DEBUG = "debug"
+  final val TRACE = "trace"
+
+  // these are like "info"
+  final val GENERATED = "generated" // like info
+  final val TEST = "test"
+  final val BUILTIN = "built-in"
+
   final val SUBTRACE = "subtrace"
   final val RULE = "rule"
   final val SKETCHED = "sketched"
   final val MOCKED = "mocked"
-  final val TEST = "test"
-  final val BUILTIN = "built-in"
   final val NEXT = "next"
 
-  def isGenerated  (k:String) = GENERATED==k || SKETCHED==k || MOCKED==k || DEBUG==k || ERROR==k
+  def isGenerated  (k:String) = GENERATED==k || SKETCHED==k || MOCKED==k || DEBUG==k || ERROR==k || TRACE==k
   def shouldIgnore (k:String) = RULE==k || BUILTIN==k
   def shouldSkip (k:String) = NEXT==k
   def shouldRollup (k:String) = NEXT==k
   def shouldPrune (k:String) = false
+
+  /** kind based on arch so you can specify <trace> and all kids become "trace" */
+  def kindOf (arch:String) = {
+    val kind = arch match {
+      case _ if arch contains "trace" => AstKinds.TRACE
+      case _ if arch contains "debug" => AstKinds.DEBUG
+      case _ => AstKinds.GENERATED
+    }
+
+    kind
+  }
 }
 
 /** mix this in if you want to control display/traversal */
@@ -206,10 +222,12 @@ case class DomAst(
   // visit/recurse with filter
   def collect[T](f: PartialFunction[DomAst, T]) : List[T] = {
     val res = new ListBuffer[T]()
+
     def inspect(d: DomAst, level: Int): Unit = {
       if (f.isDefinedAt(d)) res append f(d)
       d.children.map(inspect(_, level + 1))
     }
+
     inspect(this, 0)
     res.toList
   }
@@ -226,8 +244,10 @@ case class DomAst(
 
   /** find in subtree, by id */
   def find(id:String) : Option[DomAst] =
-    if(this.id == id) Some(this)
-    else children.foldLeft(None:Option[DomAst])((a,b)=>a orElse b.find(id))
+    if(this.id == id)
+      Some(this)
+    else
+      children.foldLeft(None:Option[DomAst])((a,b)=>a orElse b.find(id))
 
   def storySummary = {
     val zip = children.zipWithIndex

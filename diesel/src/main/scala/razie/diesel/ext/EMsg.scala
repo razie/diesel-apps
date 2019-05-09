@@ -121,7 +121,8 @@ case class EMsg(
   })
 
   /** message name as a nice link to spec as well */
-  private def eaHtml = kspan(ea(entity,met, spec.getOrElse("nope").toString), "default", specPos)
+  private def eaHtml =
+    kspan(ea(entity,met, "", false), "default", specPos, spec.orElse(Some("no spec")).map(_.toString))
 
   /** this html works well in a diesel fiddle, use toHtmlInPage elsewhere */
   override def toHtml = {

@@ -353,9 +353,15 @@ class DomEngine(
 
   /** add built-in triggers */
   private def prepRoot(l:ListBuffer[DomAst]) : ListBuffer[DomAst] = {
-    // todo what about dependencies?
-    l.prepend(DomAst(EMsg("diesel", "before"), AstKinds.BUILTIN))
-    l.append(DomAst(EMsg("diesel", "after"), AstKinds.BUILTIN))
+    val before = DomAst(EMsg("diesel", "before"), AstKinds.TRACE)
+    val after = DomAst(EMsg("diesel", "after"), AstKinds.TRACE)
+
+    // create dependencies and add them to the list
+    after.prereq = l.map(_.id).toList
+    l.append(after)
+    l.map(x=> x.prereq = before.id :: x.prereq)
+    l.prepend(before)
+
     l
   }
 
@@ -365,7 +371,11 @@ class DomEngine(
       root.status = DomState.STARTED
       this.status = DomState.STARTED
 
-      prepRoot(root.children.filter(_.kind == "test")).foreach(expand(_, true, 1))
+      prepRoot(
+        root
+          .children
+          .filter(_.kind == "test")
+      ).foreach(expand(_, true, 1))
 
       this
     }
@@ -506,7 +516,7 @@ class DomEngine(
   }
 
   /** an assignment message */
-  private def appendVals (a:DomAst, x:EMsg, attrs:Attrs, appendToCtx:ECtx) = {
+  private def appendVals (a:DomAst, x:EMsg, attrs:Attrs, appendToCtx:ECtx, kind:String=AstKinds.GENERATED) = {
     a.children appendAll attrs.map{p =>
       if(p.ttype == WTypes.EXCEPTION) {
         p.value.map {v=>
@@ -514,7 +524,7 @@ class DomEngine(
         } getOrElse
           DomAst(EError(p.dflt) withPos(x.pos), AstKinds.ERROR).withSpec(x)
       } else
-        DomAst(EVal(p) withPos(x.pos), AstKinds.GENERATED).withSpec(x)
+        DomAst(EVal(p) withPos(x.pos), kind).withSpec(x)
     }
     appendToCtx putAll x.attrs
   }
@@ -530,8 +540,9 @@ class DomEngine(
       val spec = dom.moreElements.collect {
         case x: EMsg if x.entity == ri.cls && x.met == ri.met => x
       }.headOption
+      val KIND = AstKinds.kindOf(r.arch)
 
-      var generated = ri.apply(in, spec, r.pos, r.i.size > 1)
+      var generated = ri.apply(in, spec, r.pos, r.i.size > 1, r.arch)
 
       // defer evaluation if multiple messages generated - if just one message, evaluate values now
       var newMsgs = generated.collect {
@@ -541,7 +552,7 @@ class DomEngine(
         //
         case x: EMsg if x.entity == "" && x.met == "" && r.i.size == 1 => {
           // todo should these go into the ctx or this.ctx
-          appendVals(a, x, x.attrs, ctx)
+          appendVals(a, x, x.attrs, ctx, KIND)
           None
         }
 
@@ -555,7 +566,7 @@ class DomEngine(
           if(r.i.size > 1)
             Some(DomAst(ENext(x, "=>"), AstKinds.NEXT).withSpec(r))
           else
-            Some(DomAst(x, AstKinds.GENERATED).withSpec(r))
+            Some(DomAst(x, KIND).withSpec(r))
         }
 
         case x: ENext => {
@@ -563,7 +574,7 @@ class DomEngine(
         }
 
         case x @ _ => {
-          Some(DomAst(x, AstKinds.GENERATED).withSpec(r))
+          Some(DomAst(x, KIND).withSpec(r))
         }
       }.filter(_.isDefined)
 
@@ -1082,7 +1093,12 @@ class DomEngine(
     valuesp
   }
 
-  /** extract the resulting values from this engine */
+  /** extract the resulting value from this engine
+    * extract one value - try:
+    * 1. defined response oattrs
+    * 2. last valuep - the last message produced in the flow
+    * 3. payload
+    * */
   def extractFinalValue (e:String, a:String) = {
     // find the spec and check its result
     // then find the resulting value.. if not, then json
@@ -1094,7 +1110,8 @@ class DomEngine(
     //      errors append s"Can't find the spec for $msg"
     //    }
 
-    // collect values
+    // collect all values
+    // todo this must be smarter - ignore diese.before values, don't look inside scopes etc?
     val valuesp = root.collect {
       case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined => p
     }
