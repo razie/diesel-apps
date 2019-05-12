@@ -14,8 +14,6 @@ import razie.wiki.Enc
 
 object EErrorUtils {
   def ttos (t:Throwable) = {
-    razie.Log.log("error snakking", t)
-
     val sw = new java.io.StringWriter()
     val pw = new java.io.PrintWriter(sw)
     t.printStackTrace(pw)

@@ -74,7 +74,7 @@ case class DomEngineSettings
   var userId : Option[String] = None,
 
   /** content that was posted with the request */
-  var postedContent : Option[EEContent] = None,
+  var postedContent : Option[EContent] = None,
 
   /** tag query to select for modeBlender */
   var tagQuery : Option[String] = None,

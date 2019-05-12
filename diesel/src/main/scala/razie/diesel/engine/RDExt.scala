@@ -7,13 +7,13 @@
 package razie.diesel.engine
 
 import mod.diesel.model.exec._
+import razie.Logging
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom.{RDomain, _}
 import razie.diesel.exec.{EEFormatter, EEFunc, EETest}
 import razie.diesel.ext.{CanHtml, _}
 import razie.tconf.{DSpec, TSpecPath}
 import razie.wiki.Enc
-
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
@@ -33,7 +33,7 @@ class InfoAccumulator (var eres : List[Any] = Nil) {
 }
 
 /** RDOM extensions */
-object RDExt {
+object RDExt extends Logging {
 
   def init = {
     new EECtx ::
@@ -272,99 +272,6 @@ object RDExt {
     )
   }
 
-  /** nice links to stories in AST trees */
-  case class StoryNode (path:TSpecPath) extends CanHtml with InfoNode {
-    def x = s"""<a id="${path.wpath.replaceAll("^.*:", "")}"></a>""" // from wpath leave just name
-    override def toHtml = x + s"""Story ${path.ahref.mkString}"""
-    override def toString = "Story " + path.wpath
-  }
-
-  /* add a message */
-  def addMsgToAst(root: DomAst, v : EMsg) = {
-    root.children append DomAst(v, AstKinds.RECEIVED)
-  }
-
-  /**
-    *  add all nodes from story and add them to root
-    *
-    *  todo when are expressions evaluated?
-    */
-  def addStoryToAst(root: DomAst, stories: List[DSpec], justTests: Boolean = false, justMocks: Boolean = false, addFiddles:Boolean=false) = {
-    var lastMsg: Option[EMsg] = None
-    var lastMsgAst: Option[DomAst] = None
-    var lastAst: List[DomAst] = Nil
-    var inSequence = true
-
-    def addMsg(v: EMsg) = {
-      lastMsg = Some(v);
-      // withPrereq will cause the story messages to be ran in sequence
-      lastMsgAst = if (!(justTests || justMocks)) Some(DomAst(v, AstKinds.RECEIVED).withPrereq({
-        if (inSequence) lastAst.map(_.id)
-        else Nil
-      })) else None // need to reset it
-      lastAst = lastMsgAst.toList
-      lastAst
-    }
-
-    def addStory (story:DSpec) = {
-      var savedInSequence = inSequence
-
-      story.parsed
-
-      if(stories.size > 1 || addFiddles)
-        root.children appendAll {
-          lastAst = List(DomAst(StoryNode(story.specPath), AstKinds.STORY).withPrereq(lastAst.map(_.id)))
-          lastAst
-        }
-
-      RDomain.domFilter(story) {
-        case x@_ => println("---- "+x)
-      }
-
-      if(stories.size > 1) root.children appendAll addMsg(EMsg("diesel.scope", "push"))
-
-      root.children appendAll RDomain.domFilter(story) {
-        case o: O if o.name != "context" => List(DomAst(o, AstKinds.RECEIVED))
-        case v: EMsg if v.entity == "ctx" && v.met == "storySync" => {
-          inSequence = true
-          Nil
-        }
-        case v: EMsg if v.entity == "ctx" && v.met == "storyAsync" => {
-          inSequence = false
-          Nil
-        }
-        case v: EMsg => addMsg(v)
-        case v: EVal => {
-          // vals are also in sequence... because they use values in context
-          lastAst = List(DomAst(v, AstKinds.RECEIVED).withPrereq(lastAst.map(_.id)))
-          lastAst
-        }
-        case e: ExpectM if (!justMocks) => {
-          lastAst = List(DomAst(e.withGuard(lastMsg.map(_.asMatch)).withTarget(lastMsgAst), "test").withPrereq(lastAst.map(_.id)))
-          lastAst
-        }
-        case e: ExpectV if (!justMocks) => {
-          lastAst = List(DomAst(e.withGuard(lastMsg.map(_.asMatch)).withTarget(lastMsgAst), "test").withPrereq(lastAst.map(_.id)))
-          lastAst
-        }
-        case e: ExpectAssert if (!justMocks) => {
-          lastAst = List(DomAst(e.withGuard(lastMsg.map(_.asMatch)).withTarget(lastMsgAst), "test").withPrereq(lastAst.map(_.id)))
-          lastAst
-        }
-          // these don't wait - they don't run, they are collected together
-          // todo this is a bit inconsistent - if one declares vals and then a mock then a val
-        case v: ERule => List(DomAst(v, AstKinds.RULE))
-        case v: EMock => List(DomAst(v, AstKinds.RULE))
-      }.flatten
-
-      if(stories.size > 1) root.children appendAll addMsg(EMsg("diesel.scope", "pop"))
-
-      inSequence = savedInSequence
-    }
-
-    stories.foreach (addStory)
-  }
-
   /** record a test result
     *
     * @param value "ok" for good, otherwise is failed
@@ -385,7 +292,7 @@ object RDExt {
       if (value == "ok")
         kspan(value, "success") + s" $hmore"
       else if (value startsWith "fail")
-        kspan(value, "danger") + s" $hmore"
+        kspan(value, "danger", Some(EPos.EMPTY), None, Some("error")) + s" $hmore"
       else
         kspan(value, "warning") + s" $hmore"
     }

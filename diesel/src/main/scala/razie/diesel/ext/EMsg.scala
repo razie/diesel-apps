@@ -105,6 +105,8 @@ case class EMsg(
   /** if has executor */
   def hasExecutor:Boolean = Executors.all.exists(_.test(this)(ECtx.empty))
 
+  def ea:String = entity + "." + met
+
   def isResolved:Boolean =
     if(spec.filter(x=> !x.equals(this)).exists(_.isResolved)) true
     else (
@@ -113,7 +115,10 @@ case class EMsg(
   )
 
   /** color - if has executor */
-  private def msgLabelColor: String = if(isResolved) "default" else if (stype contains WARNING) "warning" else "primary"
+  private def msgLabelColor: String =
+    if (stype contains WARNING) "warning"
+    else if(isResolved) "default"
+    else "primary"
 
   /** extract a match from this message signature */
   def asMatch = EMatch(entity, met, attrs.filter(_.dflt != "").map {p=>

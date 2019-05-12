@@ -6,7 +6,7 @@
  */
 package razie.db
 
-import razie.{cdebug, clog}
+import razie.{Logging, cdebug, clog}
 
 /** playing with "transactions" i.e. a set of related db ops
   *
@@ -64,12 +64,12 @@ object tx {
 }
 
 /** wrap all db operation in this to get logging, timing and stats */
-object dbop {
+object dbop extends Logging {
   def apply[A](f: => A): A = this.apply("-")(f)
 
   def apply[A](name: String)(f: => A): A = {
     val ba = new RBeforeAft(name)
-    cdebug << s"dbop.before for ${ba.name}"
+    trace(s"dbop.before for ${ba.name}")
     val res = f
     val t2 = System.currentTimeMillis
     val debinf = res match {
@@ -77,7 +77,7 @@ object dbop {
       case Some(_) => "Some"
       case x@_ => x.getClass.getName
     }
-    cdebug << s"dbop.after ${t2 - ba.t1} millis for ${ba.name} res: $debinf"
+    trace(s"dbop.after ${t2 - ba.t1} millis for ${ba.name} res: $debinf")
     res
   }
 

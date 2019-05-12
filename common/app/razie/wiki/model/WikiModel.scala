@@ -10,7 +10,7 @@ import com.mongodb.casbah.Imports._
 import com.novus.salat._
 import org.joda.time.DateTime
 import razie.audit.Audit
-import razie.{AA, Log, cdebug}
+import razie.{AA, Log, cdebug, ctrace}
 import razie.db.RazSalatContext._
 import razie.db._
 import razie.diesel.dom.WikiDTemplate
@@ -19,7 +19,6 @@ import razie.tconf.{DSpec, DTemplate, SpecPath}
 import razie.wiki.Services
 import razie.wiki.model.features.{FieldDef, FormStatus, WikiCount, WikiForm}
 import razie.wiki.parser.WAST
-
 import scala.collection.mutable
 
 /**
@@ -344,7 +343,7 @@ case class WikiEntry(
       s.ilinks)
     ipreprocessed = Some(res, au)
     val t2 = System.currentTimeMillis
-    cdebug << s"wikis.folded ${t2 - t1} millis for ${wid.name}"
+    ctrace << s"wikis.folded ${t2 - t1} millis for ${wid.name}"
     res
   }
 

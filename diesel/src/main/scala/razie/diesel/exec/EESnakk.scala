@@ -7,27 +7,25 @@
 package mod.diesel.model.exec
 
 import java.net.{URI, URL}
-
 import com.razie.pub.comms.Comms
 import razie.Snakk._
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.RDExt.{DieselJsonFactory, spec}
-import razie.diesel.engine.{DomEngECtx, EEContent, InfoAccumulator}
+import razie.diesel.engine.{DomEngECtx, EContent, InfoAccumulator}
 import razie.diesel.exec.SnakkCall
 import razie.diesel.ext.{MatchCollector, _}
 import razie.diesel.snakk.FFDPayload
 import razie.tconf.DTemplate
 import razie.wiki.Enc
 import razie.wiki.parser.SimpleExprParser
-import razie.{clog, js}
-
+import razie.{Logging, js}
 import scala.Option.option2Iterable
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
 /** snakk REST APIs */
-class EESnakk extends EExecutor("snakk") {
+class EESnakk extends EExecutor("snakk") with Logging {
   import EESnakk._
 
   private def trimmed(s:String, len:Int = 2000) = (if(s.length > len) s"(>$len):\n" else "\n") + s.take(len)
@@ -119,7 +117,7 @@ class EESnakk extends EExecutor("snakk") {
             response = sc.telnet(host, port, sc.postContent, Some(eres))
 
             eres += EInfo("Response", Enc.escapeHtml(trimmed(response)))
-            val content = new EEContent(response, sc.iContentType.getOrElse(""), sc.iHeaders.getOrElse(Map.empty))
+            val content = new EContent(response, sc.iContentType.getOrElse(""), sc.iHeaders.getOrElse(Map.empty))
             content
 
           } else {   // http
@@ -147,10 +145,10 @@ class EESnakk extends EExecutor("snakk") {
             urlx = x.toString
             sc.setUrl(x)
 
-            clog << "Snakking: " + trimmed(sc.toJson, 5000)
-            clog << ""
-            clog << "Snakking CURL: "
-            clog << trimmed(sc.toCurl, 5000)
+            trace( "Snakking: " + trimmed(sc.toJson, 5000))
+            trace( "")
+            trace( "Snakking CURL: ")
+            trace( trimmed(sc.toCurl, 5000))
 
             eres += EInfo("Snakking " + x.toString, Enc.escapeHtml(trimmed(sc.toCurl))).withPos(pos)
 
@@ -159,9 +157,9 @@ class EESnakk extends EExecutor("snakk") {
             if(response.length >= Comms.MAX_BUF_SIZE)
               eres += EError(s"BUF_SIZE - read too much from socket (${response.length} + bytes!)", "")
 
-            clog << ("RESPONSE: " + trimmed(response))
+            trace( "Snakk RESPONSE: " + trimmed(response))
 
-            val content = new EEContent(response, sc.iContentType.getOrElse(""), sc.iHeaders.getOrElse(Map.empty), sc.root)
+            val content = new EContent(response, sc.iContentType.getOrElse(""), sc.iHeaders.getOrElse(Map.empty), sc.root)
             eres += EInfo("Response", Enc.escapeHtml(trimmed(content.toString, 2000)))
             content
           }
@@ -217,7 +215,7 @@ class EESnakk extends EExecutor("snakk") {
           eres += new EVal("payload", reply.body)
 
         eres.eres ::
-          new EVal("snakk.response", reply.body) ::
+          new EInfo("snakk.response", reply.body) ::
           Nil
 
       } getOrElse {
@@ -255,14 +253,14 @@ class EESnakk extends EExecutor("snakk") {
           urlx = ux.toString
           sc.setUrl(ux)
 
-          val content : EEContent = {
+          val content : EContent = {
             if (sc.method == "open") {
               val response = sc.telnet("localhost", "9000", sc.postContent, Some(eres))
-              new EEContent(sc.body, "application/text")
+              new EContent(sc.body, "application/text")
             } else {
               eres += EInfo("Snakking " + urlx, Enc.escapeHtml(trimmed(sc.toJson, 5000))).withPos(pos)
               val response = sc.body
-              new EEContent(sc.body, sc.iContentType.getOrElse(""), sc.iHeaders.getOrElse(Map.empty), sc.root)
+              new EContent(sc.body, sc.iContentType.getOrElse(""), sc.iHeaders.getOrElse(Map.empty), sc.root)
             }
           }
 
@@ -294,8 +292,10 @@ class EESnakk extends EExecutor("snakk") {
     } catch {
       case t: Throwable => {
         val cause =
-        if(t.getCause != null && t.getCause.isInstanceOf[java.net.SocketTimeoutException]) {
-          razie.Log.log("error snakking" + t.getMessage)
+        if(t.getCause != null &&
+          (t.getCause.isInstanceOf[java.net.SocketTimeoutException] ||
+          t.getCause.isInstanceOf[java.net.ConnectException])) {
+          razie.Log.log("error snakking: " + t.getMessage + " cause: " + t.getCause.getMessage)
           t.getCause
         } else {
           razie.Log.log("error snakking", t)

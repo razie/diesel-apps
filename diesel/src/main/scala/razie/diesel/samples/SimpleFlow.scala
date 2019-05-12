@@ -1,11 +1,10 @@
 package razie.diesel.samples
 
-import razie.{cout}
+import razie.cout
 import razie.diesel.dom._
 import razie.diesel.engine._
-import razie.diesel.ext.{EMsg, EVal}
+import razie.diesel.ext.{EMsg, EVal, EnginePrep}
 import razie.tconf.{DSpec, TextSpec}
-
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -52,7 +51,7 @@ $msg home.guest_arrived(name="Jane")
     val root = DomAst("root", AstKinds.ROOT)
 
     // 3. add the entry points / triggers to the process
-    RDExt.addStoryToAst(root, List(story))
+    EnginePrep.addStoriesToAst(root, List(story))
 
     // 4. rules configuration
 
@@ -150,7 +149,7 @@ object DomEngineUtils {
     val root = DomAst("root", AstKinds.ROOT)
 
     // 3. add the entry points / triggers to the process
-    RDExt.addStoryToAst(root, stories)
+    EnginePrep.addStoriesToAst(root, stories)
 
     // 4. rules configuration
 
@@ -188,7 +187,7 @@ object DomEngineUtils {
     var res = ""
 
     val root = DomAst("root", AstKinds.ROOT)
-    RDExt.addStoryToAst(root, stories)
+    EnginePrep.addStoriesToAst(root, stories)
 
     // start processing all elements
     val engine = DieselAppContext.mkEngine(dom plus idom, root, settings, stories ::: specs, "simpleFlow")

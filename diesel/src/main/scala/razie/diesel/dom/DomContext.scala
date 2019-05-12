@@ -14,6 +14,8 @@ case class DomContextEntry[T] (role:String, value:T, link:Option[String])
   *
   * - you can put objects in the context
   * - it interacts with the domain model and data sources
+  *
+  * todo this appears unused
   */
 class DomContext (
   realm:String,

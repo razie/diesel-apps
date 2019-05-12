@@ -18,7 +18,7 @@ import scala.Option.option2Iterable
 import scala.util.Try
 
 /** a REST request or response: content and type */
-class EEContent(
+class EContent(
                  val body: String,
                  val contentType: String,
                  val headers: Map[String, String] = Map.empty,
@@ -146,3 +146,25 @@ class EEContent(
   override def toString = s"Content-type:${this.contentType} Headers:${this.headers.mkString} \nBody: ${this.body}"
 }
 
+/** content processing utils */
+object EContent {
+
+  /** apply the regex to body and extract any named groups */
+  def extractRegexParms (rex:String, body:String): List[(String,String)] = {
+    // stupid java can't give me the group names - let's find them
+    val groupNames = "\\<([^<>]+)\\>".r.findAllIn(rex).map(_.replaceAll("[<>]", "")).toList
+
+    val jrex = Pattern.compile(rex).matcher(body)
+    val groups3 = if (jrex.find()) {
+    groupNames.map { n =>
+      {
+        Try {
+          (n, jrex.group(n))
+        }.getOrElse((n, "not found"))
+      }
+    }.toList
+    } else Nil
+
+    groups3
+  }
+}

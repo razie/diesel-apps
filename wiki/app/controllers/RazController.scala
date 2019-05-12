@@ -336,8 +336,7 @@ ${errCollector.mkString}
   def FAUR(msg:String, isApi:Boolean=false)(f: RazRequest => Option[Result]) : Action[AnyContent] = Action { implicit request =>
     val req = razRequest
     (for (
-      au <- req.au;
-      isA <- checkActive(au)
+      au <- activeUser(req.ireq, req.errCollector)
     ) yield {
         if(msg.nonEmpty) cdebug << "START_FAU "+msg
         val temp = f(req)
@@ -379,15 +378,14 @@ ${errCollector.mkString}
   def FAUPRAPI(isApi:Boolean=false)(f: RazRequest => Result) = Action { implicit request =>
     implicit val stok = new RazRequest(request)
     (for (
-      au <- stok.au;
-      isA <- checkActive(au)
+      au <- activeUser(stok.ireq, stok.errCollector)
     ) yield f(stok)
       ) getOrElse {
       val more = Website(request).flatMap(_.prop("msg.noPerm")).flatMap(WID.fromPath).flatMap(_.content).mkString
       if(isApi)
         Unauthorized("You need more karma... " + stok.errCollector.mkString)
       else
-        Msg("You need more karma...", "Open a karma request")
+        unauthorized(s"OOPS [] $more ", !isFromRobot)
     }
   }
 

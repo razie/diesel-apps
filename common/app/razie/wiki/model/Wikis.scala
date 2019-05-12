@@ -12,18 +12,17 @@ import com.novus.salat._
 import controllers.{VErrors, Validation}
 import play.api.Play.current
 import play.api.cache._
-import razie.{Logging, clog}
+import razie.{Logging, clog, ctrace}
 import razie.audit.Audit
 import razie.db.RazSalatContext._
 import razie.db.{RMany, RazMongo}
 import razie.diesel.dom.WikiDomain
-import razie.tconf.parser.{LeafAstNode, BaseAstNode, ParserSettings, StrAstNode}
+import razie.tconf.parser.{BaseAstNode, LeafAstNode, ParserSettings, StrAstNode}
 import razie.wiki.model.Visibility.PUBLIC
 import razie.wiki.model.features.{WForm, WikiForm}
 import razie.wiki.parser.WAST
 import razie.wiki.util.QueryParms
 import razie.wiki.{Enc, Services, WikiConfig}
-
 import scala.collection.mutable.ListBuffer
 
 object WikiCache {
@@ -397,7 +396,7 @@ object Wikis extends Logging with Validation {
 
           val res = WikiReactors(wid.getRealm).wiki.mkParser apply c2
           val t2 = System.currentTimeMillis
-          cdebug << s"wikis.preprocessed ${t2 - t1} millis for ${wid.name}"
+          ctrace << s"wikis.preprocessed ${t2 - t1} millis for ${wid.name}"
           res
 
         case TEXT => StrAstNode(content.replaceAll("""\[\[([^]]*)\]\]""", """[[\(1\)]]"""))
