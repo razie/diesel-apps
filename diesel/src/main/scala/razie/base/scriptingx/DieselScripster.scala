@@ -6,8 +6,6 @@
  */
 package razie.base.scriptingx
 
-import java.util
-
 import api.dwix
 import javax.script.ScriptEngineManager
 import jdk.nashorn.api.scripting.{ClassFilter, NashornScriptEngineFactory, ScriptObjectMirror}
@@ -20,6 +18,7 @@ import razie.wiki.model.WikiUsers
 
 import scala.util.Try
 
+/** preliminary JS scripster for embedded diesel scripts */
 // todo use MiniScripster and WikiScripster when decoupled
 object DieselScripster extends Logging {
 
@@ -75,15 +74,10 @@ object DieselScripster extends Logging {
           val au = settings.flatMap(_.userId).map(new ObjectId(_))
             .flatMap(WikiUsers.impl.findUserById)
 
-//          val diesel = new util.HashMap[String, String]()
-//          diesel.put("env", dwix.dieselEnvFor(settings.flatMap(_.realm).mkString, au))
-
-//          val wix = new util.HashMap[String, Any]()
-//          wix.put("diesel", diesel)
-
           val wix = razie.js toJava Map(
             "diesel" -> Map(
-              "env" -> dwix.dieselEnvFor(settings.flatMap(_.realm).mkString, au)
+              "env" -> dwix.dieselEnvFor(settings.flatMap(_.realm).mkString, au),
+              "user" -> settings.flatMap(_.userId).mkString
             )
           )
 

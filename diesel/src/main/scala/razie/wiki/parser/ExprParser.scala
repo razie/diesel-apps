@@ -33,11 +33,7 @@ trait ExprParser extends RegexParsers {
 
   /** allow JSON ids with double quotes */
   def jsonIdent: P = """[a-zA-Z_][\w]*""".r | """'[\w@. -]+'""".r | """"[\w@. -]+"""".r ^^ {
-    case s =>
-      if(s.startsWith("'") && s.endsWith("\'") || s.startsWith("\"") && s.endsWith("\""))
-        s.substring(1, s.length-1)
-      else
-        s
+    case s => unquote(s)
   }
 
   def qident: P = ident ~ rep("." ~> ident) ^^ {
@@ -79,27 +75,37 @@ trait ExprParser extends RegexParsers {
     )
   }
 
-  def pterm1: Parser[Expr] = numexpr | bcexpr | escexpr | cexpr | xpident | jsexpr1 | jsexpr2 | scexpr1 | scexpr2 | afunc | aident | jss | exregex | eblock | js
+  def pterm1: Parser[Expr] = numexpr | bcexpr | escexpr | cexpr | xpident | jsexpr1 | jsexpr2 | scexpr1 | scexpr2 | afunc | aident | jss | exregex | eblock | jarray | jobj
 
   def eblock: Parser[Expr] = "(" ~ ows ~> expr <~ ows ~ ")" ^^ { case ex => BlockExpr(ex) }
 
   def jss: Parser[Expr] = "//" ~> ".*(?=//)".r <~ "//" ^^ { case li => JSSExpr(li) }
 
-  def js: Parser[Expr] = "{" ~ ows ~> repsep(jnvp <~ ows, ",") <~ ows ~ "}" ^^ { case li => JBlockExpr(li.mkString(",")) }
-//  def js: Parser[Expr] = "{" ~ ows ~> jexpr <~ ows ~ "}" ^^ { case ex => JBlockExpr(ex) }
-
-
   // json object
+  def jobj: Parser[Expr] = "{" ~ ows ~> repsep(jnvp <~ ows, ",") <~ ows ~ "}" ^^ {
+    case li => JBlockExpr(li)
+  }
 
-  def jobj: Parser[String] = "{" ~ ows ~> repsep(jnvp <~ ows, ",") <~ ows ~ "}" ^^ { case li => "{ " + li.mkString(",") + " }" } // just because type of parser is String not Expr
+  def unquote(s:String) =  {
+    if (s.startsWith("'") && s.endsWith("\'") || s.startsWith("\"") && s
+          .endsWith("\""))
+      s.substring(1, s.length - 1)
+    else
+      s
+  }
 
-  def jnvp: Parser[String] = ows ~> jsonIdent ~ " *: *".r ~ jexpr ^^ { case name ~ _ ~ ex =>  name +":" + ex.toString }
+  def jnvp: Parser[(String, Expr)] = ows ~> jsonIdent ~ " *: *".r ~ jexpr ^^ {
+    case name ~ _ ~ ex =>  (unquote(name), ex)
+  }
 
-  def jarray: Parser[String] = "[" ~ ows ~> repsep(jexpr <~ ows, ",") <~ ows ~ "]" ^^ { case li => "[ " + li.mkString(",") + " ]" }
+  def jarray: Parser[Expr] = "[" ~ ows ~> repsep(ows ~> jexpr <~ ows, ",") <~ ows ~ "]" ^^ {
+    case li => JArrExpr(li) //CExpr("[ " + li.mkString(",") + " ]")
+  }
 
-  def jexpr: Parser[String] = jobj | jarray | jother ^^ { case ex => ex.toString }
+  def jexpr: Parser[Expr] = jobj | jarray | jother ^^ { case ex => ex } //ex.toString }
 
-  def jother: Parser[String] = "[^{}\\[\\],]+".r ^^ { case ex => ex }
+//  def jother: Parser[String] = "[^{}\\[\\],]+".r ^^ { case ex => ex }
+  def jother: Parser[Expr] = expr ^^ { case ex => ex }
 
   // a number
   def numexpr: Parser[Expr] = (afloat | aint ) ^^ { case i => new CExpr(i, WTypes.NUMBER) }

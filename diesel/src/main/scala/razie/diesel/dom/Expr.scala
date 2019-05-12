@@ -7,7 +7,9 @@ import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.exec.EEFunc
 import razie.diesel.ext.CanHtml
 import razie.wiki.parser.SimpleExprParser
+
 import scala.collection.mutable
+import scala.util.parsing.json.JSONArray
 
 //------------ expressions and conditions
 
@@ -118,7 +120,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
                 ctx.getp(bid).exists(_.ttype == WTypes.JSON) =>
             PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.JSON)
 
-          case _ if isNum(a) => {
+          case _ if isNum(a) && isNum (b) => {
             // if a is num, b will be converted to num
             val as = a(v).toString
             if (as.contains(".")) {
@@ -305,7 +307,7 @@ case class CExpr[T](ee: T, ttype: String = "") extends Expr {
 
   override def toDsl = if (ttype == "String") ("\"" + expr + "\"") else expr
   override def getType: String = ttype
-  override def toHtml = tokenValue(toDsl)
+  override def toHtml = tokenValue(escapeHtml(toDsl))
 }
 
 /** arithmetic expressions */
@@ -352,13 +354,44 @@ case class SCExpr(s: String) extends Expr {
 }
 
 /** a json block */
-case class JBlockExpr(ex: String) extends Expr {
-  val expr = "{ " + ex.toString + " }"
+case class JBlockExpr(ex: List[(String, Expr)]) extends Expr {
+  val expr = "{" + ex.map(t=>t._1 + ":" + t._2.toString).mkString(",") + "}"
 
   override def apply(v: Any)(implicit ctx: ECtx) = {
-    val orig = template(expr)
+//    val orig = template(expr)
+    val orig = ex
+      .map(t=> (t._1, t._2.apply(v)))
+      .map(t=> (t._1, t._2 match {
+        case i:Int => i
+        case i:Double => i
+        case i:String if i.trim.startsWith("[") && i.trim.endsWith("]") => i
+        case i:String if i.trim.startsWith("{") && i.trim.endsWith("}") => i
+        case i:String => "\"" + i + "\""
+      }))
+      .map(t=> s""" "${t._1}" : ${t._2} """)
+      .mkString(",")
     // parse and clean it up so it blows up right here if invalid
-    new JSONObject(orig).toString()
+    new JSONObject(s"{$orig}").toString(2)
+  }
+
+  override def getType: String = WTypes.JSON
+
+  // replace ${e} with value
+  def template(s: String)(implicit ctx: ECtx) = {
+
+    EESnakk.prepStr2(s, Nil)
+  }
+}
+
+/** a json block */
+case class JArrExpr(ex: List[Expr]) extends Expr {
+  val expr = "[" + ex.mkString(",") + "]"
+
+  override def apply(v: Any)(implicit ctx: ECtx) = {
+//    val orig = template(expr)
+    val orig = ex.map(_.apply(v)).mkString(",")
+    // parse and clean it up so it blows up right here if invalid
+    new org.json.JSONArray(s"[$orig]").toString()
   }
 
   override def getType: String = WTypes.JSON
