@@ -90,6 +90,10 @@ object DieselMsg {
 
   final val WIKI_UPDATED = "$msg rk.wiki.updated"
 
+  object REALM {
+    final val ENTITY = "diesel.realm"
+    final val LOADED = "loaded"
+  }
   object GUARDIAN {
     final val ENTITY = "diesel.guardian"
 

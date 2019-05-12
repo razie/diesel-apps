@@ -6,9 +6,11 @@
  */
 package razie.diesel.engine
 
+import org.apache.commons.logging.LogFactory
 import org.bson.types.ObjectId
 import org.joda.time.DateTime
-import razie.{clog, js}
+import org.slf4j.LoggerFactory
+import razie.{Logging, cdebug, clog, js}
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom.{DomState, RDomain, _}
 import razie.diesel.engine.RDExt._
@@ -45,12 +47,18 @@ class DomEngine(
   val settings: DomEngineSettings,
   val pages : List[DSpec],
   val description:String,
-  val id:String = new ObjectId().toString) {
+  val id:String = new ObjectId().toString) extends Logging {
 
   assert(settings.realm.isDefined, "need realm defined for engine settings")
 
   var status = DomState.INIT
   var synchronous = false
+  var seqNo = 0 // each node being processed in sequence, gets a stamp here, so you can debug what runs in parallel
+  def seq() = {
+    val t = seqNo
+    seqNo = seqNo +1
+    t
+  }
 
   val maxLevels = 25
 
@@ -152,7 +160,7 @@ class DomEngine(
   /** stop me now */
   def stopNow = {
       status = DomState.DONE
-      clog << "DomEng "+id+" stopNow"
+      trace("DomEng "+id+" stopNow")
       DomCollector.collectAst ("engine", settings.realm.mkString, id, settings.userId, this)
       finishP.success(this)
       DieselAppContext.stopActor(id)
@@ -171,8 +179,9 @@ class DomEngine(
   // completed a node - udpate stat
   def done(a: DomAst, level:Int=1): List[DEMsg] = {
     evChangeStatus(a, DomState.DONE)
+    a.end
 
-    clog << "DomEng "+id+("  " * level)+" done " + a.value
+    trace("DomEng "+id+("  " * level)+" done " + a.value)
 
     // parent status update
 
@@ -272,8 +281,9 @@ class DomEngine(
     */
   def req(a: DomAst, recurse: Boolean = true, level: Int): Unit = {
     evChangeStatus(a, DomState.STARTED)
+    a.start(seq())
 
-    clog << "DomEng "+id+("  " * level)+" expand " + a.value
+    trace("DomEng "+id+("  " * level)+" expand " + a.value)
     var msgs = Try {
       expand(a, recurse, level + 1)
     }.recover {
@@ -332,6 +342,7 @@ class DomEngine(
 
     if(res.size > 0) {
       evChangeStatus(node, DomState.STARTED)
+      node.end
     } else {
       if(node.status != DomState.DONE)
         // call only when transitioning to DONE
@@ -342,7 +353,7 @@ class DomEngine(
 
     if(root.status == DomState.DONE && status != DomState.DONE) {
       status = DomState.DONE
-      clog << "DomEng "+id+" finish"
+      trace("DomEng "+id+" finish")
       DomCollector.collectAst ("engine", settings.realm.mkString, id, settings.userId, this)
       finishP.success(this)
       DieselAppContext.activeActors.get(id).map(_ ! DEStop) // stop the actor and remove engine
@@ -370,6 +381,7 @@ class DomEngine(
     Future {
       root.status = DomState.STARTED
       this.status = DomState.STARTED
+      root.start(seq())
 
       prepRoot(
         root
@@ -388,9 +400,10 @@ class DomEngine(
   def process : Future[DomEngine] = {
     if(root.status != DomState.STARTED) {
 
-      clog << "DomEng " + id + " process"
+      trace( "DomEng " + id + " process root: " + root.value)
       root.status = DomState.STARTED
       this.status = DomState.STARTED
+      root.start(seq())
 
       // async start
       //    val msgs = root.children.toList.map{x=>
@@ -631,9 +644,10 @@ class DomEngine(
 
     ctx = new StaticECtx(n.attrs, Some(parentCtx), Some(a))
 
-    // 1. look for mocks
+    // 1. engine message?
     var mocked = expandEngineEMsg(a, n)
 
+    // 1. if not, look for mocks
     if (settings.mockMode) {
       (root.collect {
         // mocks from story AST
@@ -651,7 +665,6 @@ class DomEngine(
     }
 
     // 2. rules
-
     var ruled = false
     // no engine messages fit, so let's find rules
     // I run rules even if mocks fit - mocking mocks only going out, not decomposing
@@ -672,7 +685,8 @@ class DomEngine(
     // todo now I run only if nothing else fits
     if (!mocked && !ruled && !settings.simMode) {
       Executors.all.filter { x =>
-        // todo inconsistency: I am running rules if no mocks fit, so I should also run any executor ??? or only the isMocks???
+        // todo inconsistency: I am running rules if no mocks fit, so I should also run
+        //  any executor ??? or only the isMocks???
         (true /*!settings.mockMode || x.isMock*/) && x.test(n)
       }.map { r =>
         mocked = true
@@ -730,25 +744,30 @@ class DomEngine(
 
       // nothing matched ?
       if(!mocked && newNodes.isEmpty) {
-        clog << "NO matches: " + in.toString
-
         // change the nodes' color to warning and add an ignorable warning
         import EMsg._
         a.value match {
-          case m: EMsg => findParent(a).foreach { parent =>
+          case m: EMsg => //findParent(a).foreach { parent =>
             a.value = m.copy(
                 stype = s"${m.stype},$WARNING"
               ).copiedFrom(m)
 //            parent.children.update(parent.children.indexWhere(_ eq initialA), a)
-          }
+          //}
         }
 
-        a.children append DomAst(
-          EWarning(
-            "No rules, mocks or executors match for " + in.toString,
-            "Review your engine configuration (blender, mocks, drafts, tags), " +
-              "spelling of messages or rule clauses / pattern matches"),
-          AstKinds.DEBUG)
+        val ms = n.entity + "." + n.met
+        if(!ms.startsWith("diesel.") &&
+//          ms != "diesel.before" &&
+//              ms != "diesel.after" &&
+//              ms != "diesel.guardian.poll"
+        true
+        )
+          a.children append DomAst(
+            EWarning(
+              "No rules, mocks or executors match for " + in.toString,
+              "Review your engine configuration (blender, mocks, drafts, tags), " +
+                "spelling of messages or rule clauses / pattern matches"),
+            AstKinds.DEBUG)
       }
     }
 

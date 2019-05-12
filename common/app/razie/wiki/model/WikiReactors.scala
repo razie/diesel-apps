@@ -14,7 +14,9 @@ import razie.{Logging, clog}
 import razie.db.RazMongo
 import razie.db.RazSalatContext._
 import razie.diesel.engine.DieselAppContext
+import razie.diesel.model.{DieselMsg, DieselTarget, ScheduledDieselMsg}
 import razie.hosting.Website
+import razie.tconf.SpecPath
 import razie.wiki.util.DslProps
 import razie.wiki.{Services, WikiConfig}
 
@@ -134,12 +136,20 @@ object WikiReactors extends Logging {
         // todo smarter linearization of mixins
         copy.foreach { we =>
           val mixins = getMixins(Some(we))
+          val realm = we.wid.name
 
           if (mixins.foldLeft(true) { (a, b) => a && lowerCase.contains(b.toLowerCase) }) {
             // all mixins are loaded, go ahead
-            clog << "LOADING REACTOR " + we.wid.name
+            clog << "LOADING REACTOR " + realm
             reactors.put(we.name, Services.mkReactor(we.name, mixins.toList.map(x => reactors(x)), Some(we)))
             lowerCase.put(we.name.toLowerCase, we.name)
+
+            Services ! ScheduledDieselMsg("10 seconds", DieselMsg(
+              DieselMsg.REALM.ENTITY,
+              DieselMsg.REALM.LOADED,
+              Map("realm" -> realm),
+              DieselTarget.ENV(realm)
+            ))
           } else {
             clog << s"NEED TO LOAD LATER REACTOR ${we.wid.name} depends on ${mixins.mkString(",")}"
             toLoad appendAll mixins.filterNot(x => lowerCase.contains(x.toLowerCase)).map(allReactors.apply)

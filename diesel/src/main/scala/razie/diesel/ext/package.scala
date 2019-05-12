@@ -2,6 +2,7 @@ package razie.diesel
 
 import razie.diesel.dom._
 import razie.diesel.dom.RDOM.{P, PM}
+import razie.diesel.engine.EContent
 import razie.wiki.Enc
 
 import scala.collection.mutable
@@ -117,6 +118,16 @@ package object ext {
     in.name == pm.name && {
       val r = new BCMP2(in.valExpr, pm.op, pm.valExpr).apply("")
 
+      // for regex matches, use each capture group and set as parm in context
+      if(pm.op == "~=") {
+        // extract parms
+        val a = in.valExpr.apply("")
+        val b = pm.valExpr.apply("")
+        val groups = EContent.extractRegexParms(b.toString, a.toString)
+
+        groups.foreach(t=> ctx.put(P(t._1, t._2)))
+      }
+
       if(! r) {
 //         name found but no value match - mark the name
       }
@@ -186,15 +197,16 @@ package object ext {
     def pos : Option[EPos]
 
     /** key span with possible link. pass None to not have a link */
-    def kspan(s: String, k: String = "default", overwritePos:Option[EPos] = Some(EPos.EMPTY), title:Option[String]=None) = {
+    def kspan(s: String, k: String = "default", overwritePos:Option[EPos] = Some(EPos.EMPTY), title:Option[String]=None, kind:Option[String]=None) = {
       val actualPos = if(overwritePos.exists(_.isEmpty)) pos else overwritePos
       def mkref: String = actualPos.map(_.toRef).mkString
       val t = title.map(CanHtml.prepTitle)
+      val kin = kind.map(k=> s"""kind="${k}"""").mkString
 
       actualPos.map(p =>
-        s"""<span onclick="$mkref" style="cursor:pointer" class="label label-$k" ${t.mkString}>$s</span>&nbsp;"""
+        s"""<span $kin posw="${p.wpath}" posr="${p.line}" onclick="$mkref" style="cursor:pointer" class="label label-$k" ${t.mkString}>$s</span>&nbsp;"""
       ) getOrElse
-        s"""<span class="label label-$k" ${t.mkString}>$s</span>&nbsp;"""
+        s"""<span $kin class="label label-$k" ${t.mkString}>$s</span>&nbsp;"""
     }
   }
 
