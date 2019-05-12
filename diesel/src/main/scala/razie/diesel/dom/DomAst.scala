@@ -7,9 +7,9 @@
 package razie.diesel.dom
 
 import org.bson.types.ObjectId
-import razie.diesel.engine.RDExt.{StoryNode, TestResult}
+import razie.diesel.engine.RDExt.TestResult
 import razie.diesel.ext._
-
+import razie.diesel.ext.EnginePrep.StoryNode
 import scala.collection.mutable.ListBuffer
 import razie.diesel.utils.DomHtml.quickBadge
 
@@ -98,6 +98,19 @@ case class DomAst(
   def status:String = istatus
   def status_=(s:String) = istatus = s
 
+  var tstart:Long = System.currentTimeMillis()
+  var tend:Long = System.currentTimeMillis()
+  var seqNo:Long = -1
+
+  def start(seq:Long) = {
+    tstart = System.currentTimeMillis()
+    seqNo = seq
+  }
+
+  def end = {
+    tend = System.currentTimeMillis()
+  }
+
   var moreDetails = " "
   var specs: List[Any] = Nil
   var prereq: List[String] = Nil
@@ -144,7 +157,7 @@ case class DomAst(
   def meTos(level: Int, html:Boolean): String = {
 
     def theKind =
-      if(html) s"""<span title="$kind">${kind.take(3)}</span>"""
+      if(html) s"""<span seqNo="$seqNo" id="$id" prereq="${prereq.mkString(",")}" title="$kind">${kind.take(3)}</span>"""
       else kind
 
     (" " * level) +
@@ -193,7 +206,6 @@ case class DomAst(
   type HasJ = {def toj : Map[String,Any]}
 
   def toj : Map[String,Any] = {
-    razie.clog << "VALUE CLASS "+value.getClass.getSimpleName
     Map (
       "class" -> "DomAst",
       "kind" -> kind,

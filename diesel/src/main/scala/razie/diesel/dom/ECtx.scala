@@ -1,6 +1,6 @@
 package razie.diesel.dom
 
-import razie.cdebug
+import razie.{cdebug, clog}
 import razie.diesel.dom.RDOM.P
 import razie.diesel.engine.DomEngECtx
 import razie.diesel.ext.EVal
@@ -70,7 +70,12 @@ trait ECtx {
             if(p.flatMap(_.value).exists(_.isInstanceOf[Map[String,_]]))
               p.flatMap(_.value).map(_.asInstanceOf[Map[String,_]])
           else {
-            p.map(_.dflt).map(razie.js.parse)
+              // if json try to parse it
+            p.map(_.dflt).map{v=>
+              if(v.trim.startsWith("{"))
+                razie.js.parse(v)
+              else Map.empty
+            }
             }
           m
         }.recover {
@@ -182,23 +187,20 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
 
   def root: DomEngECtx = base.map(_.root).getOrElse(this).asInstanceOf[DomEngECtx]
 
-  override def toString =
-    cur.mkString(",") + attrs.mkString(",") + base.map(_.toString).mkString
+  override def toString = this.getClass.getSimpleName + ":cur==" +
+    cur.mkString(",") + ":attrs==" + attrs.mkString(",") //+ base.map(_.toString).mkString
 }
 
 /** static context will delegate updates to parent - good as temporary override when evaluating a message */
 class StaticECtx(cur: List[P] = Nil, base: Option[ECtx] = None, curNode:Option[DomAst]=None) extends SimpleECtx(cur, base, curNode) {
 
-  // check for overwriting values - not always, just for put, eh?
-//  cur.filter(p=> base.exists(_.getp(p.name).isDefined)).map { p =>
-//    razie.Log.warn("WARNING_OVERWRITE at ctor - you may be overwriting side-effects: "+p.name)
-//  }
-
   // check for overwriting values
+  // todo if i'm in a message, this will always be the case - why am I alarming?
+  // todo and who can see it? it can't be in the logs...
   private def check (p:P) = {
-    if(cur.exists(_.name == p.name)) {
-      razie.Log.warn("WARNING_OVERWRITE at put - you may be overwriting side-effects: "+p.name)
-    }
+//    if(cur.exists(_.name == p.name)) {
+//      razie.Log.warn("WARNING_OVERWRITE at put - you may be overwriting side-effects: "+p.name)
+//    }
   }
 
   //todo should I throw up if no base?
@@ -216,6 +218,8 @@ class StaticECtx(cur: List[P] = Nil, base: Option[ECtx] = None, curNode:Option[D
   override def clear = {
     base.map(_.clear)
   }
+
+  override def toString = this.getClass.getSimpleName + ":" + cur.mkString //+ "\n base: " +base.toString
 }
 
 /** context for an internal scope - parent is scope or Eng
@@ -236,6 +240,7 @@ class ScopeECtx(cur: List[P] = Nil, base: Option[ECtx] = None, curNode:Option[Do
     // don't cascade to base
   }
 
+  override def toString = this.getClass.getSimpleName + ":" + cur.mkString// + "\n base: " +base.toString
 }
 
 object ECtx {

@@ -1,9 +1,11 @@
 package razie.diesel.engine
 
+import api.dwix
 import org.bson.types.ObjectId
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom.{ECtx, RDomain, SimpleECtx}
 import razie.tconf.DSpec
+import razie.wiki.model.WikiUsers
 
 /** specific root context for an enging instance
   *
@@ -54,7 +56,31 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
     case "DIESEL_UID" => Some(uid)
     case "DIESEL_MILLIS" => Some(millis)
     case "DIESEL_CURMILLIS" => Some(P("DIESEL_CURMILLIS", System.currentTimeMillis().toString))
+    case "diesel.env" => Some(P("diesel.env", dieselEnv(this)))
+    case "diesel.user" => Some(P("diesel.user", dieselUser(this)))
     case _ => None
+  }
+
+  // figure out the environment for this user
+  def dieselEnv(ctx:ECtx) = {
+    val root = ctx.root
+    val settings = root.engine.map(_.settings)
+    val au = settings
+      .flatMap(_.userId)
+      .map(new ObjectId(_))
+      .flatMap(WikiUsers.impl.findUserById)
+
+    dwix.dieselEnvFor(settings.flatMap(_.realm).mkString, au)
+  }
+
+  // figure out the environment for this user
+  def dieselUser(ctx:ECtx) = {
+    val root = ctx.root
+    val settings = root.engine.map(_.settings)
+    val au = settings
+      .flatMap(_.userId)
+
+    au.mkString
   }
 
   /** source from settings - only if there's some value... otherwise base won't cascade */
@@ -73,4 +99,7 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
     this.overwritten.map(_.clear)
     this.base.map(_.clear)
   }
+
+  override def toString = this.getClass.getSimpleName + ":cur==" +
+      cur.mkString(",") + ":attrs==" + attrs.mkString(",") //+ base.map(_.toString).mkString
 }

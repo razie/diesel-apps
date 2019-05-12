@@ -221,11 +221,19 @@ trait DomParser extends ParserBase with ExprParser {
     case s => s
   }
 
+  def pComment: Parser[String] = " *//.*".r ^^ {
+    case s => s
+  }
+
+  def optComment: Parser[String] = opt(pComment) ^^ {
+    case s => s.mkString
+  }
+
   /**
     * => z.role (attrs)
     */
   def pgen: Parser[EMap] =
-    ows ~> keyw(pArrow) ~ ows ~ opt(pif) ~ ows ~ (clsMet | justAttrs) <~ opt(";") ^^ {
+    ows ~> keyw(pArrow) ~ ows ~ opt(pif) ~ ows ~ (clsMet | justAttrs) <~ opt(";") <~ optComment ^^ {
       case arrow ~ _ ~ cond ~ _ ~ Tuple3(zc, zm, za) => {
         EMap(zc, zm, za, arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
         // EPos wpath set later
@@ -236,7 +244,7 @@ trait DomParser extends ParserBase with ExprParser {
     * - text - i.e. step description
     */
   def pgenStep: Parser[EMap] =
-    ows ~> keyw("-") ~ ows ~ opt(pif) ~ ows ~ "[^\n\r;]+".r <~ opt(";") ^^ {
+    ows ~> keyw("-") ~ ows ~ opt(pif) ~ ows ~ "[^\n\r;]+".r <~ opt(";") <~ optComment ^^ {
       case arrow ~ _ ~ cond ~ _ ~ desc => {
         EMap("diesel", "step", List(P("desc", desc)), arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
       }
