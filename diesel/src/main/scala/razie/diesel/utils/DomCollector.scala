@@ -9,22 +9,27 @@ package razie.diesel.utils
 import org.joda.time.DateTime
 import razie.diesel.engine.DomEngine
 import razie.diesel.ext.EMsg
+import razie.diesel.model.DieselMsg
 
 // todo make instance in Reactor instead of a static
 /** collects the last engine traces */
 object DomCollector {
 
   final val MAX_SIZE = 200 // how many to keep
-  final val MAX_SIZE_LOWER = 30 // how many to keep
+  final val MAX_SIZE_LOWER = 50 // how many to keep
 
   case class CollectedAst(stream:String, realm:String, id:String, userId:Option[String], engine:DomEngine, details:String, dtm:DateTime=DateTime.now) {
     def isLowerPriority = {
-      val first = engine.root.children.headOption.map(_.value).collect { case e:EMsg => e}
-      first.exists{m=>
-        val ea = m.ea
-        ea == "diesel.guardian.poll" ||
-        ea == "diesel.realm.loaded"
-      }
+      val desc = engine.description
+//      val first = engine.root.children.headOption.map(_.value).collect { case e:EMsg => e}
+//      first.exists{m=>
+//        val ea = m.ea
+//        ea.DieselMsg.GPOLL ||
+//        ea == DieselMsg.RLOADED
+//      } ||
+      desc.startsWith(DieselMsg.fiddleStoryUpdated) ||
+          desc.startsWith(DieselMsg.runDom+"$msg " + DieselMsg.RLOADED) ||
+          desc.startsWith(DieselMsg.runDom+"$msg " + DieselMsg.GPOLL)
     }
   }
 

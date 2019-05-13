@@ -90,6 +90,12 @@ object DieselMsg {
 
   final val WIKI_UPDATED = "$msg rk.wiki.updated"
 
+  final val GPOLL = "diesel.guardian.poll"
+  final val RLOADED = "diesel.realm.loaded"
+
+  final val irunDom = "irunDom:"
+  final val runDom = "runDom:"
+
   object REALM {
     final val ENTITY = "diesel.realm"
     final val LOADED = "loaded"
@@ -101,4 +107,7 @@ object DieselMsg {
     final val POLL = "poll"
     final val RUN = "run"
   }
+
+  final val fiddleStoryUpdated = "fiddleStoryUpdated"
+  final val fiddleSpecUpdated = "fiddleSpecUpdated"
 }

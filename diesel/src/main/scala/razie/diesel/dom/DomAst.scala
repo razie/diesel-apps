@@ -98,8 +98,11 @@ case class DomAst(
   def status:String = istatus
   def status_=(s:String) = istatus = s
 
+  /** timestamp started */
   var tstart:Long = System.currentTimeMillis()
+  /** timestamp started */
   var tend:Long = System.currentTimeMillis()
+  /** execution sequence number - an engine is a single sequence */
   var seqNo:Long = -1
 
   def start(seq:Long) = {
