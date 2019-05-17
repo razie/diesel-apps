@@ -619,8 +619,8 @@ object Wikis extends Logging with Validation {
   }
 
   // scaled down formatting of jsut some content
-  def sformat(content: String, markup:String="md", user:Option[WikiUser]=None) =
-    format (WID("1","2"), markup, content, None, user)
+  def sformat(content: String, markup:String="md", realm:String, user:Option[WikiUser]=None) =
+    format (WID("1","2").r(realm), markup, content, None, user)
 
   /** main formatting function
     *
