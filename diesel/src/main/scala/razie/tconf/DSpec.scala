@@ -77,11 +77,14 @@ trait DSpec {
   def allProps: Map[String, String]
 }
 
-/** a specification of a template */
+/** a specification of a template
+  * name = name
+  * parmStr = list of tags, really
+  */
 trait DTemplate {
   def name: String
   def content: String
-  def parmStr: String
+  def tags: String
   def specPath: TSpecPath
   def pos: EPos
   def parms: Map[String, String]

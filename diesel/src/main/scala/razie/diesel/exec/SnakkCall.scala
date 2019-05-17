@@ -35,6 +35,7 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
 
   def toSnakkRequest (id:String="") = SnakkRequest(protocol, method, url, headers, content, id)
 
+  // todo use the isurl, not the parameters passed in?
   def toCurl = {
     "curl -k " +
       ("-X " + method) +
@@ -44,12 +45,13 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
       (
         if(content != "") s" -d '$content' " else " "
       ) +
-    s"'$url'"
+    s"'${isurl.url.toString}'"
   }
 
   var pro : Option[Promise[SnakkResponse]] = None
 
-  var isurl: SnakkUrl = null
+  // todo this class won't work if this is not set from the outside - that's wrong and confusing, to say the least...
+  private var isurl: SnakkUrl = null
 
   def setUrl(u: SnakkUrl) = {
     isurl = u
@@ -71,7 +73,7 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
     // process result
     iContentType = conn.getHeaderField("Content-Type") match {
       case s if s != null && s.length > 0 => Some(s.toLowerCase)
-      case null => {
+      case "" | null => {
         // try to determine it
         if(ibody.exists(_.startsWith("<?xml"))) Some("application/xml")
         else if(ibody.exists(_.startsWith("{"))) Some("application/json")

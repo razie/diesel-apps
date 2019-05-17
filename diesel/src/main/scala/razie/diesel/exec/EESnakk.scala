@@ -7,7 +7,7 @@
 package mod.diesel.model.exec
 
 import java.net.{URI, URL}
-import com.razie.pub.comms.Comms
+import com.razie.pub.comms.{CommRtException, Comms}
 import razie.Snakk._
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
@@ -47,9 +47,11 @@ class EESnakk extends EExecutor("snakk") with Logging {
     m.entity == "snakk" && m.met == "ffdFormat" ||
     known(m.stype) ||
       spec(m).exists(m => known(m.stype) ||
+          // todo big performance issue - looking up templates for each message, called from expandEMsg
         ctx.findTemplate(m.entity + "." + m.met).exists(x=>
-          x.parmStr.startsWith("request") ||
-          x.parmStr.startsWith("response")
+          (x.tags.contains("request") ||
+          x.tags.contains("response")) &&
+              ! x.tags.contains("in")  // if tagged with in, don't match for out
         ))
   }
 
@@ -294,19 +296,31 @@ class EESnakk extends EExecutor("snakk") with Logging {
         val cause =
         if(t.getCause != null &&
           (t.getCause.isInstanceOf[java.net.SocketTimeoutException] ||
-          t.getCause.isInstanceOf[java.net.ConnectException])) {
+           t.getCause.isInstanceOf[java.net.ConnectException] ||
+          t.getCause.getClass.getCanonicalName.startsWith("java.net.") // why not all java.net ex - no point remembering the stack traces
+              )
+        ) {
           razie.Log.log("error snakking: " + t.getMessage + " cause: " + t.getCause.getMessage)
+          eres += new EError("Exception: ", t.getMessage) :: Nil
           t.getCause
+        } else if(
+          t.isInstanceOf[CommRtException] && t.asInstanceOf[CommRtException].httpCode > 0
+        ) {
+          razie.Log.log("error snakking: " + t.getMessage);
+          eres += new EError("Exception: " + Enc.escapeHtml(t.getMessage),
+            Enc.escapeHtml(t.asInstanceOf[CommRtException].details)
+          ) :: Nil
+          t
         } else {
           razie.Log.log("error snakking", t)
+          eres += new EError("Exception: ", t) :: Nil
           t
         }
 
         durationMillis = System.currentTimeMillis() - startMillis
         eres += EDuration(durationMillis)
 
-        eres += //EError("Error snakking: " + urlx, t.toString) ::
-          new EError("Exception : ", cause) ::
+        eres +=
           EInfo("Response: ", html(response)) ::
             // need to create a val - otherwise DomApi.rest returns the last Val
           EVal(P("snakk.error", html(cause.getMessage, 10000))) ::
@@ -401,7 +415,7 @@ object EESnakk {
 
   def relativeUrl(u:String)(implicit ctx:ECtx) =
     if (u startsWith "/") "http://" +
-      ctx.root.asInstanceOf[DomEngECtx].settings.hostport.mkString.mkString +
+      ctx.root.settings.hostport.mkString.mkString +
       u
     else u
 
@@ -478,7 +492,7 @@ object EESnakk {
     * @param content
     * @return
     */
-  def templateMatchesUrl (t:DTemplate, verb:String, path:String, content:String) = {
+  def templateMatchesUrl (t:DTemplate, verb:String, path:String, content:String): Option[Map[String,String]] = {
     val c = content.replaceFirst("^\n", "") // multiline template start with \n
 
     val v = c.split(" ").head
@@ -487,21 +501,32 @@ object EESnakk {
 
     // remove known prefixes for URL
     if(url.startsWith("/diesel/")) {
-      url = url.replaceFirst("/diesel/(mock|rest|wreact/[^/]+/react)/", "")
+      url = url.replaceFirst("/diesel/(mock|rest|wreact/[^/]+/react)", "")
     }
 
     // split in segments and match them - each segment to be the same or a variable
 
-    val t = url.split("/")
+    val t = url.split("[/.]")
     val p = path.split("[/.]") // todo I'm doing this because some places rely on react/class/action works as well as react/class.action
 
     val zipped = t.zip(p)
     val res = t.size == p.size && zipped.size == t.size && zipped.foldLeft(true)((x,y) => x && (y._1 == y._2 || y._1.startsWith("$")))
 
-    // maybe use a better matches below...
-//    a.zip(b).foldLeft(true)((a, b) => a && b._1 == b._2 || b._2.matches("""\$\{([^\}]*)\}"""))
+    // find the pairs
+    // todo this is not used - put them in the engine's main context?
+    val map =
+      if(res)
+        Some(
+          t
+              .zip(p)
+              .foldLeft(List.empty[(String,String)])((a, b) => if(b._1.matches("""\$\{([^\}]*)\}""")) (b._1, b._2) :: a else a )
+              .map (r=> (r._1.replaceAll("[${}]", ""), r._2))
+              .toMap
+        )
+      else
+        None
 
-    res
+    map
   }
 
   /** prepare the template content - expand $parm expressions */

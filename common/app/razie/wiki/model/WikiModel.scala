@@ -107,10 +107,12 @@ case class WikiEntry(
     *
     * from DSpec
     */
-  override def findTemplate(name: String, direction:String=""): Option[DTemplate] =
+  override def findTemplate(name: String, tags:String=""): Option[DTemplate] =
     this
       .templateSections
-      .filter(t=> t.name == name && (direction=="" || t.signature.startsWith(direction)))
+      .filter(t=>
+        t.name == name && (tags=="" || t.signature.startsWith(tags))
+      )
       .headOption
       .map {t=> new WikiDTemplate (t) }
 
@@ -413,6 +415,7 @@ case class WikiEntry(
   * {{stype name:signature args}}content{{/stype}}
   *
   * Note that the content will start with a \n if you use separate lines...
+  * todo signature is really tags, rename it
   */
 case class WikiSection(original:String, parent: WikiEntry, stype: String, name: String, signature: String, content: String, args:Map[String,String] = Map.empty) {
   var line : Int = -1
