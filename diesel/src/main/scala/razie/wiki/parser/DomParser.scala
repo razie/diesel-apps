@@ -299,8 +299,8 @@ trait DomParser extends ParserBase with ExprParser {
     * - others like model or impl are specific
     */
   def pwhen: PS =
-    keyw("""[.$]when|[.$]mock""".r) ~ ws ~ optArch ~ clsMatch ~ ws ~ opt(pif) ~ rep(pgen | pgenStep ) ^^ {
-      case k ~ _ ~ oarch ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ gens => {
+    keyw("""[.$]when|[.$]mock""".r) ~ ws ~ optArch ~ clsMatch ~ ws ~ opt(pif) ~ optComment ~ rep(pgen | pgenStep ) ^^ {
+      case k ~ _ ~ oarch ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ _ ~ gens => {
         lazys { (current, ctx) =>
           val x = EMatch(ac, am, aa, cond)
           val wpath = ctx.we.map(_.specPath.wpath).mkString
@@ -474,7 +474,7 @@ trait DomParser extends ParserBase with ExprParser {
     *
     * An NVP is either the spec or an instance of a function call, a message, a data object... whatever...
     */
-  def psend: PS = keyw("[.$]send *".r) ~ opt("<" ~> "[^>]+".r <~ "> *".r) ~ qclsMet ~ optAttrs ~ opt(" *: *".r ~> optAttrs) <~ " *".r ^^ {
+  def psend: PS = keyw("[.$]send *".r) ~ opt("<" ~> "[^>]+".r <~ "> *".r) ~ qclsMet ~ optAttrs ~ opt(" *: *".r ~> optAttrs) <~ " *".r <~ optComment ^^ {
     case k ~ stype ~ qcm ~ attrs ~ ret => {
       lazys { (current, ctx) =>
         val f = EMsg(qcm._1, qcm._2, attrs, "send", ret.toList.flatten(identity), stype.mkString.trim)
@@ -540,7 +540,7 @@ trait DomParser extends ParserBase with ExprParser {
   /**
     * .expect object.func (a,b)
     */
-  def pexpect: PS = keyw("[.$]expect".r <~ ws) ~ opt("not" <~ ws) ~ opt(qclsMet) ~ optMatchAttrs ~ " *".r ~ opt(pif) <~ " *".r ^^ {
+  def pexpect: PS = keyw("[.$]expect".r <~ ws) ~ opt("not" <~ ws) ~ opt(qclsMet) ~ optMatchAttrs ~ " *".r ~ opt(pif) <~ " *".r <~ optComment ^^ {
     case k ~ not ~ qcm ~ attrs ~ _ ~ cond => {
       lazys { (current, ctx) =>
         val pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
