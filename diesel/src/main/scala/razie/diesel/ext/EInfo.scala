@@ -38,11 +38,13 @@ case class EError(msg: String, details: String = "") extends CanHtml with HasPos
   }
 
   override def toHtml =
-    if (details.length > 0)
-      spanClick("fail-error::", "danger", details) + msg
-//      span("error::", "danger", details, "style=\"cursor:help\"") + " " + msg
-    else
-      span("fail-error::", "danger", details) + " " + msg
+    kspan("err", "default") +
+        (
+            if (details.length > 0)
+              spanClick("fail-error::", "danger", details) + msg
+            else
+              span("fail-error::", "danger", details) + " " + msg
+            )
 
   override def toString = "fail-error::" + msg
 }
