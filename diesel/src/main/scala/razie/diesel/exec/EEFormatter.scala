@@ -23,7 +23,7 @@ class EEFormatter extends EExecutor("formatter") {
   override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
     // is there a "result" type template?
     spec(m).exists(m => ctx.findTemplate(m.entity + "." + m.met).exists(x=>
-      x.parmStr.startsWith("result")
+      x.tags.contains("result")
     ))
   }
 

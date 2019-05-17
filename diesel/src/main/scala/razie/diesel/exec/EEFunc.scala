@@ -34,7 +34,6 @@ class EEFunc extends EExecutor("func") {
           val x = c.compileAll(c.not { case fx: RDOM.F if fx.name == f.name => true })
 
           // add this one, as an expression
-//          val s = x + "\n" + f.script
           var s = x + "\n" + c.compile(f)
 
           // call it
@@ -43,6 +42,7 @@ class EEFunc extends EExecutor("func") {
           val q = in.attrs.map(t => (t.name, t.dflt)).toMap
 
           val r = EEFunc.newestFiddle(s, "js", in.attrs, ctx)
+          r._3
         } else
           "ABSTRACT FUNC"
       } catch {

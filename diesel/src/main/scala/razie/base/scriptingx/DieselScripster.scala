@@ -23,7 +23,13 @@ import scala.util.Try
 object DieselScripster extends Logging {
 
  //todo deprecate - use EEFunc.newestFiddle(
-  def isfiddleMap(script: String, lang: String, q: Map[String, String], typed: Option[Map[String, Any]] = None, exprs:Map[String,String] = Map.empty, ctx:ECtx) =
+  def isfiddleMap(
+                     script: String,
+                     lang: String,
+                     q: Map[String, String],
+                     typed: Option[Map[String, Any]] = None,
+                     exprs:Map[String,String] = Map.empty,
+                     ctx:ECtx) =
     newsfiddleMap(script, lang, q, typed, false, exprs, ctx)
 
   /** run a fiddle with a map of arguments "queryParms"
@@ -37,7 +43,14 @@ object DieselScripster extends Logging {
     * @return (succ/fail, x.toString, x)
     */
   // todo protect calls to this
-  def newsfiddleMap(script: String, lang: String, q: Map[String, String], typed: Option[Map[String, Any]] = None, doAudit: Boolean = true, exprs:Map[String,String] = Map.empty, ctx:ECtx) : (Boolean, String, Any) = {
+  def newsfiddleMap(
+                       script: String,
+                       lang: String,
+                       q: Map[String, String],
+                       typed: Option[Map[String, Any]] = None,
+                       doAudit: Boolean = true,
+                       exprs:Map[String,String] = Map.empty,
+                       ctx:ECtx) : (Boolean, String, Any) = {
     val c = new CSTimer("script", "?")
     c.start()
 
@@ -96,8 +109,13 @@ object DieselScripster extends Logging {
         else
           (true, if (res != null) res.toString else "", res)
       } catch {
+        case t: javax.script.ScriptException => {
+          log(s"Exception while executing script: ${t.getMessage}\n${jscript.takeRight(300)}")
+          // don't include the script body - security issue
+          (false, t.toString, t)
+        }
         case t: Throwable => {
-          log(s"while executing script\n${jscript.takeRight(300)}", t)
+          log(s"Exception while executing script\n${jscript.takeRight(300)}", t)
           // don't include the script body - security issue
             (false, t.toString, t)
         }

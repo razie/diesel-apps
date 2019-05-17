@@ -287,10 +287,21 @@ class DomEngine(
     var msgs = Try {
       expand(a, recurse, level + 1)
     }.recover {
+      case t if t.isInstanceOf[javax.script.ScriptException] || t.isInstanceOf[DieselExprException] => {
+        info("Exception wile decompose() " + t.getMessage)
+        val err = DEError(this.id, t.toString)
+        val ast = DomAst(
+          new EError("Exception: " + t.getMessage)
+        ).withStatus(DomState.DONE)
+
+        evAppChildren(a, ast)
+        err :: done(ast, level+1)
+      }
       case t:Throwable => {
-        razie.Log.log("wile decompose()", t)
+        razie.Log.log("Exception wile decompose()", t)
         val err = DEError(this.id, t.toString)
         val ast = DomAst(new EError("Exception", t)).withStatus(DomState.DONE)
+
         evAppChildren(a, ast)
         err :: done(ast, level+1)
       }
@@ -477,7 +488,8 @@ class DomEngine(
         implicit val ctx = new StaticECtx(n1.parent.map(_.attrs).getOrElse(Nil), Some(this.ctx), Some(a))
 
         if(n1.test()) {
-          val newnode = DomAst(n1.evaluateMsg, AstKinds.GENERATED)
+          val newmsg = n1.evaluateMsg
+          val newnode = DomAst(newmsg, AstKinds.kindOf(newmsg.arch))
 //          a.children append newnode
           msgs = rep(a, recurse, level, List(newnode))
         }
@@ -486,7 +498,7 @@ class DomEngine(
 
       case x: EMsg if x.entity == "" && x.met == "" => {
         // just expressions, generate values from each attribute
-        appendVals (a, x, x.attrs, ctx)
+        appendVals (a, x, x.attrs, ctx, AstKinds.kindOf(x.arch))
       }
 
       case in: EMsg => {
@@ -533,11 +545,20 @@ class DomEngine(
     a.children appendAll attrs.map{p =>
       if(p.ttype == WTypes.EXCEPTION) {
         p.value.map {v=>
-          DomAst(new EError(p.dflt, v.value.asInstanceOf[Throwable]) withPos(x.pos), AstKinds.ERROR).withSpec(x)
-        } getOrElse
-          DomAst(EError(p.dflt) withPos(x.pos), AstKinds.ERROR).withSpec(x)
-      } else
-        DomAst(EVal(p) withPos(x.pos), kind).withSpec(x)
+          val err = if(v.value.isInstanceOf[javax.script.ScriptException]) {
+            // special handling of Script exceptions - no point showing stack trace
+            new EError("ScriptException: " + p.dflt + v.value.asInstanceOf[Throwable].getMessage)
+          } else {
+            new EError(p.dflt, v.value.asInstanceOf[Throwable])
+          }
+
+          DomAst(err.withPos(x.pos), AstKinds.ERROR).withSpec(x)
+        } getOrElse {
+          DomAst(EError(p.dflt) withPos (x.pos), AstKinds.ERROR).withSpec(x)
+        }
+      } else {
+        DomAst(EVal(p) withPos (x.pos), kind).withSpec(x)
+      }
     }
     appendToCtx putAll x.attrs
   }
@@ -684,6 +705,7 @@ class DomEngine(
     // todo WHY - I run snaks even if rules fit - but not if mocked
     // todo now I run only if nothing else fits
     if (!mocked && !ruled && !settings.simMode) {
+      // todo can I just take the first executor that works?
       Executors.all.filter { x =>
         // todo inconsistency: I am running rules if no mocks fit, so I should also run
         //  any executor ??? or only the isMocks???

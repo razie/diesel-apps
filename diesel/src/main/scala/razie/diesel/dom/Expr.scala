@@ -13,6 +13,8 @@ import scala.util.parsing.json.JSONArray
 
 //------------ expressions and conditions
 
+class DieselExprException (msg:String) extends RuntimeException
+
 /** deserialization is assumed via DSL
   *
   *  the idea is that all activities would have an external DSL form as well
@@ -168,13 +170,56 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
   }
 
   /** process a js operation like obja + objb */
+  // todo decide if we should do this
+  // todo this is not tested
+  def jsonExprNEW(op: String, aa: String, bb: String) = {
+//    val ai = new JSONObject (aa)
+    val bi = new JSONObject(bb)
+    val res = new JSONObject (aa)
+
+//    ai.foreach { t =>
+//      res.put(t._1, t._2)
+//    }
+
+    bi.keySet.toArray.foreach { kk =>
+      val k = kk.toString
+      val bv = bi.get(k)
+      if (res.has(k)) {
+        val ax = res.get(k)
+        ax match {
+          case al: JSONArray => {
+            bv match {
+              case bll:JSONArray =>
+                res.put(k, JSONArray(al.list ::: bll.list))
+              case _            =>
+                res.put(k, JSONArray(al.list ::: bv :: Nil))
+            }
+          }
+          case m: JSONObject => {
+            val mres = new JSONObject(m, m.keySet.toArray(Array[String]()))
+//            m.foreach { t =>
+//              mres.put(t._1.toString, t._2)
+//            }
+            res.put(k, mres)
+          }
+          case y @ _ => res.put(k, y.toString + bv.toString)
+        }
+      } else res.put(k, bv)
+    }
+//    razie.js.tojsons(res.toMap)
+    res.toString
+  }
+
+  /** process a js operation like obja + objb */
   def jsonExpr(op: String, aa: String, bb: String) = {
     val ai = razie.js.parse(aa)
     val bi = razie.js.parse(bb)
     val res = new mutable.HashMap[String, Any]()
+
     ai.foreach { t =>
       res.put(t._1, t._2)
     }
+
     bi.foreach { t =>
       val k = t._1
       val bv = t._2
@@ -194,7 +239,12 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
             }
             res.put(k, mres)
           }
-          case y @ _ => res.put(k, y.toString + bv.toString)
+          case y @ _ => {
+            (y, bv) match {
+              case (a:Int, b:Int) => res.put(k, a+b)
+              case _ => res.put(k, y.toString + bv.toString)
+            }
+          }
         }
       } else res.put(k, bv)
     }
@@ -226,18 +276,18 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
               val sz = pv.value.asInstanceOf[List[_]].size
               P("", sz.toString, WTypes.NUMBER).withValue(sz, WTypes.NUMBER)
             } else {
-              throw new IllegalArgumentException(
+              throw new DieselExprException(
                 "Not array: " + p.name + " is:" + pv.toString
               )
             }
           }
           .getOrElse(
-            throw new IllegalArgumentException("No arguments for sizeOf")
+            throw new DieselExprException("No arguments for sizeOf")
           )
       }
 
       case _ =>
-        throw new IllegalArgumentException("Function not found: " + expr)
+        throw new DieselExprException("Function not found: " + expr)
     }
 
   }
@@ -296,7 +346,7 @@ case class CExpr[T](ee: T, ttype: String = "") extends Expr {
           })
         } catch {
           case e: Exception =>
-            throw new IllegalArgumentException(s"REGEX err for $es ")
+            throw new DieselExprException(s"REGEX err for $es ")
               .initCause(e)
         }
         P("", s1, ttype)
@@ -335,7 +385,7 @@ case class JSSExpr(s: String) extends Expr {
     EEFunc.execute(s) //.dflt
 
   override def applyTyped(v: Any)(implicit ctx: ECtx): P = {
-    EEFunc.executeTyped(s)
+      EEFunc.executeTyped(s)
   }
 }
 
@@ -360,13 +410,17 @@ case class JBlockExpr(ex: List[(String, Expr)]) extends Expr {
   override def apply(v: Any)(implicit ctx: ECtx) = {
 //    val orig = template(expr)
     val orig = ex
-      .map(t=> (t._1, t._2.apply(v)))
+      .map(t=> (t._1, t._2.applyTyped(v)))
       .map(t=> (t._1, t._2 match {
-        case i:Int => i
-        case i:Double => i
-        case i:String if i.trim.startsWith("[") && i.trim.endsWith("]") => i
-        case i:String if i.trim.startsWith("{") && i.trim.endsWith("}") => i
-        case i:String => "\"" + i + "\""
+        case p@P(n,d,WTypes.NUMBER, _, _, _, Some(PValue(i:Int, _))) => i
+        case p@P(n,d,WTypes.NUMBER, _, _, _, Some(PValue(i:Double, _))) => i
+
+        case p:P => p.dflt match {
+          case i: String if i.trim.startsWith("[") && i.trim.endsWith("]") => i
+          case i: String if i.trim.startsWith("{") && i.trim.endsWith("}") => i
+          case i: String => "\"" + i + "\""
+        }
+
       }))
       .map(t=> s""" "${t._1}" : ${t._2} """)
       .mkString(",")
@@ -583,7 +637,7 @@ case class BCMPSingle(a: Expr) extends BExpr(a.toDsl) {
     a.getType match {
 
       case WTypes.NUMBER => {
-        throw new IllegalArgumentException("Found :number expected :boolean")
+        throw new DieselExprException("Found :number expected :boolean")
       }
 
       case WTypes.BOOLEAN => {
@@ -604,7 +658,7 @@ case class BCMPSingle(a: Expr) extends BExpr(a.toDsl) {
         in.ttype match {
 
           case WTypes.NUMBER => {
-            throw new IllegalArgumentException(
+            throw new DieselExprException(
               "Found :number expected :boolean"
             )
           }
@@ -624,7 +678,7 @@ case class BCMPSingle(a: Expr) extends BExpr(a.toDsl) {
           case s @ _ => {
             val t = if (s.length > 0) s else ":unknown"
             clog << (s"Found $t expected :boolean")
-            throw new IllegalArgumentException(
+            throw new DieselExprException(
               s"Found $t expected :boolean details: ($a)"
             )
           }
