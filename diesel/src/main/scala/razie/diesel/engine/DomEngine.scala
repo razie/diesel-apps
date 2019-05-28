@@ -929,11 +929,16 @@ class DomEngine(
         }
 
         // include the message's values in its context
-        val newctx = new StaticECtx(n.value.asInstanceOf[EMsg].attrs, Some(ctx), Some(n))
+        def newctx = new StaticECtx(n.value.asInstanceOf[EMsg].attrs, Some(ctx), Some(n))
 
         val values = vvals.map(_.value.asInstanceOf[EVal].p)
 
-        if (vvals.size > 0 &&
+        if (!n.value.isInstanceOf[EMsg]) {
+          a.children append DomAst(
+            TestResult("fail", "Target not a message - did something run?").withPos(e.pos),
+            AstKinds.TEST
+          ).withSpec(e)
+        } else if (vvals.size > 0 &&
           !e.applicable(values)(newctx)) {
           a.children append DomAst(
             TestResult("n/a").withPos(e.pos),

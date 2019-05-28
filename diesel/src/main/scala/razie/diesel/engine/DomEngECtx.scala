@@ -45,7 +45,10 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
   override def root = overwritten.map(_.root).getOrElse(super.root)
 
   override def exists(f: scala.Function1[P, scala.Boolean]): scala.Boolean =
-    overwritten.map(_.exists(f)).orElse(settings.postedContent.map(_.exists(f))).getOrElse(super.exists(f))
+    overwritten
+        .map(_.exists(f))
+        .orElse(settings.postedContent.map(_.exists(f)))
+        .getOrElse(super.exists(f))
 
   // uniques
   val uid = P("DIESEL_UID", new ObjectId().toString)
@@ -56,7 +59,8 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
     case "DIESEL_UID" => Some(uid)
     case "DIESEL_MILLIS" => Some(millis)
     case "DIESEL_CURMILLIS" => Some(P("DIESEL_CURMILLIS", System.currentTimeMillis().toString))
-    case "diesel.env" => Some(P("diesel.env", dieselEnv(this)))
+      // allow setting this
+    case "diesel.env" => super.getp(s).orElse(Some(P("diesel.env", dieselEnv(this))))
     case "diesel.user" => Some(P("diesel.user", dieselUser(this)))
     case _ => None
   }

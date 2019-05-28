@@ -540,12 +540,12 @@ trait DomParser extends ParserBase with ExprParser {
   /**
     * .expect object.func (a,b)
     */
-  def pexpect: PS = keyw("[.$]expect".r <~ ws) ~ opt("not" <~ ws) ~ opt(qclsMet) ~ optMatchAttrs ~ " *".r ~ opt(pif) <~ " *".r <~ optComment ^^ {
-    case k ~ not ~ qcm ~ attrs ~ _ ~ cond => {
+  def pexpect: PS = keyw("[.$]expect".r <~ ws) ~ opt("not" <~ ws) ~ opt(pif) ~ ows ~ opt(qclsMet) ~ optMatchAttrs ~ " *".r ~ opt(pif) <~ " *".r <~ optComment ^^ {
+    case k ~ not ~ pif ~ _ ~ qcm ~ attrs ~ _ ~ cond => {
       lazys { (current, ctx) =>
         val pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
         val f = qcm.map(qcm =>
-          ExpectM(not.isDefined, EMatch(qcm._1, qcm._2, attrs, cond)).withPos(pos))
+          ExpectM(not.isDefined, pif, EMatch(qcm._1, qcm._2, attrs, cond)).withPos(pos))
           .getOrElse(ExpectV(not.isDefined, attrs, cond).withPos(pos))
         collectDom(f, ctx.we)
         StrAstNode(f.toHtml + "<br>")

@@ -1,6 +1,9 @@
 package razie.diesel.model
 
+import org.scalatest.selenium.WebBrowser.TagNameQuery
+import razie.diesel.dom.WikiDomain
 import razie.tconf.{SpecPath, TSpecPath}
+import razie.wiki.model.{TagQuery, WikiSearch}
 
 /** a message string - send these to Services to have them executed
   *
@@ -22,6 +25,9 @@ case class DieselMsgString(msg: String,
 
   def withContext(p: Map[String, String]) = this.copy(ctxParms = ctxParms ++ p)
 }
+
+/** schedule a message for later - send this to Services */
+case class ScheduledDieselMsg(schedule: String, msg: DieselMsg) {}
 
 /** a target for a message: either a specified list of config, or a realm
   *
@@ -55,21 +61,35 @@ case class DieselMsg(e: String,
   )
 }
 
-/** schedule a message for later - send this to Services */
-case class ScheduledDieselMsg(schedule: String, msg: DieselMsg) {}
-
 object DieselTarget {
+
+  def ENV_SETTINGS(realm:String) = SpecPath("", realm + ".Spec:EnvironmentSettings", realm)
+
   /** the environment settings - most common target */
-  def from (realm:String, sp:List[TSpecPath], st:List[TSpecPath]) =
-    new DieselTarget(realm) {
-      override def specs = sp
-      override def stories = st
-    }
+  def from (realm:String, specs:List[TSpecPath], stories:List[TSpecPath]) =
+    new DieselTargetList(realm, specs, stories)
 
   /** the environment settings - most common target */
   def ENV (realm:String) =
     new DieselTarget(realm) {
-      override def specs = List(SpecPath("", realm + ".Spec:EnvironmentSettings", realm))
+      override def specs = List(ENV_SETTINGS(realm))
+    }
+
+  /** the environment settings - most common target */
+  def TQSPECS (realm:String, tq:TagQuery) =
+    new DieselTarget(realm) {
+
+      override def specs = {
+        val irdom = WikiSearch.getList(realm, "", "", tq.and("spec").tags)
+
+        ENV_SETTINGS(realm) :: irdom.map(_.wid.toSpecPath)
+      }
+
+      override def stories = {
+        val irdom = WikiSearch.getList(realm, "", "", tq.and("story").tags)
+
+        ENV_SETTINGS(realm) :: irdom.map(_.wid.toSpecPath)
+      }
     }
 
   /** the environment settings - most common target */
@@ -81,7 +101,10 @@ object DieselTarget {
 //    new DieselTarget(realm) {
 //      override def specs = TagQuery("spec")
 //    }
+
 }
+
+case class DieselTargetList(override val realm:String, override val specs:List[TSpecPath], override val stories:List[TSpecPath]) extends DieselTarget(realm)
 
 object DieselMsg {
   final val REALM_LOADED = "$msg diesel.realm.loaded"
