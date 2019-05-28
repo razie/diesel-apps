@@ -1,10 +1,11 @@
 package razie.diesel.dom
 
-import org.json.JSONObject
+import org.json.{JSONArray, JSONObject}
 import razie.diesel.engine.DomEngine
 import razie.diesel.ext.CanHtml
+import razie.js
+import razie.js.tojson
 import razie.wiki.Enc
-
 import scala.concurrent.Future
 
 /** expression types */
@@ -19,8 +20,12 @@ object WTypes {
   final val BOOLEAN="Boolean"
 
   final val XML="JSON"
-  final val JSON="JSON"
-  final val ARRAY="Array"
+  final val JSON="JSON" // see below
+//  val map =
+//    if(pv.value.isInstanceOf[String]) razie.js.parse(pv.value.toString)
+//    else pv.value.asInstanceOf[Map[String, Any]]
+
+  final val ARRAY="Array" //pv.value.asInstanceOf[List[_]]
 
   final val BYTES="Bytes"
 
@@ -133,6 +138,23 @@ object RDOM {
   case class PValue[T] (value:T, contentType:String = WTypes.UNKNOWN)
 
   type NVP = Map[String,String]
+
+  object P {
+    /** construct proper typed values */
+    def fromTypedValue(name:String, v:Any) = {
+      v match {
+        case i: Int => P(name, v.toString).withValue(i, WTypes.NUMBER)
+        case f: Float => P(name, v.toString).withValue(f, WTypes.NUMBER)
+        case d: Double => P(name, v.toString).withValue(d, WTypes.NUMBER)
+        case s: String => P(name, s, WTypes.STRING)
+        case s: Map[_, _] => P(name, js.tojsons(s, 2), WTypes.JSON).withValue(s, WTypes.JSON)
+        case s: List[_] => P(name, js.tojsons(s, 2), WTypes.ARRAY).withValue(s, WTypes.ARRAY)
+        case s: JSONObject => P(name, s.toString(2), WTypes.JSON).withValue(js.fromObject(s), WTypes.JSON)
+        case s: JSONArray => P(name, js.toString, WTypes.ARRAY).withValue(js.fromArray(s), WTypes.ARRAY)
+        case x@_ => P(name, x.toString, WTypes.UNKNOWN)
+      }
+    }
+  }
 
   /** represents a parameter/member/attribute
     *

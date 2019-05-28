@@ -352,6 +352,8 @@ object WID {
     def ver:Option[String] = None
     def draft:Option[String] = None
     def ahref:Option[String] = Some(wid.ahref)
+
+    override def toString = wid.toString
   }
 
   implicit def fromSpecPath (s:TSpecPath) : WID = fromPath(s.wpath).get

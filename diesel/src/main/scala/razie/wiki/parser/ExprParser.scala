@@ -16,14 +16,12 @@ import scala.util.parsing.combinator.RegexParsers
 /** expressions parser */
 trait ExprParser extends RegexParsers {
 
-  type P = Parser[String]
-
   def ws = whiteSpace
 
   def ows = opt(whiteSpace)
 
   /** a regular ident but also '...' */
-  def ident: P = """[a-zA-Z_][\w]*""".r | """'[\w@. -]+'""".r ^^ {
+  def ident: Parser[String] = """[a-zA-Z_][\w]*""".r | """'[\w@. -]+'""".r ^^ {
     case s =>
       if(s.startsWith("'") && s.endsWith("'"))
         s.substring(1, s.length-1)
@@ -32,35 +30,35 @@ trait ExprParser extends RegexParsers {
   }
 
   /** allow JSON ids with double quotes */
-  def jsonIdent: P = """[a-zA-Z_][\w]*""".r | """'[\w@. -]+'""".r | """"[\w@. -]+"""".r ^^ {
+  def jsonIdent: Parser[String] = """[a-zA-Z_][\w]*""".r | """'[\w@. -]+'""".r | """"[\w@. -]+"""".r ^^ {
     case s => unquote(s)
   }
 
-  def qident: P = ident ~ rep("." ~> ident) ^^ {
+  def qident: Parser[String] = ident ~ rep("." ~> ident) ^^ {
     case i ~ l => (i :: l).mkString(".")
   }
 
-  def boolConst: P = "true" | "false" ^^ {
+  def boolConst: Parser[String] = "true" | "false" ^^ {
     case b => b
   }
 
-  def xpath: P = ident ~ rep("[/@]+".r ~ ident) ^^ {
+  def xpath: Parser[String] = ident ~ rep("[/@]+".r ~ ident) ^^ {
     case i ~ l => (i :: l.map{x=>x._1+x._2}).mkString("")
   }
 
-  def any: P = """.*""".r
+  def any: Parser[String] = """.*""".r
 
   //todo full expr with +-/* and XP
-  def value: P = boolConst | qident | afloat | aint | str
+  def value: Parser[String] = boolConst | qident | afloat | aint | str
 
-  def aint: P = """-?\d+""".r
-  def afloat: P = """-?\d+[.]\d+""".r
+  def aint: Parser[String] = """-?\d+""".r
+  def afloat: Parser[String] = """-?\d+[.]\d+""".r
 
   // todo commented - if " not included in string, evaluation has trouble - see expr(s)
   // todo see stripq and remove it everywhere when quotes die and proper type inference is used
-  def str: P = "\"" ~> """[^"]*""".r <~ "\""
+  def str: Parser[String] = "\"" ~> """[^"]*""".r <~ "\""
 
-  //  def str: P = """"[^"]*"""".r
+  //  def str: PS = """"[^"]*"""".r
 
   //------------ expressions and conditions
 
@@ -75,11 +73,12 @@ trait ExprParser extends RegexParsers {
     )
   }
 
-  def pterm1: Parser[Expr] = numexpr | bcexpr | escexpr | cexpr | xpident | jsexpr1 | jsexpr2 | scexpr1 | scexpr2 | afunc | aident | jss | exregex | eblock | jarray | jobj
+  def pterm1: Parser[Expr] = numexpr | bcexpr | escexpr | cexpr | xpident | jsexpr1 | jsexpr2 | scexpr1 | scexpr2 | afunc | aidentaccess | aident | jsexpr3 | exregex | eblock | jarray | jobj
 
   def eblock: Parser[Expr] = "(" ~ ows ~> expr <~ ows ~ ")" ^^ { case ex => BlockExpr(ex) }
 
-  def jss: Parser[Expr] = "//" ~> ".*(?=//)".r <~ "//" ^^ { case li => JSSExpr(li) }
+  // inline js expr: //1+2//
+  def jsexpr3: Parser[Expr] = "//" ~> ".*(?=//)".r <~ "//" ^^ { case li => JSSExpr(li) }
 
   // json object
   def jobj: Parser[Expr] = "{" ~ ows ~> repsep(jnvp <~ ows, ",") <~ ows ~ "}" ^^ {
@@ -94,7 +93,7 @@ trait ExprParser extends RegexParsers {
       s
   }
 
-  def jnvp: Parser[(String, Expr)] = ows ~> jsonIdent ~ " *: *".r ~ jexpr ^^ {
+  def jnvp: Parser[(String, Expr)] = ows ~> jsonIdent ~ " *[:=] *".r ~ jexpr ^^ {
     case name ~ _ ~ ex =>  (unquote(name), ex)
   }
 
@@ -102,7 +101,11 @@ trait ExprParser extends RegexParsers {
     case li => JArrExpr(li) //CExpr("[ " + li.mkString(",") + " ]")
   }
 
-  def jexpr: Parser[Expr] = jobj | jarray | jother ^^ { case ex => ex } //ex.toString }
+  def jexpr: Parser[Expr] = jobj | jarray | jbool | jother ^^ { case ex => ex } //ex.toString }
+
+  def jbool: Parser[Expr] = ("true" | "false") ^^ {
+    case b => new CExpr(b, WTypes.BOOLEAN)
+  }
 
 //  def jother: Parser[String] = "[^{}\\[\\],]+".r ^^ { case ex => ex }
   def jother: Parser[Expr] = expr ^^ { case ex => ex }
@@ -124,9 +127,6 @@ trait ExprParser extends RegexParsers {
     case b => new CExpr(b, WTypes.BOOLEAN)
   }
 
-  // qualified identifier
-  def aident: Parser[Expr] = qident ^^ { case i => new AExprIdent(i) }
-
   // XP identifier (either json or xml)
   def xpident: Parser[Expr] = "xp:" ~> xpath ^^ { case i => new XPathIdent(i) }
 
@@ -139,6 +139,21 @@ trait ExprParser extends RegexParsers {
   // regular expression, JS style
   def exregex: Parser[Expr] =
     """/[^/]*/""".r ^^ { case x => new CExpr(x, WTypes.REGEX) }
+
+  //==================================== ACCESSORS
+
+  // qualified identifier
+  def aident: Parser[Expr] = qident ^^ { case i => new AExprIdent(i) }
+
+  // full accessor to value: a.b[4].c.r["field1"]["subfield2"][4].g
+  // note this kicks in at the first use of [] and continues... so that aident above catches all other
+  def aidentaccess: Parser[Expr] = qident ~ sqbraccess ~ accessors ^^ {
+    case i ~ sa ~ a => new AExprIdent(i, sa :: a)
+  }
+
+  def accessors: Parser[List[RDOM.P]] = rep(sqbraccess | accessorIdent)
+  def sqbraccess: Parser[RDOM.P] = " *\\[".r ~> ows ~> expr <~ ows <~ "]" ^^ {case e => P("", "").copy(expr=Some(e))}
+  def accessorIdent: Parser[RDOM.P] = ".".r ~> ident ^^ {case id => P("", id, WTypes.STRING)}
 
   //==================================== F U N C T I O N S
 

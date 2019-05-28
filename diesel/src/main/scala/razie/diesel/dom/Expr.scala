@@ -76,13 +76,13 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
     // resolve an expression to P with value and type
     def top(x: Expr): Option[P] = x match {
       case CExpr(aa, tt)   => Some(P("", aa.toString, tt).withValue(aa, tt))
-      case AExprIdent(aid) => ctx.getp(aid)
+      case aei:AExprIdent  => aei.tryApplyTyped(v)
       case _               => Some(P("", a(v).toString))
     }
 
     def isNum(x: Expr): Boolean = x match {
       case CExpr(_, WTypes.NUMBER) => true
-      case AExprIdent(aid)         => ctx.getp(aid).exists(_.ttype == WTypes.NUMBER)
+      case aei:AExprIdent          => aei.tryApplyTyped("").exists(_.ttype == WTypes.NUMBER)
       case _                       => false
     }
 
@@ -112,14 +112,14 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
       case "+" => {
         (a, b) match {
           // json exprs are different, like cart + { item:...}
-          case (AExprIdent(aid), JBlockExpr(jb))
-              if ctx.getp(aid).exists(_.ttype == WTypes.JSON) =>
+          case (aei:AExprIdent, JBlockExpr(jb))
+              if aei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) =>
             PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.JSON)
 
           // json exprs are different, like cart + { item:...}
-          case (AExprIdent(aid), AExprIdent(bid))
-              if ctx.getp(aid).exists(_.ttype == WTypes.JSON) &&
-                ctx.getp(bid).exists(_.ttype == WTypes.JSON) =>
+          case (aei:AExprIdent, bei:AExprIdent)
+              if aei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) &&
+                bei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) =>
             PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.JSON)
 
           case _ if isNum(a) && isNum (b) => {
@@ -142,18 +142,13 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
         }
       }
 
-      // WTF is this?
+      // like in JS, if first not exist, use second
       case "||" if a.isInstanceOf[AExprIdent] => {
         a match {
-          case AExprIdent(aid) =>
-            ctx
-              .getp(aid)
+          case aei:AExprIdent =>
+            aei.tryApplyTyped("")
               .map(_.calculatedTypedValue)
               .getOrElse(
-                // had type issues with this:
-                // PValue(b(v).toString)
-
-                // this makes more sense
                 b.applyTyped(v).calculatedTypedValue
               )
 
@@ -226,23 +221,31 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
       if (res.contains(k)) {
         val ax = res(k)
         ax match {
+
           case al: List[_] => {
             bv match {
+                // add lists
               case bll: List[_] => res.put(k, al ::: bll)
               case _            => res.put(k, al ::: bv :: Nil)
             }
           }
+
           case m: Map[_, _] => {
+            // merge maps
             val mres = new mutable.HashMap[String, Any]()
             m.foreach { t =>
               mres.put(t._1.toString, t._2)
             }
             res.put(k, mres)
           }
+
           case y @ _ => {
             (y, bv) match {
-              case (a:Int, b:Int) => res.put(k, a+b)
-              case _ => res.put(k, y.toString + bv.toString)
+//              case (a:Int, b:Int) => res.put(k, a+b)
+              // todo this will concatenate strings instead of merging maps
+              case _ => res.put(k, bv)
+//              case _ => res.put(k, y.toString + bv.toString)
+                // todo this will concatenate strings instead of merging maps
             }
           }
         }
@@ -255,11 +258,83 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
 }
 
 /** a qualified identifier */
-case class AExprIdent(val expr: String) extends Expr {
-  override def apply(v: Any)(implicit ctx: ECtx) = ctx.apply(expr)
+case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
+//  override def apply(v: Any)(implicit ctx: ECtx) = ctx.apply(expr)
+//
+//  override def applyTyped(v: Any)(implicit ctx: ECtx): P =
+//    ctx.getp(expr).getOrElse(P(expr, ""))
+  def expr = start.toString + (
+    if(rest.size > 0) rest.mkString("[", "][", "]")
+    else ""
+    )
+
+  override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).calculatedValue
+
+  // don't blow up - used when has defaults
+  def tryApplyTyped(v: Any)(implicit ctx: ECtx): Option[P] =
+    ctx.getp(start).flatMap {startP=>
+      rest.foldLeft(Option(startP))((a,b) => access(a, b, false))
+    }
+  // todo why do i make up a parm?
 
   override def applyTyped(v: Any)(implicit ctx: ECtx): P =
-    ctx.getp(expr).getOrElse(P(expr, ""))
+    ctx.getp(start).flatMap {startP=>
+      rest.foldLeft(Option(startP))((a,b) => access(a, b, true))
+    }.getOrElse(P(start, ""))
+  // todo why do i make up a parm?
+
+  def access (p:Option[P], accessor:P, blowUp:Boolean)(implicit ctx: ECtx): Option[P] = {
+    // accessor
+    val av = accessor.calculatedTypedValue
+
+    p.flatMap { p =>
+      // based on the type of p
+      val pv = p.calculatedTypedValue
+
+      def throwIt : Option[P] = {
+        if(blowUp)
+        throw new DieselExprException(
+          s"Cannot access $expr of type ${pv.contentType} with ${accessor} of type ${accessor.ttype}"
+        )
+        None
+      }
+
+      if (av.contentType == WTypes.NUMBER) {
+        pv.contentType match {
+
+          case WTypes.ARRAY =>
+            val ai = av.value.toString.toInt
+            val res = pv.value.asInstanceOf[List[_]].apply(ai)
+            Some(P.fromTypedValue("", res))
+
+          case _ => throwIt
+        }
+      } else if (av.contentType == WTypes.STRING) {
+        pv.contentType match {
+
+          case WTypes.JSON =>
+            val as = av.value.toString
+            val map =
+              if(pv.value.isInstanceOf[String]) razie.js.parse(pv.value.toString)
+              else pv.value.asInstanceOf[Map[String, Any]]
+
+            val res = map.get(as)
+            res match {
+              case Some(v) =>
+                Some(P.fromTypedValue("", v))
+
+              case None =>
+                if(blowUp) throw new DieselExprException(s"$expr does not have field $accessor")
+                else None
+            }
+
+          case _ => throwIt
+        }
+      } else {
+        throwIt
+      }
+    }
+  }
 }
 
 /** a function */
