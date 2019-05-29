@@ -12,7 +12,7 @@ import razie.diesel.dom.RDOM._
 import razie.diesel.dom.{RDomain, _}
 import razie.diesel.exec.{EEFormatter, EEFunc, EETest}
 import razie.diesel.ext.{CanHtml, _}
-import razie.tconf.{DSpec, TSpecPath}
+import razie.tconf.{DSpec, EPos, TSpecPath}
 import razie.wiki.Enc
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer

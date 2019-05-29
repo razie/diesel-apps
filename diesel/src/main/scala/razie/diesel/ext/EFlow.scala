@@ -7,6 +7,7 @@
 package razie.diesel.ext
 
 import razie.diesel.dom._
+import razie.tconf.EPos
 
 /** flows seq/par and depys are processed directly by the engine */
 case class EFlow(e: EMatch, ex: FlowExpr) extends CanHtml with EApplicable with HasPosition {

@@ -3,8 +3,8 @@ package razie.diesel
 import razie.diesel.dom._
 import razie.diesel.dom.RDOM.{P, PM}
 import razie.diesel.engine.EContent
+import razie.tconf.EPos
 import razie.wiki.Enc
-
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 

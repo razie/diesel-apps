@@ -8,7 +8,7 @@ package razie.diesel.ext
 
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
-
+import razie.tconf.EPos
 import scala.Option.option2Iterable
 import scala.util.Try
 

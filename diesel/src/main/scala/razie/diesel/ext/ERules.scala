@@ -9,6 +9,7 @@ package razie.diesel.ext
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.{DEMsg, DomEngine, InfoNode}
+import razie.tconf.EPos
 import razie.wiki.Enc
 
 /** test - expect a message m. optional guard */

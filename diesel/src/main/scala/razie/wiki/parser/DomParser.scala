@@ -12,9 +12,8 @@ import razie.diesel.dom._
 import razie.diesel.engine.DomEngine
 import razie.diesel.ext._
 import razie.tconf.parser.{FoldingContext, LazyAstNode, StrAstNode, TriAstNode}
-import razie.tconf.{DSpec, DUser}
+import razie.tconf.{DSpec, DUser, EPos}
 import razie.wiki.Enc
-
 import scala.Option.option2Iterable
 import scala.concurrent.Future
 import scala.util.Try

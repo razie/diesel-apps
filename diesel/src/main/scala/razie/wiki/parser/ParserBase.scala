@@ -6,9 +6,8 @@
  */
 package razie.wiki.parser
 
-import razie.tconf.parser.{BaseAstNode, TriAstNode, StrAstNode}
+import razie.tconf.parser.{BaseAstNode, StrAstNode, TriAstNode}
 import razie.wiki.Enc
-
 import scala.Option.option2Iterable
 import scala.collection.mutable.ListBuffer
 import scala.util.parsing.combinator.RegexParsers

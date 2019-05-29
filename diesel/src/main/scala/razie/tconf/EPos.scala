@@ -1,4 +1,4 @@
-package razie.diesel.dom
+package razie.tconf
 
 /** position of an element - reference where the item was defined, so we can scroll back to it */
 case class EPos(wpath: String, line: Int, col: Int) {

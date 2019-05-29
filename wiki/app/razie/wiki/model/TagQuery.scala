@@ -28,6 +28,12 @@ class TagQuery(val tags: String) {
   val otags = ltags.filter(_.indexOf(",") >= 0).map(_.split(",").map(_.trim.toLowerCase).filter(goodTag))
   val newqt = ltags.map(_.split(",").map(_.toLowerCase).filter(goodTag))
 
+  /** create a new tags addinng the t */
+  def and (t:String) = {
+    val s = if(tags.trim.length > 0) tags + "," + t else t
+    new TagQuery(t)
+  }
+
   // array of array - first is AND second is OR
   val qt = ltags.map(_.split(",").filter(goodTag))
 

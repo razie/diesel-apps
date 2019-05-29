@@ -16,7 +16,7 @@ import razie.diesel.engine.{DomEngECtx, EContent, InfoAccumulator}
 import razie.diesel.exec.SnakkCall
 import razie.diesel.ext.{MatchCollector, _}
 import razie.diesel.snakk.FFDPayload
-import razie.tconf.DTemplate
+import razie.tconf.{DTemplate, EPos}
 import razie.wiki.Enc
 import razie.wiki.parser.SimpleExprParser
 import razie.{Logging, js}
