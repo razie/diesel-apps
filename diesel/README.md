@@ -2,15 +2,15 @@
 
 Rules, flows, actors and microservices.
 
-Think of Amazon Lambda... then take all the complexity out of setting it up, allow creating the "lambdas" in real-time with a descriptive DSL, add configuration, versioning, hosting and continuous testing and deployment and you'll get a good picture of what this is.
-
 Add on-prem support and multi-vendor integration
 
 ## Rules and workflows
 
-A simple asynchronous, message-oriented workflow framework, layered on top of akka actors.
+A simple asynchronous, message-oriented workflow framework, driven by rules and layered on top of akka actors.
 
-This is a generic rules-based engine which can be used in a variety of scenarios, not just workflow processing, but also like a "message broker" or "decomposition" or other. Relies on a simple DSL to define rules and an engine to interpret them. The DSL has only a few constructs.
+This is a generic rules-based engine which can be used in a variety of scenarios, not just workflow processing, 
+but also like a "message broker" or "decomposition" or other. Relies on a simple DSL to define rules and an engine to 
+interpret them. The DSL has only a few constructs.
 
 ```
 $when home.guest_arrived(name) => lights.on
@@ -22,7 +22,12 @@ $mock chimes.welcome => (greeting = "Greetings, "+name)
 
 ## Microservices
 
-A microservices mocking, prototyping and testing framework, built with simple play framework bindings onto the diesel workflow framework: automatically turns any workflow into a microservice and/or orchestrate any microservices with the workflow rules.
+These messages are bound natively and automatically to REST, resulting A microservices mocking, prototyping and 
+testing framework, built with simple play framework bindings.
+
+The diesel workflow framework: automatically turns any workflow into a microservice and/or orchestrate any microservices with the workflow rules.
+
+## Testing
 
 Relies on a DSL to define microservices, rules and test and run these.
 
@@ -42,33 +47,26 @@ You can embed in your app or use as is. You can run it on-prem or in cloud, at h
 
 ### Trace model
 
-The engine uses an innovative tree-like model, which is the "execution trace". This will represent, at all times, the current state of execution (some nodes may be async operations that we're waiting for etc).
+The engine uses a tree-like model, which is the "execution trace". This will represent, at all times, the current state of execution (some nodes may be async operations that we're waiting for etc).
 
-The parallel/sequence and other complicated execution models that are available, are hidden - available only via API.
-
-TODO tree pic
+![alt diesel tree](http://cdn.razie.com/Public/diesel/lights-chimes-wrong.png)
 
 ### Intuitive sync/async model
 
-The engine uses an "intuitive" sync/async model for processing the "nodes": simple transformation nodes are executed synchronously, while other nodes (messages) are executed asynchronously.
+The engine uses an "intuitive" sync/async model for processing the "nodes": simple transformation nodes are executed synchronously, while all messages are executed asynchronously.
 
-Typical sync nodes are:
-- mocks
-- rules
-- tests
-- transformations
-
-The intuitive part comes in when executing sequences of nodes - these are also executed sync/async **but also in sequence**, implicitly using the ask pattern and Futures.
+The intuitive part comes in when executing sequences of nodes - these are also executed sync/async **but in sequence**, 
+implicitly using the ask pattern and Futures, very much like a sequence of messages processed by the same actor. In fact,
+ each workflow has an associated akka actor which will execute the messages in sequence, but without blocking threads etc.
 
 The engine itself is always async, so you can use this model to quickly wrap synchronous operations as asynchronous processes.
+
+There are special constructs, for when you need to allow truly parallel execution of messages.
 
 ### Custom execution strategies
 
 You can easily define your own nodes and/or sync/async executors for certain messages.
 
-## Bullet-proof
-
-There are several hooks provided, so you could weave in your own resilience. The supported versions, at [dieselapps.com](http://www.dieselapps.com) offers bullet-proofness with any paid plan.
 
 ## Versions and technologies
 
