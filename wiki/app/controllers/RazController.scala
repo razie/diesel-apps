@@ -26,6 +26,7 @@ class RazController extends RazControllerBase with Logging {
   }
 
 //  implicit def xxx (implicit request:RazRequest) : RequestHeader = request.ireq
+
   // allow calling old methods from new code
   implicit def xxx (implicit request:RazRequest) : Request[_] = request.ireq
 
@@ -95,6 +96,7 @@ class RazController extends RazControllerBase with Logging {
 
   //================= RESPONSES
 
+  /** no permission */
   def noPerm(
               wid: WID,
               more: String = "",
@@ -137,14 +139,17 @@ class RazController extends RazControllerBase with Logging {
            |""".stripMargin +
           md("Admin:Unauthorized"),
             Some(controllers.Wiki.w(wid).toString), auth)(stok), Seq.empty)(stok))
-    } else noPermOLD(wid, more + " " + errCollector.mkString)
+    } else
+      noPermOLD(wid, more + " " + errCollector.mkString)
   }
 
+  /** format a page as String */
   private def md (wpath:String)(implicit request: RequestHeader) : String =
     WID.fromPath(wpath).map(_.r(rhRequest(request).realm)).flatMap(_.page).map{p=>
       Wikis.format(p, None)
     }.getOrElse("")
 
+  /** no permission */
   private def noPermOLD(wid: WID, more: String = "")(implicit request: Request[_]) = {
 //    implicit val stok = razRequest
     Audit.auth("BY %s - Permission fail Page: %s Info: %s HEADERS: %s".format((auth.map(_.userName).getOrElse("")), wid.toString, more, request.headers))
@@ -180,6 +185,7 @@ ${errCollector.mkString}
 """+md("Admin:Unauthorized"), None, xauth)(rhRequest), Seq.empty)(rhRequest))
   }
 
+  /** some error */
   def Oops(msg: String, wid: WID)(implicit request: Request[_]) = {
     //    implicit val stok = razRequest
     error(msg)
@@ -199,38 +205,49 @@ ${errCollector.mkString}
     Unauthorized(errCollector.mkString)
   }
 
+  /** message with a continuation to another page */
   def Msg(msg: String, wid: WID, u: Option[User] = None)(implicit request: Request[_]): play.api.mvc.Result = {
     Msg2(msg, Some(controllers.Wiki.w(wid, false)), if (u.isDefined) u else auth)(request)
   }
 
+  /** simple message, no continuation */
   def Msg(msg: String)(implicit request: Request[_]): play.api.mvc.Result = {
     Msg(msg, "")
   }
 
+  /** simple message with details, no continuation */
   def Msg(msg: String, details:String)(implicit request: RequestHeader): play.api.mvc.Result = {
-//    implicit val stok = razRequest
     Ok(
       views.html.util.reactorLayout12(
       views.html.util.utilMsg(msg, details, None, xauth)(rhRequest)
       , Seq.empty)(rhRequest))
   }
 
-  def Msg2(msg: String)(implicit request: RequestHeader): play.api.mvc.Result = {
-//    implicit val stok = razRequest
-    Ok(
-      views.html.util.reactorLayout12(
-      views.html.util.utilMsg(msg, "", None, xauth)(rhRequest)
-      , Seq.empty)(rhRequest))
-  }
-
   def Msg2C(msg: String, page: Option[Call], u: Option[User] = None)(implicit request: Request[_]): play.api.mvc.Result = {
-//    implicit val stok = razRequest
     Ok(
       views.html.util.reactorLayout12(
       views.html.util.utilMsg(msg, "", page.map(_.toString), if (u.isDefined) u else auth)(rhRequest)
       , Seq.empty)(rhRequest))
   }
 
+  // Reactor OK - understands reactor
+  val ROK = new {
+    def apply (msg: Seq[(String, String)])(implicit au: model.User, request: Request[_]) = {
+      new RazRequest(Website.realm, Some(au), request).msg(msg)
+    }
+    def apply (msg: (String, String))(implicit au: model.User, request: Request[_]) = {
+      new RazRequest(Website.realm, Some(au), request).msg(msg)
+    }
+    def apply () (implicit au: model.User, request: Request[_]) =
+      new RazRequest(Website.realm, Some(au), request)
+    def apply (au: Option[model.User], request: Request[_]) =
+      new RazRequest(Website.realm(request), au, request)
+    def s (implicit au: model.User, request: Request[_]) =
+      new RazRequest(Website.realm, Some(au), request)
+    def r (implicit request: Request[_]) =
+      new RazRequest(Website.realm, auth, request)
+    def k (implicit stok: RazRequest) = stok
+  }
   def vBadWords: Constraint[String] = Constraint[String]("constraint.noBadWords") { o =>
     if (Wikis.hasBadWords(o))
       Invalid(ValidationError("Failed obscenity filter, eh?")) else Valid
@@ -254,6 +271,8 @@ ${errCollector.mkString}
     ) yield body(au)) getOrElse unauthorized("Oops - how did you get here? [no user]")
   }
 
+  //========= filters
+
   // Filter(noRobots) {...}
   def noRobots (stok:RazRequest) : Option[Result] = {
     if(isFromRobot(stok.req)) Some(Unauthorized("you're a robot"))
@@ -266,6 +285,7 @@ ${errCollector.mkString}
       Some(Unauthorized("Need to login / have an active account"))
     else None
   }
+
 
   def isMod (stok:RazRequest) : Option[Result] = {
     if(! stok.au.exists(a=> a.isMod))
@@ -396,24 +416,6 @@ ${errCollector.mkString}
 
   val HOME = WID("Admin", "home")
 
-  // Reactor OK - understands reqctor
-  val ROK = new {
-    def apply (msg: Seq[(String, String)])(implicit au: model.User, request: Request[_]) = {
-      new RazRequest(Website.realm, Some(au), request).msg(msg)
-    }
-    def apply (msg: (String, String))(implicit au: model.User, request: Request[_]) = {
-      new RazRequest(Website.realm, Some(au), request).msg(msg)
-    }
-    def apply () (implicit au: model.User, request: Request[_]) =
-      new RazRequest(Website.realm, Some(au), request)
-    def apply (au: Option[model.User], request: Request[_]) =
-      new RazRequest(Website.realm(request), au, request)
-    def s (implicit au: model.User, request: Request[_]) =
-      new RazRequest(Website.realm, Some(au), request)
-    def r (implicit request: Request[_]) =
-      new RazRequest(Website.realm, auth, request)
-    def k (implicit stok: RazRequest) = stok
-  }
 }
 
 object RkViewService extends RazController with ViewService {

@@ -8,8 +8,8 @@ package controllers
 
 import com.google.inject.Inject
 import play.api.mvc.{Controller, _}
-import razie.wiki.Services
 import razie.Logging
+import razie.wiki.Services
 import razie.wiki.model.WikiUser
 
 /** base class for controllers - common controller utilities */

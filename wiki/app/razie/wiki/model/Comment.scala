@@ -11,11 +11,10 @@ import com.novus.salat.grater
 import org.bson.types.ObjectId
 import org.joda.time.DateTime
 import razie.audit.Audit
-import razie.db._
 import razie.db.RazSalatContext.ctx
-
-import scala.collection.mutable.ListBuffer
+import razie.db._
 import razie.db.tx.txn
+import scala.collection.mutable.ListBuffer
 
 /**
   * a thread / series of comments on something - like a forum topic

@@ -13,7 +13,7 @@ import razie.wiki.admin.SecLink
   *
   * @see razie.wiki.admin.DoSec
   */
-class Sec extends RazControllerBase {
+class SecControl extends RazControllerBase {
 
   /** user does not have to be logged in */
   def doeSec(whats: String) = Action { implicit request =>
