@@ -4,7 +4,6 @@ import org.json.{JSONArray, JSONObject}
 import razie.diesel.engine.DomEngine
 import razie.diesel.ext.CanHtml
 import razie.js
-import razie.js.tojson
 import razie.wiki.Enc
 import scala.concurrent.Future
 
@@ -19,13 +18,13 @@ object WTypes {
   final val FLOAT="Float"
   final val BOOLEAN="Boolean"
 
-  final val XML="JSON"
-  final val JSON="JSON" // see below
-//  val map =
-//    if(pv.value.isInstanceOf[String]) razie.js.parse(pv.value.toString)
-//    else pv.value.asInstanceOf[Map[String, Any]]
+  final val RANGE="Range"
 
-  final val ARRAY="Array" //pv.value.asInstanceOf[List[_]]
+  final val XML="JSON"
+  final val JSON="JSON" // see asJson
+  final val OBJECT="Object" // same as json
+
+  final val ARRAY="Array" //pv.asArray
 
   final val BYTES="Bytes"
 
@@ -33,8 +32,11 @@ object WTypes {
 
   final val UNKNOWN=""
 
+  final val UNDEFINED="Undefined" // same as null
+
   final val appJson = "application/json"
 
+  // see also P.fromTypedValue
   def typeOf (x:Any) = {
     val t = x match {
       case m: Map[_, _] => JSON
@@ -43,6 +45,8 @@ object WTypes {
       case f: Double => NUMBER
       case f: Float => NUMBER
       case l: List[_] => ARRAY
+      case l: JSONArray => ARRAY
+      case l: JSONObject => JSON
       case h @ _ => UNKNOWN
     }
 
@@ -120,43 +124,84 @@ object RDOM {
   }
 
 
-  /** create a P with the best guess for type */
-  def typified (n:String, s:Any) = {
-    s match {
-      case s:Float => P(n, "").withValue[Float](s, WTypes.NUMBER)
-//      case s:Int => P(n, "").withValue[Int](s, "Number")
-      case i: Int => P(n, i.toString, WTypes.NUMBER)
-      case _ => {
-        if (s.toString.trim.startsWith("{")) P(n, s.toString, WTypes.JSON)
-        else P(n, s.toString)
-      }
+  type NVP = Map[String,String]
+
+  /** a basic typed value
+    *
+    * @param value
+    * @param contentType
+    * @tparam T
+    *
+    * the asXXX methods assume it is of the right type
+    */
+  case class PValue[T] (value:T, contentType:String = WTypes.UNKNOWN) {
+    def asObject : Map[String,Any] = asJson
+
+    def asJson : Map[String,Any] = {
+      if (value.isInstanceOf[String]) razie.js.parse(value.toString)
+      else value.asInstanceOf[Map[String, Any]]
     }
 
+    def asArray : List[Any] = value.asInstanceOf[List[Any]]
+
+    def asRange : Range = value.asInstanceOf[Range]
+
+    def asThrowable : Throwable = value.asInstanceOf[Throwable]
+
+    def asInt : Int = value.toString.toInt
+
+    /** nicer type-aware toString */
+    def asString = P.asString(value)
   }
-
-  // todo complete type-aware
-  case class PValue[T] (value:T, contentType:String = WTypes.UNKNOWN)
-
-  type NVP = Map[String,String]
 
   object P {
     /** construct proper typed values */
-    def fromTypedValue(name:String, v:Any) = {
-      v match {
-        case i: Int => P(name, v.toString).withValue(i, WTypes.NUMBER)
-        case f: Float => P(name, v.toString).withValue(f, WTypes.NUMBER)
-        case d: Double => P(name, v.toString).withValue(d, WTypes.NUMBER)
-        case s: String => P(name, s, WTypes.STRING)
-        case s: Map[_, _] => P(name, js.tojsons(s, 2), WTypes.JSON).withValue(s, WTypes.JSON)
-        case s: List[_] => P(name, js.tojsons(s, 2), WTypes.ARRAY).withValue(s, WTypes.ARRAY)
-        case s: JSONObject => P(name, s.toString(2), WTypes.JSON).withValue(js.fromObject(s), WTypes.JSON)
-        case s: JSONArray => P(name, js.toString, WTypes.ARRAY).withValue(js.fromArray(s), WTypes.ARRAY)
-        case x@_ => P(name, x.toString, WTypes.UNKNOWN)
+    def fromTypedValue(name:String, v:Any, expectedType:String=WTypes.UNKNOWN) = {
+      val res = v match {
+        case i: Int =>         P(name, asString(i), WTypes.NUMBER).withValue(i, WTypes.NUMBER)
+        case f: Float =>       P(name, asString(f), WTypes.NUMBER).withValue(f, WTypes.NUMBER)
+        case d: Double =>      P(name, asString(d), WTypes.NUMBER).withValue(d, WTypes.NUMBER)
+        case s: String =>      P(name, asString(s), WTypes.STRING)
+        case s: Map[_, _] =>   P(name, asString(s), WTypes.JSON).withValue(s, WTypes.JSON)
+        case s: List[_] =>     P(name, asString(s), WTypes.ARRAY).withValue(s, WTypes.ARRAY)
+        case s: JSONObject =>  P(name, asString(s), WTypes.JSON).withValue(js.fromObject(s), WTypes.JSON)
+        case s: JSONArray =>   P(name, asString(s), WTypes.ARRAY).withValue(js.fromArray(s), WTypes.ARRAY)
+        case r: Range =>       P(name, asString(r), WTypes.RANGE).withValue(r, WTypes.RANGE)
+        case x@_ =>            P(name, x.toString, WTypes.UNKNOWN)
       }
+
+      // assert expected type if given
+      if(expectedType != WTypes.UNKNOWN && expectedType != "" && res.ttype != expectedType)
+        throw new DieselExprException(s"$name of type ${res.ttype} not of expected type $expectedType")
+
+      res
+    }
+
+    /** nicer type-aware toString */
+    def asString (value:Any) = {
+      val res = value match {
+        case s: Map[_, _] => js.tojsons(s, 2).trim
+        case s: List[_] => js.tojsons(s, 0).trim
+        case s: JSONObject => s.toString(2).trim
+        case s: JSONArray => s.toString.trim
+        case r: Range => {
+          "" +
+              (if(r.start == scala.Int.MinValue) "" else r.start.toString) +
+              ".." +
+              (if(r.end == scala.Int.MaxValue) "" else r.end.toString)
+        }
+        case x@_ => x.toString
+      }
+
+      res
     }
   }
 
   /** represents a parameter/member/attribute
+    *
+    * use .calculatedTypedValue instead of accessing value/dflt/expr directly
+    *
+    * The value trumps dflt which trumps expr
     *
     * @param name   name of parm
     * @param dflt   current value or default value
@@ -169,7 +214,7 @@ object RDOM {
                 var value:Option[PValue[_]] = None
                ) extends CM with razie.diesel.ext.CanHtml {
 
-    def withValue[T](va:T, ctype:String="") = this.copy(value=Some(PValue[T](va, ctype)))
+    def withValue[T](va:T, ctype:String="") = this.copy(ttype=ctype, value=Some(PValue[T](va, ctype)))
 
     def isRef = {
       ref != ""
@@ -177,7 +222,11 @@ object RDOM {
 
     /** proper way to get the value */
     def calculatedValue(implicit ctx: ECtx) : String =
-      if(dflt.nonEmpty || expr.isEmpty) dflt else expr.get.apply ("").toString
+    // todo only reason I'm doing this is to avoid toString JSONS all the time...
+    // todo not correct, since value should trump dflt trumps expr
+      if(dflt.nonEmpty || expr.isEmpty) dflt else {
+        calculatedTypedValue.asString
+      }
 
     /** proper way to get the value */
     def calculatedTypedValue(implicit ctx: ECtx) : PValue[_] =
@@ -217,7 +266,10 @@ object RDOM {
       )
 
     /** current calculated value if any or the expression */
-    def valExpr = if(dflt.nonEmpty || expr.isEmpty) CExpr(dflt, ttype) else expr.get
+    def valExpr =
+      value.map(v=> CExpr(v.value, v.contentType)).getOrElse {
+        if(dflt.nonEmpty || expr.isEmpty) CExpr(dflt, ttype) else expr.get
+      }
 
     def strimmedDflt =
       if(dflt.size > 80) dflt.take(60) + "{...}"
@@ -266,20 +318,22 @@ object RDOM {
     * @param dflt
     * @param expr
     */
-  case class PM (name:String, ttype:String, ref:String, multi:String, op:String, dflt:String, expr:Option[Expr] = None) extends CM with CanHtml {
+  case class PM (ident:AExprIdent, ttype:String, ref:String, multi:String, op:String, dflt:String, expr:Option[Expr] = None) extends CM with CanHtml {
+
+    def name : String = ident.start
 
     /** current calculated value if any or the expression */
     def valExpr = if(dflt.nonEmpty || expr.isEmpty) CExpr(dflt, ttype) else expr.get
 
     override def toString =
-      s"$name" +
+      s"$ident" +
         (if(ttype!="String") smap(ttype) (":" + ref + _) else "") +
         smap(multi)(identity) +
         smap(dflt) (s=> op + (if("Number" == ttype) s else quot(s))) +
         (if(dflt=="") expr.map(x=>smap(x.toString) (" " + op +" "+ _)).mkString else "")
 
     override def toHtml =
-      s"<b>$name</b>" +
+      s"<b>$ident</b>" +
         (if(ttype!="String") smap(ttype) (":" + ref + _) else "") +
       smap(multi)(identity) +
       smap(dflt) (s=> op + tokenValue(if("Number" == ttype) s else quot(s))) +

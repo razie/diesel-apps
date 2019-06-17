@@ -8,9 +8,8 @@ package razie.wiki.parser
 
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
-import razie.diesel.ext.{BFlowExpr, FlowExpr, MsgExpr, SeqExpr}
+import razie.diesel.ext._
 import razie.tconf.parser.{BaseAstNode, StrAstNode}
-
 import scala.util.parsing.combinator.RegexParsers
 
 /** expressions parser */
@@ -73,7 +72,13 @@ trait ExprParser extends RegexParsers {
     )
   }
 
-  def pterm1: Parser[Expr] = numexpr | bcexpr | escexpr | cexpr | xpident | jsexpr1 | jsexpr2 | scexpr1 | scexpr2 | afunc | aidentaccess | aident | jsexpr3 | exregex | eblock | jarray | jobj
+  def jnull: Parser[Expr] = "null" ^^ {
+    case b => new CExprNull
+  }
+
+  def pterm1: Parser[Expr] = numexpr | bcexpr | escexpr | cexpr | jnull | xpident | jsexpr1 | jsexpr2 |
+      scexpr1 | scexpr2 | afunc | aidentaccess | aident | jsexpr3 |
+      exregex | eblock | jarray | jobj
 
   def eblock: Parser[Expr] = "(" ~ ows ~> expr <~ ows ~ ")" ^^ { case ex => BlockExpr(ex) }
 
@@ -143,17 +148,27 @@ trait ExprParser extends RegexParsers {
   //==================================== ACCESSORS
 
   // qualified identifier
-  def aident: Parser[Expr] = qident ^^ { case i => new AExprIdent(i) }
+  def aident: Parser[AExprIdent] = qident ^^ { case i => new AExprIdent(i) }
 
   // full accessor to value: a.b[4].c.r["field1"]["subfield2"][4].g
   // note this kicks in at the first use of [] and continues... so that aident above catches all other
-  def aidentaccess: Parser[Expr] = qident ~ sqbraccess ~ accessors ^^ {
+  def aidentaccess: Parser[AExprIdent] = qident ~ (sqbraccess | sqbraccessRange) ~ accessors ^^ {
     case i ~ sa ~ a => new AExprIdent(i, sa :: a)
   }
 
-  def accessors: Parser[List[RDOM.P]] = rep(sqbraccess | accessorIdent)
-  def sqbraccess: Parser[RDOM.P] = " *\\[".r ~> ows ~> expr <~ ows <~ "]" ^^ {case e => P("", "").copy(expr=Some(e))}
-  def accessorIdent: Parser[RDOM.P] = ".".r ~> ident ^^ {case id => P("", id, WTypes.STRING)}
+  def accessors: Parser[List[RDOM.P]] = rep(sqbraccess | sqbraccessRange | accessorIdent)
+
+  private def accessorIdent: Parser[RDOM.P] = "." ~> ident ^^ {case id => P("", id, WTypes.STRING)}
+  private def sqbraccess: Parser[RDOM.P] = "\\[".r ~> ows ~> expr <~ ows <~ "]" ^^ {
+    case e => P("", "").copy(expr=Some(e))
+  }
+  // for now the range is only numeric
+  private def sqbraccessRange: Parser[RDOM.P] = "\\[".r ~> ows ~> numexpr ~ ows ~ ".." ~ ows ~ opt(numexpr) <~ ows <~ "]" ^^ {
+    case e1 ~ _ ~ _ ~ _ ~ e2 => P("", "", WTypes.RANGE).copy(
+      expr = Some(ExprRange(e1, e2))
+    )
+  }
+
 
   //==================================== F U N C T I O N S
 
@@ -163,6 +178,22 @@ trait ExprParser extends RegexParsers {
     case Some(tParm) => tParm.mkString
     case None => ""
   }
+
+  /**
+    * name:<>type[kind]*~=default
+    * <> means it's a ref, not ownership
+    * * means it's a list
+    */
+  def pasattr: Parser[PAS] = " *".r ~> (aidentaccess | aident) ~ opt(" *= *".r ~> expr) ^^ {
+    case ident ~ e => {
+      e match {
+        case Some(ex) => PAS(ident, ex)
+        case None => PAS(ident, ident) // compatible for a being a=a
+      }
+    }
+  }
+
+  def pasattrs: Parser[List[PAS]] = " *\\(".r ~> ows ~> repsep(pasattr, ows ~ "," ~ ows) <~ ows <~ ")"
 
   /**
     * name:<>type[kind]*~=default
@@ -201,6 +232,7 @@ trait ExprParser extends RegexParsers {
     * optional attributes
     */
   def attrs: Parser[List[RDOM.P]] = " *\\(".r ~> ows ~> repsep(pattr, ows ~ "," ~ ows) <~ ows <~ ")"
+
 
   //==================================== C O N D I T I O N S
 
@@ -300,3 +332,8 @@ class SimpleExprParser extends ExprParser {
   }
 }
 
+/** assignment */
+case class PAS (left:AExprIdent, right:Expr) extends CanHtml {
+  override def toHtml = left.toHtml + "=" + right.toHtml
+  override def toString = left.toString + "=" + right.toString
+}

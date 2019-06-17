@@ -48,14 +48,18 @@ object RDExt extends Logging {
 
   /** parse from/to json utils */
   object DieselJsonFactory {
-    private def sm(x:String, m:Map[String, Any]) : String = if(m.contains(x)) m(x).asInstanceOf[String] else ""
+    private def sm(x:String, m:Map[String, Any]) : String =
+      if(m.contains(x)) m(x).asInstanceOf[String] else ""
 
     def fromj (o:Map[String, Any]) : Any = {
       def s(x:String)  : String = sm(x, o)
       def l(x:String) = if(o.contains(x)) o(x).asInstanceOf[List[_]] else Nil
 
       def parms (name:String) = l(name).collect {
-        case m:Map[String, Any] => P(sm("name",m), sm("value",m))
+        case m:Map[_, _] => P(
+          sm("name",m.asInstanceOf[Map[String, Any]]),
+          sm("value",m.asInstanceOf[Map[String, Any]])
+        )
       }
 
       if(o.contains("class")) s("class") match {
@@ -74,12 +78,12 @@ object RDExt extends Logging {
 
         case "DomAst" => {
           val c = l("children").collect {
-            case m:Map[String, Any] => fromj(m).asInstanceOf[DomAst]
+            case m:Map[_, _] => fromj(m.asInstanceOf[Map[String, Any]]).asInstanceOf[DomAst]
           }
 
           val v = o("value") match {
             case s:String => s
-            case m : Map[String,Any] => DieselJsonFactory.fromj(m)
+            case m : Map[_,_] => DieselJsonFactory.fromj(m.asInstanceOf[Map[String, Any]])
             case x@_ => x.toString
           }
 
@@ -196,11 +200,15 @@ object RDExt extends Logging {
           case n: ERule => {
             collectMsg(n.e.asMsg.withPos(n.pos))
             n.i.map {x=>
-              collectMsg(x.asMsg.withPos(n.pos))
+                x match {
+                  case e:EMapCls => collectMsg(e.asMsg.withPos(n.pos))
+                }
             }
           }
           case n: EMock => {
-            collectMsg(n.rule.e.asMsg.withPos(n.pos), n.rule.i.flatMap(_.attrs))
+            collectMsg(n.rule.e.asMsg.withPos(n.pos), n.rule.i.collect{
+              case e:EMapCls => e
+            }.flatMap(_.attrs))
           }
           case n: ExpectM => collectMsg(n.m.asMsg.withPos(n.pos))
         })
@@ -258,7 +266,9 @@ object RDExt extends Logging {
           case n: EMsg => collectP(n.attrs)
           case n: ERule => {
             collectPM(n.e.attrs)
-            n.i.map { x =>
+            n.i.collect{
+              case e:EMapCls => e
+            }.map { x =>
               collectP(x.attrs)
             }
           }

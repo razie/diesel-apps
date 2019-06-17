@@ -2,18 +2,18 @@ package razie.diesel.dom
 
 import mod.diesel.model.exec.EESnakk
 import org.json.JSONObject
-import razie.clog
+import razie.{clog, js}
 import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.exec.EEFunc
 import razie.diesel.ext.CanHtml
 import razie.wiki.parser.SimpleExprParser
-
 import scala.collection.mutable
+import scala.util.Try
 import scala.util.parsing.json.JSONArray
 
 //------------ expressions and conditions
 
-class DieselExprException (msg:String) extends RuntimeException
+class DieselExprException (msg:String) extends RuntimeException (msg)
 
 /** deserialization is assumed via DSL
   *
@@ -48,7 +48,8 @@ trait WFunc { // extends PartialFunc ?
   def applyTyped(v: Any)(implicit ctx: ECtx): P = {
     val res = apply(v)
     // todo use the PValue
-    P("", res.toString, getType)
+//    P("", res.toString, getType)
+    P.fromTypedValue("", res, getType)
   }
 
   /** what is the resulting type - when known */
@@ -75,9 +76,9 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
 
     // resolve an expression to P with value and type
     def top(x: Expr): Option[P] = x match {
-      case CExpr(aa, tt)   => Some(P("", aa.toString, tt).withValue(aa, tt))
+      case CExpr(aa, tt)   => Some(P.fromTypedValue("", aa, tt))
       case aei:AExprIdent  => aei.tryApplyTyped(v)
-      case _               => Some(P("", a(v).toString))
+      case _               => Some(P("", P.asString(a(v))))
     }
 
     def isNum(x: Expr): Boolean = x match {
@@ -104,7 +105,10 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
           }
 
           case _ => {
-            PValue("???")
+            PValue("ERR:* on non numbers")
+            throw new DieselExprException(
+              s"ERR: multiply needs both numbers but got: ${a.getType} and ${b.getType} "
+            )
           }
         }
       }
@@ -113,12 +117,12 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
         (a, b) match {
           // json exprs are different, like cart + { item:...}
           case (aei:AExprIdent, JBlockExpr(jb))
-              if aei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) =>
+            if aei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) =>
             PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.JSON)
 
           // json exprs are different, like cart + { item:...}
           case (aei:AExprIdent, bei:AExprIdent)
-              if aei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) &&
+            if aei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) &&
                 bei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) =>
             PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.JSON)
 
@@ -137,7 +141,45 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
           }
 
           case _ => {
-            PValue(a(v).toString + b(v).toString)
+            val av = a.applyTyped(v)
+            val bv = b.applyTyped(v)
+
+            // concat lists
+            if(bv.ttype == WTypes.ARRAY ||
+               av.ttype == WTypes.ARRAY) {
+              val al = if(av.ttype == WTypes.ARRAY) av.calculatedTypedValue.asArray else List(av.calculatedTypedValue.value)
+              val bl = if(bv.ttype == WTypes.ARRAY) bv.calculatedTypedValue.asArray else List(bv.calculatedTypedValue.value)
+              val res = al ::: bl
+              PValue(res, WTypes.ARRAY)
+           } else  if(bv.ttype == WTypes.JSON ||
+                  av.ttype == WTypes.JSON) {
+              // json exprs are different, like cart + { item:...}
+              PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.JSON)
+            } else {
+              PValue(av.calculatedValue + bv.calculatedValue)
+            }
+          }
+        }
+      }
+
+      case "-" => {
+        (a, b) match {
+          case _ if isNum(a) && isNum (b) => {
+            // if a is num, b will be converted to num
+            val as = a(v).toString
+            if (as.contains(".")) {
+              val ai = as.toFloat
+              val bi = b(v).toString.toFloat
+              PValue(ai - bi, WTypes.NUMBER)
+            } else {
+              val ai = as.toInt
+              val bi = b(v).toString.toInt
+              PValue(ai - bi, WTypes.NUMBER)
+            }
+          }
+
+          case _ => {
+            PValue("[ERR can't apply operator " + op + s" to ${a.getType} and ${b.getType}]")
           }
         }
       }
@@ -161,7 +203,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
       case _ => PValue("[ERR unknown operator " + op + "]")
     }
 
-    P("", res.value.toString, res.contentType).copy(value = Some(res))
+    P("", res.asString, res.contentType).copy(value = Some(res))
   }
 
   /** process a js operation like obja + objb */
@@ -257,55 +299,85 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
   override def getType = a.getType
 }
 
-/** a qualified identifier */
+/** a qualified identifier
+  *
+  * @param start qualified expr a.b.c - this is used in places as such... don't replace with just a
+  * @param rest the rest from the first []
+  */
 case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
-//  override def apply(v: Any)(implicit ctx: ECtx) = ctx.apply(expr)
-//
-//  override def applyTyped(v: Any)(implicit ctx: ECtx): P =
-//    ctx.getp(expr).getOrElse(P(expr, ""))
   def expr = start.toString + (
-    if(rest.size > 0) rest.mkString("[", "][", "]")
+    if (rest.size > 0) rest.mkString("[", "][", "]")
     else ""
     )
+
+  // allow ctx["name"] as well as name
+  def getp(name: String)(implicit ctx: ECtx): Option[P] = {
+//     if("ctx" == name)
+    ctx.getp(name)
+  }
 
   override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).calculatedValue
 
   // don't blow up - used when has defaults
   def tryApplyTyped(v: Any)(implicit ctx: ECtx): Option[P] =
-    ctx.getp(start).flatMap {startP=>
-      rest.foldLeft(Option(startP))((a,b) => access(a, b, false))
+    getp(start).flatMap { startP =>
+      rest.foldLeft(Option(startP))((a, b) => access(a, b, false))
     }
   // todo why do i make up a parm?
 
   override def applyTyped(v: Any)(implicit ctx: ECtx): P =
-    ctx.getp(start).flatMap {startP=>
-      rest.foldLeft(Option(startP))((a,b) => access(a, b, true))
-    }.getOrElse(P(start, ""))
+    getp(start).flatMap { startP =>
+      rest.foldLeft(Option(startP))((a, b) => access(a, b, true))
+    }.getOrElse(P(start, "", WTypes.UNDEFINED))
   // todo why do i make up a parm?
 
-  def access (p:Option[P], accessor:P, blowUp:Boolean)(implicit ctx: ECtx): Option[P] = {
-    // accessor
-    val av = accessor.calculatedTypedValue
+  def access(p: Option[P], accessor: P, blowUp: Boolean)(implicit ctx: ECtx): Option[P] = {
+    // accessor - need to reset value, so we keep re-calculating it in context
+    val av = accessor.copy(value=None).calculatedTypedValue
+//    val av = accessor.calculatedTypedValue
 
     p.flatMap { p =>
       // based on the type of p
       val pv = p.calculatedTypedValue
 
-      def throwIt : Option[P] = {
-        if(blowUp)
-        throw new DieselExprException(
-          s"Cannot access $expr of type ${pv.contentType} with ${accessor} of type ${accessor.ttype}"
-        )
+      def throwIt: Option[P] = {
+        if (blowUp)
+          throw new DieselExprException(
+            s"Cannot access $expr of type ${pv.contentType} with ${accessor} of type ${accessor.ttype}"
+          )
         None
       }
 
       if (av.contentType == WTypes.NUMBER) {
+        val ai = av.asInt
+
         pv.contentType match {
 
-          case WTypes.ARRAY =>
-            val ai = av.value.toString.toInt
-            val res = pv.value.asInstanceOf[List[_]].apply(ai)
+          case WTypes.ARRAY => {
+            val list = pv.asArray
+            val res =
+              if (ai >= 0)
+                list.apply(ai)
+              else  // negative - subtract from length
+                list.apply(list.size - ai)
+
             Some(P.fromTypedValue("", res))
+          }
+
+          case WTypes.STRING => {
+            val ps = pv.asString
+
+            if (blowUp && ps.length < ai)
+              throw new DieselExprException(s"$ai out of bounds of String: $ps")
+
+            val res =
+              if (ai >= 0)
+                ps.charAt(ai)
+              else  // negative - subtract from length
+                ps.charAt(ps.length - ai)
+
+            Some(P.fromTypedValue("", res.toString))
+          }
 
           case _ => throwIt
         }
@@ -313,10 +385,8 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
         pv.contentType match {
 
           case WTypes.JSON =>
-            val as = av.value.toString
-            val map =
-              if(pv.value.isInstanceOf[String]) razie.js.parse(pv.value.toString)
-              else pv.value.asInstanceOf[Map[String, Any]]
+            val as = av.asString
+            val map = pv.asJson
 
             val res = map.get(as)
             res match {
@@ -324,17 +394,107 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
                 Some(P.fromTypedValue("", v))
 
               case None =>
-                if(blowUp) throw new DieselExprException(s"$expr does not have field $accessor")
-                else None
+//                if (blowUp) throw new DieselExprException(s"$expr does not have field $accessor")
+//                else
+            None // field not found - undefined
             }
 
           case _ => throwIt
         }
+      } else if (av.contentType == WTypes.RANGE) {
+        // todo support reversing, if ai < zi
+        var ai = av.asRange.start
+        var zi = av.asRange.end
+
+        pv.contentType match {
+
+          case WTypes.ARRAY => {
+            val list = pv.asArray
+
+            if (ai < 0) ai = list.size + ai - 1
+            if (zi < 0) zi = list.size + zi - 1
+            if (zi == scala.Int.MaxValue) zi = list.size - 1
+
+            if (blowUp && list.size < ai)
+              throw new DieselExprException(s"$ai out of bounds of List")
+            if (blowUp && list.size < zi)
+              throw new DieselExprException(s"$zi out of bounds of List")
+
+            val res = list.slice(ai, zi + 1)
+
+            Some(P.fromTypedValue("", res))
+          }
+
+          case WTypes.STRING => {
+            val ps = pv.asString
+
+            if (ai < 0) ai = ps.length + ai - 1
+            if (zi < 0) zi = ps.length + zi - 1
+            if (zi == scala.Int.MaxValue) zi = ps.length - 1
+
+            // todo trim string
+            if (blowUp && ps.length < ai)
+              throw new DieselExprException(s"$ai out of bounds of String: $ps")
+            if (blowUp && ps.length < zi)
+              throw new DieselExprException(s"$zi out of bounds of String: $ps")
+
+            val res = ps.substring(ai, zi + 1)
+
+            Some(P.fromTypedValue("", res.toString))
+          }
+
+          case _ => throwIt
+        }
+      } else if (av.contentType == WTypes.UNDEFINED) {
+        // looking for some child of undefined
+        Some(p)
       } else {
         throwIt
       }
     }
   }
+
+  def toStringCalc (implicit ctx:ECtx) = {
+    start + rest.map(_.calculatedValue).mkString("[", "][", "]")
+//    rest.foldLeft(start)((a, b) => a + "." + b.calculatedValue)
+  }
+}
+
+/** a function */
+case class ExprRange(val start: Expr, val end: Option[Expr]) extends Expr {
+  /** what is the resulting type - when known */
+  override def getType: String = WTypes.RANGE
+  override def expr = toString
+
+  override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).calculatedValue
+
+  override def applyTyped(v: Any)(implicit ctx: ECtx): P = {
+    val as = start.apply(v)
+    // todo should apply typed and verify the type is INT
+
+    end.map { end =>
+      val zs = end.apply(v)
+      P.fromTypedValue("", Range(as.toString.toInt, zs.toString.toInt), WTypes.RANGE)
+    }.getOrElse {
+      P.fromTypedValue("", Range(as.toString.toInt, scala.Int.MaxValue), WTypes.RANGE)
+    }
+  }
+
+  override def toDsl = start + ".." + end
+  override def toHtml = tokenValue(toDsl)
+}
+
+/** a function */
+case class CExprNull() extends Expr {
+  override def getType: String = WTypes.UNDEFINED
+  override def expr = "null"
+
+  override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).calculatedValue
+
+  override def applyTyped(v: Any)(implicit ctx: ECtx): P = P("", "", WTypes.UNDEFINED)
+
+  override def toDsl = expr
+  override def toHtml = expr
 }
 
 /** a function */
@@ -348,7 +508,7 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
           .map { p =>
             val pv = p.calculatedTypedValue
             if (pv.contentType == WTypes.ARRAY) {
-              val sz = pv.value.asInstanceOf[List[_]].size
+              val sz = pv.asArray.size
               P("", sz.toString, WTypes.NUMBER).withValue(sz, WTypes.NUMBER)
             } else {
               throw new DieselExprException(
@@ -386,7 +546,7 @@ case class CExpr[T](ee: T, ttype: String = "") extends Expr {
   override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).dflt
 
   override def applyTyped(v: Any)(implicit ctx: ECtx): P = {
-    val es = ee.toString
+    val es = P.asString(ee)
 
     if (ttype == WTypes.NUMBER) {
       if (es.contains("."))
@@ -482,7 +642,9 @@ case class SCExpr(s: String) extends Expr {
 case class JBlockExpr(ex: List[(String, Expr)]) extends Expr {
   val expr = "{" + ex.map(t=>t._1 + ":" + t._2.toString).mkString(",") + "}"
 
-  override def apply(v: Any)(implicit ctx: ECtx) = {
+  override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).dflt
+
+  override def applyTyped(v: Any)(implicit ctx: ECtx) = {
 //    val orig = template(expr)
     val orig = ex
       .map(t=> (t._1, t._2.applyTyped(v)))
@@ -500,7 +662,9 @@ case class JBlockExpr(ex: List[(String, Expr)]) extends Expr {
       .map(t=> s""" "${t._1}" : ${t._2} """)
       .mkString(",")
     // parse and clean it up so it blows up right here if invalid
-    new JSONObject(s"{$orig}").toString(2)
+    val j = new JSONObject(s"{$orig}")
+    P.fromTypedValue("", j, WTypes.JSON)
+//    new JSONObject(s"{$orig}").toString(2)
   }
 
   override def getType: String = WTypes.JSON
@@ -523,7 +687,14 @@ case class JArrExpr(ex: List[Expr]) extends Expr {
     new org.json.JSONArray(s"[$orig]").toString()
   }
 
-  override def getType: String = WTypes.JSON
+  override def applyTyped(v: Any)(implicit ctx: ECtx): P = {
+    val orig = ex.map(_.apply(v)).mkString(",")
+    // parse and clean it up so it blows up right here if invalid
+    val ja = new org.json.JSONArray(s"[$orig]")
+    P.fromTypedValue("", ja)
+  }
+
+  override def getType: String = WTypes.ARRAY
 
   // replace ${e} with value
   def template(s: String)(implicit ctx: ECtx) = {
@@ -597,13 +768,22 @@ case class BCMP2(a: Expr, op: String, b: Expr)
             .expr
             .toLowerCase
 
-        if (ap.ttype == WTypes.NUMBER && bp.ttype == WTypes.NUMBER) {
+        def isNum(p:P) = {
+          p.ttype == WTypes.NUMBER || p.value.exists(_.contentType == WTypes.NUMBER)
+        }
+
+        val cmpop = op match {
+          case "?=" | "==" | "!=" | "~=" | "like" | "<=" | ">=" | "<" | ">" => true
+          case _ => false
+        }
+
+        // if one of them is number, don't care about the other... could be a string containing a num...
+        if (cmpop && (isNum(ap) || isNum(bp))) {
           return cmpNums(ap.calculatedValue, bp.calculatedValue, op)
         }
 
         op match {
           case "?="          => a(in).toString.length >= 0 // anything with a default
-          case "=="          => a(in) == b(in)
           case "!="          => a(in) != b(in)
           case "~=" | "like" => a(in).toString matches b(in).toString
           case "<="          => a(in).toString <= b(in).toString
@@ -614,20 +794,53 @@ case class BCMP2(a: Expr, op: String, b: Expr)
           case "contains"    => a(in).toString contains b(in).toString
           case "containsNot" => !(a(in).toString contains b(in).toString)
 
-          case "is" if b.toString == "defined" => as.length > 0
+          // THESE CANNOT CHANGE...
 
-          case "is" if b.toString == "empty" || b.toString == "undefined" =>
-            as.length == 0
+          case "is"  if b.toString == "null" => ap.ttype == WTypes.UNDEFINED
+          case "not" if b.toString == "null" => ap.ttype != WTypes.UNDEFINED
+          case "is"  if b.toString == "defined" => ap.ttype != WTypes.UNDEFINED
+          case "not" if b.toString == "defined" => ap.ttype == WTypes.UNDEFINED //as.length <= 0
+
+          case "is"  if b.toString == "nzlen" => ap.ttype != WTypes.UNDEFINED && as.length > 0
+          case "not" if b.toString == "nzlen" => ap.ttype == WTypes.UNDEFINED || as.length <= 0
+
+          case "is"  if b.toString == "empty" =>
+              if (ap.calculatedTypedValue.contentType == WTypes.JSON)
+                 ap.calculatedTypedValue.asJson.isEmpty
+              else
+                /*ap.ttype != WTypes.UNDEFINED &&*/ as.length == 0
+
+          case "not" if b.toString == "empty" => as.length > 0
+
+          case "is"  if b.toString == "undefined" => ap.ttype == WTypes.UNDEFINED
+          case "not" if b.toString == "undefined" => ap.ttype != WTypes.UNDEFINED
+
+
 
           case "is" if b_is("number") => as.matches("[0-9.]+")
+
           case "is" if b_is("boolean") =>
             a.getType == WTypes.BOOLEAN || ap.calculatedTypedValue.contentType == WTypes.BOOLEAN
-          case "is" if b_is("json") =>
+
+          case "is" if b_is("json") || b_is("object") =>
             ap.calculatedTypedValue.contentType == WTypes.JSON
 
           case "is" if b_is("array") => {
             val av = ap.calculatedTypedValue
             av.contentType == WTypes.ARRAY
+          }
+
+          case "is" | "==" if bp.ttype == WTypes.ARRAY || ap.ttype == WTypes.ARRAY => {
+            val av = ap.calculatedTypedValue
+            val bv = bp.calculatedTypedValue
+            val al = av.asArray
+            val bl = bv.asArray
+
+            if(al.size != bl.size) {
+              false
+            } else {
+              al.zip(bl).foldLeft(true)((a,b) => a && (b._1 == b._2))
+            }
           }
 
           case "is" => { // is nuber or is date or is string etc
@@ -652,16 +865,12 @@ case class BCMP2(a: Expr, op: String, b: Expr)
               (as == b(in).toString)
           }
 
-          case "not" if b.toString == "defined" => {
-            val x = a(in)
-            a(in).toString.length <= 0
-          }
-          case "not" if b.toString == "empty" || b.toString == "undefined" =>
-            a(in).toString.length > 0
 
           // also should be
           // todo why also should be ???
           case "not" => a(in).toString.length > 0 && a(in) != b(in)
+
+          case "=="          => a(in) == b(in)
 
           case _ if op.trim == "" => {
             // no op - look for boolean parms?
@@ -678,14 +887,15 @@ case class BCMP2(a: Expr, op: String, b: Expr)
   }
 
   private def cmpNums(as: String, bs: String, op: String): Boolean = {
-    val ai = {
-      if (as.contains(".")) as.toDouble
-      else as.toInt
-    }
-    val bi = {
-      if (bs.contains(".")) bs.toDouble
-      else bs.toInt
-    }
+    Try {
+      val ai = {
+        if (as.contains(".")) as.toDouble
+        else as.toInt
+      }
+      val bi = {
+        if (bs.contains(".")) bs.toDouble
+        else bs.toInt
+      }
 
     op match {
       case "?="  => true
@@ -702,6 +912,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
         false
       }
     }
+    } getOrElse (false)
   }
 }
 

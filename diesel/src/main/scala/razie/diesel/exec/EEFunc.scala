@@ -75,8 +75,10 @@ object EEFunc {
   def executeTyped (script:String)(implicit ctx: ECtx): P = {
     val r = try {
 
+      // run the script
       val r = newestFiddle(script, "js", ctx.listAttrs, ctx)
 
+      // typed result
       r._3 match {
 
         case i:Integer => P("", i.toString, WTypes.NUMBER).withValue(i, WTypes.NUMBER)
@@ -101,18 +103,11 @@ object EEFunc {
   /** this to be the new entry point for scripts in diesel context */
   def newestFiddle(script: String, lang: String, attrs: List[P], ctx:ECtx) = {
     // todo optimize - remove q
-    var q  = attrs.map(t => (t.name, t.dflt)).toMap + ("diesel" -> "")
+    val q  = attrs.map(t => (t.name, t.dflt)).toMap + ("diesel" -> "")
     val qp = attrs.map(t => (t.name, t)).toMap
-    var exprs = Map[String,String]()
+    val exprs = Map[String,String]()
 
-    val typed = qTypedP(qp, None) + ("diesel" -> new DieselJs(ctx))
-
-    // process the JSONs differently
-    // p : JSON will become a pAsString and a p
-    attrs.filter(_.ttype == WTypes.JSON).foreach {p=>
-      q = (q - p.name) + (p.name + "AsString" -> p.dflt)
-      exprs = exprs + (p.name -> s"JSON.parse(${p.name}AsString)")
-    }
+    val typed = qTypedP(qp, None)(ctx) + ("diesel" -> new DieselJs(ctx))
 
     val r = DieselScripster.isfiddleMap(script, "js", q, Some(typed), exprs, ctx)
 

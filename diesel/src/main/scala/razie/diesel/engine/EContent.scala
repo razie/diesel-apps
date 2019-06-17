@@ -8,7 +8,6 @@ package razie.diesel.engine
 
 import java.util.regex.Pattern
 
-import org.json.JSONObject
 import razie.Snakk
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
@@ -21,6 +20,7 @@ import scala.util.Try
 class EContent(
                  val body: String,
                  val contentType: String,
+                 val code : Int = 200,
                  val headers: Map[String, String] = Map.empty,
                  val iroot: Option[Snakk.Wrapper[_]] = None,
                  val raw: Option[Array[Byte]] = None) {
@@ -32,7 +32,7 @@ class EContent(
   def asJsonPayload = {
     // sometimes you get empty
     val b = if (body.length > 0) body else "{}"
-    P("payload", b, WTypes.JSON).withValue(new JSONObject(b), WTypes.JSON)
+    P.fromTypedValue("payload", razie.js.parse(b), WTypes.JSON)
   }
 
   import razie.Snakk._
@@ -46,6 +46,17 @@ class EContent(
       //throw new IllegalStateException ("unknown content-type: "+x)
     }
   }
+
+  /** headers as a nice lowercase P */
+  def headersp = {
+    P.fromTypedValue(
+      "snakk.http.headers",
+      headers.map{t=> (t._1.toLowerCase, t._2)}.toMap,
+      WTypes.JSON)
+  }
+
+  /** headers as a nice lowercase P */
+  def httpCodep = P.fromTypedValue( "snakk.http.code", code)
 
   lazy val hasValues = if (isXml || isJson) root \ "values" else Snakk.empty
 
@@ -143,7 +154,7 @@ class EContent(
       Nil
   }
 
-  override def toString = s"Content-type:${this.contentType} Headers:${this.headers.mkString} \nBody: ${this.body}"
+  override def toString = s"Content-type:${this.contentType}\nHeaders:${this.headers.mkString("\n")}\nBody: ${this.body}"
 }
 
 /** content processing utils */

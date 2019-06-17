@@ -67,8 +67,8 @@ trait ECtx {
         Try {
           val p = getp(n).filter(_.dflt.length > 0)
           val m =
-            if(p.flatMap(_.value).exists(_.isInstanceOf[Map[String,_]]))
-              p.flatMap(_.value).map(_.asInstanceOf[Map[String,_]])
+            if(p.flatMap(_.value).exists(_.isInstanceOf[Map[_,_]]))
+              p.flatMap(_.value).map(_.asInstanceOf[Map[_,_]])
           else {
               // if json try to parse it
             p.map(_.dflt).map{v=>
@@ -82,7 +82,7 @@ trait ECtx {
           Map.empty
         }.get
       }.collect {
-        case x:Map[String, _] => sourceStruc(rest, Some(x))
+        case x:Map[_, _] => sourceStruc(rest, Some(x.asInstanceOf[Map[String, Any]]))
       }.flatten
     } else {
       val xxx = root.flatMap(_.get(name))
@@ -95,6 +95,7 @@ trait ECtx {
     if(x.exists(_.isInstanceOf[P]))
       Some(x.get.asInstanceOf[P])
     else
+    // todo typed
       x.map(x=>P(name, x.toString))
   }
 }
@@ -132,14 +133,14 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
 //  def specs_= (x : List[DSpec]) = base.map(_.specs = x) getOrElse (_specs = x)
 
   def findTemplate (ea:String, direction:String="") : Option[DTemplate] = {
-    specs.flatMap(_.findTemplate(ea, direction).toList).headOption
+    specs.flatMap(_.findSection(ea, direction).toList).headOption
   }
 
   /** find template with predicate */
   def findTemplate (p : DTemplate => Boolean) : Option[DTemplate] = {
     specs.foldLeft[Option[DTemplate]](None)((a,s) =>
       // stop searching when found
-      a.orElse(s.findTemplate(p))
+      a.orElse(s.findSection(p))
     )
   }
 
@@ -149,6 +150,7 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
   def remove (name: String): Option[P] = {
     attrs.find(a=> a.name == name).map { p =>
       attrs = attrs.filter(_.name != name)
+//      base.flatMap(_.remove(name)) // remove anyways from base, in case it was defined
       p
     } orElse base.flatMap(_.remove(name))
   }
@@ -177,13 +179,19 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
 
   /** propagates by default up - see the Scope context which will not */
   def put(p: P): Unit =
-    if(base.isDefined) base.get.put(p)
-    else  attrs = p :: attrs.filter(_.name != p.name)
+    if(base.isDefined)
+      base.get.put(p)
+//    else if(p.ttype == WTypes.UNDEFINED)
+//      remove(p)
+    else
+      attrs = p :: attrs.filter(_.name != p.name)
 
   /** propagates by default up - see the Scope context which will not */
   def putAll(p: List[P]): Unit =
     if(base.isDefined) base.get.putAll(p)
     else attrs = p ::: attrs.filter(x => !p.exists(_.name == x.name))
+//    p.map(put)
+  // this old ver would not remove null/UNDEF
 
   def root: DomEngECtx = base.map(_.root).getOrElse(this).asInstanceOf[DomEngECtx]
 

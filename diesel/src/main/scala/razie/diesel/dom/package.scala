@@ -67,7 +67,7 @@ package object dom {
   }
 
   /** better version - f is if you have a func defn in context */
-  def qTypedP(q:Map[String,P], f:Option[RDOM.F]) = q.map { t =>
+  def qTypedP(q:Map[String,P], f:Option[RDOM.F])(implicit ctx:ECtx) = q.map { t =>
     def prep(v: String) =
       if (v.startsWith("\"")) v.replaceAll("\"", "")
       else if (v.startsWith("\'")) v.replaceAll("\'", "")
@@ -92,6 +92,8 @@ package object dom {
 //        case _:Throwable => throw new IllegalArgumentException("Type error: expected JSON, parm "+t._1+" found "+t._2)
 //      }
 //    )
+    else if (p.ttype == WTypes.JSON)
+      (t._1, t._2.calculatedTypedValue.asJson)
     else
       (t._1, prep(t._2.dflt))
   }
