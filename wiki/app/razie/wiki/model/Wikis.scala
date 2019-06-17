@@ -17,6 +17,7 @@ import razie.audit.Audit
 import razie.db.RazSalatContext._
 import razie.db.{RMany, RazMongo}
 import razie.diesel.dom.WikiDomain
+import razie.hosting.WikiReactors
 import razie.tconf.parser.{BaseAstNode, LeafAstNode, ParserSettings, StrAstNode}
 import razie.wiki.model.Visibility.PUBLIC
 import razie.wiki.model.features.{WForm, WikiForm}

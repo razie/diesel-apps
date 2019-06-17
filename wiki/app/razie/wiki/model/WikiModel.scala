@@ -98,16 +98,17 @@ case class WikiEntry(
   import WikiEntry._
 
   // from DSpec
-  override def specPath = new SpecPath("local", this.wid.wpath, this.realm) {
-    override def ahref: Option[String] = Some(wid.ahref)
-  }
+  override def specPath =
+    new SpecPath("local", this.wid.wpath, this.realm) {
+      override def ahref: Option[String] = Some(wid.ahref)
+    }
 
   /**
     * find a template for that name (e-a) or implementing that URL
     *
     * from DSpec
     */
-  override def findTemplate(name: String, tags:String=""): Option[DTemplate] =
+  override def findSection(name: String, tags:String=""): Option[DTemplate] =
     this
       .templateSections
       .filter(t=>
@@ -117,7 +118,7 @@ case class WikiEntry(
       .map {t=> new WikiDTemplate (t) }
 
   /** find template with predicate */
-  override def findTemplate (p : DTemplate => Boolean) : Option[DTemplate] = {
+  override def findSection(p : DTemplate => Boolean) : Option[DTemplate] = {
     this
       .templateSections
       .map {t=> new WikiDTemplate (t) }
@@ -202,27 +203,27 @@ case class WikiEntry(
     // TODO optimize exists
     if (Wikis.find(wid).exists(_.realm == this.realm)) {
       Log.error("ERR_WIKI page exists " + wid)
-      throw new IllegalStateException(s"page already exists: $category/$name")
-    }
+//      throw new IllegalStateException(s"page already exists: $category/$name")
+    } else {
+      Audit.logdbWithLink(
+        if (wid.cat == "Note") AUDIT_NOTE_CREATED else AUDIT_WIKI_CREATED,
+        wid.urlRelative,
+        "BY " + (WikiUsers.impl.findUserById(this.by).map(_.userName).getOrElse(this.by.toString)) +
+            " " + category + ":" + name)
 
-    Audit.logdbWithLink(
-      if(wid.cat=="Note") AUDIT_NOTE_CREATED else AUDIT_WIKI_CREATED,
-      wid.urlRelative,
-      "BY " + (WikiUsers.impl.findUserById(this.by).map(_.userName).getOrElse(this.by.toString)) +
-        " " + category + ":" + name)
+      // add form section if new wiki
+      if (this.ipreprocessed.isEmpty) {
+        this.preprocess(None)
+      }
+      var neww = this
+      if (fields.nonEmpty && !content.contains("{{.section:formData}}")) {
+        neww = this.copy(content = content + "\n" + Wikis.mkFormData(this))
+      }
 
-    // add form section if new wiki
-    if(this.ipreprocessed.isEmpty) {
-      this.preprocess(None)
+      Wikis(realm).weTable(wid.cat) += grater[WikiEntry].asDBObject(Audit.createnoaudit(neww))
+      Wikis.shouldFlag(name, label, content).map(auditFlagged(_))
+      Wikis(realm).index.create(neww)
     }
-    var neww = this
-    if(fields.nonEmpty && !content.contains("{{.section:formData}}")) {
-      neww = this.copy(content=content + "\n" + Wikis.mkFormData(this))
-    }
-
-    Wikis(realm).weTable(wid.cat) += grater[WikiEntry].asDBObject(Audit.createnoaudit(neww))
-    Wikis.shouldFlag(name, label, content).map(auditFlagged(_))
-    Wikis(realm).index.create(neww)
   }
 
   /** backup old version and update entry, update index */
@@ -416,6 +417,14 @@ case class WikiEntry(
   *
   * Note that the content will start with a \n if you use separate lines...
   * todo signature is really tags, rename it
+  *
+  * @param original
+  * @param parent
+  * @param stype
+  * @param name
+  * @param signature
+  * @param content
+  * @param args
   */
 case class WikiSection(original:String, parent: WikiEntry, stype: String, name: String, signature: String, content: String, args:Map[String,String] = Map.empty) {
   var line : Int = -1

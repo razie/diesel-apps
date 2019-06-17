@@ -5,6 +5,7 @@ import razie.diesel.dom.RDOM.{P, PM}
 import razie.diesel.engine.EContent
 import razie.tconf.EPos
 import razie.wiki.Enc
+import razie.wiki.parser.PAS
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
@@ -115,7 +116,8 @@ package object ext {
   }
 
   def check (in:P, pm:PM)(implicit ctx: ECtx) = {
-    in.name == pm.name && {
+    // match simple names - look at testA for complex evaluators
+    in.name == pm.name && pm.ident.rest.isEmpty && {
       val r = new BCMP2(in.valExpr, pm.op, pm.valExpr).apply("")
 
       // for regex matches, use each capture group and set as parm in context
@@ -172,10 +174,21 @@ package object ext {
 
           if(!res) {
             // last try: any value in context
-            res = new BCMP2(AExprIdent(pm.name), pm.op, pm.valExpr).apply("")
+            res = new BCMP2(pm.ident, pm.op, pm.valExpr).apply("")
 
             if(!res) // failed to find any valid exprs, just evaluate the left side to get some info
               cole.map(_.missedValue(AExprIdent(pm.name).applyTyped("")))
+            else {
+              // for regex matches, use each capture group and set as parm in context
+              if(pm.op == "~=") {
+                // extract parms
+                val a = pm.ident.apply("")
+                val b = pm.valExpr.apply("")
+                val groups = EContent.extractRegexParms(b.toString, a.toString)
+
+                groups.foreach(t=> ctx.put(P(t._1, t._2)))
+              }
+            }
           }
 
           if (res) cole.map(_.plus(b._1.name + b._1.op + b._1.dflt))
@@ -287,6 +300,7 @@ package object ext {
 
   def toHtmlAttrs(attrs: Attrs)      = if(attrs.nonEmpty) s"""${attrs.map(_.toHtml).mkString("(", ", ", ")")}""" else ""
   def toHtmlMAttrs(attrs: MatchAttrs) = if(attrs.nonEmpty) s"""${attrs.map(_.toHtml).mkString("(", ", ", ")")}""" else ""
+  def toHtmlPAttrs(attrs: List[PAS]) = if(attrs.nonEmpty) s"""${attrs.map(_.toHtml).mkString("(", ", ", ")")}""" else ""
 
   //todo when types are supported, remove this method and all its uses
   def stripQuotes(s:String) =

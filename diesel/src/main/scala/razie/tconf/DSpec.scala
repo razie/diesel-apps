@@ -1,6 +1,5 @@
 package razie.tconf
 
-import razie.diesel.dom._
 import razie.diesel.ext
 import razie.tconf.parser.JMapFoldingContext
 import razie.wiki.parser.{ParserBase, SimpleSpecParser}
@@ -11,7 +10,7 @@ import razie.wiki.parser.{ParserBase, SimpleSpecParser}
   *
   * @param source - the source system: inventory understands and delegates to
   * @param wpath - unique id of the spec
-  * @param realm - optionally identify a realm within the source
+  * @param realm - optionally identify a realm within the source (multi-tenancy)
   * @param ver - optionally identify a version of the spec
   * @param draft - optionally identify a certain temporary variant (i.e. autosaved by username)
   */
@@ -45,10 +44,10 @@ trait DSpec {
   def specPath: TSpecPath
 
   // todo this is too specific - need to refactor out
-  def findTemplate(name: String, direction: String = ""): Option[DTemplate]
+  def findSection(name: String, tags: String = ""): Option[DTemplate]
 
   /** find template with predicate */
-  def findTemplate(p: DTemplate => Boolean): Option[DTemplate]
+  def findSection(p: DTemplate => Boolean): Option[DTemplate]
 
   /** other parsing artifacts to be used by knowledgeable modules.
     * Parsers can put stuff in here. */
@@ -83,6 +82,7 @@ trait DSpec {
   */
 trait DTemplate {
   def name: String
+  def stype: String
   def content: String
   def tags: String
   def specPath: TSpecPath
@@ -110,9 +110,8 @@ case class TextSpec(override val name: String, override val text: String)
 class BaseTextSpec(val name: String, val text: String) extends DSpec {
   def specPath: TSpecPath = new SpecPath("local", name, "")
 
-  def findTemplate(name: String, direction: String = ""): Option[DTemplate] =
-    None
-  def findTemplate(p: DTemplate => Boolean): Option[DTemplate] = None
+  def findSection(name: String, tags: String = ""): Option[DTemplate] = None
+  def findSection(p: DTemplate => Boolean): Option[DTemplate] = None
 
   /** other parsing artifacts to be used by knowledgeable modules.
     * Parsers can put stuff in here. */

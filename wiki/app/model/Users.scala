@@ -16,6 +16,7 @@ import razie.audit.Audit
 import razie.db.RazSalatContext._
 import razie.db._
 import razie.db.tx.txn
+import razie.tconf.DUsers
 import razie.wiki.Sec._
 import razie.wiki.{Enc, Services}
 import razie.wiki.model._
@@ -215,10 +216,11 @@ object Users {
 }
 
 /** user factory and utils */
-object WikiUsersImpl extends WikiUsers {
+object WikiUsersImpl extends DUsers[User] {
   def findUserById(id: String) = Users.findUserById (id)
   def findUserById(id: ObjectId) = Users.findUserById (id)
   def findUserByUsername(uname: String) = Users.findUserByUsername(uname)
+  def findUserByEmailDec(emailDec: String) = Users.findUserByEmailDec(emailDec)
 }
 
 /** represents a unique user id */

@@ -9,6 +9,7 @@ import razie.wiki.model._
   * @param section comma separated list of sections
  */
 class DslProps (val we:Option[WikiPage], section:String, extra:Seq[(String,String)] = Seq()) {
+  // can be reloaded in reload()
   private var ipropSeq = extra
   private var iprops = ipropSeq.toMap[String,String]
 

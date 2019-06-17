@@ -273,7 +273,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
 
       // todo cache this
 
-    we.flatMap(_.findTemplate(name)).map(_.content).orElse(
+    we.flatMap(_.findSection(name)).map(_.content).orElse(
       Wikis(realm).find(wid).orElse(
         Wikis(realm).find(widl)).orElse(
         Wikis.rk.find(wid)).map(_.content)

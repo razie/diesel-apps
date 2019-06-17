@@ -4,8 +4,7 @@ import api.dwix
 import org.bson.types.ObjectId
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom.{ECtx, RDomain, SimpleECtx}
-import razie.tconf.DSpec
-import razie.wiki.model.WikiUsers
+import razie.tconf.{DSpec, DUsers}
 
 /** specific root context for an enging instance
   *
@@ -72,12 +71,12 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
     val au = settings
       .flatMap(_.userId)
       .map(new ObjectId(_))
-      .flatMap(WikiUsers.impl.findUserById)
+      .flatMap(DUsers.impl.findUserById)
 
     dwix.dieselEnvFor(settings.flatMap(_.realm).mkString, au)
   }
 
-  // figure out the environment for this user
+  // user id if any
   def dieselUser(ctx:ECtx) = {
     val root = ctx.root
     val settings = root.engine.map(_.settings)

@@ -73,6 +73,11 @@ object Autosave {
   /** filter internal states */
   def activeDrafts(userId: ObjectId) =
     findForUser(userId).filter(x=> x.what != "DomFidPath" && x.what != "DomFidCapture")
+
+  /** each user has its own draft */
+  def allDrafts(w:WID) =
+    RMany[Autosave]("realm" -> w.getRealm, "name" -> w.wpath)
+
 }
 
 

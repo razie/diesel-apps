@@ -8,7 +8,6 @@ package razie.hosting
 
 import admin.Config
 import play.api.mvc.Request
-import razie.wiki.WikiConfig
 import razie.wiki.model._
 import razie.wiki.util.PlayTools
 

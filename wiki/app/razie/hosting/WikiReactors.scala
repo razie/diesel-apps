@@ -4,22 +4,20 @@
  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
  */
-package razie.wiki.model
+package razie.hosting
 
-import com.mongodb.DBObject
 import com.mongodb.casbah.Imports._
 import com.novus.salat._
+import razie.Logging
 import razie.audit.Audit
-import razie.{Logging, clog}
 import razie.db.RazMongo
 import razie.db.RazSalatContext._
 import razie.diesel.engine.DieselAppContext
 import razie.diesel.model.{DieselMsg, DieselTarget, ScheduledDieselMsg}
-import razie.hosting.Website
-import razie.tconf.SpecPath
+import razie.tconf.hosting.Reactors
+import razie.wiki.model._
 import razie.wiki.util.DslProps
 import razie.wiki.{Services, WikiConfig}
-
 import scala.collection.mutable.ListBuffer
 
 /**
@@ -27,7 +25,7 @@ import scala.collection.mutable.ListBuffer
   *
   * this holds all the reactors hosted in this process
   */
-object WikiReactors extends Logging {
+object WikiReactors extends Logging with Reactors {
   // reserved reactors
   final val RK = WikiConfig.RK       // original, still decoupling code
   final val WIKI = "wiki"              // main reactor
@@ -235,6 +233,10 @@ object WikiReactors extends Logging {
         new Website(we).prop("domain").map(Website.clean)
       }
     }
+  }
+
+  override def getProperties (realm:String) : Map[String,String] = {
+    apply(realm).websiteProps.props
   }
 
   WikiIndex.init()

@@ -7,7 +7,7 @@
 package razie.wiki.model
 
 import org.bson.types.ObjectId
-import razie.tconf.DUser
+import razie.tconf.{DUser, DUsers}
 import razie.wiki.util.NoAuthService
 
 /** user permissions */
@@ -46,13 +46,12 @@ object Perm {
 
 /** basic user concept - you have to provide your own implementation */
 abstract class WikiUser extends DUser {
-  def userName: String
+  override def userName: String
+  override def id: String = _id.toString
+  override def ename: String // make up a nice name: either first name or email or something
+
   def email: String
   def _id: ObjectId
-
-  override def id: String = _id.toString
-
-  def ename: String // make up a nice name: either first name or email or something
 
   /** pages of category that I linked to. Use wildcard '*' for all realms and all cats */
   def myPages (realm:String, cat: String) : List[Any]
@@ -76,24 +75,24 @@ abstract class WikiUser extends DUser {
   def isMod = isAdmin || hasPerm(Perm.Moderator)
   def isDev = isAdmin || hasPerm(Perm.codeMaster)
   def isAdmin = hasPerm(Perm.adminDb) || hasPerm(Perm.adminWiki)
-
-  def realmPrefs (realm:String) = Map.empty[String,String]
-}
-
-/** user factory and utils */
-trait WikiUsers {
-  def findUserById(id: ObjectId) : Option [WikiUser]
-  def findUserByUsername(uname: String) : Option [WikiUser]
 }
 
 /** sample dummy */
-object NoWikiUsers extends WikiUsers {
+object NoWikiUsers extends DUsers[WikiUser] {
   def findUserById(id: ObjectId) : Option [WikiUser] = Some(NoAuthService.harry)
   def findUserByUsername(uname: String) : Option [WikiUser] = Some(NoAuthService.harry)
+  def findUserByEmailDec(emailDec: String) : Option [WikiUser] = Some(NoAuthService.harry)
   def isActive = true
 }
 
 /** provide implementation in Global::beforeStart() */
 object WikiUsers {
-  var impl : WikiUsers = NoWikiUsers
+  private var _impl : DUsers[WikiUser] = NoWikiUsers
+
+  def impl : DUsers[WikiUser] = NoWikiUsers
+  def setImpl(newImpl : DUsers[WikiUser]) = {
+    _impl = newImpl
+    DUsers.impl = newImpl
+  }
 }
+

@@ -7,6 +7,7 @@
 package razie.wiki.model
 
 import razie.diesel.dom.WikiDomain
+import razie.hosting.WikiReactors
 import razie.wiki.util.DslProps
 
 /** a hosted wiki instance, i.e. independent hosted website.

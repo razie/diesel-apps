@@ -1,12 +1,12 @@
 package api
 
-import razie.wiki.model._
+import razie.tconf.DUser
 
-/** this is available to scripts inside the wikis */
+/** todo refactor out when moving Website/tenant down here */
 object dwix {
 
   /** current or default environment for given realm and user */
-  def dieselEnvFor (realm:String, ou:Option[WikiUser]):String = {
+  def dieselEnvFor (realm:String, ou:Option[DUser]):String = {
     ou
       .flatMap(_.realmPrefs(realm).get("dieselEnv"))
       .orElse(

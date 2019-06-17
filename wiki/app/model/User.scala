@@ -19,8 +19,8 @@ import razie.db._
 import razie.db.tx.txn
 import razie.audit.Audit
 import razie.diesel.dom.WikiDomain
+import razie.hosting.WikiReactors
 import razie.wiki.util.Maps
-
 import scala.collection.mutable
 
 object UserType {

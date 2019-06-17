@@ -12,6 +12,7 @@ import org.bson.types.ObjectId
 import razie.base.data.TripleIdx
 import razie.clog
 import razie.db.RazSalatContext._
+import razie.hosting.WikiReactors
 import razie.tconf.{SpecPath, TSpecPath}
 import razie.wiki.Services
 
@@ -176,6 +177,22 @@ case class WID(
     if (cat != null && cat.length > 0 ) (cats + ":") else "") + name + (section.map("#" + _).getOrElse(""))
 
   def formatted = this.copy(name=Wikis.formatName(this))
+
+  /** even when running in localhost mode, use the remote url */
+  def urlRemote: String = {
+    val hasRealm = realm.isDefined && WikiReactors(realm.get).websiteProps.prop("domain").exists(_.length > 0)
+
+    "http://" + {
+      if (hasRealm)
+        WikiReactors(realm.get).websiteProps.prop("domain").get
+      else
+      //todo current realm
+        Services.config.hostport
+    } + "/" + {
+      if(realm.isDefined) "wiki/" + wpath
+      else canonpath
+    }
+  }
 
   /** the canonical URL with the proper hostname for reactor */
   def url: String = {

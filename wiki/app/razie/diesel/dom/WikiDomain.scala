@@ -1,5 +1,6 @@
 package razie.diesel.dom
 
+import razie.hosting.WikiReactors
 import razie.tconf.{DTemplate, EPos, SpecPath}
 import razie.wiki.model._
 
@@ -113,6 +114,7 @@ object WikiDomain {
 
 case class WikiDTemplate (t:WikiSection) extends DTemplate {
   def name : String = t.name
+  def stype : String = t.stype
   def content : String = t.content
   def tags : String = t.signature
   def parms : Map[String,String] = t.args ++ Map("signature" -> t.signature)

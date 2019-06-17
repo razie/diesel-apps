@@ -6,12 +6,9 @@
  **/
 package razie.diesel.engine
 
-import api.dwix
 import jdk.nashorn.internal.runtime.Undefined
-import org.bson.types.ObjectId
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
-import razie.wiki.model.WikiUsers
 
 /** wrapper for JS scripts - this is the object `diesel` */
 class DieselJs(val ctx: ECtx) {
