@@ -9,6 +9,7 @@ package razie.diesel.ext
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.tconf.EPos
+import razie.wiki.parser.PAS
 import scala.Option.option2Iterable
 import scala.util.Try
 
@@ -20,7 +21,7 @@ object EMap {
 
     // solve an expression
     def expr(p: P) = {
-      p.expr.map(_.applyTyped("")(myCtx)/*.toString*/).getOrElse{
+      p.expr.map(_.applyTyped("")(myCtx)).getOrElse{
         // need to preserve types and stuff
         p
       }
@@ -32,10 +33,10 @@ object EMap {
       else { // do evaluation now
         // sourcing has expr, overrules
         val v =
-          if(p.dflt.length > 0 || p.expr.nonEmpty) Some(expr(p)) // a=x
-          else in.attrs.find(_.name == p.name).orElse( // just by name: no dflt, no expr
-            ctx.getp(p.name)
-          )
+        if(p.dflt.length > 0 || p.expr.nonEmpty) Some(expr(p)) // a=x
+        else in.attrs.find(_.name == p.name).orElse( // just by name: no dflt, no expr
+          ctx.getp(p.name)
+        )
 
         val tt =
           v.map(_.ttype).getOrElse {
@@ -65,24 +66,89 @@ object EMap {
     out1
   }
 
+  def sourcePasAttrs(in: List[PAS], deferEvaluation:Boolean=false)(implicit ctx: ECtx) = {
+    // current context, msg overrides
+    val myCtx = new StaticECtx(Nil, Some(ctx))
+
+    // solve an expression
+    def expr(p: P) = {
+      p.expr.map(_.applyTyped("")(myCtx)/*.toString*/).getOrElse{
+        // need to preserve types and stuff
+        p
+      }
+    }
+
+    val out1 =
+    {
+      // if no map rules and no spec, then just copy/propagate all parms
+      in.map {a=>
+        a.copy()
+      }
+    }
+
+    out1
+  }
+
+}
+
+abstract class EMap extends CanHtml with HasPosition {
+  var pos: Option[EPos] = None
+  def withPosition (p:EPos) : EMap
+
+  def apply(in: EMsg, destSpec: Option[EMsg], apos:Option[EPos], deferEvaluation:Boolean=false, arch:String = "")(implicit ctx: ECtx): List[Any]
+
+  // todo this is rather stupid - need better accounting
+  /** count the number of applications of this rule */
+  var count = 0;
+
+  def cls:String
+  def met:String
+}
+
+/** special case of map, just assigning exprs*/
+case class EMapPas(attrs: List[PAS], arrow:String="=>", cond: Option[EIf] = None) extends EMap {
+  override def cls:String = ""
+  override def met:String = ""
+
+  override def withPosition (p:EPos) = { this.pos=Some(p); this}
+
+  override def apply(in: EMsg, destSpec: Option[EMsg], apos:Option[EPos], deferEvaluation:Boolean=false, arch:String = "")(implicit ctx: ECtx): List[Any] = {
+
+    var e = Try {
+      val m = EMsgPas(
+        EMap.sourcePasAttrs(attrs, deferEvaluation)
+      )
+          .withPos(this.pos.orElse(apos))
+
+      // these evaluate right away, so no need for deferred
+      ENextPas(m, arrow, cond, deferEvaluation).withParent(in).withSpec(destSpec)
+    }.recover {
+      case t:Throwable => {
+        razie.Log.log("trying to source message", t)
+        new EError("Exception trying to source message", t)
+      }
+    }.get
+    count += 1
+
+    List(e)
+  }
+
+  //  override def toHtml = "<b>=&gt;</b> " + ea(cls, met) + " " + attrs.map(_.toHtml).mkString("(", ",", ")")
+  override def toHtml = """<span class="glyphicon glyphicon-arrow-right"></span> """ + cond.map(_.toHtml+" ").mkString + ea("", "") + " " + toHtmlPAttrs(attrs)
+
+  override def toString = "=> " + cond.map(_.toHtml+" ").mkString + ". " + attrs.mkString("(", ",", ")")
 }
 
 /** mapping a message - a decomposition rule (right hand side of =>)
   *
   * @param cls
   * @param met
-  * @param attrs
+  * @param attrs name = expr
   */
-case class EMap(cls: String, met: String, attrs: Attrs, arrow:String="=>", cond: Option[EIf] = None) extends CanHtml with HasPosition {
-  var pos: Option[EPos] = None
+case class EMapCls(cls: String, met: String, attrs: Attrs, arrow:String="=>", cond: Option[EIf] = None) extends EMap {
+  override def withPosition (p:EPos) = { this.pos=Some(p); this}
 
-  def withPosition (p:EPos) = { this.pos=Some(p); this}
-
-  // todo this is rather stupid - need better accounting
-  /** count the number of applications of this rule */
-  var count = 0;
-
-  def apply(in: EMsg, destSpec: Option[EMsg], apos:Option[EPos], deferEvaluation:Boolean=false, arch:String = "")(implicit ctx: ECtx): List[Any] = {
+  override def apply(in: EMsg, destSpec: Option[EMsg], apos:Option[EPos], deferEvaluation:Boolean=false, arch:String = "")(implicit ctx: ECtx): List[Any] = {
 
     val kind = AstKinds.kindOf(arch)
 
@@ -117,3 +183,4 @@ case class EMap(cls: String, met: String, attrs: Attrs, arrow:String="=>", cond:
 
   override def toString = "=> " + cond.map(_.toHtml+" ").mkString + cls + "." + met + " " + attrs.mkString("(", ",", ")")
 }
+

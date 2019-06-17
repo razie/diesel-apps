@@ -7,6 +7,7 @@
 package razie.diesel.dom
 
 import org.bson.types.ObjectId
+import razie.diesel.engine.DomEngine
 import razie.diesel.engine.RDExt.TestResult
 import razie.diesel.ext._
 import razie.diesel.ext.EnginePrep.StoryNode
@@ -104,6 +105,14 @@ case class DomAst(
   var tend:Long = System.currentTimeMillis()
   /** execution sequence number - an engine is a single sequence */
   var seqNo:Long = -1
+
+  def appendAll(other:List[DomAst])(implicit engine: DomEngine) = {
+    engine.evAppChildren(this, other)
+  }
+
+  def append(other:DomAst)(implicit engine: DomEngine) = {
+    engine.evAppChildren(this, other)
+  }
 
   def start(seq:Long) = {
     tstart = System.currentTimeMillis()
@@ -240,6 +249,19 @@ case class DomAst(
 
     def inspect(d: DomAst, level: Int): Unit = {
       if (f.isDefinedAt(d)) res append f(d)
+      d.children.map(inspect(_, level + 1))
+    }
+
+    inspect(this, 0)
+    res.toList
+  }
+
+  // visit/recurse with filter AND level
+  def collect2[T](f: PartialFunction[(DomAst, Int), T]) : List[T] = {
+    val res = new ListBuffer[T]()
+
+    def inspect(d: DomAst, level: Int): Unit = {
+      if (f.isDefinedAt((d, level))) res append f((d, level))
       d.children.map(inspect(_, level + 1))
     }
 

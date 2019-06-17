@@ -94,7 +94,13 @@ case class ExpectV(not: Boolean, pm: MatchAttrs, cond: Option[EIf] = None) exten
     cond.fold(true)(_.test(a, None))
   }
 
-  /** check to match the arguments */
+  /** check to match the arguments
+    *
+    * @param a results of previous tree/message or Nil for context-only matches
+    * @param cole collector for debugging info
+    * @param nodes nodes that were targeted, to reference in collectors
+    * @param ctx
+    */
   def test(a: Attrs, cole: Option[MatchCollector] = None, nodes: List[DomAst])(implicit ctx: ECtx) = {
     testA(a, pm, cole, Some({ p =>
       // start a new collector for each value we're looking for, to mark this value
@@ -190,7 +196,7 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
   * @param cond optional condition for this step
   * @param deferred
   */
-case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred:Boolean=false) extends CanHtml {
+case class ENextPas(msg: EMsgPas, arrow: String, cond: Option[EIf] = None, deferred:Boolean=false) extends CanHtml {
   var parent:Option[EMsg] = None
   var spec:Option[EMsg] = None
 
@@ -205,15 +211,52 @@ case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred:Bo
   def evaluateMsg(implicit ctx: ECtx) = {
     // if evaluation was deferred, do it
     val m = if (deferred) {
-      parent.map { parent =>
-        msg.copy(attrs = EMap.sourceAttrs(parent, msg.attrs, spec.map(_.attrs))).copiedFrom(msg)
-      } getOrElse {
-        msg // todo evaluate something here as well...
-      }
+        EMap.sourcePasAttrs(msg.attrs)
     } else msg
 
     m
   }
+
+  override def toHtml = (if (arrow != "-") arrow + " " else "") + msg.toHtml
+
+  override def toString = (if (arrow != "-") arrow + " " else "") + msg.toString
+}
+
+/** just a call to next.
+  *
+  * This is used to wrap async spawns ==> and
+  * normal => when there's more than one (they start one at a time)
+  *
+  * @param msg the message wrapped / to be executed next
+  * @param arrow - how to call next: wait => or no wait ==>
+  * @param cond optional condition for this step
+  * @param deferred
+  */
+case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred:Boolean=false) extends CanHtml {
+  var parent:Option[EMsg] = None
+  var spec:Option[EMsg] = None
+
+  def withParent(p:EMsg) = { this.parent=Some(p); this}
+  def withSpec(p:Option[EMsg]) = { this.spec=p; this}
+
+  // todo match also the object parms if any and method parms if any
+  def test(cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
+    cond.fold(true)(_.test(List.empty, cole))
+  }
+
+  /** apply - evaluate the message if not already */
+    def evaluateMsg(implicit ctx: ECtx) = {
+      // if evaluation was deferred, do it
+      val m = if (deferred) {
+        parent.map { parent =>
+          msg.copy(attrs = EMap.sourceAttrs(parent, msg.attrs, spec.map(_.attrs))).copiedFrom(msg)
+        } getOrElse {
+          msg // todo evaluate something here as well...
+        }
+      } else msg
+
+      m
+    }
 
   override def toHtml = (if (arrow != "-") arrow + " " else "") + msg.toHtml
 
@@ -286,6 +329,12 @@ case class EVal(p: RDOM.P) extends CanHtml with HasPosition {
 
   def withPos(p: Option[EPos]) = {
     this.pos = p; this
+  }
+
+  // overwrite default, so some values don't show in info view
+  var kind: Option[String] = None
+  def withKind(k: String) = {
+    this.kind = Some(k); this
   }
 
   def toj : Map[String,Any] =

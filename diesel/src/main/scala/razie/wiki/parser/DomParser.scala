@@ -123,8 +123,8 @@ trait DomParser extends ParserBase with ExprParser {
   }
 
   /** assoc : role */
-  def justAttrs: Parser[(String, String, List[RDOM.P])] = attrs ^^ {
-    case a => ("", "", a)
+  def justAttrs: Parser[List[PAS]] = pasattrs ^^ {
+    case a => a
   }
 
   /** p.a.ent.met - qualified ent so at least two elements
@@ -233,8 +233,17 @@ trait DomParser extends ParserBase with ExprParser {
     */
   def pgen: Parser[EMap] =
     ows ~> keyw(pArrow) ~ ows ~ opt(pif) ~ ows ~ (clsMet | justAttrs) <~ opt(";") <~ optComment ^^ {
-      case arrow ~ _ ~ cond ~ _ ~ Tuple3(zc, zm, za) => {
-        EMap(zc, zm, za, arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
+      case arrow ~ _ ~ cond ~ _ ~ cp => {
+
+        cp match {
+
+          case Tuple3(zc, zm, za) =>
+            EMapCls(zc.toString, zm.toString, za.asInstanceOf[List[RDOM.P]], arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
+
+          case pas:List[_] =>
+            EMapPas(pas.asInstanceOf[List[PAS]], arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
+        }
+
         // EPos wpath set later
       }
     }
@@ -245,7 +254,7 @@ trait DomParser extends ParserBase with ExprParser {
   def pgenStep: Parser[EMap] =
     ows ~> keyw("-") ~ ows ~ opt(pif) ~ ows ~ "[^\n\r;]+".r <~ opt(";") <~ optComment ^^ {
       case arrow ~ _ ~ cond ~ _ ~ desc => {
-        EMap("diesel", "step", List(P("desc", desc)), arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
+        EMapCls("diesel", "step", List(P("desc", desc)), arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
       }
     }
 
@@ -256,7 +265,7 @@ trait DomParser extends ParserBase with ExprParser {
   def pgenText: Parser[EMap] =
     ows ~> keyw("[^\n\r=\\-;]".r) ~ ows ~ opt(pif) ~ ows ~ "[^\n\r;]+".r <~ opt(";") ^^ {
       case arrow ~ _ ~ cond ~ _ ~ desc => {
-        EMap("diesel", "step", List(P("desc", arrow.s+desc)), "-", cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
+        EMapCls("diesel", "step", List(P("desc", arrow.s+desc)), "-", cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
       }
     }
 
@@ -409,10 +418,12 @@ trait DomParser extends ParserBase with ExprParser {
     *
     * pmatch is more than just a simple conditional expression
     */
-  def pmatchattr: Parser[RDOM.PM] = " *".r ~> qident ~ opt(" *: *".r ~> opt("<>") ~ ident ~ optKinds) ~
-    opt(" *\\* *".r) ~ opt(" *".r ~> OPS1 ~ " *".r ~ expr) ^^ {
+  def pmatchattr: Parser[RDOM.PM] = ows ~> (aidentaccess | aident) ~
+      opt(ows ~> ":" ~> ows ~> opt("<>") ~ ident ~ optKinds) ~
+      opt(" *\\* *".r) ~
+      opt(ows ~> OPS1 ~ ows ~ expr) ^^ {
 
-    case name ~ t ~ multi ~ e => {
+    case ident ~ t ~ multi ~ e => {
       var ttype = ""
       var dflt = ""
       val exp = e match {
@@ -423,9 +434,9 @@ trait DomParser extends ParserBase with ExprParser {
         case None => ("", None)
       }
       t match {
-        case Some(Some(ref) ~ tt ~ k) => PM(name, tt + k.s, ref, multi.mkString, exp._1, dflt, exp._2)
-        case Some(None ~ tt ~ k) => PM(name, tt + k.s, "", multi.mkString, exp._1, dflt, exp._2)
-        case None => PM(name, ttype, "", multi.mkString, exp._1, dflt, exp._2)
+        case Some(Some(ref) ~ tt ~ k) => PM(ident, tt + k.s, ref, multi.mkString, exp._1, dflt, exp._2)
+        case Some(None ~ tt ~ k) => PM(ident, tt + k.s, "", multi.mkString, exp._1, dflt, exp._2)
+        case None => PM(ident, ttype, "", multi.mkString, exp._1, dflt, exp._2)
       }
     }
   }
@@ -502,7 +513,7 @@ trait DomParser extends ParserBase with ExprParser {
           else {
             // todo snakkers need to be plugged in and insulated better
             // if no archetype specified, find a template snakker and import stype
-            val t = ctx.we.flatMap(_.findTemplate(qcm._3))
+            val t = ctx.we.flatMap(_.findSection(qcm._3))
             val sc = t.map(_.content).mkString
             if ("" != sc) Try {
               EESnakk.parseTemplate(t, sc, attrs).method
@@ -539,7 +550,10 @@ trait DomParser extends ParserBase with ExprParser {
   /**
     * .expect object.func (a,b)
     */
-  def pexpect: PS = keyw("[.$]expect".r <~ ws) ~ opt("not" <~ ws) ~ opt(pif) ~ ows ~ opt(qclsMet) ~ optMatchAttrs ~ " *".r ~ opt(pif) <~ " *".r <~ optComment ^^ {
+  def pexpect: PS = keyw("[.$]expect".r <~ ws) ~
+      opt("not" <~ ws) ~
+      opt(pif) ~ ows ~
+      opt(qclsMet) ~ optMatchAttrs ~ " *".r ~ opt(pif) <~ " *".r <~ optComment ^^ {
     case k ~ not ~ pif ~ _ ~ qcm ~ attrs ~ _ ~ cond => {
       lazys { (current, ctx) =>
         val pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))

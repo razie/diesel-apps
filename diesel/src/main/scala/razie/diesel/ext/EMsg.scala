@@ -10,7 +10,54 @@ import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.tconf.EPos
 import razie.wiki.Enc
+import razie.wiki.parser.PAS
 import scala.Option.option2Iterable
+
+/** a message
+  *
+  * @param entity
+  * @param met
+  * @param attrs
+  * @param arch
+  * @param ret
+  */
+case class EMsgPas(attrs: List[PAS]=Nil) extends CanHtml with HasPosition with DomAstInfo {
+
+  import EMsg._
+
+  /** the pos of the rule that decomposes me, as a spec */
+  var rulePos: Option[EPos] = None
+
+  /** the pos of the rule/map that generated me as an instance */
+  var pos : Option[EPos] = None
+
+  def withRulePos(p:Option[EPos]) = {this.rulePos = p; this}
+  def withPos(p:Option[EPos]) = {this.pos = p; this}
+
+  private def msgLabelColor: String = "primary"
+
+  // if this was an instance and you know of a spec
+  private def first(instPos:Option[EPos]) : String = {
+    // clean visual stypes annotations
+    val stypeStr = "".replaceAllLiterally(",prune", "").replaceAllLiterally(",warn", "")
+    kspan("msg", msgLabelColor, instPos) + span(stypeStr, "info") + (if (stypeStr.trim.length > 0) " " else "")
+    //    kspan("msg", msgLabelColor, spec.flatMap(_.pos)) + span(stypeStr, "info") + (if(stypeStr.trim.length > 0) " " else "")
+    }
+
+  /** this html works well in a diesel fiddle, use toHtmlInPage elsewhere */
+  override def toHtml = {
+    /*span(arch+"::")+*/first(pos) + " " + toHtmlPAttrs(attrs)
+  }
+
+  override def toString =
+    s""" (${attrs.mkString(", ")})"""
+
+  override def shouldPrune = false
+  override def shouldIgnore = false
+  override def shouldSkip = false
+  override def shouldRollup = true
+
+}
 
 /** a message
   *
@@ -122,7 +169,7 @@ case class EMsg(
 
   /** extract a match from this message signature */
   def asMatch = EMatch(entity, met, attrs.filter(_.dflt != "").map {p=>
-    PM (p.name, p.ttype, p.ref, p.multi, "==", p.dflt)
+    PM (AExprIdent(p.name), p.ttype, p.ref, p.multi, "==", p.dflt)
   })
 
   /** message name as a nice link to spec as well */
