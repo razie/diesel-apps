@@ -7,15 +7,16 @@
 package mod.diesel.model.exec
 
 import org.apache.commons.codec.digest.DigestUtils
-import razie.clog
+import razie.{clog, js}
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom.{RDOM, _}
 import razie.diesel.engine.DomEngineSettings.DIESEL_USER_ID
 import razie.diesel.engine._
 import razie.diesel.ext
 import razie.diesel.ext.{MatchCollector, _}
+import razie.tconf.DUsers
+import razie.tconf.hosting.Reactors
 import razie.wiki.Base64
-
 import scala.collection.mutable
 
 object EECtx {
@@ -84,6 +85,15 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       case "foreach" => {
+
+        // todo just use fromTypedVaaaaaaaaaaalue
+        def typified (n:String, s:Any) = {
+          s match {
+            case x@_ if s.toString.trim.startsWith("{") => P(n, s.toString, WTypes.JSON)
+            case x@_ => P.fromTypedValue(n, s)
+          }
+        }
+
         val list = ctx.getp(parm("list").get.dflt).get
         val RE = """(\w+)\.(\w+)""".r
         val RE(e, m) = parm("msg").get.dflt
@@ -93,7 +103,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
             val nat = in.attrs.filter(e => !Array("list", "item", "msg").contains(e.name))
             l.map { item: Any =>
               val is = razie.js.anytojsons(item)
-              EMsg(e, m, RDOM.typified(parm("item").get.dflt, is) :: nat)
+              EMsg(e, m, typified(parm("item").get.dflt, is) :: nat)
             }
           }
           case x@_ => {
@@ -106,13 +116,11 @@ class EECtx extends EExecutor(EECtx.CTX) {
         val toPrint = if (in.attrs.size > 0) in.attrs else List(P("payload", ""))
 
         toPrint.map { a =>
-          val res = if (a.dflt != "")
-            a // todo calc exprs
-          else
-          // includes type annotations etc
-            P("echo_" + a.name, ctx.getp(a.name).map(_.copy(name = a.name)).mkString) // if not given, then find it
+          var p:P = a.calculatedP
+            // for json reformat nicely
+          if(p.ttype == WTypes.JSON) p = p.copy(dflt=js.tojsons(p.value.get.asJson))
 
-          EInfo(res.toString)
+          EInfo(p.toString, p.dflt)
         }
       }
 
@@ -128,6 +136,8 @@ class EECtx extends EExecutor(EECtx.CTX) {
             Some(new EVal(v.get.expr.get.applyTyped("").copy(name = name)))
 //          else if (v.exists(_.expr.isDefined))
 //            Some(new EVal(typified(name, v.get.expr.get.apply(""))))
+          else if (v.exists(_.ttype != WTypes.UNDEFINED))
+            Some(new EVal(name, v.get.dflt)) // for set (x="")
           else {
             // clear it
             def clear(c: ECtx): Unit = {
@@ -158,6 +168,8 @@ class EECtx extends EExecutor(EECtx.CTX) {
             Some(new EVal(p))
           else if (p.expr.isDefined) // calculate now
             Some(new EVal(p.expr.get.applyTyped("").copy(name = p.name)))
+          else if (p.ttype != WTypes.UNDEFINED)
+            Some(new EVal(p)) // set(x="") is not undefined...
           else {
             // clear it
             ctx.remove(p.name)
@@ -170,30 +182,24 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       case "debug" => {
-        cdebug(in.attrs, ctx.listAttrs)
+        cdebug(in.attrs)
       }
 
       // debug current context
       case "trace" => {
         EInfo("All flattened:") ::
-            cdebug(in.attrs, ctx.listAttrs) ::
+            cdebug(in.attrs) ::
             EInfo("-----------detailed tree:") ::
             ctrace(ctx)
       }
 
       case "base64encode" => {
         val res = in.attrs.filter(_.name != "result").map { a =>
-          val res = Base64.enc(a.calculatedValue).toString
-          new EVal("payload", res)
+          val res = Base64.enc(a.calculatedValue)
+          new EVal(a.name, new String(res).replaceAll("\n", ""))
         }
 
-        res :::
-            in.attrs
-                .find(_.name == "result")
-                .map(_.calculatedValue)
-                .map(p => new EVal(p, res.head.p.dflt))
-                .orElse(res.headOption)
-                .toList
+        res ::: res.headOption.map(x=> x.copy(p=x.p.copy(name="payload"))).toList
       }
 
       // take all args and create a json doc with them
@@ -201,23 +207,18 @@ class EECtx extends EExecutor(EECtx.CTX) {
         val res = in.attrs.map(a => (a.name, a.calculatedTypedValue.value)).toMap
 
         new EVal(
-          RDOM.P("payload", razie.js.tojsons(res), WTypes.JSON, "", "", None, Some(PValue(res, WTypes.appJson)))) :: Nil
+          RDOM.P.fromTypedValue("payload", res, WTypes.JSON)
+        ) :: Nil
       }
 
       case "base64decode" => {
         val res = in.attrs.filter(_.name != "result").map { a =>
           val res = Base64.dec(a.calculatedValue)
-          new EVal(RDOM.P("payload", "", WTypes.BYTES, "", "", None,
+          new EVal(RDOM.P(a.name, "", WTypes.BYTES, "", "", None,
             Some(PValue[Array[Byte]](res, "application/octet-stream"))))
         }
 
-        res :::
-            in.attrs
-                .find(_.name == "result")
-                .map(_.calculatedValue)
-                .map(p => new EVal(res.head.p.copy(name = p))) // copy to maintain value/type
-                .orElse(res.headOption)
-                .toList
+        res ::: res.headOption.map(x=> x.copy(p=x.p.copy(name="payload"))).toList
       }
 
       case "sha1" => {
@@ -255,7 +256,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
       case "authUser" => {
         val uid =
         // the engine got it from the session/cookie
-          ctx.root.asInstanceOf[DomEngECtx].engine.flatMap(_.settings.userId) orElse
+          ctx.root.engine.flatMap(_.settings.userId) orElse
               // or some test set it
               ctx.get(DIESEL_USER_ID)
 
@@ -263,24 +264,13 @@ class EECtx extends EExecutor(EECtx.CTX) {
         if (uid.isDefined)
           new EInfo("User is auth ") :: Nil
         else
+          new EVal("diesel.response.http.code", "401") ::
           new EVal("payload", "Error: User not auth") :: // payload will be shown, needs reset
               new EError(s"ctx.authUser - User not auth") ::
               new EEngStop(s"User not auth") :: Nil
       }
 
-      case "setAuthUser" => {
-        /** run tests in the context of a user, configurable per domain */
-
-        // was this engine triggered for a user ? like in a fiddle? Use that one
-        val uid = ctx.root.asInstanceOf[DomEngECtx].engine.flatMap(_.settings.userId)
-
-        if (uid.isEmpty) {
-          // todo make configurable in Website - via engine settings somehow
-          ctx.put(P(DIESEL_USER_ID, "4fdb5d410cf247dd26c2a784")) // use some standard account like Harry
-          new EInfo("User is now auth ") :: Nil
-        } else
-          new EInfo("User was already auth ") :: Nil
-      }
+      case "setAuthUser" => setAuthUser(ctx)
 
       case s@_ => {
         new EError(s"ctx.$s - unknown activity ") :: Nil
@@ -288,14 +278,40 @@ class EECtx extends EExecutor(EECtx.CTX) {
     }
   }
 
+  def setAuthUser (ctx:ECtx) = {
+    /** run tests in the context of a user, configurable per domain */
+
+    // was this engine triggered for a user ? like in a fiddle? Use that one
+    val root = ctx.root
+    val uid = ctx.root.engine.flatMap(_.settings.userId)
+
+    if (uid.isEmpty) {
+      // if no auth user, use the default - same default used for xapikey auth
+      val uid =
+        root.settings.realm
+          .map(Reactors.impl.getProperties)
+          .flatMap(_.get("diesel.xapikeyUserEmail"))
+          .flatMap(DUsers.impl.findUserByEmailDec)
+          .map(_.id)
+          .getOrElse(
+            "4fdb5d410cf247dd26c2a784" // an inactive account: Harry
+          )
+
+      ctx.put(P(DIESEL_USER_ID, uid))
+      new EInfo("User is now auth ") :: Nil
+    } else
+      new EInfo("User was already auth ") :: Nil
+  }
+
   // debug current context
-  def cdebug(in: List[P], c: List[P])(implicit ctx:ECtx) = {
+  def cdebug(in: List[P])(implicit ctx:ECtx) : List[EInfo] = {
     in.map { p =>
       new EInfo(s"${p.name} = ${p.dflt} expr=(${p.expr}) cv= ${p.calculatedValue}")
-    } ++
-        c.map { p =>
+    } :::
+        (new EInfo(s"Ctx: ${ctx.getClass.getName}") ::
+        ctx.listAttrs.map { p =>
           new EInfo(s"${p.name} = ${p.dflt} expr=(${p.expr}) cv= ${p.calculatedValue}")
-        }
+        })
   }
 
   // trace current context

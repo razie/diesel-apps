@@ -13,9 +13,9 @@ import org.bson.types.ObjectId
 import razie.audit.Audit
 import razie.diesel.dom.ECtx
 import razie.diesel.engine.DomEngECtx
+import razie.tconf.DUsers
 import razie.{CSTimer, Logging, csys, js}
 import razie.wiki.model.WikiUsers
-
 import scala.util.Try
 
 /** preliminary JS scripster for embedded diesel scripts */
@@ -57,13 +57,12 @@ object DieselScripster extends Logging {
     if (lang == "js") {
 
       val qj = qtojson(q)
-//      val jscript = s"""var queryParms = $qj;\n${wix.json}\n$script"""
 
-      val expressions = exprs.map {
+      var expressions = exprs.map {
         t=> s"${t._1} = ${t._2} ;\n"
       }.mkString
 
-      val jscript = s"""var queryParms = $qj;\n$expressions\n$script"""
+      var jscript = s"""$expressions\n$script"""
 
       try {
         //        val factory = new ScriptEngineManager()
@@ -77,15 +76,30 @@ object DieselScripster extends Logging {
         // attempt to use typed bindings, if available
         q.foreach{t =>
           val v = typed.flatMap(_.get(t._1)).getOrElse(jstypeSafe(t._2))
-          trace("SFIDDLE_EXEC JS bind: " + t._1 + " = " + v)
-          bindings.put(t._1, v)
+          debug("SFIDDLE_EXEC JS bind: " + t._1 + " = " + v)
+
+          if(v.isInstanceOf[Map[_,_]]) {
+            val m = v.asInstanceOf[Map[_, _]]
+
+            // if we have complex values, this won't work... so default back to string
+            if(m.values.exists(_.isInstanceOf[List[_]]) ||
+               m.values.exists(_.isInstanceOf[Map[_,_]])) {
+              val ms = js.tojsons(m)
+              expressions = expressions + s"${t._1} = $ms ;\n"
+            } else
+              bindings.put(t._1, js.toJava(v.asInstanceOf[Map[_, _]]))
+          }
+          else
+            bindings.put(t._1, v)
         }
+
+        jscript = s"""$expressions\n$script"""
 
         {
           val root = ctx.root
           val settings = root.engine.map(_.settings)
           val au = settings.flatMap(_.userId).map(new ObjectId(_))
-            .flatMap(WikiUsers.impl.findUserById)
+              .flatMap(DUsers.impl.findUserById)
 
           val wix = razie.js toJava Map(
             "diesel" -> Map(
@@ -93,6 +107,11 @@ object DieselScripster extends Logging {
               "user" -> settings.flatMap(_.userId).mkString
             )
           )
+
+          // used typed values. This will resolve a "3" into a numberic 3
+//          val qm = q.map(t => (t._1, typed.flatMap(_.get(t._1)).getOrElse(jstypeSafe(t._2))))
+//          val qjm = razie.js toJava qm
+//          bindings.put("queryParms", qjm)
 
           bindings.put("wixj", wix)
           bindings.put("wix", wix)
@@ -157,7 +176,9 @@ object DieselScripster extends Logging {
 
   class MyCF extends ClassFilter {
     override def exposeToScripts(s: String): Boolean = {
-      if (s.startsWith("api." /* WixUtils" */)) true;
+      if (s.startsWith("api." /* WixUtils" */)) true
+        // todo wrap this to protect access to cout/csys etc
+      else if (s.startsWith("java.lang.System")) true
       else {
         Audit.logdb("ERR_DENIED", "js class access denied ", s)
         false
