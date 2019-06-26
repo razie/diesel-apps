@@ -31,11 +31,13 @@ trait DEMsg {
   */
 case class DEReq (engineId:String, a:DomAst, recurse:Boolean, level:Int) extends DEMsg
 
-/** a message - reply to decompose
+/** a message - reply to decompose, basically asynchronous completion of a message
   *
   * The engine will stich the AST together and continue
+  *
+  * send this from async executors
   */
-case class DERep (engineId:String, a:DomAst, recurse:Boolean, level:Int, results:List[DomAst]) extends DEMsg
+case class DERep      (engineId:String, a:DomAst, recurse:Boolean, level:Int, results:List[DomAst]) extends DEMsg
 case class DEComplete (engineId:String, a:DomAst, recurse:Boolean, level:Int, results:List[DomAst]) extends DEMsg
 
 /** initialize and stop the engine */
@@ -133,16 +135,20 @@ class DomEngineActor (eng:DomEngine) extends Actor with Stash {
 
     case rep @ DERep(eid, a, r, l, results) if checkInit => {
       checkInit
-      if(eng.id == eid) eng.processDEMsg(rep)
-      else DieselAppContext.router.map(_ ! rep)
+      if(eng.id == eid) {
+        eng.processDEMsg(rep)
+      } else {
+        DieselAppContext.router.map(_ ! rep)
+      }
     }
 
     case rep @ DEComplete(eid, a, r, l, results) if checkInit => {
       checkInit
       if(eng.id == eid) {
         eng.processDEMsg(rep)
+      } else {
+        DieselAppContext.router.map(_ ! rep)
       }
-      else DieselAppContext.router.map(_ ! rep)
     }
 
     case DEStop => {
