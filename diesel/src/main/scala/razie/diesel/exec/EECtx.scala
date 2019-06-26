@@ -177,7 +177,19 @@ class EECtx extends EExecutor(EECtx.CTX) {
           }
         }.filter(_.isDefined).map(_.get)
 
-        res.foreach(p=> ctx.put(p.p))
+        res.foreach(v=> ctx.put(v.p))
+        res
+      }
+
+      case "setAll" => {
+        // input is json - set all fields as ctx vals
+        val res = in.attrs.map(_.calculatedP).filter(_.ttype == WTypes.JSON).flatMap {p=>
+            p.calculatedTypedValue.asJson.map {t=>
+              new EVal(P.fromTypedValue(t._1, t._2))
+            }
+        }
+
+        res.foreach(v=> ctx.put(v.p))
         res
       }
 
@@ -247,10 +259,20 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       case "sleep" => {
+
+        /*
+        this is not just asynchronous - but also
+        1. suspends the engine
+        2. ask the engine to send itself a continuation later DELater
+        3. continuation DEComplete
+         */
+
         val d = in.attrs.find(_.name == "duration").map(_.dflt.toInt).getOrElse(1000)
-        new EInfo("ctx.sleep - slept " + d) :: ext.EEngSuspend("ctx.sleep", "", Some((e, a, l) => {
-          DieselAppContext.router.map(_ ! DELater(e.id, d, DEComplete(e.id, a, true, l, Nil)))
-        })) :: Nil
+        new EInfo("ctx.sleep - slept " + d) ::
+            ext.EEngSuspend("ctx.sleep", "", Some((e, a, l) => {
+              DieselAppContext.router.map(_ ! DELater(e.id, d, DEComplete(e.id, a, true, l, Nil)))
+            })) ::
+            Nil
       }
 
       case "authUser" => {
@@ -347,6 +369,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         EMsg(CTX, "sleep") ::
         EMsg(CTX, "set") ::
         EMsg(CTX, "setVal") ::
+        EMsg(CTX, "setAll") ::
         EMsg(CTX, "sha1") ::
         EMsg(CTX, "foreach") ::
         EMsg(CTX, "trace") ::
