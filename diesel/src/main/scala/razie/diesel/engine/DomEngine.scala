@@ -6,11 +6,8 @@
  */
 package razie.diesel.engine
 
-import org.apache.commons.logging.LogFactory
 import org.bson.types.ObjectId
 import org.joda.time.DateTime
-import org.slf4j.LoggerFactory
-import razie.{Logging, cdebug, clog, js}
 import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.dom.{DomState, RDomain, _}
 import razie.diesel.engine.RDExt._
@@ -18,6 +15,7 @@ import razie.diesel.ext.{BFlowExpr, FlowExpr, MsgExpr, SeqExpr, _}
 import razie.diesel.utils.DomCollector
 import razie.tconf.DSpec
 import razie.wiki.parser.PAS
+import razie.{Logging, js}
 import scala.Option.option2Iterable
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -38,6 +36,12 @@ case class DEventExpNode(nodeId:String, children:List[DomAst], dtm:DateTime=Date
 case class DEventNodeStatus(nodeId:String, status:String, dtm:DateTime=DateTime.now) extends DEvent with CanHtml {
   override def toHtml = s"EvNodeStatus: $nodeId, $status}"
 }
+
+/** dependency between two nodes */
+case class DADepy (prereq:DomAst, depy:DomAst)
+
+/** dependency event */
+case class DADepyEv (prereq:String, depy:String, dtm:DateTime=DateTime.now) extends DEvent
 
 
 /** the engine: one flow = one engine = one actor */
@@ -74,6 +78,7 @@ class DomEngine(
     .withCredentials(settings.userId)
     .withHostname(settings.node)
 
+  /** myself */
   def href (format:String="") = s"/diesel/engine/view/$id?format=$format"
 
   def failedTestCount = root.failedTestCount
@@ -126,8 +131,6 @@ class DomEngine(
     }
   }
 
-  //==========================
-
   // todo it's faster here where i have the node handles than looking it up by id above...
 
   def evAppChildren (parent:DomAst, children:DomAst) : Unit =
@@ -146,6 +149,8 @@ class DomEngine(
 //    depys.append(DADepy(p,d))
     addEvent(DADepyEv(p.id,d.id))
   }
+
+  //==========================
 
   /** spawn new engine */
   def spawn (nodes:List[DomAst]) = {
@@ -190,7 +195,12 @@ class DomEngine(
       throw new IllegalArgumentException("Can't find level for "+node)
     }
 
-  // completed a node - udpate stat
+  /** completed a node - udpate stat
+    *
+    * @param a node that completed
+    * @param level
+    * @return
+    */
   def done(a: DomAst, level:Int=1): List[DEMsg] = {
     evChangeStatus(a, DomState.DONE)
     a.end
@@ -214,10 +224,7 @@ class DomEngine(
     x
   }
 
-  /** dependency between two nodes */
-  case class DADepy (prereq:DomAst, depy:DomAst)
-  case class DADepyEv (prereq:String, depy:String, dtm:DateTime=DateTime.now) extends DEvent
-
+  /** dependencies */
   val depys = ListBuffer[DADepy]()
 
   /** create / add some dependencies, so d waits for p */
@@ -238,7 +245,7 @@ class DomEngine(
     * a is already assumed to have been stitched in the main tree
     *
     * @param a
-    * @param results
+    * @param results - the results returned from a's executor
     * @return
     */
   def findFront(a: DomAst, results:List[DomAst]): List[DomAst] = {
@@ -272,6 +279,7 @@ class DomEngine(
       case BFlowExpr(ex) => rec(ex)
     }
 
+    // any seq/par flows apply to a ?
     if(a.value.isInstanceOf[EMsg]) {
       implicit val ctx = new StaticECtx(a.value.asInstanceOf[EMsg].attrs, Some(this.ctx), Some(a))
       flows.filter(_.e.test(a.value.asInstanceOf[EMsg])).map { f =>
@@ -279,7 +287,7 @@ class DomEngine(
       }
     }
 
-    // add explicit depys
+    // add explicit depys for results/children
     results.filter(_.prereq.nonEmpty).map{res=>
       crdep(res.prereq.flatMap(root.find), List(res))
     }
@@ -336,9 +344,9 @@ class DomEngine(
     * will decompose this node into children and spawn async those that need it
     *
     * @param a the node that got this reply
-    * @param recurse
+    * @param recurse do i need to recurse into children? default=true
     * @param level
-    * @param results
+    * @param results - the results
     * @return
     */
   def rep(a: DomAst, recurse: Boolean = true, level: Int, results:List[DomAst]): List[DEMsg] = {
@@ -352,11 +360,14 @@ class DomEngine(
 //      evAppChildren(a, DomAst(TestResult("fail: Max-Children!", "You have a loop rule out of control ( > 20 loops)..."), "error"))
 //    } else
     if (recurse) {
-      msgs = msgs ::: findFront(a, results).map { n =>
-        //      req(n, recurse, level + 1)
-        evChangeStatus(n, DomState.LATER)
-        DEReq(id, n, recurse, level + 1) // increase level for children
-      }
+      msgs =
+          msgs :::
+          findFront(a, results).map { n =>
+            // start the next child
+            // todo this would be sync:     req(n, recurse, level + 1)i
+            evChangeStatus(n, DomState.LATER)
+            DEReq(id, n, recurse, level + 1) // increase level for children
+            }
     }
 
     msgs
@@ -394,6 +405,7 @@ class DomEngine(
 
   /** add built-in triggers */
   private def prepRoot(l:ListBuffer[DomAst]) : ListBuffer[DomAst] = {
+    val vals = DomAst(EMsg("diesel", "vals"), AstKinds.TRACE)
     val before = DomAst(EMsg("diesel", "before"), AstKinds.TRACE)
     val after = DomAst(EMsg("diesel", "after"), AstKinds.TRACE)
 
@@ -402,6 +414,7 @@ class DomEngine(
     l.append(after)
     l.map(x=> x.prereq = before.id :: x.prereq)
     l.prepend(before)
+    l.prepend(vals)
 
     l
   }
@@ -701,7 +714,16 @@ class DomEngine(
         DomAst(EVal(p) withPos (x.pos), kind).withSpec(x)
       }
     }
+
     appendToCtx putAll attrs
+
+    if(appendToCtx.isInstanceOf[StaticECtx]) {
+      a appendAll attrs.flatMap { p =>
+        appendToCtx.asInstanceOf[StaticECtx].check(p).toList map {err=>
+          DomAst(err.withPos(x.pos), AstKinds.ERROR).withSpec(x)
+        }
+      }
+    }
   }
 
   /** reused - execute a rule */
@@ -775,7 +797,17 @@ class DomEngine(
 
   /** if it's an internal engine message, execute it */
   private def expandEngineEMsg(a: DomAst, in: EMsg) : Boolean = {
-    if(in.entity == "diesel.scope" && in.met == "push") {
+    if(in.entity == "diesel" && in.met == "vals") {
+      // expand all spec vals
+      dom.moreElements.collect {
+        case v:EVal => {
+          evAppChildren(a, DomAst(v, AstKinds.TRACE))
+          this.ctx.put(v.p)
+        }
+      }
+
+      true
+    } else if(in.entity == "diesel.scope" && in.met == "pop" && this.ctx.isInstanceOf[ScopeECtx]) {
       this.ctx = new ScopeECtx(Nil, Some(this.ctx), Some(a))
       true
     } else if(in.entity == "diesel.scope" && in.met == "pop" && this.ctx.isInstanceOf[ScopeECtx]) {
@@ -913,6 +945,7 @@ class DomEngine(
       if(!mocked && newNodes.isEmpty) {
         // change the nodes' color to warning and add an ignorable warning
         import EMsg._
+        // todo this is bad because I change the message - is there impact to persistence of events and DomAsts ?
         a.value match {
           case m: EMsg => //findParent(a).foreach { parent =>
             a.value = m.copy(
@@ -922,13 +955,9 @@ class DomEngine(
           //}
         }
 
+        // not for internal diesel messages
         val ms = n.entity + "." + n.met
-        if(!ms.startsWith("diesel.") &&
-//          ms != "diesel.before" &&
-//              ms != "diesel.after" &&
-//              ms != "diesel.guardian.poll"
-        true
-        )
+        if(!ms.startsWith("diesel."))
           evAppChildren(a, DomAst(
             EWarning(
               "No rules, mocks or executors match for " + in.toString,
@@ -1115,10 +1144,6 @@ class DomEngine(
           values.map(v=> cole.missed(v.name))
       }
 
-      // test each generated value
-      //      if (e.test(vals.map(_.value.asInstanceOf[EVal].p), Some(cole), vals))
-      //        a append DomAst(TestResult("ok"), AstKinds.TEST).withSpec(e)
-
       cole.done
 
       // did some rules succeed?
@@ -1218,10 +1243,6 @@ class DomEngine(
           //if no rules succeeded and there were vals, collect the misses
           values.map(v=> cole.missed(v.name))
     }
-
-      // test each generated value
-//      if (e.test(vals.map(_.value.asInstanceOf[EVal].p), Some(cole), vals))
-//        achildren append DomAst(TestResult("ok"), AstKinds.TEST).withSpec(e)
 
       cole.done
 
