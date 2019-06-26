@@ -92,11 +92,14 @@ case class EEngStop(msg: String, details: String = "") extends CanHtml with HasP
   override def toString = "error::" + msg
 }
 
-/** suspend execution - presumably waiting for someone to continue this
+/** suspend execution - presumably waiting for someone to continue this branch
   *
   * use onSuspend to start the async message  (like sending a DeRep) - you'll have control next
   */
-case class EEngSuspend(msg: String, details: String = "", onSuspend:Option[(DomEngine, DomAst, Int) => Unit]) extends CanHtml with HasPosition with InfoNode {
+case class EEngSuspend(msg: String, details: String = "", onSuspend:Option[(DomEngine, DomAst, Int) => Unit])
+    extends CanHtml
+    with    HasPosition
+    with    InfoNode {
 
   var pos: Option[EPos] = None
 

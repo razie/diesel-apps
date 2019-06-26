@@ -89,7 +89,7 @@ object NoWikiUsers extends DUsers[WikiUser] {
 object WikiUsers {
   private var _impl : DUsers[WikiUser] = NoWikiUsers
 
-  def impl : DUsers[WikiUser] = NoWikiUsers
+  def impl : DUsers[WikiUser] = _impl
   def setImpl(newImpl : DUsers[WikiUser]) = {
     _impl = newImpl
     DUsers.impl = newImpl
