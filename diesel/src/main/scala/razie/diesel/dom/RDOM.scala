@@ -150,6 +150,8 @@ object RDOM {
 
     def asInt : Int = value.toString.toInt
 
+    def asBoolean : Boolean = value.toString.toBoolean
+
     /** nicer type-aware toString */
     def asString = P.asString(value)
   }
@@ -158,6 +160,7 @@ object RDOM {
     /** construct proper typed values */
     def fromTypedValue(name:String, v:Any, expectedType:String=WTypes.UNKNOWN) = {
       val res = v match {
+        case i: Boolean =>     P(name, asString(i), WTypes.BOOLEAN).withValue(i, WTypes.BOOLEAN)
         case i: Int =>         P(name, asString(i), WTypes.NUMBER).withValue(i, WTypes.NUMBER)
         case f: Float =>       P(name, asString(f), WTypes.NUMBER).withValue(f, WTypes.NUMBER)
         case d: Double =>      P(name, asString(d), WTypes.NUMBER).withValue(d, WTypes.NUMBER)

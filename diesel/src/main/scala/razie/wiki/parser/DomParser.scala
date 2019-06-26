@@ -237,9 +237,11 @@ trait DomParser extends ParserBase with ExprParser {
 
         cp match {
 
+            // class with message
           case Tuple3(zc, zm, za) =>
             EMapCls(zc.toString, zm.toString, za.asInstanceOf[List[RDOM.P]], arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
 
+            // just parm assignments
           case pas:List[_] =>
             EMapPas(pas.asInstanceOf[List[PAS]], arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
         }

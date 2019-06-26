@@ -52,7 +52,7 @@ object DieselScripster extends Logging {
                        exprs:Map[String,String] = Map.empty,
                        ctx:ECtx) : (Boolean, String, Any) = {
     val c = new CSTimer("script", "?")
-    c.start()
+    c.start("DieselScripster.newsfiddleMap")
 
     if (lang == "js") {
 

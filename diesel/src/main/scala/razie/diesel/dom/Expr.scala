@@ -652,6 +652,8 @@ case class JBlockExpr(ex: List[(String, Expr)]) extends Expr {
         case p@P(n,d,WTypes.NUMBER, _, _, _, Some(PValue(i:Int, _))) => i
         case p@P(n,d,WTypes.NUMBER, _, _, _, Some(PValue(i:Double, _))) => i
 
+        case p@P(n,d,WTypes.BOOLEAN, _, _, _, Some(PValue(b:Boolean, _))) => b
+
         case p:P => p.dflt match {
           case i: String if i.trim.startsWith("[") && i.trim.endsWith("]") => i
           case i: String if i.trim.startsWith("{") && i.trim.endsWith("}") => i
@@ -801,8 +803,8 @@ case class BCMP2(a: Expr, op: String, b: Expr)
           case "is"  if b.toString == "defined" => ap.ttype != WTypes.UNDEFINED
           case "not" if b.toString == "defined" => ap.ttype == WTypes.UNDEFINED //as.length <= 0
 
-          case "is"  if b.toString == "nzlen" => ap.ttype != WTypes.UNDEFINED && as.length > 0
-          case "not" if b.toString == "nzlen" => ap.ttype == WTypes.UNDEFINED || as.length <= 0
+          case "is"  if b.toString == "nzlen" => ap.ttype != WTypes.UNDEFINED && as.length > 0 && as.trim != "null"
+          case "not" if b.toString == "nzlen" => ap.ttype == WTypes.UNDEFINED || as.length <= 0 || as.trim == "null"
 
           case "is"  if b.toString == "empty" =>
               if (ap.calculatedTypedValue.contentType == WTypes.JSON)

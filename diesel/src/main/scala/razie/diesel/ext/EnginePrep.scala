@@ -275,10 +275,6 @@ object EnginePrep extends Logging {
           lastAst
         }
 
-//      RDomain.domFilter(story) {
-//        case x@_ => trace("---- "+x)
-//      }
-
       if(stories.size > 1) root.children appendAll addMsg(EMsg("diesel.scope", "push"))
 
       root.children appendAll RDomain.domFilter(story) {
