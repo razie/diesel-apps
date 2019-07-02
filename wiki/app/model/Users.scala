@@ -183,6 +183,25 @@ object Users {
   def findUserById(id: ObjectId) = ROne[User](id)
   def findUserByUsername(uname: String) = ROne[User]("userName" -> uname)
 
+  def unameF (f:String,l:String, yob:Int=0) =
+    (f + (if (l.length > 0) ("." + l) else ""))
+        .replaceAll("[^a-zA-Z0-9\\.]", ".")
+        .replaceAll("[\\.\\.]", ".")
+
+  def uniqueUsername (initial:String) = {
+    var cur = initial
+    var n = 0
+
+    while(n < 20 && Users.findUserByUsername(cur).isDefined) {
+      n = n+1
+      cur = initial + "." + n
+    }
+
+    if (n >= 20) cur = initial + "." + System.currentTimeMillis()
+    cur
+  }
+
+
   import play.api.Play.current
 
   //todo optimize this - cache some users?
@@ -213,6 +232,15 @@ object Users {
 
   def findFollowerByEmail(email: String) = ROne[Follower]("email" -> email)
   def findFollowerLinksTo(u: UWID) = RMany[FollowerWiki]("uwid.cat" -> u.cat, "uwid.id" -> u.id)
+
+  def updRealm(au:User, realm:String): User = {
+    var u = au.copy(realms = (au.realms + realm))
+    if (u.realmSet.exists(_._2.perms.contains(Perm.uProfile))) u = u.addPerm(realm, Perm.uProfile.s)
+    if (u.realmSet.exists(_._2.perms.contains(Perm.eVerified))) u = u.addPerm(realm, Perm.eVerified.s)
+    if (u.realmSet.exists(_._2.perms.contains(Perm.uWiki))) u = u.addPerm(realm, Perm.uWiki.s)
+    u
+  }
+
 }
 
 /** user factory and utils */

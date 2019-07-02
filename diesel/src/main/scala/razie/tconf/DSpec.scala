@@ -74,6 +74,8 @@ trait DSpec {
 
   /** all properties contained in this spec, in various forms */
   def allProps: Map[String, String]
+
+  def tags: Seq[String]
 }
 
 /** a specification of a template
@@ -107,7 +109,7 @@ case class TextSpec(override val name: String, override val text: String)
     extends BaseTextSpec(name, text) {}
 
 /** most specifications are made of a text content, which is parsed */
-class BaseTextSpec(val name: String, val text: String) extends DSpec {
+class BaseTextSpec(val name: String, val text: String, val tags:Seq[String] = Seq()) extends DSpec {
   def specPath: TSpecPath = new SpecPath("local", name, "")
 
   def findSection(name: String, tags: String = ""): Option[DTemplate] = None

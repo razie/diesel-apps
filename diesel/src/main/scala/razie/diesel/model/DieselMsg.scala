@@ -3,7 +3,7 @@ package razie.diesel.model
 import org.scalatest.selenium.WebBrowser.TagNameQuery
 import razie.diesel.dom.WikiDomain
 import razie.tconf.{SpecPath, TSpecPath}
-import razie.wiki.model.{TagQuery, WikiSearch}
+import razie.wiki.model.{TagQuery, WikiSearch, WID}
 
 /** a message string - send these to Services to have them executed
   *
@@ -76,6 +76,13 @@ object DieselTarget {
     }
 
   /** the environment settings - most common target */
+  def REALMDIESEL (realm:String) =
+    DieselTarget.from(
+      realm,
+      WID.fromPath(s"${realm}.Reactor:${realm}#diesel").map(_.toSpecPath).toList,
+      Nil)
+
+  /** the environment settings - most common target */
   def TQSPECS (realm:String, tq:TagQuery) =
     new DieselTarget(realm) {
 
@@ -108,13 +115,11 @@ case class DieselTargetList(override val realm:String, override val specs:List[T
 
 object DieselMsg {
   final val REALM_LOADED = "$msg diesel.realm.loaded"
-
   final val GUARDIAN_POLL = "$msg diesel.guardian.poll"
-
-  final val WIKI_UPDATED = "$msg rk.wiki.updated"
+  final val WIKI_UPDATED = "$msg diesel.wiki.updated"
+  final val USER_JOINED = "$msg diesel.user.joined"
 
   final val GPOLL = "diesel.guardian.poll"
-  final val RLOADED = "diesel.realm.loaded"
 
   final val irunDom = "irunDom:"
   final val runDom = "runDom:"

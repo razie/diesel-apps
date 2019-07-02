@@ -9,11 +9,10 @@ package razie.wiki.model
 import com.mongodb.DBObject
 import com.mongodb.casbah.Imports._
 import razie.db.RazMongo
-import razie.diesel.dom.{RDOM, WikiDomain, RDomain}
+import razie.diesel.dom.{RDOM, RDomain, WikiDomain}
 import razie.diesel.ext.{EMsg, ExpectM}
 import razie.hosting.Website
 import razie.wiki.model.Visibility.PUBLIC
-
 import scala.Array.canBuildFrom
 import scala.collection.mutable.ListBuffer
 

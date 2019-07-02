@@ -7,6 +7,7 @@
 package razie.wiki.model
 
 import com.novus.salat._
+import controllers.DieselAssets
 import model.CMDWID
 import org.bson.types.ObjectId
 import razie.base.data.TripleIdx
@@ -189,7 +190,7 @@ case class WID(
       //todo current realm
         Services.config.hostport
     } + "/" + {
-      if(realm.isDefined) "wiki/" + wpath
+      if(realm.isDefined) DieselAssets.link(this, wpath)
       else canonpath
     }
   }
@@ -205,7 +206,7 @@ case class WID(
         //todo current realm
         Services.config.hostport
     } + "/" + {
-      if(realm.isDefined) "wiki/" + wpath
+      if(realm.isDefined) DieselAssets.link(this, wpath)
       else canonpath
     }
   }
@@ -216,7 +217,7 @@ case class WID(
   /** use when coming from a known realm */
   def urlRelative (fromRealm:String) : String =
   "/" + {
-    if(realm.exists(_ != fromRealm)) "wiki/" + wpathFull
+    if(realm.exists(_ != fromRealm)) DieselAssets.link(this, wpathFull)
     else canonpath
   }
 
@@ -225,7 +226,7 @@ case class WID(
     if(parent.isEmpty && WID.PATHCATS.contains(cat))
       s"$cat/$name" + (section.map("#" + _).getOrElse(""))
     else
-      s"wiki/$wpathnocats"
+      DieselAssets.link(this, wpathnocats)
 
   def ahref: String = "<a href=\"" + url + "\">" + toString + "</a>"
   def ahrefRelative (fromRealm:String=Wikis.RK): String = "<a href=\"" + urlRelative(fromRealm) + "\">" + toString + "</a>"

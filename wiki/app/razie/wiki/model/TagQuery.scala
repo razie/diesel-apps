@@ -2,7 +2,7 @@ package razie.wiki.model
 
 import com.mongodb.DBObject
 import com.mongodb.casbah.Imports._
-import razie.wiki.model.Visibility.PUBLIC
+import razie.wiki.model.Visibility._
 
 /**
   * important concept - query/select a list of topics, based on inclusion/exclusion of tags

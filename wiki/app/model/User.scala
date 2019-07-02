@@ -185,9 +185,9 @@ case class User(
     UserEvent(_id, "CREATE").create
   }
 
-  def update(u: User) = {
+  def update(newu: User) = {
     RazMongo("UserOld") += grater[User].asDBObject(Audit.create(this))
-    RazMongo("User").update(key, grater[User].asDBObject(Audit.update(u)))
+    RazMongo("User").update(key, grater[User].asDBObject(Audit.update(newu)))
     UserEvent(_id, "UPDATE").create
   }
 

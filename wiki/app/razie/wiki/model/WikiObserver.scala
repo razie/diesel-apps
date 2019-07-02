@@ -68,7 +68,7 @@ trait WikiObserver {
 object WikiObservers {
   val notifieds = new ListBuffer[WikiObserver]()
 
-  def add(n: WikiObserver) = notifieds append n
+  private def add(n: WikiObserver) = notifieds append n
 
   /** add an event handler
     *
