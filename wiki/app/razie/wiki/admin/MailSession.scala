@@ -36,6 +36,11 @@ class MailSession extends BaseMailSession {
       .find("Admin", "template-emails")
       .orElse(Wikis.rk.find("Admin", "template-emails"))
       .flatMap(_.section("template", name))
+      .orElse {
+        // if section not found in custom, try rk
+        Wikis.rk.find("Admin", "template-emails")
+       .flatMap(_.section("template", name))
+      }
       .map(_.content+bottom).getOrElse("[ERROR] can't find Admin template-emails: " + name)
 
   /**
