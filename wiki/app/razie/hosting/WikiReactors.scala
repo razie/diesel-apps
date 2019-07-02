@@ -139,15 +139,18 @@ object WikiReactors extends Logging with Reactors {
           if (mixins.foldLeft(true) { (a, b) => a && lowerCase.contains(b.toLowerCase) }) {
             // all mixins are loaded, go ahead
             clog << "LOADING REACTOR " + realm
-            reactors.put(we.name, Services.mkReactor(we.name, mixins.toList.map(x => reactors(x)), Some(we)))
+            val re = Services.mkReactor(we.name, mixins.toList.map(x => reactors(x)), Some(we))
+            reactors.put(we.name, re)
             lowerCase.put(we.name.toLowerCase, we.name)
 
+            if(re.websiteProps.bprop("diesel.sendRealmLoaded").exists(_ == true)) {
             Services ! ScheduledDieselMsg("10 seconds", DieselMsg(
               DieselMsg.REALM.ENTITY,
               DieselMsg.REALM.LOADED,
               Map("realm" -> realm),
               DieselTarget.ENV(realm)
             ))
+            }
           } else {
             clog << s"NEED TO LOAD LATER REACTOR ${we.wid.name} depends on ${mixins.mkString(",")}"
             toLoad appendAll mixins.filterNot(x => lowerCase.contains(x.toLowerCase)).map(allReactors.apply)
@@ -172,9 +175,9 @@ object WikiReactors extends Logging with Reactors {
         if(we.exists(we=> Array(RK,NOTES,WIKI) contains we.name)) Array.empty[String] else Array(WIKI)
       }
 
-  def findWikiEntry(r:String) =
+  def findWikiEntry(name:String, cat:String = "Reactor") =
     rk.wiki.weTable("WikiEntry")
-      .findOne(Map("category" -> "Reactor", "name" -> r))
+      .findOne(Map("category" -> cat, "name" -> name))
       .map(grater[WikiEntry].asObject(_))
 
   def reload(r:String): Unit = synchronized  {
