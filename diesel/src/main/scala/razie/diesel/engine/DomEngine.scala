@@ -302,38 +302,42 @@ class DomEngine(
     * @param level
     */
   def req(a: DomAst, recurse: Boolean = true, level: Int): Unit = {
-    evChangeStatus(a, DomState.STARTED)
-    a.start(seq())
+    var msgs : List[DEMsg] = Nil
 
-    trace("DomEng "+id+("  " * level)+" expand " + a.value)
-    var msgs = Try {
-      expand(a, recurse, level + 1)
-    }.recover {
-      case t if t.isInstanceOf[javax.script.ScriptException] || t.isInstanceOf[DieselExprException] => {
-        info("Exception wile decompose() " + t.getMessage)
-        val err = DEError(this.id, t.toString)
-        val ast = DomAst(
-          new EError("Exception: " + t.getMessage)
-        ).withStatus(DomState.DONE)
+    if(!DomState.isDone(a.status)) { // may have been skipped by others
+      evChangeStatus(a, DomState.STARTED)
+      a.start(seq())
 
-        evAppChildren(a, ast)
-        err :: done(ast, level+1)
-      }
-      case t:Throwable => {
-        razie.Log.log("Exception wile decompose()", t)
-        val err = DEError(this.id, t.toString)
-        val ast = DomAst(new EError("Exception", t)).withStatus(DomState.DONE)
+      trace("DomEng " + id + ("  " * level) + " expand " + a.value)
+      msgs = Try {
+        expand(a, recurse, level + 1)
+      }.recover {
+        case t if t.isInstanceOf[javax.script.ScriptException] || t.isInstanceOf[DieselExprException] => {
+          info("Exception wile decompose() " + t.getMessage)
+          val err = DEError(this.id, t.toString)
+          val ast = DomAst(
+            new EError("Exception: " + t.getMessage)
+          ).withStatus(DomState.DONE)
 
-        evAppChildren(a, ast)
-        err :: done(ast, level+1)
-      }
-    }.get
+          evAppChildren(a, ast)
+          err :: done(ast, level + 1)
+        }
+        case t: Throwable => {
+          razie.Log.log("Exception wile decompose()", t)
+          val err = DEError(this.id, t.toString)
+          val ast = DomAst(new EError("Exception", t)).withStatus(DomState.DONE)
 
-    if(a.value.isInstanceOf[EEngSuspend]) {
-      // nop
-      evChangeStatus(a, DomState.LATER)
-    } else if(msgs.isEmpty)
-      msgs = msgs ::: done(a, level)
+          evAppChildren(a, ast)
+          err :: done(ast, level + 1)
+        }
+      }.get
+
+      if (a.value.isInstanceOf[EEngSuspend]) {
+        // nop
+        evChangeStatus(a, DomState.LATER)
+      } else if (msgs.isEmpty)
+        msgs = msgs ::: done(a, level)
+    }
 
     checkState()
     later(msgs)
@@ -797,7 +801,25 @@ class DomEngine(
 
   /** if it's an internal engine message, execute it */
   private def expandEngineEMsg(a: DomAst, in: EMsg) : Boolean = {
-    if(in.entity == "diesel" && in.met == "vals") {
+    if(in.entity == "diesel" && in.met == "return") {
+      // expand all spec vals
+      in.attrs.map(_.calculatedP).foreach {p=>
+        evAppChildren(a, DomAst(EVal(p)))
+        this.ctx.put(p)
+      }
+
+      // stop other children
+      findParent(a).collect {
+        // first parent may be a ENext, see through
+        case ast if ast.value.isInstanceOf[ENext] => findParent(ast)
+        case ast@_ => Some(ast)
+      }.flatten.toList.flatMap(_.children).foreach {ast=>
+        if(! DomState.isDone(ast.status)) {
+          evChangeStatus(ast, DomState.SKIPPED)
+        }
+      }
+      true
+    } else if(in.entity == "diesel" && in.met == "vals") {
       // expand all spec vals
       dom.moreElements.collect {
         case v:EVal => {
