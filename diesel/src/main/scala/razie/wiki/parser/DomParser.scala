@@ -188,17 +188,23 @@ trait DomParser extends ParserBase with ExprParser {
   def pif: Parser[EIf] = pifc | pifm
 
   /**
+    * ifc is the default if
     */
   def pifc: Parser[EIf] =
-    """[.$]ifc?""".r ~> ows ~> optCond ^^ {
-            case b : Option[BExpr] if b.isDefined => EIfc(b.get)
-            case _ => EIfc(BExprFALSE)
+    """[.$]?ifc?""".r ~> ows ~> notoptCond ^^ {
+            case b : BExpr => EIfc(b)
     }
+
+//  def pifc: Parser[EIf] =
+//    """[.$]?ifc?""".r ~> ows ~> optCond ^^ {
+//      case b : Option[BExpr] if b.isDefined => EIfc(b.get)
+//      case _ => EIfc(BExprFALSE)
+//    }
 
   /**
     */
   def pifm: Parser[EIf] =
-    """[.$]match""".r ~> ows ~> optMatchAttrs ^^ {
+    """[.$]?match""".r ~> ows ~> notoptMatchAttrs ^^ {
       case a : List[PM] => EIfm(a)
     }
 
@@ -389,6 +395,20 @@ trait DomParser extends ParserBase with ExprParser {
   private def optMatchAttrs: Parser[List[RDOM.PM]] = opt(" *\\(".r ~> ows ~> repsep(pmatchattr, ows ~> "," ~ ows) <~ ows <~ ")") ^^ {
     case Some(a) => a
     case None => List.empty
+  }
+
+  /**
+    * attributes
+    */
+  private def notoptMatchAttrs: Parser[List[RDOM.PM]] = " *\\(".r ~> ows ~> repsep(pmatchattr, ows ~> "," ~ ows <~ ows <~ ")") ^^ {
+    case a => a
+  }
+
+  /**
+    * condition / expression
+    */
+  private def notoptCond: Parser[BExpr] = " *\\(".r ~> ows ~> cond <~ ows <~ ")" ^^ {
+    case x => x
   }
 
   /**
