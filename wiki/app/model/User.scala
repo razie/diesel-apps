@@ -76,6 +76,7 @@ case class User(
 
   realmSet: Map[String, UserRealm] = Map(), // per realm
   consent:Option[String] = None,
+  apiKey:Option[String] = Some(new ObjectId().toString),
 
   _id: ObjectId = new ObjectId()) extends WikiUser with TPersonInfo {
 

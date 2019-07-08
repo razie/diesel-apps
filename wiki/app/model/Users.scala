@@ -179,6 +179,9 @@ object Users {
   /** find by encrypted email */
   def findUserByEmailEnc(emailEnc: String) = ROne[User]("email" -> emailEnc)
 
+  /** find by encrypted email */
+  def findUserByApiKey(key: String) = ROne[User]("apiKey" -> key)
+
   def findUserById(id: String) = ROne[User](new ObjectId(id))
   def findUserById(id: ObjectId) = ROne[User](id)
   def findUserByUsername(uname: String) = ROne[User]("userName" -> uname)

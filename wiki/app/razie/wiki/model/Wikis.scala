@@ -354,7 +354,8 @@ object Wikis extends Logging with Validation {
   }
 
   // TODO better escaping of all url chars in wiki name
-  def preprocess(wid: WID, markup: String, content: String, page: Option[WikiEntry]) : BaseAstNode = {
+  /** pre-process this wiki: do  AST, includes etc */
+  def preprocess(wid: WID, markup: String, content: String, page: Option[WikiEntry]) : (BaseAstNode, String) = {
     implicit val errCollector = new VErrors()
     
     def includes (c:String) = {
@@ -398,22 +399,30 @@ object Wikis extends Logging with Validation {
           val res = WikiReactors(wid.getRealm).wiki.mkParser apply c2
           val t2 = System.currentTimeMillis
           ctrace << s"wikis.preprocessed ${t2 - t1} millis for ${wid.name}"
-          res
+          (res, c2)
 
-        case TEXT => StrAstNode(content.replaceAll("""\[\[([^]]*)\]\]""", """[[\(1\)]]"""))
-        case JSON | XML | JS | SCALA => StrAstNode(content)
-        case HTML => {
-          // trick: parse it like we normally would, for properties and includes, but then discard
-          LeafAstNode(includes(content), preprocess(wid, MD, content, page))
+        case TEXT => {
+          val c2 = content.replaceAll("""\[\[([^]]*)\]\]""", """[[\(1\)]]""")
+          (StrAstNode(c2), c2)
         }
 
-        case _ => StrAstNode("UNKNOWN_MARKUP " + markup + " - " + content)
+        case JSON | XML | JS | SCALA => {
+          (StrAstNode(content), content)
+        }
+
+        case HTML => {
+          // trick: parse it like we normally would, for properties and includes, but then discard
+          val x = preprocess(wid, MD, content, page)
+          (LeafAstNode(x._2, x._1), x._2)
+        }
+
+        case _ => (StrAstNode("UNKNOWN_MARKUP " + markup + " - " + content), content)
       }
     } catch {
       case t: Throwable =>
         razie.Log.error("EXCEPTION_PARSING " + markup + " - " + wid.wpath, t)
         razie.audit.Audit.logdb("EXCEPTION_PARSING " + markup + " - " + wid.wpath + " " + t.getLocalizedMessage())
-        StrAstNode("EXCEPTION_PARSING " + markup + " - " + t.getLocalizedMessage() + " - " + content)
+        (StrAstNode("EXCEPTION_PARSING " + markup + " - " + t.getLocalizedMessage() + " - " + content), content)
     }
   }
 
@@ -435,17 +444,17 @@ object Wikis extends Logging with Validation {
       var content =
         (if(icontent == null || icontent.isEmpty) {
           if (wid.section.isDefined)
-            preprocess(wid, markup, noBadWords(wid.content.mkString), we)
+            preprocess(wid, markup, noBadWords(wid.content.mkString), we)._1
           else
             // use preprocessed cache
             we.flatMap(_.ipreprocessed.map(_._1)).orElse(
               we.map(_.preprocess(user))
             ).getOrElse(
-              preprocess(wid, markup, noBadWords(icontent), we)
+              preprocess(wid, markup, noBadWords(icontent), we)._1
             )
         }
         else
-          preprocess(wid, markup, noBadWords(icontent), we)
+          preprocess(wid, markup, noBadWords(icontent), we)._1
         ).fold(WAST.context(we, user)).s
 
       // apply md templates first
