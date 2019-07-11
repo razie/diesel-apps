@@ -120,16 +120,16 @@ trait ExprParser extends RegexParsers {
 
   // string const with escaped chars
   def cexpr: Parser[Expr] = "\"" ~> """(\\.|[^\"])*""".r <~ "\"" ^^ {
-    case e => new CExpr(e.replaceAll("\\\\(.)", "$1"), WTypes.STRING)
+    e => new CExpr(e.replaceAll("\\\\(.)", "$1"), WTypes.STRING)
   }
 
   // escaped multiline string const with escaped chars
   def escexpr: Parser[Expr] = "\"\"\"" ~> """(?s)((?!\"\"\").)*""".r <~ "\"\"\"" ^^ {
-    case e => new CExpr(e.replaceAll("\\\\(.)", "$1"), WTypes.STRING)
+    e => new CExpr(e.replaceAll("\\\\(.)", "$1"), WTypes.STRING)
   }
 
   def bcexpr: Parser[Expr] = ("true" | "false") ^^ {
-    case b => new CExpr(b, WTypes.BOOLEAN)
+    b => new CExpr(b, WTypes.BOOLEAN)
   }
 
   // XP identifier (either json or xml)
@@ -172,7 +172,7 @@ trait ExprParser extends RegexParsers {
 
   //==================================== F U N C T I O N S
 
-  def afunc: Parser[Expr] = qident ~ attrs ^^ { case i ~ a => new AExprFunc(i, a) }
+  def afunc: Parser[Expr] = qident ~ attrs ^^ { case i ~ a => AExprFunc(i, a) }
 
   def optKinds: Parser[BaseAstNode] = opt(ows ~> "[" ~> ows ~> repsep(ident, ",") <~ "]") ^^ {
     case Some(tParm) => tParm.mkString
