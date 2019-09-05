@@ -341,7 +341,7 @@ case class EVal(p: RDOM.P) extends CanHtml with HasPosition {
     Map(
       "class" -> "EVal",
       "name" -> p.name,
-      "value" -> p.dflt
+      "value" -> p.currentStringValue
     ) ++ {
       pos.map { p =>
         Map("ref" -> p.toRef,
@@ -352,7 +352,7 @@ case class EVal(p: RDOM.P) extends CanHtml with HasPosition {
 
   override def toHtml =
     if(pos.isDefined) kspan("val") + p.toHtml
-    else spanClick("val", "info", Enc.escapeHtml(p.dflt)) + p.toHtml
+    else spanClick("val", "info", Enc.escapeHtml(p.currentStringValue)) + p.toHtml
 
   override def toString = "val " + p.toString
 }

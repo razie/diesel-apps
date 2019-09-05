@@ -15,9 +15,18 @@ import scala.util.Try
 
 object EMap {
 
-  def sourceAttrs(in: EMsg, spec: Attrs, destSpec: Option[Attrs], deferEvaluation:Boolean=false)(implicit ctx: ECtx) = {
+  /** soure the attributes for a message
+    *
+    * @param in parent message
+    * @param spec specification attributes of current message (to source)
+    * @param destSpec destination spec, if any
+    * @param deferEvaluation
+    * @param ctx
+    * @return
+    */
+  def sourceAttrs(parent: EMsg, spec: Attrs, destSpec: Option[Attrs], deferEvaluation:Boolean=false)(implicit ctx: ECtx) = {
     // current context, msg overrides
-    val myCtx = new StaticECtx(in.attrs, Some(ctx))
+    val myCtx = new StaticECtx(parent.attrs, Some(ctx))
 
     // solve an expression
     def expr(p: P) = {
@@ -33,10 +42,14 @@ object EMap {
       else { // do evaluation now
         // sourcing has expr, overrules
         val v =
-        if(p.dflt.length > 0 || p.expr.nonEmpty) Some(expr(p)) // a=x
-        else in.attrs.find(_.name == p.name).orElse( // just by name: no dflt, no expr
+        if(p.hasCurrentValue || p.expr.nonEmpty) Some(expr(p)) // a=x
+
+        else
+        // this is why we can't override values in a message decomp
+//        parent.attrs.find(_.name == p.name).orElse( // just by name: no dflt, no expr
+        // ctx contains in.attrs but with overwrite
           ctx.getp(p.name)
-        )
+//        )
 
         val tt =
           v.map(_.ttype).getOrElse {
@@ -45,20 +58,22 @@ object EMap {
             else p.ttype
           }
 
-        p.copy(dflt = v.map(_.dflt).mkString, ttype=tt, value = v.flatMap(_.value))
+        p.copy(dflt = v.map(_.currentStringValue).mkString, ttype=tt, value = v.flatMap(_.value))
       }
     } else if (destSpec.exists(_.nonEmpty)) destSpec.get.map { p =>
       // when defaulting to spec, order changes
-      val v = in.attrs.find(_.name == p.name).map(_.dflt).orElse(
-        ctx.get(p.name)
-      ).getOrElse(
+      val v = /*in.attrs.find(_.name == p.name).map(_.dflt).orElse( */
+          // ctx contains in.attrs but with overwrite
+        ctx.getp(p.name)
+      .getOrElse(
         expr(p)
       )
-      val tt = if(p.ttype.isEmpty && v.isInstanceOf[Int]) WTypes.NUMBER else ""
-      p.copy(dflt = v.toString, expr=None, ttype=tt)
+//      val tt = if(p.ttype.isEmpty && v.isInstanceOf[Int]) WTypes.NUMBER else ""
+//      p.copy(dflt = v.toString, expr=None, ttype=tt)
+      v.copy(name = p.name)
     } else {
       // if no map rules and no spec, then just copy/propagate all parms
-      in.attrs.map {a=>
+      parent.attrs.map {a=>
         a.copy()
       }
     }
@@ -105,7 +120,12 @@ abstract class EMap extends CanHtml with HasPosition {
   def met:String
 }
 
-/** special case of map, just assigning exprs*/
+/** special case of map, just assigning exprs
+  *
+  * @param attrs
+  * @param arrow
+  * @param cond
+  */
 case class EMapPas(attrs: List[PAS], arrow:String="=>", cond: Option[EIf] = None) extends EMap {
   override def cls:String = ""
   override def met:String = ""
@@ -154,11 +174,11 @@ case class EMapCls(cls: String, met: String, attrs: Attrs, arrow:String="=>", co
 
     var e = Try {
       val m = EMsg(
-         cls, met,
+        cls, met,
         EMap.sourceAttrs(in, attrs, destSpec.map(_.attrs), deferEvaluation),
         kind)
-        .withPos(this.pos.orElse(apos))
-        .withSpec(destSpec)
+          .withPos(this.pos.orElse(apos))
+          .withSpec(destSpec)
 
       if(arrow == "==>" || cond.isDefined || deferEvaluation)
         ENext(m, arrow, cond, deferEvaluation).withParent(in).withSpec(destSpec)
@@ -167,7 +187,7 @@ case class EMapCls(cls: String, met: String, attrs: Attrs, arrow:String="=>", co
       case t:Throwable => {
         razie.Log.log("trying to source message", t)
         new EError("Exception trying to source message", t)
-        }
+      }
     }.get
     count += 1
 
@@ -175,12 +195,13 @@ case class EMapCls(cls: String, met: String, attrs: Attrs, arrow:String="=>", co
   }
 
   def asMsg = EMsg(cls, met, attrs.map{p=>
-    P (p.name, p.dflt, p.ttype, p.ref, p.multi)
+    P (p.name, p.currentStringValue, p.ttype, p.ref, p.multi)
   })
 
-//  override def toHtml = "<b>=&gt;</b> " + ea(cls, met) + " " + attrs.map(_.toHtml).mkString("(", ",", ")")
+  //  override def toHtml = "<b>=&gt;</b> " + ea(cls, met) + " " + attrs.map(_.toHtml).mkString("(", ",", ")")
   override def toHtml = """<span class="glyphicon glyphicon-arrow-right"></span> """ + cond.map(_.toHtml+" ").mkString + ea(cls, met) + " " + toHtmlAttrs(attrs)
 
   override def toString = "=> " + cond.map(_.toHtml+" ").mkString + cls + "." + met + " " + attrs.mkString("(", ",", ")")
 }
+
 

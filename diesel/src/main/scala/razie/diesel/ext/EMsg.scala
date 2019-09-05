@@ -13,13 +13,7 @@ import razie.wiki.Enc
 import razie.wiki.parser.PAS
 import scala.Option.option2Iterable
 
-/** a message
-  *
-  * @param entity
-  * @param met
-  * @param attrs
-  * @param arch
-  * @param ret
+/** simple assignment - needed because the left side is more than just a val
   */
 case class EMsgPas(attrs: List[PAS]=Nil) extends CanHtml with HasPosition with DomAstInfo {
 
@@ -109,13 +103,13 @@ case class EMsg(
       "attrs" -> attrs.map { p =>
         Map(
           "name" -> p.name,
-          "value" -> p.dflt
+          "value" -> p.currentStringValue
         )
       },
       "ret" -> ret.map { p =>
         Map(
           "name" -> p.name,
-          "value" -> p.dflt
+          "value" -> p.currentStringValue
         )
       },
       "stype" -> stype
@@ -197,7 +191,7 @@ case class EMsg(
   private def attrsToUrl (attrs: Attrs) = {
     attrs.map{p=>
       // todo only if the expr is constant?
-      var v = p.expr.map(_.expr).getOrElse(p.dflt)
+      var v = p.expr.map(_.expr).getOrElse(p.currentStringValue)
       v = Enc.toUrl(v) // escape special chars
       s"""${p.name}=$v"""
     }.mkString("&")
@@ -279,10 +273,10 @@ case class EMsg(
         spec.attrs.find(_.name == p.name).map { s =>
           if (s.ttype != "" && p.ttype == "") {
             if (s.ttype == "Number") {
-              if (p.dflt.contains("."))
-                p.copy(ttype = s.ttype).withValue(p.dflt.toDouble)
+              if (p.currentStringValue.contains("."))
+                p.copy(ttype = s.ttype).withValue(p.currentStringValue.toDouble)
               else
-                p.copy(ttype = s.ttype).withValue(p.dflt.toInt)
+                p.copy(ttype = s.ttype).withValue(p.currentStringValue.toInt)
             } else {
               p.copy(ttype = s.ttype)
             }

@@ -32,7 +32,9 @@ class EContent(
   def asJsonPayload = {
     // sometimes you get empty
     val b = if (body.length > 0) body else "{}"
-    P.fromTypedValue("payload", razie.js.parse(b), WTypes.JSON)
+    if(b.trim.startsWith("{")) P.fromTypedValue("payload", b, WTypes.JSON)
+    else if(b.trim.startsWith("[")) P.fromTypedValue("payload", b, WTypes.ARRAY)
+    else throw new IllegalArgumentException("JSON object should start with { or [ but it starts with: " + body.take(5))
   }
 
   import razie.Snakk._
@@ -50,13 +52,13 @@ class EContent(
   /** headers as a nice lowercase P */
   def headersp = {
     P.fromTypedValue(
-      "snakk.http.headers",
+      "snakkHttpHeaders",
       headers.map{t=> (t._1.toLowerCase, t._2)}.toMap,
       WTypes.JSON)
   }
 
   /** headers as a nice lowercase P */
-  def httpCodep = P.fromTypedValue( "snakk.http.code", code)
+  def httpCodep = P.fromTypedValue( "snakkHttpCode", code)
 
   lazy val hasValues = if (isXml || isJson) root \ "values" else Snakk.empty
 

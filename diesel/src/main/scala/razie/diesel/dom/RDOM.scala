@@ -7,7 +7,10 @@ import razie.js
 import razie.wiki.Enc
 import scala.concurrent.Future
 
-/** expression types */
+/** expression and data types
+  *
+  * note these are physical or base types.
+  */
 object WTypes {
   final val NUMBER="Number"
   final val STRING="String"
@@ -19,6 +22,8 @@ object WTypes {
   final val BOOLEAN="Boolean"
 
   final val RANGE="Range"
+
+  final val HTML="HTML" // why not... html templates?
 
   final val XML="JSON"
   final val JSON="JSON" // see asJson
@@ -36,6 +41,9 @@ object WTypes {
 
   final val appJson = "application/json"
 
+  final val MSG = "Msg" // a message (to call)
+  final val FUNC = "Func" // a function (to call)
+
   // see also P.fromTypedValue
   def typeOf (x:Any) = {
     val t = x match {
@@ -47,6 +55,7 @@ object WTypes {
       case l: List[_] => ARRAY
       case l: JSONArray => ARRAY
       case l: JSONObject => JSON
+//      case l: EMsg => MSG
       case h @ _ => UNKNOWN
     }
 
@@ -63,7 +72,7 @@ object RDOM {
   // archtetypes
 
   class CM // abstract Class Member
-  trait DE // abstract Domain Element
+  trait DE // abstract base class for Domain Elements (classes etc)
 
   private def classLink (name:String) = s""" <b><a href="/wikie/show/Category:$name">$name</a></b> """
 
@@ -128,13 +137,16 @@ object RDOM {
 
   /** a basic typed value
     *
-    * @param value
-    * @param contentType
+    * @param value - the actual value. Use the "asXXX" methods instead of typecasting yourself
+    * @param contentType - the type of content
+    * @param domClassName - the dom type = classname or domain.class
     * @tparam T
     *
     * the asXXX methods assume it is of the right type
     */
-  case class PValue[T] (value:T, contentType:String = WTypes.UNKNOWN) {
+  case class PValue[T] (value:T, contentType:String = WTypes.UNKNOWN, domClassName:String = WTypes.UNKNOWN) {
+    var cacheString : Option[String] = None
+
     def asObject : Map[String,Any] = asJson
 
     def asJson : Map[String,Any] = {
@@ -152,8 +164,20 @@ object RDOM {
 
     def asBoolean : Boolean = value.toString.toBoolean
 
-    /** nicer type-aware toString */
-    def asString = P.asString(value)
+    /** cached, nicer type-aware toString */
+    def asString = {
+      if (cacheString.nonEmpty) cacheString.get
+      else {
+        cacheString = Some(P.asString(value))
+        cacheString.get
+      }
+    }
+
+    def withStringCache (s:String) = {
+      val x = this.copy()
+      x.cacheString = Some(s)
+      x
+    }
   }
 
   object P {
@@ -164,12 +188,28 @@ object RDOM {
         case i: Int =>         P(name, asString(i), WTypes.NUMBER).withValue(i, WTypes.NUMBER)
         case f: Float =>       P(name, asString(f), WTypes.NUMBER).withValue(f, WTypes.NUMBER)
         case d: Double =>      P(name, asString(d), WTypes.NUMBER).withValue(d, WTypes.NUMBER)
-        case s: String =>      P(name, asString(s), WTypes.STRING)
-        case s: Map[_, _] =>   P(name, asString(s), WTypes.JSON).withValue(s, WTypes.JSON)
-        case s: List[_] =>     P(name, asString(s), WTypes.ARRAY).withValue(s, WTypes.ARRAY)
-        case s: JSONObject =>  P(name, asString(s), WTypes.JSON).withValue(js.fromObject(s), WTypes.JSON)
-        case s: JSONArray =>   P(name, asString(s), WTypes.ARRAY).withValue(js.fromArray(s), WTypes.ARRAY)
+
+//        case s: Map[_, _] =>   P(name, asString(s), WTypes.JSON).withValue(s, WTypes.JSON)
+//        case s: List[_] =>     P(name, asString(s), WTypes.ARRAY).withValue(s, WTypes.ARRAY)
+//        case s: JSONObject =>  P(name, asString(s), WTypes.JSON).withValue(js.fromObject(s), WTypes.JSON)
+//        case s: JSONArray =>   P(name, asString(s), WTypes.ARRAY).withValue(js.fromArray(s), WTypes.ARRAY)
+        case s: Map[_, _] =>   P(name, "", WTypes.JSON).withValue(s, WTypes.JSON)
+        case s: List[_] =>     P(name, "", WTypes.ARRAY).withValue(s, WTypes.ARRAY)
+        case s: JSONObject =>  P(name, "", WTypes.JSON).withValue(js.fromObject(s), WTypes.JSON)
+        case s: JSONArray =>   P(name, "", WTypes.ARRAY).withValue(js.fromArray(s), WTypes.ARRAY)
+
         case r: Range =>       P(name, asString(r), WTypes.RANGE).withValue(r, WTypes.RANGE)
+        case s: String =>      {
+          expectedType match {
+            case WTypes.JSON  => P(name, s, WTypes.JSON).withCachedValue(js.fromObject(new JSONObject(s)), WTypes.JSON, s)
+            case WTypes.ARRAY => P(name, s, WTypes.ARRAY).withCachedValue(js.fromArray(new JSONArray(s)), WTypes.ARRAY, s)
+            case WTypes.BOOLEAN => P(name, s, WTypes.BOOLEAN).withCachedValue(s.toBoolean, WTypes.BOOLEAN, s)
+            case WTypes.NUMBER => P(name, s, WTypes.NUMBER).withCachedValue(s.toFloat, WTypes.NUMBER, s)
+            case _ if expectedType.trim.length > 0 =>
+              throw new DieselExprException(s"$expectedType is an unknown type")
+            case _ => P(name, asString(s), WTypes.STRING)
+          }
+        }
         case x@_ =>            P(name, x.toString, WTypes.UNKNOWN)
       }
 
@@ -207,7 +247,7 @@ object RDOM {
     * The value trumps dflt which trumps expr
     *
     * @param name   name of parm
-    * @param dflt   current value or default value
+    * @param dflt   current value (for values) or default value (for specs) or a cache for the typed .value
     * @param ttype  type if known
     * @param ref
     * @param multi  is this a list/array?
@@ -217,7 +257,13 @@ object RDOM {
                 var value:Option[PValue[_]] = None
                ) extends CM with razie.diesel.ext.CanHtml {
 
-    def withValue[T](va:T, ctype:String="") = this.copy(ttype=ctype, value=Some(PValue[T](va, ctype)))
+    def withValue[T](va:T, ctype:String="", domClassName:String=WTypes.UNKNOWN) = {
+      this.copy(ttype=ctype, value=Some(PValue[T](va, ctype, domClassName)))
+    }
+
+    def withCachedValue[T](va:T, ctype:String="", cached:String) = {
+      this.copy(ttype=ctype, value=Some(PValue[T](va, ctype, WTypes.UNKNOWN).withStringCache(cached)))
+    }
 
     def isRef = {
       ref != ""
@@ -225,9 +271,9 @@ object RDOM {
 
     /** proper way to get the value */
     def calculatedValue(implicit ctx: ECtx) : String =
-    // todo only reason I'm doing this is to avoid toString JSONS all the time...
-    // todo not correct, since value should trump dflt trumps expr
-      if(dflt.nonEmpty || expr.isEmpty) dflt else {
+      // important to avoid toString JSONS all the time...
+      if(value.isDefined) value.get.asString // this will cache the string
+      else if(dflt.nonEmpty || expr.isEmpty) dflt else {
         calculatedTypedValue.asString
       }
 
@@ -235,11 +281,11 @@ object RDOM {
     def calculatedTypedValue(implicit ctx: ECtx) : PValue[_] =
       value.getOrElse(
         if(dflt.nonEmpty || expr.isEmpty) {
-          PValue(dflt, ttype) // someone already calculated a value, maybe a ttype as well...
+          PValue(currentStringValue, ttype) // someone already calculated a value, maybe a ttype as well...
         } else {
           val v = expr.get.applyTyped("")
           value = v.value // update computed value
-          value.getOrElse(PValue(v.dflt, ""))
+          value.getOrElse(PValue(v.currentStringValue, ""))
         }
       )
 
@@ -268,19 +314,40 @@ object RDOM {
         }
       )
 
+    /** only if it was already calculated... */
+    def hasCurrentValue = value.isDefined || dflt.length > 0
+
+    /** only if it was already calculated... */
+    def currentValue =
+      value.map(v=> CExpr(v.value, v.contentType)).getOrElse {
+        CExpr(dflt, ttype)
+      }
+
+    /** only if it was already calculated... */
+    def currentStringValue =
+    // not looking at dflt - the value is cached as string too
+//      if(dflt.nonEmpty) dflt
+      value.map(_.asString).getOrElse {
+        dflt
+      }
+
     /** current calculated value if any or the expression */
     def valExpr =
       value.map(v=> CExpr(v.value, v.contentType)).getOrElse {
         if(dflt.nonEmpty || expr.isEmpty) CExpr(dflt, ttype) else expr.get
       }
 
-    def strimmedDflt =
-      if(dflt.size > 80) dflt.take(60) + "{...}"
-      else dflt
+    def strimmedDflt = {
+      val d = currentStringValue
+      if(d.size > 80) d.take(60) + "{...}"
+      else d
+    }
 
-    def htrimmedDflt =
-      if(dflt.size > 80) dflt.replaceAll("\n", "").take(60)
-      else dflt
+    def htrimmedDflt = {
+      val d = currentStringValue
+      if(d.size > 80) d.replaceAll("\n", "").take(60)
+      else d
+    }
 
     override def toString =
       s"$name" +
@@ -296,11 +363,11 @@ object RDOM {
       s"<b>$name</b>" +
         (if(ttype.toLowerCase != "string") smap(ttype) (s=> ":" + ref + typeHtml(s)) else "") +
         smap(multi)(identity) +
-        smap(Enc.escapeHtml(if(shorten) htrimmedDflt else dflt)) {s=>
+        smap(Enc.escapeHtml(if(shorten) htrimmedDflt else currentStringValue)) {s=>
           "=" + tokenValue(if("Number" == ttype) s else escapeHtml(quot(s)))
         } +
 //        (if(dflt.length > 60) "<span class=\"label label-default\"><small>...</small></span>") +
-        (if(shorten && dflt.length > 60) "<b><small>...</small></b>" else "") +
+        (if(shorten && currentStringValue.length > 60) "<b><small>...</small></b>" else "") +
         (if(dflt=="") expr.map(x=>smap(x.toHtml) ("<-" + _)).mkString else "")
 
     private def typeHtml(s:String) = {
@@ -378,7 +445,13 @@ object RDOM {
     def start(ctx: Any, inEngine:Option[DomEngine]): Future[DomEngine]
   }
 
-  case class O (name:String, base:String, parms:List[P]) { // object = instance of class
+  /** object = instance of class  - we're not really using this, but P, for values
+    *
+    * @param name
+    * @param base
+    * @param parms
+    */
+  case class O (name:String, base:String, parms:List[P]) {
     def toJson = parms.map{p=> p.name -> p.value}.toMap
 
     def fullHtml = {
@@ -391,7 +464,7 @@ object RDOM {
           p.toHtml(false) +
             (
               if(p.isRef)
-                s""" <small><a href="/diesel/objBrowserById/d365odata/default/${p.ttype}/${p.dflt}">browse</a></small>"""
+                s""" <small><a href="/diesel/objBrowserById/d365odata/default/${p.ttype}/${p.currentStringValue}">browse</a></small>"""
               else
                 ""
               )
@@ -405,7 +478,7 @@ object RDOM {
     def getDisplayName = {
       // todo use class def to find key parms
       parms.filter(p=> p.name.contains("name") || p.name.contains("key")).map {p=>
-        p.name + "=" + p.dflt
+        p.name + "=" + p.currentStringValue
       }.mkString(" , ")
     }
   }

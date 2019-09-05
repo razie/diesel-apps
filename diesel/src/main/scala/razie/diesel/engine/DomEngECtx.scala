@@ -6,9 +6,9 @@ import razie.diesel.dom.RDOM.P
 import razie.diesel.dom.{ECtx, RDomain, SimpleECtx}
 import razie.tconf.{DSpec, DUsers}
 
-/** specific root context for an enging instance
+/** specific root context for an engine instance
   *
-  * it also has unique IDs and such, to help with tests ran continuously
+  * it can keep unique IDs and such, to help with tests ran continuously
   */
 class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Option[ECtx] = None) extends SimpleECtx(cur, base, None) {
   var overwritten: Option[ECtx] = None
@@ -28,7 +28,7 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
     this
   }
 
-  override def apply(name: String): String = overwritten.map(_.apply(name)).orElse(ps(name)).orElse(pu(name).map(_.dflt)).getOrElse(super.apply(name))
+  override def apply(name: String): String = overwritten.map(_.apply(name)).orElse(ps(name)).orElse(pu(name).map(_.currentStringValue)).getOrElse(super.apply(name))
 
   override def getp(name: String): Option[P] =
     if(name.length > 0)
@@ -59,12 +59,19 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
     case "DIESEL_MILLIS" => Some(millis)
     case "DIESEL_CURMILLIS" => Some(P("DIESEL_CURMILLIS", System.currentTimeMillis().toString))
       // allow setting this
-    case "diesel.env" => super.getp(s).orElse(Some(P("diesel.env", dieselEnv(this))))
+    case "diesel.env" =>
+      // first overrides, then settings and lastly current envList setting
+      super
+          .getp(s)
+          .orElse(settings.env.map(P("diesel.env",_)))
+          .orElse(Some(P("diesel.env", dieselEnv(this))))
+
     case "diesel.user" => Some(P("diesel.user", dieselUser(this)))
     case _ => None
   }
 
   // figure out the environment for this user
+  // todo once the engine starts, store the start value in settings - it can't change and we should store it,m if it's not overwritten...
   def dieselEnv(ctx:ECtx) = {
     val root = ctx.root
     val settings = root.engine.map(_.settings)

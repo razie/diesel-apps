@@ -1,7 +1,7 @@
 package razie.diesel.dom
 
 import razie.hosting.WikiReactors
-import razie.tconf.{DTemplate, EPos, SpecPath}
+import razie.tconf.{DTemplate, EPos, SpecPath, TagQuery}
 import razie.wiki.model._
 
 /**
@@ -12,8 +12,6 @@ trait WikiDomain {
   def wi:WikiInst
 
   def plugins : List[RDomainPlugin]
-
-  final val WIKI_CAT = "wikiCategory"
 
   def rdom : RDomain
 
@@ -49,7 +47,7 @@ trait WikiDomain {
     rdom.assocs.exists(t=> t.a == cat && t.z == "User" && t.zRole == "Owner")
 
   def prop(cat: String, name:String) : Option[String] =
-    rdom.classes.get(cat).flatMap(_.props.find(_.name == name).map(_.dflt))
+    rdom.classes.get(cat).flatMap(_.props.find(_.name == name).map(_.currentStringValue))
 
   def noAds(cat: String) =
     prop(cat, "noAds").isDefined
@@ -73,6 +71,7 @@ trait WikiDomain {
 }
 
 object WikiDomain {
+  final val WIKI_CAT = "wikiCategory"
 
   def apply(realm: String) = WikiReactors(realm).domain
 
@@ -95,7 +94,18 @@ object WikiDomain {
   def canCreateNew (realm:String, cat:String) = "User" != cat && "WikiLink" != cat
   //todo can i create WIkiLink if I am admin?
 
-  /** present a WE as a generic spec */
+  /** root categories we can create free instance from */
+  def rootCats (realm:String) = {
+    apply(realm)
+        .rdom
+        .classes
+        .values
+        .filter(_.stereotypes.contains(razie.diesel.dom.WikiDomain.WIKI_CAT))
+        .map(_.name)
+        .toList
+  }
+
+    /** present a WE as a generic spec */
   def spec (we:WikiEntry) = we
 
   WikiObservers mini {

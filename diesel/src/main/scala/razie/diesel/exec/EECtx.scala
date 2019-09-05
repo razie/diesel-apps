@@ -18,6 +18,7 @@ import razie.tconf.DUsers
 import razie.tconf.hosting.Reactors
 import razie.wiki.Base64
 import scala.collection.mutable
+import scala.util.Try
 
 object EECtx {
   final val CTX = "ctx"
@@ -84,26 +85,56 @@ class EECtx extends EExecutor(EECtx.CTX) {
         Nil
       }
 
-      case "foreach" => {
-
-        // todo just use fromTypedVaaaaaaaaaaalue
-        def typified (n:String, s:Any) = {
-          s match {
-            case x@_ if s.toString.trim.startsWith("{") => P(n, s.toString, WTypes.JSON)
-            case x@_ => P.fromTypedValue(n, s)
-          }
+      case "map" => {
+        // todo use "list" as an expression, not just a source, use AExprIdent
+        val ctxList = parm("list")
+        val list = if(ctxList.exists(_.calculatedTypedValue.contentType == WTypes.ARRAY)) {
+          ctxList.get
+        } else if(ctxList.exists(_.calculatedTypedValue.contentType == WTypes.STRING)) {
+          ctx.getRequiredp(ctxList.get.currentStringValue)
+        } else {
+          throw new IllegalArgumentException(s"Can't source input list: $ctxList")
         }
 
-        val list = ctx.getp(parm("list").get.dflt).get
         val RE = """(\w+)\.(\w+)""".r
-        val RE(e, m) = parm("msg").get.dflt
+        val ea = parm("msg").get.currentStringValue
+        val RE(e, m) = ea
 
-        razie.js.parse(s"{ list : ${list.dflt} }").apply("list") match {
+        val x =
+          if(list.calculatedTypedValue.contentType == WTypes.ARRAY)
+            list.calculatedTypedValue.asArray
+          else
+            razie.js.parse(s"{ list : ${list.calculatedValue} }").apply("list")
+
+        x match {
+          case l: List[Any] => {
+            val nat = in.attrs.filter(e => !Array("list", "item", "msg").contains(e.name))
+            val res = l.map { item: Any =>
+              val itemP = P.fromTypedValue(parm("item").get.currentStringValue, item)
+              val args = itemP :: nat
+              val out = AExprFunc(ea, args).applyTyped("")
+              out.calculatedTypedValue.value
+            }
+            List(EVal(P.fromTypedValue("payload", res)))
+          }
+          case x@_ => {
+            List(EError("map works on lists/arrays, found a: " + x.getClass.getName))
+          }
+        }
+      }
+
+      case "foreach" => {
+        // todo use "list" as an expression, not just a source, use AExprIdent
+        val list = ctx.getp(parm("list").get.currentStringValue).get
+        val RE = """(\w+)\.(\w+)""".r
+        val RE(e, m) = parm("msg").get.currentStringValue
+
+        razie.js.parse(s"{ list : ${list.currentStringValue} }").apply("list") match {
           case l: List[Any] => {
             val nat = in.attrs.filter(e => !Array("list", "item", "msg").contains(e.name))
             l.map { item: Any =>
-              val is = razie.js.anytojsons(item)
-              EMsg(e, m, typified(parm("item").get.dflt, is) :: nat)
+              val itemP = P.fromTypedValue(parm("item").get.currentStringValue, item)
+              EMsg(e, m, itemP :: nat)
             }
           }
           case x@_ => {
@@ -118,26 +149,26 @@ class EECtx extends EExecutor(EECtx.CTX) {
         toPrint.map { a =>
           var p:P = a.calculatedP
             // for json reformat nicely
-          if(p.ttype == WTypes.JSON) p = p.copy(dflt=js.tojsons(p.value.get.asJson))
+          if(p.ttype == WTypes.JSON) p = p.copy(dflt=p.value.get.asString)
 
-          EInfo(p.toString, p.dflt)
+          EInfo(p.toString, p.currentStringValue)
         }
       }
 
       case "setVal" => {
-        val n = in.attrs.find(_.name == "name").map(_.dflt)
+        val n = in.attrs.find(_.name == "name").map(_.currentStringValue)
         val v = in.attrs.find(_.name == "value")
 
         // at this point the
         val res = n.flatMap { name =>
-          if (v.exists(_.dflt != ""))
-            Some(new EVal(name, v.get.dflt))
+          if (v.exists(_.hasCurrentValue))
+            Some(new EVal(name, v.get.currentStringValue))
           else if (v.exists(_.expr.isDefined))
             Some(new EVal(v.get.expr.get.applyTyped("").copy(name = name)))
 //          else if (v.exists(_.expr.isDefined))
 //            Some(new EVal(typified(name, v.get.expr.get.apply(""))))
           else if (v.exists(_.ttype != WTypes.UNDEFINED))
-            Some(new EVal(name, v.get.dflt)) // for set (x="")
+            Some(new EVal(name, v.get.currentStringValue)) // for set (x="")
           else {
             // clear it
             def clear(c: ECtx): Unit = {
@@ -164,7 +195,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         // set all parms passed in - return EVals and make sure they're set in context
         // important to know how the scope contexts work
         val res = in.attrs.map { p =>
-          if (p.dflt != "") // calculated already
+          if (p.hasCurrentValue) // calculated already
             Some(new EVal(p))
           else if (p.expr.isDefined) // calculate now
             Some(new EVal(p.expr.get.applyTyped("").copy(name = p.name)))
@@ -236,7 +267,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
       case "sha1" => {
         val res = in.attrs.filter(_.name != "name").map { a =>
           val md = java.security.MessageDigest.getInstance("SHA-1")
-          val s = md.digest(a.dflt.getBytes("UTF-8")).map("%02X".format(_)).mkString
+          val s = md.digest(a.currentStringValue.getBytes("UTF-8")).map("%02X".format(_)).mkString
 //          val sb = DigestUtils.sha1Hex(a.dflt)
           new EVal(a.name + "_sha1", s) //:: new EVal(a.name+"_sha1j", sb) :: Nil
         }
@@ -245,15 +276,15 @@ class EECtx extends EExecutor(EECtx.CTX) {
             in.attrs
                 .find(_.name == "name")
                 .map(_.calculatedValue)
-                .map(p => new EVal(p, res.head.p.dflt))
+                .map(p => new EVal(p, res.head.p.currentStringValue))
                 .toList
 
 //        new EVal(a.name+"_sha1", s) :: new EVal("result", s) :: Nil
       }
 
       case "timer" => {
-        val d = in.attrs.find(_.name == "duration").map(_.dflt.toInt).getOrElse(1000)
-        val m = in.attrs.find(_.name == "msg").map(_.dflt).getOrElse("$msg ctx.echo (msg=\"timer without message\")")
+        val d = in.attrs.find(_.name == "duration").map(_.currentStringValue.toInt).getOrElse(1000)
+        val m = in.attrs.find(_.name == "msg").map(_.currentStringValue).getOrElse("$msg ctx.echo (msg=\"timer without message\")")
         DieselAppContext.router.map(_ ! DEStartTimer("x", d, Nil))
         new EInfo("ctx.timer - start " + d) :: Nil
       }
@@ -267,7 +298,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         3. continuation DEComplete
          */
 
-        val d = in.attrs.find(_.name == "duration").map(_.dflt.toInt).getOrElse(1000)
+        val d = in.attrs.find(_.name == "duration").map(_.currentStringValue.toInt).getOrElse(1000)
         new EInfo("ctx.sleep - slept " + d) ::
             ext.EEngSuspend("ctx.sleep", "", Some((e, a, l) => {
               DieselAppContext.router.map(_ ! DELater(e.id, d, DEComplete(e.id, a, true, l, Nil)))
@@ -328,11 +359,15 @@ class EECtx extends EExecutor(EECtx.CTX) {
   // debug current context
   def cdebug(in: List[P])(implicit ctx:ECtx) : List[EInfo] = {
     in.map { p =>
-      new EInfo(s"${p.name} = ${p.dflt} expr=(${p.expr}) cv= ${p.calculatedValue}")
+      new EInfo(s"${p.name} = ${p.currentStringValue} expr=(${p.expr}) cv= ${p.calculatedValue}")
     } :::
         (new EInfo(s"Ctx: ${ctx.getClass.getName}") ::
         ctx.listAttrs.map { p =>
-          new EInfo(s"${p.name} = ${p.dflt} expr=(${p.expr}) cv= ${p.calculatedValue}")
+            Try {
+              new EInfo(s"${p.name} = ${p.currentStringValue} expr=(${p.expr}) cv= ${p.calculatedValue}")
+            }.recover{
+              case ex => new EInfo(s"${p.name} = ${p.currentStringValue} expr=(${p.expr}) cv= EXCEPTION: $ex")
+            }.get
         })
   }
 

@@ -80,7 +80,7 @@ class FFDPayload (input:String, schema:String, emptyValues:Boolean = false) {
   def build (parms:{def getp(name:String) : Option[P]}) : ParseResult[String] = {
     val result = ParseResult.empty[String]
     val res = fields.foldLeft("")((buffer, f) => {
-      val s = parms.getp(f.name).map(_.dflt).getOrElse("")
+      val s = parms.getp(f.name).map(_.currentStringValue).getOrElse("")
       val curr =
         if(s.length > f.length) s.substring(0, f.length-1)
         else s + " " * (f.length-s.length)

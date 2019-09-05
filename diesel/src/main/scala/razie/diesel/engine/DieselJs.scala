@@ -27,8 +27,8 @@ class DieselJs(val ctx: ECtx) {
 
         p match {
           case Some(x) if x.ttype == "JSON" =>
-            x.dflt // todo json type to object
-          case Some(x) => x.dflt
+            x.currentStringValue // todo json type to object
+          case Some(x) => x.currentStringValue
           case None    => Undefined.getUndefined // should I ?
         }
       }

@@ -26,12 +26,28 @@ class EEFunc extends EExecutor("func") {
 
   override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = {
     val res = ctx.domain.flatMap(_.funcs.get(in.entity + "." + in.met)).map { f =>
+      EEFunc.exec(in, f).calculatedP
+    } getOrElse P("", s"no func ${in.met} in domain")
+
+    in.ret.headOption.orElse(spec(in).flatMap(_.ret.headOption)).orElse(
+      Some(res.copy(name = "payload"))
+    ).map(x=> res.copy(name = x.name)).map(x => EVal(x)).toList
+  }
+
+  override def toString = "$executor::func "
+}
+
+object EEFunc {
+
+  /** generic call a domain function */
+  def exec(in:EMsg, f: F)(implicit ctx: ECtx): P = {
       val res = try {
         if (f.script != "") {
           val c = ctx.domain.get.mkCompiler("js")
 
           // compile all other functions
           val x = c.compileAll(c.not { case fx: RDOM.F if fx.name == f.name => true })
+          val offset = x.lines.size
 
           // add this one, as an expression
           var s = x + "\n" + c.compile(f)
@@ -39,27 +55,18 @@ class EEFunc extends EExecutor("func") {
           // call it
           s = s + "\n" + c.callInContext(f)
 
-          val q = in.attrs.map(t => (t.name, t.dflt)).toMap
+          val q = in.attrs.map(t => (t.name, t.currentStringValue)).toMap
 
-          val r = EEFunc.newestFiddle(s, "js", in.attrs, ctx)
-          r._3
+          val r = newestFiddle(s, "js", in.attrs, ctx)
+          scriptResToTypedP(r, offset)
         } else
-          "ABSTRACT FUNC"
+          P("", "ABSTRACT FUNC", WTypes.EXCEPTION)
       } catch {
-        case e: Throwable => e.getMessage
+        case e: Throwable => P("", e.getMessage, WTypes.EXCEPTION).withValue(e, WTypes.EXCEPTION)
       }
-      res.toString
-    } getOrElse s"no func ${in.met} in domain"
-
-    in.ret.headOption.orElse(spec(in).flatMap(_.ret.headOption)).orElse(
-      Some(new P("payload", ""))
-    ).map(_.copy(dflt = res)).map(x => EVal(x)).toList
+    res
   }
 
-  override def toString = "$executor::func "
-}
-
-object EEFunc {
   def execute (script:String)(implicit ctx: ECtx): Any = {
     val res : Any = try {
       val r = newestFiddle(script, "js", ctx.listAttrs, ctx)
@@ -72,11 +79,8 @@ object EEFunc {
   }
 
   /** core of JS execution */
-  def executeTyped (script:String)(implicit ctx: ECtx): P = {
-    val r = try {
-
-      // run the script
-      val r = newestFiddle(script, "js", ctx.listAttrs, ctx)
+  def scriptResToTypedP (r:(Boolean, String, Any), offset:Int)(implicit ctx: ECtx): P = {
+    val x = try {
 
       // typed result
       r._3 match {
@@ -89,7 +93,7 @@ object EEFunc {
           P("", r._2.toString, WTypes.JSON).withValue(o, WTypes.appJson)
         }
 
-        case e: Throwable => P("", e.getMessage, WTypes.EXCEPTION).withValue(e, WTypes.EXCEPTION)
+        case e: Throwable => P("", "+"+offset+r._2, WTypes.EXCEPTION).withValue(e, WTypes.EXCEPTION)
 
         case _ => P("", r._2.toString, WTypes.STRING)
       }
@@ -97,13 +101,27 @@ object EEFunc {
       case e: Throwable => P("", e.getMessage, WTypes.EXCEPTION).withValue(e, WTypes.EXCEPTION)
     }
 
-    r
+    x
+  }
+
+  /** core of JS execution */
+  def executeTyped (script:String)(implicit ctx: ECtx): P = {
+    val r = try {
+
+      // run the script
+      val r = newestFiddle(script, "js", ctx.listAttrs, ctx)
+      scriptResToTypedP(r, 0)
+    } catch {
+      case e: Throwable => P("", e.getMessage, WTypes.EXCEPTION).withValue(e, WTypes.EXCEPTION)
     }
+
+    r
+  }
 
   /** this to be the new entry point for scripts in diesel context */
   def newestFiddle(script: String, lang: String, attrs: List[P], ctx:ECtx) = {
     // todo optimize - remove q
-    val q  = attrs.map(t => (t.name, t.dflt)).toMap + ("diesel" -> "")
+    val q  = attrs.map(t => (t.name, t.currentStringValue)).toMap + ("diesel" -> "")
     val qp = attrs.map(t => (t.name, t)).toMap
     val exprs = Map[String,String]()
 

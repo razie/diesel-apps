@@ -12,7 +12,15 @@ import scala.collection.mutable.ListBuffer
   *
   * these are composable: bigger = root plus more
   */
-class RDomain(val name: String, val classes: Map[String, C], val assocs: List[A], val diamonds:List[D] = List.empty, val objects: Map[String, O] = Map.empty, val funcs: Map[String, F] = Map.empty) {
+class RDomain(
+
+  val name: String,
+  val classes: Map[String, C],
+  val assocs: List[A],
+  val diamonds:List[D] = List.empty,
+  val objects: Map[String, O] = Map.empty,
+  val funcs: Map[String, F] = Map.empty) {
+
   /** use this for other elements */
   val moreElements = new ListBuffer[Any]()
 
@@ -257,7 +265,7 @@ class RJSCompiler (val dom:RDomain) extends RCompiler {
   }
 
   override def call (f:F) = {
-    s"${f.name.replaceAllLiterally(".", "_")}(${f.parms.map(_.dflt).mkString(",")});"
+    s"${f.name.replaceAllLiterally(".", "_")}(${f.parms.map(_.currentStringValue).mkString(",")});"
   }
 
 

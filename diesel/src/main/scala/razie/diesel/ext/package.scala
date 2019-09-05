@@ -197,7 +197,9 @@ package object ext {
       } else {
         // test just the name (presence): check and record the name failure
         if (b._1.name.size > 0) {
-          res = in.exists(_.name == b._1.name) || ctx.exists(_.name == b._1.name)
+          // I don't include the context - this leads to side-effects, just use an IF after the match...
+          res = in.exists(_.name == b._1.name) // || ctx.exists(_.name == b._1.name)
+
           if (res) cole.map(_.plus(b._1.name))
           else cole.map(_.minus(b._1.name, b._1.name, b._1))
         }

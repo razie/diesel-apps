@@ -10,7 +10,7 @@ import mod.diesel.model.exec._
 import razie.Logging
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom.{RDomain, _}
-import razie.diesel.exec.{EEFormatter, EEFunc, EETest}
+import razie.diesel.exec.{EEDieselDT, EEDieselMongodDb, EEDieselSharedDb, EEFormatter, EEFunc, EETest}
 import razie.diesel.ext.{CanHtml, _}
 import razie.tconf.{DSpec, EPos, TSpecPath}
 import razie.wiki.Enc
@@ -37,8 +37,10 @@ object RDExt extends Logging {
 
   def init = {
     new EECtx ::
+      new EEDieselDT ::
       new EEDieselMemDb ::
       new EEDieselSharedDb ::
+      new EEDieselMongodDb ::
       new EESnakk ::
       new EETest ::
       new EEFunc ::
@@ -126,7 +128,7 @@ object RDExt extends Logging {
 
     def apply(name: String): String = get(name).getOrElse("")
 
-    def get(name: String): Option[String] = attrs.get(name).map(_.dflt)
+    def get(name: String): Option[String] = attrs.get(name).map(_.currentStringValue)
 
     def put(p: P) = attrs.put(p.name, p)
 
