@@ -30,7 +30,7 @@ trait DomParser extends ParserBase with ExprParser {
   import RDOM._
 
   def domainBlocks =
-    panno |  pobject | pclass | passoc | pfunc |
+    panno |  pobject | pclass | passoc | pdef |
     pwhen | pflow | pmatch | psend | pmsg | pval | pexpect | passert
 
   def lazys (f:(StrAstNode, FoldingContext[DSpec,DUser]) => StrAstNode) =
@@ -526,7 +526,7 @@ trait DomParser extends ParserBase with ExprParser {
     *
     * An NVP is either the spec or an instance of a function call, a message, a data object... whatever...
     */
-  def pmsg: PS = keyw("[.$]msg *".r) ~ optArch ~ qclsMet ~ optAttrs ~ opt(" *(:|=>) *".r ~> optAttrs) <~ " *".r ^^ {
+  def pmsg: PS = keyw("[.$]msg *".r) ~ optArch ~ qclsMet ~ optAttrs ~ opt(" *(:|=>) *".r ~> optAttrs) <~ " *".r <~ optComment ^^ {
     case k ~ stype ~ qcm ~ attrs ~ ret => {
       lazys { (current, ctx) =>
 
@@ -598,7 +598,7 @@ trait DomParser extends ParserBase with ExprParser {
   /**
     * .expect object.func (a,b)
     */
-  def passert: PS = keyw("[.$]assert".r <~ ws) ~ opt("not" <~ ws) ~ optAssertExprs <~ " *".r ^^ {
+  def passert: PS = keyw("[.$]assert".r <~ ws) ~ opt("not" <~ ws) ~ optAssertExprs <~ " *".r <~ optComment ^^ {
     case k ~ not ~ exprs => {
       lazys { (current, ctx) =>
         val pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
@@ -619,13 +619,13 @@ trait DomParser extends ParserBase with ExprParser {
   /**
     * .func name (a,b) : String
     */
-  def pfunc: PS = "[.$]def *".r ~> qident ~ optAttrs ~ opt(" *: *".r ~> ident) ~ optScript ~ optBlock ^^ {
+  def pdef: PS = "[.$]def *".r ~> qident ~ optAttrs ~ opt(" *: *".r ~> ident) ~ optScript ~ optBlock ^^ {
     case name ~ attrs ~ optType ~ script ~ block => {
       lazys { (current, ctx) =>
         val f = F(name, attrs, optType.mkString, "def", script.fold(ctx).s, block)
         collectDom(f, ctx.we)
 
-        def mkParms = f.parms.map { p => p.name + "=" + Enc.toUrl(p.dflt) }.mkString("&")
+        def mkParms = f.parms.map { p => p.name + "=" + Enc.toUrl(p.currentStringValue) }.mkString("&")
 
         def mksPlay = if (f.script.length > 0) s""" | <a href="/diesel/splay/${f.name}/${ctx.we.map(_.specPath.wpath).mkString}?$mkParms">splay</a>""" else ""
 
@@ -638,14 +638,15 @@ trait DomParser extends ParserBase with ExprParser {
           s"""
              |<div align="right"><small>$mkCall</small></div>
              |<div class="well">
-             |$f
+             |$f $script
              |</div>""".stripMargin)
       }
     }
   }
 
   /** optional script body */
-  def optScript: PS = opt(" *\\{\\{ *".r ~> lines <~ "}}") ^^ {
+  // using positive exlusive lookahead and .*? is not-greedy
+  def optScript: PS = opt(" *\\{\\{ *".r ~> "(?s).*?(?=}})".r <~ "}}") ^^ {
     case Some(lines) => lines
     case None => ""
   }
@@ -653,7 +654,7 @@ trait DomParser extends ParserBase with ExprParser {
   /**
     * msg name (a,b) : String
     */
-  def defline: Parser[RDOM.F] = " *\\$?def *".r ~> ident ~ optAttrs ~ optType ~ " *".r ~ optBlock ^^ {
+  def defline: Parser[RDOM.F] = " *\\$?XXdef *".r ~> ident ~ optAttrs ~ optType ~ " *".r ~ optBlock ^^ {
     case name ~ a ~ t ~ _ ~ b => {
       new F(name, a, t.mkString, "def", "", b)
     }
