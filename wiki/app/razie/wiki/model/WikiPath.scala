@@ -95,14 +95,14 @@ object WikiXpSolver extends XpSolver[WWrapper] {
 
   val debug = WikiPath.debug
 
-  override def children(root: T): (T, U) = (root, {
+  override def children(root: T, xe:Option[XpElement]): (T, U) = (root, {
     case (tag, assoc) if root.isInstanceOf[WikiWrapper] => children2(root, tag).toList.teeIf(debug,"C").toList
   })
 
-  override def getNext(o: (T, U), tag: String, assoc: String): List[(T, U)] = {
+  override def getNext(o: (T, U), tag: String, assoc: String, xe:Option[XpElement]): List[(T, U)] = {
     if(WikiPath.debug) println("-getNext ("+o.toString+") ("+tag+")")
     // 1. apply continuation and filter just in case... all children of type
-    o._2.apply(tag, assoc).filter(zz => XP.stareq(zz.cat, tag)).teeIf(debug,"D").map(children).tee("E").toList
+    o._2.apply(tag, assoc).filter(zz => XP.stareq(zz.cat, tag)).teeIf(debug,"D").map(children(_, xe)).tee("E").toList
   }
 
   private def children2(node: WWrapper, tag: String): Seq[WWrapper] = {

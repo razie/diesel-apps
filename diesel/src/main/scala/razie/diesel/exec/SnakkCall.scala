@@ -195,7 +195,10 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
   def isXml (ct:Option[String]) : Boolean =
     ct.map(_.toLowerCase).exists(s=> s=="application/xml" || s=="text/xml")
 
-  /** use this call/template to parse incoming message (either request to us or a reply) */
+  /** use this call/template to parse incoming message (either request to us or a reply).
+    *
+    * in this case, this.content is the template
+    */
   def parseIncoming (incoming:String, inSpecs : List[P], incomingMetas: NVP) : NVP = {
     val ct = template.flatMap(
       _.parms.find(t=> t._1.toLowerCase == "content-type").map(_._2)
@@ -215,6 +218,7 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
     val tx = Snakk.xml(this.content)
     val n = tx.node
 
+    /** find where in the template this name is and return the xpath to it's location */
     // todo find all $name expressions instead of having to
     def findExprFor (node:Node, name:String, path:String="/") : Option[String] = {
 //      clog << "XML "+node.getClass.getName + "-"+ node.label + "-"+node.text
@@ -232,7 +236,9 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
 
     def forceAttr (path:String) = path.replaceFirst("(.*)/([^/]*)$", "$1/@$2")
 
-    val xinSpecs = inSpecs.map(p => (p.name, p.dflt, p.expr.mkString))
+    // inSpecs PLUS any parms defined in the template
+    val out = findTemplateParms(this.content)
+    val xinSpecs = inSpecs.map(p => (p.name, p.currentStringValue, p.expr.mkString)) ::: out.filter(xx=> !inSpecs.exists(_.name == xx)).map(p => (p, "", ""))
 
     // parse incoming as xml
     val ix = Snakk.xml(incoming)
@@ -248,7 +254,11 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
 //              clog << "XP "+e
               ix \@@ forceAttr(e)
             }
-            v.getOrElse(g._2)
+            // if there was no default, do not use this parm - it wasn't found anyways
+            // this allows us later to use "x not defined" - otherwise, it would be defined but unknown
+            // worst case scenario, return an WTypes.UNDEFINED, but not an empty
+            // NOTE that the filter also removes empty values found by \@@
+            v.filter(_ != "").getOrElse(if(g._2 != "") g._2 else null)
           }
           )
         ).filter(_._2 != null).toMap
@@ -289,7 +299,7 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
     val vals = js.keys.asScala.toList.map(k => (k, js.get(k).toString)).toMap
 
     // from template spec
-    val xinSpecs = inSpecs.map(p => (p.name, p.dflt, p.expr.mkString))
+    val xinSpecs = inSpecs.map(p => (p.name, p.currentStringValue, p.expr.mkString))
 
     // from parsed template json
     val foundSpecs = out.map(p => (p, "", ""))
@@ -343,7 +353,7 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
       x.toList.map(x=> (x,"", ""))
     } else Nil
 
-    val xinSpecs = inSpecs.map(p => (p.name, p.dflt, p.expr.mkString))
+    val xinSpecs = inSpecs.map(p => (p.name, p.currentStringValue, p.expr.mkString))
 
     // distinct by name
     val allSpecs = (xinSpecs ::: foundSpecs).groupBy(_._1).map(_._2.head)
@@ -353,17 +363,29 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
     val hasit = jrex.find()
     var parms = if (hasit)
       (
-        for (g <- allSpecs)
-          yield (
-            g._1,
-            Try {
-              jrex.group(g._1)
-            }.getOrElse(g._2)
-          )
-        ).filter(_._2 != null).toMap
+          for (g <- allSpecs)
+            yield (
+                g._1,
+                Try {
+                  jrex.group(g._1)
+                }.getOrElse(g._2)
+            )
+          ).filter(_._2 != null).toMap
     else Map.empty[String,String]
 
     parms
+  }
+
+  /** parse template and find all parameters */
+  def findTemplateParms (content:String) : List[String] = {
+//      val PATT = """\$\w+""".r
+    val PATT = """\$\{(\w+)\}""".r
+
+    val parms = for(x <- PATT.findAllIn(content).matchData) yield {
+      x.group(1)
+    }
+
+    parms.toList
   }
 }
 

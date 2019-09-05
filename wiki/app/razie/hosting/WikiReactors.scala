@@ -143,7 +143,9 @@ object WikiReactors extends Logging with Reactors {
             reactors.put(we.name, re)
             lowerCase.put(we.name.toLowerCase, we.name)
 
-            if(re.websiteProps.bprop("diesel.sendRealmLoaded").exists(_ == true)) {
+            // send realm.loaded message if anyone used it
+            if(re.wiki.find("Spec", "EnvironmentSettings").exists(_.content.contains(DieselMsg.REALM.REALM_LOADED))) {
+//            if(re.websiteProps.bprop("diesel.sendRealmLoaded").exists(_ == true)) {
             Services ! ScheduledDieselMsg("10 seconds", DieselMsg(
               DieselMsg.REALM.ENTITY,
               DieselMsg.REALM.LOADED,

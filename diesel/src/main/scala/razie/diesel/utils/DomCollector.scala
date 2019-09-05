@@ -28,7 +28,7 @@ object DomCollector {
 //        ea == DieselMsg.RLOADED
 //      } ||
       desc.startsWith(DieselMsg.fiddleStoryUpdated) ||
-          desc.startsWith(DieselMsg.runDom+ DieselMsg.REALM_LOADED) ||
+          desc.startsWith(DieselMsg.runDom+ DieselMsg.REALM.REALM_LOADED_MSG) ||
           desc.startsWith(DieselMsg.runDom+"$msg " + DieselMsg.GPOLL)
     }
   }

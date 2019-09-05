@@ -76,8 +76,8 @@ object ParseWLink {
         val wid = WID.fromPath(wpath, realm)
         wid map (w => Wikis.formatWikiLink(
           realm, w,
-          w.name,
-          (if (label != null && label.length > 1) label else w.name),
+          w.name.trim,
+          (if (label != null && label.length > 1) label.trim else w.name.trim),
           {
             if(role == null) None else Some(role.substring(0,role.length-2))
           },
@@ -85,7 +85,7 @@ object ParseWLink {
       }
 
       case NORMAL(rk, wpath, _, label) => {
-        val wid = WID.fromPath(wpath, realm)
+        val wid = WID.fromPath(wpath.trim, realm)
         wid map (w => Wikis.formatWikiLink(
           realm, w,
           w.name,

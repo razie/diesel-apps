@@ -1,9 +1,7 @@
 package razie.diesel.model
 
-import org.scalatest.selenium.WebBrowser.TagNameQuery
-import razie.diesel.dom.WikiDomain
-import razie.tconf.{SpecPath, TSpecPath}
-import razie.wiki.model.{TagQuery, WikiSearch, WID}
+import razie.tconf.{SpecPath, TSpecPath, TagQuery}
+import razie.wiki.model.{WID, WikiSearch}
 
 /** a message string - send these to Services to have them executed
   *
@@ -31,19 +29,26 @@ case class ScheduledDieselMsg(schedule: String, msg: DieselMsg) {}
 
 /** a target for a message: either a specified list of config, or a realm
   *
-  * @param specs list of specifications to get the rules from
-  * @param stories optional list of stories to execute and validate
+  * @param realm - the target realm
+  * @param env - the target env inside the target realm
+  * @param specs - list of specifications to get the rules from
+  * @param stories - optional list of stories to execute and validate
   */
-class DieselTarget (val realm:String) {
+class DieselTarget (
+  val realm:String,
+  val env:String = DieselTarget.DEFAULT) {
+
   def specs: List[TSpecPath] = Nil
   def stories: List[TSpecPath] = Nil
 }
 
 /** a message intended for a target. Send to CQRS for execution, via Services */
-case class DieselMsg(e: String,
-                     a: String,
-                     parms: Map[String, Any],
-                     target: DieselTarget = DieselTarget.RK) {
+case class DieselMsg(
+  e: String,
+  a: String,
+  parms: Map[String, Any],
+  target: DieselTarget = DieselTarget.RK) {
+
   def toMsgString = DieselMsgString(
     s"$$msg $e.$a (" +
       (parms
@@ -62,29 +67,31 @@ case class DieselMsg(e: String,
 }
 
 object DieselTarget {
+  final val DEFAULT = "default"
 
   def ENV_SETTINGS(realm:String) = SpecPath("", realm + ".Spec:EnvironmentSettings", realm)
 
   /** the environment settings - most common target */
-  def from (realm:String, specs:List[TSpecPath], stories:List[TSpecPath]) =
-    new DieselTargetList(realm, specs, stories)
+  def from (realm:String, env:String, specs:List[TSpecPath], stories:List[TSpecPath]) =
+    new DieselTargetList(realm, env, specs, stories)
 
   /** the environment settings - most common target */
-  def ENV (realm:String) =
-    new DieselTarget(realm) {
+  def ENV (realm:String, env:String=DEFAULT) =
+    new DieselTarget(realm, env) {
       override def specs = List(ENV_SETTINGS(realm))
     }
 
   /** the environment settings - most common target */
-  def REALMDIESEL (realm:String) =
+  def REALMDIESEL (realm:String, env:String=DEFAULT) =
     DieselTarget.from(
       realm,
+      env,
       WID.fromPath(s"${realm}.Reactor:${realm}#diesel").map(_.toSpecPath).toList,
       Nil)
 
   /** the environment settings - most common target */
-  def TQSPECS (realm:String, tq:TagQuery) =
-    new DieselTarget(realm) {
+  def TQSPECS (realm:String, env:String, tq:TagQuery) =
+    new DieselTarget(realm, env) {
 
       override def specs = {
         val irdom = WikiSearch.getList(realm, "", "", tq.and("spec").tags)
@@ -111,10 +118,13 @@ object DieselTarget {
 
 }
 
-case class DieselTargetList(override val realm:String, override val specs:List[TSpecPath], override val stories:List[TSpecPath]) extends DieselTarget(realm)
+case class DieselTargetList(
+  override val realm:String,
+  override val env:String,
+  override val specs:List[TSpecPath],
+  override val stories:List[TSpecPath]) extends DieselTarget(realm)
 
 object DieselMsg {
-  final val REALM_LOADED = "$msg diesel.realm.loaded"
   final val GUARDIAN_POLL = "$msg diesel.guardian.poll"
   final val WIKI_UPDATED = "$msg diesel.wiki.updated"
   final val USER_JOINED = "$msg diesel.user.joined"
@@ -125,15 +135,42 @@ object DieselMsg {
   final val runDom = "runDom:"
 
   object REALM {
+    final val REALM_LOADED_MSG = "$msg diesel.realm.loaded"
+    final val REALM_LOADED = "diesel.realm.loaded"
     final val ENTITY = "diesel.realm"
     final val LOADED = "loaded"
   }
+
+  object SCOPE {
+    final val ENTITY = "diesel.scope"
+    final val PUSH = "push"
+    final val POP = "pop"
+  }
+
+  object ENGINE {
+    final val ENTITY = "diesel"
+    final val VALS = "vals"
+    final val BEFORE = "before"
+    final val AFTER = "after"
+    final val DEBUG = "debug"
+  }
+
   object GUARDIAN {
     final val ENTITY = "diesel.guardian"
 
+    final val STARTS = "starts"
     final val NOTIFY = "notify"
     final val POLL = "poll"
     final val RUN = "run"
+  }
+
+  object CRON {
+    final val ENTITY = "diesel.cron"
+
+    final val SET = "set"
+    final val LIST = "list"
+    final val TICK = "tick"
+    final val STOP = "stop"
   }
 
   final val fiddleStoryUpdated = "fiddleStoryUpdated"

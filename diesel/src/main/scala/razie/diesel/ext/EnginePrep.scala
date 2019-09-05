@@ -6,7 +6,7 @@ import razie.diesel.dom.RDOM.O
 import razie.diesel.dom.{AstKinds, DomAst, RDomain, WikiDomain}
 import razie.diesel.engine.{DieselAppContext, DomEngineSettings, InfoNode}
 import razie.diesel.utils.{DomUtils, SpecCache}
-import razie.tconf.{DSpec, TSpecPath}
+import razie.tconf.{DSpec, TSpecPath, TagQuery}
 import razie.wiki.admin.Autosave
 import razie.wiki.model._
 import scala.collection.mutable

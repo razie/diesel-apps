@@ -95,8 +95,11 @@ trait Validation extends Logging {
   }
 
   def vEmail: Constraint[String] = Constraint[String]("constraint.emailFormat") { o =>
-    if (o.length > 0 && !o.matches("[^@]+@[^@]+\\.[^@]+") || o.contains(" ") || o.contains("\t"))
-      Invalid(ValidationError("invalid email")) else Valid
+    if (o.trim.length > 0 && !o.trim.matches("[^@]+@[^@]+\\.[^@]+") || o.contains(" ") || o.contains("\t"))
+      Invalid(ValidationError("invalid email format"))
+    else if (o.contains(" ") || o.contains("\t"))
+      Invalid(ValidationError("invalid spaces in email"))
+    else Valid
   }
 
   def vldSpec(s: String) = !(s.contains('<') || s.contains('>'))

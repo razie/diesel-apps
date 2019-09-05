@@ -160,6 +160,9 @@ case class WikiEntry(
     x
   }
 
+  // todo can't use this faster one because of some stupid issues in WikiDomain - to fix at some point
+  def included2 : String = ast._2
+
   def wid  = WID(category, name, parent, None, if(realm == Wikis.RK) None else Some(realm))
   def uwid = UWID(category, _id, if(realm == Wikis.RK) None else Some(realm))
 
@@ -338,7 +341,7 @@ case class WikiEntry(
   // smart preprocess with user and stuff
   def preprocess(au:Option[WikiUser]) = {
     val t1 = System.currentTimeMillis
-    val s = ast.fold(WAST.context(Some(this), au)) // fold the AST
+    val s = ast._1.fold(WAST.context(Some(this), au)) // fold the AST
     // add hardcoded attribute - these can be overriden by tags in content
     val res = StrAstNode(s.s,
       Map("category" -> category, "name" -> name, "label" -> label, "url" -> (wid.urlRelative),
