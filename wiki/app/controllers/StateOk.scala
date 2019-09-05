@@ -123,6 +123,9 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
   def notFound (content: StateOk => Html) =
     Res.NotFound (views.html.util.reactorLayout(content(this), msg)(this))
 
+  def notFound12 (content: StateOk => Html) =
+    Res.NotFound (views.html.util.reactorLayout12(content(this), msg)(this))
+
   /** use when handling forms */
 //  def badRequest (content: => Html) =
 //    RkViewService.BadRequest (views.html.util.reactorLayout(content, msg)(this))

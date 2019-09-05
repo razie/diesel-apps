@@ -12,6 +12,7 @@ import razie.db.RazMongo
 import razie.diesel.dom.{RDOM, RDomain, WikiDomain}
 import razie.diesel.ext.{EMsg, ExpectM}
 import razie.hosting.Website
+import razie.tconf.TagQuery
 import razie.wiki.model.Visibility.PUBLIC
 import scala.Array.canBuildFrom
 import scala.collection.mutable.ListBuffer

@@ -190,7 +190,7 @@ case class WID(
       //todo current realm
         Services.config.hostport
     } + "/" + {
-      if(realm.isDefined) DieselAssets.link(this, wpath)
+      if(realm.isDefined) DieselAssets.mkLink(this, wpath)
       else canonpath
     }
   }
@@ -206,7 +206,7 @@ case class WID(
         //todo current realm
         Services.config.hostport
     } + "/" + {
-      if(realm.isDefined) DieselAssets.link(this, wpath)
+      if(realm.isDefined) DieselAssets.mkLink(this, wpath)
       else canonpath
     }
   }
@@ -217,7 +217,7 @@ case class WID(
   /** use when coming from a known realm */
   def urlRelative (fromRealm:String) : String =
   "/" + {
-    if(realm.exists(_ != fromRealm)) DieselAssets.link(this, wpathFull)
+    if(realm.exists(_ != fromRealm)) DieselAssets.mkLink(this, wpathFull)
     else canonpath
   }
 
@@ -226,7 +226,7 @@ case class WID(
     if(parent.isEmpty && WID.PATHCATS.contains(cat))
       s"$cat/$name" + (section.map("#" + _).getOrElse(""))
     else
-      DieselAssets.link(this, wpathnocats)
+      DieselAssets.mkLink(this, wpathnocats)
 
   def ahref: String = "<a href=\"" + url + "\">" + toString + "</a>"
   def ahrefRelative (fromRealm:String=Wikis.RK): String = "<a href=\"" + urlRelative(fromRealm) + "\">" + toString + "</a>"
