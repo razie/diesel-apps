@@ -63,6 +63,7 @@ object DieselScripster extends Logging {
       }.mkString
 
       var jscript = s"""$expressions\n$script"""
+      var offset = expressions.lines.size + 1
 
       try {
         //        val factory = new ScriptEngineManager()
@@ -76,7 +77,7 @@ object DieselScripster extends Logging {
         // attempt to use typed bindings, if available
         q.foreach{t =>
           val v = typed.flatMap(_.get(t._1)).getOrElse(jstypeSafe(t._2))
-          debug("SFIDDLE_EXEC JS bind: " + t._1 + " = " + v)
+          debug("SFIDDLE_EXEC JS bind: " + t._1 + " = " + v.toString.take(100))
 
           if(v.isInstanceOf[Map[_,_]]) {
             val m = v.asInstanceOf[Map[_, _]]
@@ -94,6 +95,7 @@ object DieselScripster extends Logging {
         }
 
         jscript = s"""$expressions\n$script"""
+        offset = expressions.lines.size + 1
 
         {
           val root = ctx.root
@@ -131,12 +133,12 @@ object DieselScripster extends Logging {
         case t: javax.script.ScriptException => {
           log(s"Exception while executing script: ${t.getMessage}\n${jscript.takeRight(300)}")
           // don't include the script body - security issue
-          (false, t.toString, t)
+          (false, s"(line offset:$offset) "+t.getMessage, t)
         }
         case t: Throwable => {
-          log(s"Exception while executing script\n${jscript.takeRight(300)}", t)
+          log(s"Throwable Exception while executing script\n${jscript.takeRight(300)}", t)
           // don't include the script body - security issue
-            (false, t.toString, t)
+          (false, s"(line offset:$offset) "+t.getMessage, t)
         }
       } finally {
 

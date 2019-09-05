@@ -92,7 +92,7 @@ object DomState {
   */
 case class DomAst(
   var value: Any,
-  kind: String = AstKinds.GENERATED,
+  var kind: String = AstKinds.GENERATED,
   children: ListBuffer[DomAst] = new ListBuffer[DomAst](),
   id : String = new ObjectId().toString
   ) extends CanHtml {
@@ -170,9 +170,11 @@ case class DomAst(
   /** non-recursive tostring */
   def meTos(level: Int, html:Boolean): String = {
 
-    def theKind =
-      if(html) s"""<span seqNo="$seqNo" id="$id" prereq="${prereq.mkString(",")}" title="$kind">${kind.take(3)}</span>"""
+    def theKind = {
+      val duration = tend - tstart
+      if(html) s"""<span seqNo="$seqNo" msec="$duration" id="$id" prereq="${prereq.mkString(",")}" title="$kind, $duration ms">${kind.take(3)}</span>"""
       else kind
+    }
 
     (" " * level) +
     theKind +
@@ -323,8 +325,18 @@ case class DomAst(
 
   def totalTestCount : Int = totalTestCount(List(this))
 
+  def todoTestCount : Int = todoTestCount(List(this))
+
+  /** count test results */
   def totalTestCount(nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {
     case d@DomAst(n: TestResult, _, _, _) => n
+  })).size
+
+  /** count tests to do */
+  def todoTestCount(nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {
+    case d@DomAst(n: ExpectAssert, _, _, _) /*if DomState.isDone(d.status)*/ => n
+    case d@DomAst(n: ExpectM, _, _, _) /*if DomState.isDone(d.status)*/ => n
+    case d@DomAst(n: ExpectV, _, _, _) /*if DomState.isDone(d.status)*/ => n
   })).size
 
   def failedTestCount(nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {
@@ -340,6 +352,11 @@ case class DomAst(
     case d@DomAst(n: TestResult, _, _, _) if n.value.startsWith("ok") => n
   })).size
 
+  def setKinds (kkk:String) : DomAst = {
+    this.kind=kkk
+    this.children.map(_.setKinds(kkk))
+    this
+  }
 }
 
 
