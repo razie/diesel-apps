@@ -150,15 +150,21 @@ trait ExprParser extends RegexParsers {
   // qualified identifier
   def aident: Parser[AExprIdent] = qident ^^ { case i => new AExprIdent(i) }
 
+  // simple qident or complex one
+  def aidentExpr: Parser[AExprIdent] = aidentaccess | aident
+
   // full accessor to value: a.b[4].c.r["field1"]["subfield2"][4].g
   // note this kicks in at the first use of [] and continues... so that aident above catches all other
-  def aidentaccess: Parser[AExprIdent] = qident ~ (sqbraccess | sqbraccessRange) ~ accessors ^^ {
+  def aidentaccess: Parser[AExprIdent] = qident ~ (sqbraccess | sqbraccessRange | accessorNum) ~ accessors ^^ {
     case i ~ sa ~ a => new AExprIdent(i, sa :: a)
   }
 
-  def accessors: Parser[List[RDOM.P]] = rep(sqbraccess | sqbraccessRange | accessorIdent)
+  def accessors: Parser[List[RDOM.P]] = rep(sqbraccess | sqbraccessRange | accessorIdent | accessorNum)
 
   private def accessorIdent: Parser[RDOM.P] = "." ~> ident ^^ {case id => P("", id, WTypes.STRING)}
+
+  private def accessorNum: Parser[RDOM.P] = "." ~> "[0-9]+".r ^^ {case id => P("", id, WTypes.NUMBER)}
+
   private def sqbraccess: Parser[RDOM.P] = "\\[".r ~> ows ~> expr <~ ows <~ "]" ^^ {
     case e => P("", "").copy(expr=Some(e))
   }
@@ -273,7 +279,7 @@ trait ExprParser extends RegexParsers {
 
   def eq: Parser[BExpr]   = ibex("==" | "is")
   def neq: Parser[BExpr]  = ibex("!=" | "not")
-  def like: Parser[BExpr] = ibex("~=")
+  def like: Parser[BExpr] = ibex("~=" | "like")
   def lte: Parser[BExpr]  = ibex("<=")
   def gte: Parser[BExpr]  = ibex(">=")
   def lt: Parser[BExpr]   = ibex("<")
@@ -330,9 +336,16 @@ class SimpleExprParser extends ExprParser {
       case NoSuccess(msg, next) => None
     }
   }
+
+  def parseIdent (input: String):Option[AExprIdent] = {
+    parseAll(aidentExpr, input) match {
+      case Success(value, _) => Some(value)
+      case NoSuccess(msg, next) => None
+    }
+  }
 }
 
-/** assignment */
+/** assignment - needed because the left side is more than just a val */
 case class PAS (left:AExprIdent, right:Expr) extends CanHtml {
   override def toHtml = left.toHtml + "=" + right.toHtml
   override def toString = left.toString + "=" + right.toString

@@ -43,6 +43,9 @@ trait Reactor {
   //todo fallback also in real time to rk, per prop
   // todo listen to updates and reload
   def props : DslProps
+
+  /** the membership level of the owner (see if it's paid etc) */
+  def membershipLevel:Option[String]
 }
 
 /** a hosted wiki instance, i.e. independent hosted website.
@@ -97,6 +100,9 @@ abstract class ReactorImpl (val realm:String, val fallBacks:List[Reactor] = Nil,
   // todo listen to updates and reload
   lazy val props = sectionProps ("properties,website") //:: sectionProps("website")
 
+  /** the membership level of the owner (see if it's paid etc) */
+  override def membershipLevel:Option[String] = {
+    we.flatMap(_.owner).map(_.membershipLevel)
+  }
 }
-
 

@@ -2,10 +2,12 @@ package razie.diesel.dom
 
 import mod.diesel.model.exec.EESnakk
 import org.json.JSONObject
+import razie.audit.Audit
 import razie.{clog, js}
 import razie.diesel.dom.RDOM.{P, PValue}
+import razie.diesel.engine.DomEngine
 import razie.diesel.exec.EEFunc
-import razie.diesel.ext.CanHtml
+import razie.diesel.ext.{CanHtml, EMsg}
 import razie.wiki.parser.SimpleExprParser
 import scala.collection.mutable
 import scala.util.Try
@@ -68,8 +70,7 @@ abstract class Expr extends WFunc with HasDsl with CanHtml {
 case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
   val expr = (a.toDsl + op + b.toDsl)
 
-  override def apply(v: Any)(implicit ctx: ECtx) =
-    Some(applyTyped(v)).map(p => p.value.map(_.value).getOrElse(p.dflt)).get
+  override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).currentValue.ee
 
   /** apply this function to an input value and a context */
   override def applyTyped(v: Any)(implicit ctx: ECtx): P = { //Try {
@@ -332,9 +333,9 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
   // todo why do i make up a parm?
 
   def access(p: Option[P], accessor: P, blowUp: Boolean)(implicit ctx: ECtx): Option[P] = {
+    val newpname = p.map(_.name).mkString + "["+accessor+"]"
     // accessor - need to reset value, so we keep re-calculating it in context
     val av = accessor.copy(value=None).calculatedTypedValue
-//    val av = accessor.calculatedTypedValue
 
     p.flatMap { p =>
       // based on the type of p
@@ -343,7 +344,7 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
       def throwIt: Option[P] = {
         if (blowUp)
           throw new DieselExprException(
-            s"Cannot access $expr of type ${pv.contentType} with ${accessor} of type ${accessor.ttype}"
+            s"Cannot access $p of type ${pv.contentType} with ${accessor} in expression: $expr"
           )
         None
       }
@@ -355,13 +356,18 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
 
           case WTypes.ARRAY => {
             val list = pv.asArray
-            val res =
+            val index =
               if (ai >= 0)
-                list.apply(ai)
+                ai
               else  // negative - subtract from length
-                list.apply(list.size - ai)
+                list.size - ai
 
-            Some(P.fromTypedValue("", res))
+            if(index >= 0 && index < list.size) {
+              val res = list.apply(index)
+              Some(P.fromTypedValue(newpname, res))
+            } else {
+              None
+            }
           }
 
           case WTypes.STRING => {
@@ -376,8 +382,24 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
               else  // negative - subtract from length
                 ps.charAt(ps.length - ai)
 
-            Some(P.fromTypedValue("", res.toString))
+            Some(P.fromTypedValue(newpname, res.toString))
           }
+
+            // we can access json attributes that can be numbers
+          case WTypes.JSON =>
+            val as = av.asString
+            val map = pv.asJson
+
+            val res = map.get(as)
+            res match {
+              case Some(v) =>
+                Some(P.fromTypedValue(newpname, v))
+
+              case None =>
+//                if (blowUp) throw new DieselExprException(s"$expr does not have field $accessor")
+//                else
+                None // field not found - undefined
+            }
 
           case _ => throwIt
         }
@@ -391,7 +413,7 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
             val res = map.get(as)
             res match {
               case Some(v) =>
-                Some(P.fromTypedValue("", v))
+                Some(P.fromTypedValue(newpname, v))
 
               case None =>
 //                if (blowUp) throw new DieselExprException(s"$expr does not have field $accessor")
@@ -422,7 +444,7 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
 
             val res = list.slice(ai, zi + 1)
 
-            Some(P.fromTypedValue("", res))
+            Some(P.fromTypedValue(newpname, res))
           }
 
           case WTypes.STRING => {
@@ -440,7 +462,7 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
 
             val res = ps.substring(ai, zi + 1)
 
-            Some(P.fromTypedValue("", res.toString))
+            Some(P.fromTypedValue(newpname, res.toString))
           }
 
           case _ => throwIt
@@ -497,7 +519,7 @@ case class CExprNull() extends Expr {
   override def toHtml = expr
 }
 
-/** a function */
+/** a function call */
 case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
 
   override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).calculatedValue
@@ -505,10 +527,26 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
     expr match {
       case "sizeOf" => {
         parms.headOption
-          .map { p =>
+          .flatMap { p =>
+              // maybe the first parm is the accessor expression (lambda parm like)
+            val pv = if (p.name.contains(".") || p.name.contains("[")) {
+              (new SimpleExprParser).parseIdent(p.name).flatMap(_.tryApplyTyped(v))
+            } else if(p.dflt.isEmpty && p.expr.isEmpty) {
+              // sizeOf(payload)
+              ctx.getp(p.name) // don't care about names, just get the first parm and evalueate
+            } else {
+              // nope - it's just a normal parm=expr
+              Some(p)
+            }
+            pv
+          }.map { p =>
             val pv = p.calculatedTypedValue
+
             if (pv.contentType == WTypes.ARRAY) {
               val sz = pv.asArray.size
+              P("", sz.toString, WTypes.NUMBER).withValue(sz, WTypes.NUMBER)
+            } else if (pv.contentType == WTypes.JSON) {
+              val sz = pv.asJson.size
               P("", sz.toString, WTypes.NUMBER).withValue(sz, WTypes.NUMBER)
             } else {
               throw new DieselExprException(
@@ -521,20 +559,66 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
           )
       }
 
-      case _ =>
-        throw new DieselExprException("Function not found: " + expr)
+      case _ => {
+        val spec = ctx.root.domain.flatMap {
+          _.moreElements.collect {
+            case s: EMsg if s.ea == expr => Some(s)
+          }.headOption
+        }
+
+        val func = ctx.root.domain.flatMap {
+          _.funcs.get (expr)
+        }
+
+        val PAT = """([\w.]+)[./](\w+)""".r
+        val PAT(ee, aa) = expr
+        val msg = EMsg(ee, aa, parms)
+        val ast = DomAst(msg, AstKinds.RECEIVED)
+
+        spec.flatMap { msgSpec =>
+          ctx.root.engine.flatMap{engine=>
+              val newe = new DomEngine(
+                engine.dom,
+                ast,
+                engine.settings,
+                engine.pages,
+                "SYNC-"+engine.description
+              )
+
+            val level =
+              if(ctx.isInstanceOf[StaticECtx])
+                ctx.asInstanceOf[StaticECtx].curNode.flatMap(n=>
+                  ctx.root.engine.map(_.findLevel(n))
+                ).getOrElse(0)
+            else
+                0
+
+            // a message with this name found, call it sync
+            val res = newe.execSync(ast, level, ctx)
+
+            ast.setKinds(AstKinds.TRACE)
+            ast.kind = AstKinds.SUBTRACE
+
+            // save the trace in the main tree
+            if(ctx.isInstanceOf[StaticECtx])
+              ctx.asInstanceOf[StaticECtx].curNode.foreach(_.children.append(
+                ast
+              ))
+
+            res
+          }
+        } orElse func.map {f=>
+          EEFunc.exec(msg, f)
+        } getOrElse {
+          throw new DieselExprException("Function/Message not found: " + expr)
+        }
+      }
     }
 
   }
 
-  override def toDsl = expr + "()"
+  override def toDsl = expr + "(" + parms.mkString(",") + ")"
   override def toHtml = tokenValue(toDsl)
-}
-
-/** an xpath expr */
-case class XPathIdent(val expr: String) extends Expr {
-  override def apply(v: Any)(implicit ctx: ECtx) = ctx.apply(expr)
-  override def applyTyped(v: Any)(implicit ctx: ECtx): P = ???
 }
 
 /**
@@ -543,7 +627,7 @@ case class XPathIdent(val expr: String) extends Expr {
 case class CExpr[T](ee: T, ttype: String = "") extends Expr {
   val expr = ee.toString
 
-  override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).dflt
+  override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).currentStringValue
 
   override def applyTyped(v: Any)(implicit ctx: ECtx): P = {
     val es = P.asString(ee)
@@ -586,7 +670,7 @@ case class CExpr[T](ee: T, ttype: String = "") extends Expr {
         }
         P("", s1, ttype)
       } else
-        P("", es, ttype).withValue(ee, ttype)
+        P("", es, ttype).withCachedValue(ee, ttype, es)
     }
   }
 
@@ -642,19 +726,20 @@ case class SCExpr(s: String) extends Expr {
 case class JBlockExpr(ex: List[(String, Expr)]) extends Expr {
   val expr = "{" + ex.map(t=>t._1 + ":" + t._2.toString).mkString(",") + "}"
 
-  override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).dflt
+  override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).currentStringValue
 
   override def applyTyped(v: Any)(implicit ctx: ECtx) = {
+    // todo this can be way faster for a few types, like Array - $send ctx.set (state281 = {source: [0,1,2,3,4,5], dest: [], aux: []})
 //    val orig = template(expr)
     val orig = ex
       .map(t=> (t._1, t._2.applyTyped(v)))
       .map(t=> (t._1, t._2 match {
-        case p@P(n,d,WTypes.NUMBER, _, _, _, Some(PValue(i:Int, _))) => i
-        case p@P(n,d,WTypes.NUMBER, _, _, _, Some(PValue(i:Double, _))) => i
+        case p@P(n,d,WTypes.NUMBER, _, _, _, Some(PValue(i:Int, _, _))) => i
+        case p@P(n,d,WTypes.NUMBER, _, _, _, Some(PValue(i:Double, _, _))) => i
 
-        case p@P(n,d,WTypes.BOOLEAN, _, _, _, Some(PValue(b:Boolean, _))) => b
+        case p@P(n,d,WTypes.BOOLEAN, _, _, _, Some(PValue(b:Boolean, _, _))) => b
 
-        case p:P => p.dflt match {
+        case p:P => p.currentStringValue match {
           case i: String if i.trim.startsWith("[") && i.trim.endsWith("]") => i
           case i: String if i.trim.startsWith("{") && i.trim.endsWith("}") => i
           case i: String => "\"" + i + "\""
@@ -793,7 +878,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
           case "<"           => a(in).toString < b(in).toString
           case ">"           => a(in).toString > b(in).toString
 
-          case "contains"    => a(in).toString contains b(in).toString
+          case "contains"    =>   a(in).toString contains b(in).toString
           case "containsNot" => !(a(in).toString contains b(in).toString)
 
           // THESE CANNOT CHANGE...
@@ -807,17 +892,23 @@ case class BCMP2(a: Expr, op: String, b: Expr)
           case "not" if b.toString == "nzlen" => ap.ttype == WTypes.UNDEFINED || as.length <= 0 || as.trim == "null"
 
           case "is"  if b.toString == "empty" =>
-              if (ap.calculatedTypedValue.contentType == WTypes.JSON)
-                 ap.calculatedTypedValue.asJson.isEmpty
-              else
-                /*ap.ttype != WTypes.UNDEFINED &&*/ as.length == 0
+            if (ap.calculatedTypedValue.contentType == WTypes.JSON)
+               ap.calculatedTypedValue.asJson.isEmpty
+            else if (ap.calculatedTypedValue.contentType == WTypes.ARRAY)
+               ap.calculatedTypedValue.asArray.isEmpty
+            else
+              /*ap.ttype != WTypes.UNDEFINED &&*/ as.length == 0
 
-          case "not" if b.toString == "empty" => as.length > 0
+          case "not" if b.toString == "empty" =>
+            if (ap.calculatedTypedValue.contentType == WTypes.JSON)
+              !ap.calculatedTypedValue.asJson.isEmpty
+            else if (ap.calculatedTypedValue.contentType == WTypes.ARRAY)
+              !ap.calculatedTypedValue.asArray.isEmpty
+            else
+            /*ap.ttype != WTypes.UNDEFINED &&*/ as.length != 0
 
           case "is"  if b.toString == "undefined" => ap.ttype == WTypes.UNDEFINED
           case "not" if b.toString == "undefined" => ap.ttype != WTypes.UNDEFINED
-
-
 
           case "is" if b_is("number") => as.matches("[0-9.]+")
 
@@ -929,14 +1020,14 @@ case class BCMPSingle(a: Expr) extends BExpr(a.toDsl) {
       }
 
       case WTypes.BOOLEAN => {
-        "true" == in.dflt
+        "true" == in.currentStringValue
       }
 
-      case _ if "true" == in.dflt => {
+      case _ if "true" == in.currentStringValue => {
         true
       }
 
-      case _ if "false" == in.dflt => {
+      case _ if "false" == in.currentStringValue => {
         false
       }
 
@@ -952,15 +1043,19 @@ case class BCMPSingle(a: Expr) extends BExpr(a.toDsl) {
           }
 
           case WTypes.BOOLEAN => {
-            "true" == in.dflt
+            "true" == in.currentStringValue
           }
 
-          case _ if "true" == in.dflt => {
+          case _ if "true" == in.currentStringValue => {
             true
           }
 
-          case _ if "false" == in.dflt => {
+          case _ if "false" == in.currentStringValue => {
             false
+          }
+
+          case WTypes.UNDEFINED => {
+            false // todo is this cocher?
           }
 
           case s @ _ => {

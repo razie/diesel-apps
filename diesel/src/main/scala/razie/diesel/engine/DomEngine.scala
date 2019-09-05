@@ -12,12 +12,13 @@ import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.dom.{DomState, RDomain, _}
 import razie.diesel.engine.RDExt._
 import razie.diesel.ext.{BFlowExpr, FlowExpr, MsgExpr, SeqExpr, _}
+import razie.diesel.model.DieselMsg
 import razie.diesel.utils.DomCollector
 import razie.tconf.DSpec
 import razie.wiki.parser.PAS
 import razie.{Logging, js}
 import scala.Option.option2Iterable
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.{ArrayBuffer, HashMap, ListBuffer}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Future, Promise}
 import scala.util.Try
@@ -67,7 +68,7 @@ class DomEngine(
   implicit val engine = this
 
   final val maxLevels = 45
-  final val maxExpands= 1000
+  final val maxExpands= 10000
   var curExpands = 0
 
   // setup the context for this eval
@@ -85,16 +86,18 @@ class DomEngine(
   def errorCount = root.errorCount
   def successTestCount = root.successTestCount
   def totalTestCount = root.totalTestCount
+  def progress:String = root.totalTestCount + "/" + root.todoTestCount
+  def totalCount = root.totalTestCount
 
   /** collect generated values */
   def resultingValues() = root.collect {
     // todo see in Api.irunDom, trying to match them to the message sent in...
-    case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.dflt)
+    case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.currentStringValue)
   }
 
   /** collect the last generated value OR empty string */
   def resultingValue = root.collect {
-    case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.dflt)
+    case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.currentStringValue)
   }.lastOption.map(_._2).getOrElse("")
 
   val rules = dom.moreElements.collect {
@@ -188,7 +191,7 @@ class DomEngine(
       case a if a.children.exists(_.id == node.id) => a
     }.headOption
 
-  private def findLevel(node: DomAst): Int =
+  def findLevel(node: DomAst): Int =
     root.collect2 {
       case t@(a,l) if a.id == node.id => l
     }.headOption.getOrElse {
@@ -401,7 +404,7 @@ class DomEngine(
       trace("DomEng "+id+" finish")
       DomCollector.collectAst ("engine", settings.realm.mkString, id, settings.userId, this)
       finishP.success(this)
-      DieselAppContext.activeActors.get(id).map(_ ! DEStop) // stop the actor and remove engine
+      DieselAppContext.activeActors.get(id).foreach(_ ! DEStop) // stop the actor and remove engine
     }
 
     result
@@ -409,9 +412,9 @@ class DomEngine(
 
   /** add built-in triggers */
   private def prepRoot(l:ListBuffer[DomAst]) : ListBuffer[DomAst] = {
-    val vals = DomAst(EMsg("diesel", "vals"), AstKinds.TRACE)
-    val before = DomAst(EMsg("diesel", "before"), AstKinds.TRACE)
-    val after = DomAst(EMsg("diesel", "after"), AstKinds.TRACE)
+    val vals = DomAst(EMsg(DieselMsg.ENGINE.ENTITY, DieselMsg.ENGINE.VALS), AstKinds.TRACE)
+    val before = DomAst(EMsg(DieselMsg.ENGINE.ENTITY, DieselMsg.ENGINE.BEFORE), AstKinds.TRACE)
+    val after = DomAst(EMsg(DieselMsg.ENGINE.ENTITY, DieselMsg.ENGINE.AFTER), AstKinds.TRACE)
 
     // create dependencies and add them to the list
     after.prereq = l.map(_.id).toList
@@ -558,7 +561,7 @@ class DomEngine(
       case n: EVal if !AstKinds.isGenerated(a.kind) => {
         // $val defined in scope
         val p = n.p.calculatedP // only calculate if not already calculated =likely in a different context=
-        a append DomAst(EVal(p).withPos(n.pos), AstKinds.DEBUG)
+        a append DomAst(EVal(p).withPos(n.pos), AstKinds.TRACE)
         ctx.put(p)
       }
 
@@ -586,6 +589,30 @@ class DomEngine(
       }
     }
     msgs
+  }
+
+  // todo is it really needed?
+  def execSync(ast:DomAst, level:Int, ctx: ECtx) : Option[P] = {
+    // stop propagation of local vals to parent engine
+    val newCtx = new ScopeECtx(Nil, Some(ctx), Some(ast))
+
+    // inherit all context from parent engine
+//    this.ctx.root.overwrite(newCtx)
+
+    val msgs = expandEMsgImpl(ast, ast.value.asInstanceOf[EMsg], true, level, newCtx)
+
+    evAppChildren(ast, msgs)
+
+    var res = newCtx.getp("payload")
+    msgs.collect {
+      case a if a.value.isInstanceOf[EMsg] =>
+        res = execSync(a, level + 1, newCtx)
+//      case a if a.value.isInstanceOf[EVal] =>
+//        res = execSync(a, level + 1, newCtx)
+    }
+    ast.status = DomState.DONE
+    ast.end
+    res
   }
 
   /** an assignment message */
@@ -618,8 +645,8 @@ class DomEngine(
           )
           pa.value = Some(newv )
 
-          // need to set dflt as well
-          val newp = pa.copy(dflt=js.tojsons(newv.asJson))
+          // need to set dflt as well - NO WE DO NOT ANYMORE, use p.currentStringValue
+          val newp = pa//.copy(dflt=newv.asString)
           // todo need to recurse on parent, not just hardcode ctx
           ctx.put(newp)
         }
@@ -630,38 +657,16 @@ class DomEngine(
     val calc = attrs.flatMap { pas =>
       if (pas.left.rest.isEmpty) {
         // classic p=e
-        val calc = List(P(pas.left.start, "").copy(expr = Some(pas.right)).calculatedP)
+        val calcp = P(pas.left.start, "").copy(expr = Some(pas.right)).calculatedP
+        val calc = List(calcp)
         calc
-
-//        a appendAll calc.map{p =>
-//          if(p.ttype == WTypes.EXCEPTION) {
-//            p.value.map {v=>
-//              val err = if(v.value.isInstanceOf[javax.script.ScriptException]) {
-//             special handling of Script exceptions - no point showing stack trace
-//                new EError("ScriptException: " + p.dflt + v.asThrowable.getMessage)
-//              } else {
-//                new EError(p.dflt, v.asThrowable)
-//              }
-//
-//              DomAst(err.withPos(x.pos), AstKinds.ERROR).withSpec(x)
-//            } getOrElse {
-//              DomAst(EError(p.dflt) withPos (x.pos), AstKinds.ERROR).withSpec(x)
-//            }
-//          } else {
-//            DomAst(EVal(p) withPos (x.pos), kind).withSpec(x)
-//          }
-//        }
-//
-//        appendToCtx putAll calc
-//        Nil
-
       } else {
+        // more complex left expr = right value
         a append DomAst(EInfo(pas.toString).withPos(x.pos), AstKinds.DEBUG)
 
         val p = pas.right.applyTyped("")
 
         val res = if (pas.left.rest.size > 1) { // [] accessors
-//          val parent =
 
         } else if (pas.left.start == "ctx") {
           setp(ctx, pas.left.rest.head, p)
@@ -671,12 +676,12 @@ class DomEngine(
 //          a append DomAst(EInfo("selector: "+pas.left.rest.head.calculatedTypedValue.toString).withPos(x.pos), AstKinds.TRACE)
           setp(parent, pas.left.rest.head, p)
         }
-        a append DomAst(EInfo(pas.left.toStringCalc + " = " + res).withPos(x.pos), AstKinds.DEBUG)
+        a append DomAst(EInfo(pas.left.toStringCalc + " = " + res, p.calculatedTypedValue.asString).withPos(x.pos), AstKinds.DEBUG)
         Nil
       }
     }
 
-      a appendAll calc.map{p =>
+      a appendAll calc.flatMap{p =>
         if(p.ttype == WTypes.EXCEPTION) {
           p.value.map {v=>
             val err = if(v.value.isInstanceOf[javax.script.ScriptException]) {
@@ -686,12 +691,14 @@ class DomEngine(
               new EError(p.dflt, v.asThrowable)
             }
 
-            DomAst(err.withPos(x.pos), AstKinds.ERROR).withSpec(x)
+            DomAst(err.withPos(x.pos), AstKinds.ERROR).withSpec(x) :: Nil
           } getOrElse {
-            DomAst(EError(p.dflt) withPos (x.pos), AstKinds.ERROR).withSpec(x)
+            DomAst(EError(p.dflt) withPos (x.pos), AstKinds.ERROR).withSpec(x) :: Nil
           }
         } else {
-          DomAst(EVal(p) withPos (x.pos), kind).withSpec(x)
+          val newa = DomAst(EVal(p) withPos (x.pos), kind).withSpec(x)
+          newa ::
+          DomAst(EInfo(p.toString, p.calculatedTypedValue.asString).withPos(x.pos), AstKinds.DEBUG) :: Nil
         }
       }
 
@@ -731,9 +738,9 @@ class DomEngine(
   }
 
   /** reused - execute a rule */
-  private def runRule (a:DomAst, in:EMsg, r:ERule) = {
+  private def runRule (a:DomAst, in:EMsg, r:ERule, parentCtx:ECtx) = {
     var result : List[DomAst] = Nil
-    implicit val ctx = new StaticECtx(in.attrs, Some(this.ctx), Some(a))
+    implicit val ctx : ECtx = new StaticECtx(in.attrs, Some(parentCtx), Some(a))
 
     // generate each gen/map
     r.i.map { ri =>
@@ -743,7 +750,7 @@ class DomEngine(
       }.headOption
       val KIND = AstKinds.kindOf(r.arch)
 
-      var generated = ri.apply(in, spec, r.pos, r.i.size > 1, r.arch)
+      val generated = ri.apply(in, spec, r.pos, r.i.size > 1, r.arch)
 
       // defer evaluation if multiple messages generated - if just one message, evaluate values now
       var newMsgs = generated.collect {
@@ -819,7 +826,7 @@ class DomEngine(
         }
       }
       true
-    } else if(in.entity == "diesel" && in.met == "vals") {
+    } else if(in.entity == "diesel" && in.met == DieselMsg.ENGINE.VALS) {
       // expand all spec vals
       dom.moreElements.collect {
         case v:EVal => {
@@ -829,10 +836,10 @@ class DomEngine(
       }
 
       true
-    } else if(in.entity == "diesel.scope" && in.met == "pop" && this.ctx.isInstanceOf[ScopeECtx]) {
+    } else if(in.entity == DieselMsg.SCOPE.ENTITY && in.met == "push") {
       this.ctx = new ScopeECtx(Nil, Some(this.ctx), Some(a))
       true
-    } else if(in.entity == "diesel.scope" && in.met == "pop" && this.ctx.isInstanceOf[ScopeECtx]) {
+    } else if(in.entity == DieselMsg.SCOPE.ENTITY && in.met == "pop" && this.ctx.isInstanceOf[ScopeECtx]) {
       this.ctx = this.ctx.base.get
       true
     } else if(in.entity == "diesel.engine" && in.met == "debug") {
@@ -849,7 +856,7 @@ class DomEngine(
   }
 
   /** expand a single message */
-  private def expandEMsg(a: DomAst, in: EMsg, recurse: Boolean, level: Int, parentCtx:ECtx) : List[DEMsg] = {
+  private def expandEMsgImpl(a: DomAst, in: EMsg, recurse: Boolean, level: Int, parentCtx:ECtx) : List[DomAst] = {
     var newNodes : List[DomAst] = Nil // nodes generated this call collect here
 
 //    implicit var ctx = new StaticECtx(in.attrs, Some(parentCtx), Some(a))
@@ -879,7 +886,7 @@ class DomEngine(
           mocked = true
 
           // run the mock
-          newNodes = newNodes ::: runRule(a, n, m.rule)
+          newNodes = newNodes ::: runRule(a, n, m.rule, ctx)
         }
       }
     }
@@ -890,11 +897,26 @@ class DomEngine(
     // I run rules even if mocks fit - mocking mocks only going out, not decomposing
     // todo - WHY? only some systems may be mocked ???
     if ((true || !mocked) && !settings.simMode) {
-      rules.filter(_.e.test(n)).map { r =>
+      val matchingRules = rules.filter(_.e.test(n))
+      val exclusives = HashMap[String, ERule]()
+
+      matchingRules.map { r =>
         // each matching rule
         ruled = true
 
-        newNodes = newNodes ::: runRule(a, n, r)
+        //filter out exclusives
+        val exKey = r.e.cls + "." + r.e.met
+        if(exclusives.contains(exKey)) {
+          newNodes = newNodes :::
+              DomAst(EInfo("rule excluded", exKey).withPos(r.pos), AstKinds.TRACE) ::
+              Nil
+        } else {
+          if(r.arch.contains("exclusive")) {
+            exclusives.put (r.e.cls + "." + r.e.met, r) // we do exclusive per pattern
+          }
+
+          newNodes = newNodes ::: runRule(a, n, r, ctx)
+        }
       }
     }
 
@@ -913,7 +935,8 @@ class DomEngine(
         mocked = true
 
         val news = try {
-          implicit val ctx = new StaticECtx(n.attrs, Some(this.ctx), Some(a))
+          // need to use ctx not this.ctx, to respect scopes etc
+//          implicit val ctx = new StaticECtx(n.attrs, Some(this.ctx), Some(a))
 
           val xx = r.apply(n, None)
 
@@ -1022,6 +1045,13 @@ class DomEngine(
         }
       }
     }
+
+    newNodes
+  }
+
+  /** expand a single message - called by engine, results in engine processing */
+  private def expandEMsg(a: DomAst, in: EMsg, recurse: Boolean, level: Int, parentCtx:ECtx) : List[DEMsg] = {
+    val newNodes = expandEMsgImpl(a, in, recurse, level, parentCtx)
 
     // analyze the new messages and return
 

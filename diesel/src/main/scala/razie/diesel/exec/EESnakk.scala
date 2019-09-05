@@ -65,7 +65,12 @@ class EESnakk extends EExecutor("snakk") with Logging {
       return formatFfd(in, destSpec)
 
     val httpOptions = in.attrs.find(_.name == "snakkHttpOptions")
-    val filteredAttrs = in.attrs.filter(_.name != "snakkHttpOptions")
+    var filteredAttrs = in.attrs.filter(_.name != "snakkHttpOptions")
+
+    if(httpOptions.flatMap(_.calculatedTypedValue.asJson.get("readTimeout")).isDefined) {
+      val s = httpOptions.flatMap(_.calculatedTypedValue.asJson.get("readTimeout")).map(_.toString).mkString
+      filteredAttrs = P("snakkHttpOptions.readTimeout", s) :: filteredAttrs
+    }
 
     // templates?
     val templateReq  = ctx.findTemplate(in.entity + "." + in.met, "request")
@@ -170,7 +175,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
       // message specified return mappings, if any
       val retSpec = if (in.ret.nonEmpty) in.ret else spec(in).toList.flatMap(_.ret)
       // collect any parm specs
-      val specs = retSpec.map(p => (p.name, p.dflt, p.expr.mkString, p.expr))
+      val specs = retSpec.map(p => (p.name, p.currentStringValue, p.expr.mkString, p.expr))
 
       val regex = templateSpecs.find(_._1 == "regex").map(_._2).orElse(specs.find(_._1 == "regex").map(_._3))
 
@@ -238,8 +243,8 @@ class EESnakk extends EExecutor("snakk") with Logging {
       // no template or tcontent => old way without templates
       findin("url").map { u =>
         // is it relative?
-        val newurl = if (u.dflt startsWith "http") u.dflt else "http://" +
-            ctx.root.asInstanceOf[DomEngECtx].settings.hostport.mkString.mkString + u.dflt
+        val newurl = if (u.currentStringValue startsWith "http") u.currentStringValue else "http://" +
+            ctx.root.asInstanceOf[DomEngECtx].settings.hostport.mkString.mkString + u.currentStringValue
 
         val sc = new SnakkCall("http", in.arch, newurl, Map.empty, "")
         //          case class SnakkCall (method:String, url:String, headers:Map[String,String], content:String) {
@@ -272,8 +277,8 @@ class EESnakk extends EExecutor("snakk") with Logging {
 
         // 2. extract values
         val x = if (in.ret.nonEmpty) in.ret else spec(in).toList.flatMap(_.ret)
-        val specs = x.map(p => (p.name, p.dflt, p.expr.mkString, p.expr))
-        val regex = x.find(_.name == "regex") orElse findin("regex") map (_.dflt)
+        val specs = x.map(p => (p.name, p.currentStringValue, p.expr.mkString, p.expr))
+        val regex = x.find(_.name == "regex") orElse findin("regex") map (_.currentStringValue)
         val strs = content.extract(Map.empty, specs.filter(_._1 != "regex"), regex)
 
         // add the resulting values
@@ -359,12 +364,12 @@ class EESnakk extends EExecutor("snakk") with Logging {
 
         eres += EInfo("Response: ", html(response)) :: Nil
 
-        if(code > 0) eres += EVal(P.fromTypedValue("snakk.http.code", code)) :: Nil
-        if(errContent.length > 0) eres += EVal(P.fromTypedValue("snakk.http.response", errContent)) :: Nil
+        if(code > 0) eres += EVal(P.fromTypedValue("snakkHttpCode", code)) :: Nil
+        if(errContent.length > 0) eres += EVal(P.fromTypedValue("snakkHttpResponse", errContent)) :: Nil
 
         eres +=
                 // need to create a val - otherwise DomApi.rest returns the last Val
-                EVal(P("snakk.error", html(cause.getMessage, 10000))) ::
+                EVal(P("snakkError", html(cause.getMessage, 10000))) ::
                 Nil
       }
     }
@@ -492,6 +497,13 @@ object EESnakk {
         headers = P("Content-Type", "application/xml") :: headers
     }
 
+    // todo add all parms in snakkHttpOptions
+    val httpOptions = attrs.find(_.name == "snakkHttpOptions")
+    if(httpOptions.flatMap(_.calculatedTypedValue.asJson.get("readTimeout")).isDefined) {
+      val s = httpOptions.flatMap(_.calculatedTypedValue.asJson.get("readTimeout")).map(_.toString).mkString
+      headers = P("snakkHttpOptions.readTimeout", s) :: headers
+    }
+
     val hattr = headers.map(p=> (p.name, p.calculatedValue)).toSeq.toMap
 
     new SnakkCall(
@@ -599,7 +611,7 @@ object EESnakk {
           ctx.map { implicit ctx =>
             stripQuotes(x.calculatedValue)
           }.getOrElse {
-            stripQuotes(x.dflt)
+            stripQuotes(x.currentStringValue)
           }
         )
       })
@@ -620,7 +632,7 @@ object EESnakk {
         ctx.map{implicit ctx=>
           stripQuotes(x.calculatedValue)
         }.getOrElse{
-          stripQuotes(x.dflt)
+          stripQuotes(x.currentStringValue)
         }
       )
     })
@@ -662,19 +674,19 @@ object EESnakk {
     */
   def snakkFfd(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = {
     val schema = in.attrs.find(_.name == "schema").map{s=>
-      s.dflt.replaceAll("\\[\\]", "")
+      s.currentStringValue.replaceAll("\\[\\]", "")
     }
 
-    val output = in.attrs.find(_.name == "result").map(_.dflt)
+    val output = in.attrs.find(_.name == "result").map(_.currentStringValue)
 
     // should parse just one in put parm, but we can parse many and aggregate the results
     in.attrs.filter(p=> p.name != "schema" && p.name != "result").headOption.toList.flatMap {input=>
-      val parsed = new FFDPayload(input.dflt, schema.mkString).parse
+      val parsed = new FFDPayload(input.currentStringValue, schema.mkString).parse
 
       val results = parsed.getResult.map {values=>
         val x = new mutable.HashMap[String,Any]
         values.map{ p=>
-          x.put(p.name, p.dflt)
+          x.put(p.name, p.currentStringValue)
         }
 
         x.toMap
@@ -694,10 +706,10 @@ object EESnakk {
     */
   def formatFfd(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = {
     val schema = in.attrs.find(_.name == "schema").map{s=>
-      s.dflt.replaceAll("\\[\\]", "")
+      s.currentStringValue.replaceAll("\\[\\]", "")
     }
 
-    val output = in.attrs.find(_.name == "result").map(_.dflt)
+    val output = in.attrs.find(_.name == "result").map(_.currentStringValue)
 
     val parms = in.attrs.filter(p=> p.name != "schema" && p.name != "result")
     val results = new FFDPayload("", schema.mkString).build(ctx)

@@ -30,6 +30,7 @@ object DomEngineSettings {
       hostport = fqhParm(HOSTPORT),
       realm = fqhParm(REALM),
       tagQuery = fqhParm(TAG_QUERY),
+      env = fqhParm(ENV),
       simMode = fqhoParm(SIM_MODE, "true").toBoolean
     )
   }
@@ -47,6 +48,7 @@ object DomEngineSettings {
   final val HOSTPORT = "hostport"
   final val SIM_MODE = "simMode"
   final val REALM = "realm"
+  final val ENV = "env"
 
   final val DFIDDLE = "dfiddle"
   final val INCLUDE_FOR = "includeFor"
@@ -83,6 +85,9 @@ case class DomEngineSettings
 
   var realm : Option[String] = None,
 
+  /** env target for this request, or None */
+  var env : Option[String] = None,
+
   var simMode : Boolean = false
   ) {
   val node = DieselAppContext.localNode
@@ -99,16 +104,12 @@ case class DomEngineSettings
       DRAFT_MODE -> draftMode.toString,
       EXEC_MODE -> execMode,
       RESULT_MODE -> resultMode
-    ) ++ parentNodeId.map(x=>
-      Map(DIESEL_NODE_ID -> x)
-    ).getOrElse(Map.empty) ++ configTag.map(x=>
-      Map(DIESEL_CONFIG_TAG -> x)
-    ).getOrElse(Map.empty) ++ userId.map(x=>
-      Map(DIESEL_USER_ID -> x)
-    ).getOrElse(Map.empty) ++ tagQuery.map(x=>
-      Map(TAG_QUERY -> x)
-    ).getOrElse(Map.empty) ++ realm.map(x=>
-      Map(REALM -> x)
+    ) ++ parentNodeId.map(x=> Map(DIESEL_NODE_ID -> x)
+    ).getOrElse(Map.empty) ++ configTag.map(x=> Map(DIESEL_CONFIG_TAG -> x)
+    ).getOrElse(Map.empty) ++ userId.map(x=> Map(DIESEL_USER_ID -> x)
+    ).getOrElse(Map.empty) ++ tagQuery.map(x=> Map(TAG_QUERY -> x)
+    ).getOrElse(Map.empty) ++ realm.map(x=> Map(REALM -> x)
+    ).getOrElse(Map.empty) ++ env.map(x=> Map(ENV -> x)
     ).getOrElse(Map.empty) ++ hostport.map(x=>
       Map(HOSTPORT -> x)
     ).getOrElse(Map.empty) ++
