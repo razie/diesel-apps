@@ -31,6 +31,7 @@ object DomEngineSettings {
       realm = fqhParm(REALM),
       tagQuery = fqhParm(TAG_QUERY),
       env = fqhParm(ENV),
+      collect = fqhParm(COLLECT).map(_.toInt),
       simMode = fqhoParm(SIM_MODE, "true").toBoolean
     )
   }
@@ -49,12 +50,16 @@ object DomEngineSettings {
   final val SIM_MODE = "simMode"
   final val REALM = "realm"
   final val ENV = "env"
+  final val COLLECT = "collect"
 
   final val DFIDDLE = "dfiddle"
   final val INCLUDE_FOR = "includeFor"
 
   // filter qeury parms
-  final val FILTER = Array(SKETCH_MODE, MOCK_MODE, BLENDER_MODE, DRAFT_MODE, EXEC_MODE, RESULT_MODE, SIM_MODE, DFIDDLE, INCLUDE_FOR, "saveMode")
+  final val FILTER = Array(
+    SKETCH_MODE, MOCK_MODE, BLENDER_MODE, DRAFT_MODE, EXEC_MODE,
+    RESULT_MODE, SIM_MODE, DFIDDLE, INCLUDE_FOR, "saveMode"
+  )
 }
 
 case class DomEngineSettings
@@ -88,12 +93,20 @@ case class DomEngineSettings
   /** env target for this request, or None */
   var env : Option[String] = None,
 
+  /** collector settings - how many of this kind to collect */
+  var collect : Option[Int] = None,
+
   var simMode : Boolean = false
   ) {
-  val node = DieselAppContext.localNode
+  val node = DieselAppContext.localNode // todo shouldn't I remember the node? or is that the hostport?
 
   /** is this supposed to use a user cfg */
-  def configUserId = configTag.map(x=>if(ObjectId.isValid(x)) Some(new ObjectId(x)) else None)
+  def configUserId = {
+    configTag.map(x=>
+      if(ObjectId.isValid(x)) Some(new ObjectId(x))
+      else None
+    )
+  }
 
   def toJson : Map[String,String] = {
     import DomEngineSettings._
@@ -110,6 +123,7 @@ case class DomEngineSettings
     ).getOrElse(Map.empty) ++ tagQuery.map(x=> Map(TAG_QUERY -> x)
     ).getOrElse(Map.empty) ++ realm.map(x=> Map(REALM -> x)
     ).getOrElse(Map.empty) ++ env.map(x=> Map(ENV -> x)
+    ).getOrElse(Map.empty) ++ collect.map(x=> Map(COLLECT -> x.toString)
     ).getOrElse(Map.empty) ++ hostport.map(x=>
       Map(HOSTPORT -> x)
     ).getOrElse(Map.empty) ++
