@@ -19,7 +19,7 @@ trait ExprParser extends RegexParsers {
 
   def ows = opt(whiteSpace)
 
-  /** a regular ident but also '...' */
+  /** a regular ident but also something in single quotes 'a@habibi.34 and - is a good ident eh' */
   def ident: Parser[String] = """[a-zA-Z_][\w]*""".r | """'[\w@. -]+'""".r ^^ {
     case s =>
       if(s.startsWith("'") && s.endsWith("'"))
@@ -186,9 +186,7 @@ trait ExprParser extends RegexParsers {
   }
 
   /**
-    * name:<>type[kind]*~=default
-    * <> means it's a ref, not ownership
-    * * means it's a list
+    * expr assignment, left side can be a[5].name
     */
   def pasattr: Parser[PAS] = " *".r ~> (aidentaccess | aident) ~ opt(" *= *".r ~> expr) ^^ {
     case ident ~ e => {
@@ -196,6 +194,16 @@ trait ExprParser extends RegexParsers {
         case Some(ex) => PAS(ident, ex)
         case None => PAS(ident, ident) // compatible for a being a=a
       }
+    }
+  }
+
+  /**
+    * simple ident = expr assignemtn when calling
+    */
+  def pcallattrs: Parser[List[RDOM.P]] = " *\\(".r ~> ows ~> repsep(pcallattr, ows ~ "," ~ ows) <~ ows <~ ")"
+  def pcallattr: Parser[P] = " *".r ~> qident ~ opt(" *= *".r ~> expr) ^^ {
+    case ident ~ ex => {
+      P(ident, "", ex.map(_.getType).getOrElse(""), "", "", ex)
     }
   }
 
@@ -279,7 +287,7 @@ trait ExprParser extends RegexParsers {
 
   def eq: Parser[BExpr]   = ibex("==" | "is")
   def neq: Parser[BExpr]  = ibex("!=" | "not")
-  def like: Parser[BExpr] = ibex("~=" | "like")
+  def like: Parser[BExpr] = ibex("~=" | "matches")
   def lte: Parser[BExpr]  = ibex("<=")
   def gte: Parser[BExpr]  = ibex(">=")
   def lt: Parser[BExpr]   = ibex("<")

@@ -93,7 +93,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         } else if(ctxList.exists(_.calculatedTypedValue.contentType == WTypes.STRING)) {
           ctx.getRequiredp(ctxList.get.currentStringValue)
         } else {
-          throw new IllegalArgumentException(s"Can't source input list: $ctxList")
+          P("", "", WTypes.UNDEFINED) //throw new IllegalArgumentException(s"Can't source input list: $ctxList")
         }
 
         val RE = """(\w+)\.(\w+)""".r
@@ -103,7 +103,9 @@ class EECtx extends EExecutor(EECtx.CTX) {
         val x =
           if(list.calculatedTypedValue.contentType == WTypes.ARRAY)
             list.calculatedTypedValue.asArray
-          else
+        else if(list.calculatedTypedValue.contentType == WTypes.UNDEFINED)
+            Nil
+        else
             razie.js.parse(s"{ list : ${list.calculatedValue} }").apply("list")
 
         x match {

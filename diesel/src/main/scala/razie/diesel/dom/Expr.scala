@@ -872,7 +872,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
         op match {
           case "?="          => a(in).toString.length >= 0 // anything with a default
           case "!="          => a(in) != b(in)
-          case "~=" | "like" => a(in).toString matches b(in).toString
+          case "~=" | "matches" => a(in).toString matches b(in).toString
           case "<="          => a(in).toString <= b(in).toString
           case ">="          => a(in).toString >= b(in).toString
           case "<"           => a(in).toString < b(in).toString
