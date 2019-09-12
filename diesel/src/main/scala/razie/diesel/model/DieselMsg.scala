@@ -1,5 +1,6 @@
 package razie.diesel.model
 
+import razie.diesel.engine.DomEngineSettings
 import razie.tconf.{SpecPath, TSpecPath, TagQuery}
 import razie.wiki.model.{WID, WikiSearch}
 
@@ -47,7 +48,9 @@ case class DieselMsg(
   e: String,
   a: String,
   parms: Map[String, Any],
-  target: DieselTarget = DieselTarget.RK) {
+  target: DieselTarget = DieselTarget.RK,
+  osettings:Option[DomEngineSettings] = None
+) {
 
   def toMsgString = DieselMsgString(
     s"$$msg $e.$a (" +
