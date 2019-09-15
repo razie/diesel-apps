@@ -1,7 +1,8 @@
 package tests
 
 import org.scalatest.{FlatSpec, MustMatchers, OptionValues, WordSpecLike}
-import razie.diesel.dom.{AExprIdent, CExpr, WTypes}
+import razie.diesel.dom.{CExpr, WTypes}
+import razie.diesel.expr.{AExprIdent, CExpr}
 import razie.wiki.parser.ExprParser
 
 /** A simple parser for expressions */

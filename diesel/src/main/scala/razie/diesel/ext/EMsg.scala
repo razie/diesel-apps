@@ -8,6 +8,7 @@ package razie.diesel.ext
 
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
+import razie.diesel.expr.AExprIdent
 import razie.tconf.EPos
 import razie.wiki.Enc
 import razie.wiki.parser.PAS
@@ -144,7 +145,7 @@ case class EMsg(
   }
 
   /** if has executor */
-  def hasExecutor:Boolean = Executors.all.exists(_.test(this)(ECtx.empty))
+  def hasExecutor:Boolean = Executors.withAll(_.exists(_.test(this)(ECtx.empty)))
 
   def ea:String = entity + "." + met
 
@@ -262,6 +263,8 @@ case class EMsg(
   def isPublic =
     spec.map(_.arch).exists(_ contains PUBLIC) ||
       spec.map(_.stype).exists(_ contains PUBLIC)
+
+  // todo not used right now - hassle since you have a trust list anyways...
   def isProtected =
     spec.map(_.arch).exists(_ contains PROTECTED) ||
     spec.map(_.stype).exists(_ contains PROTECTED)

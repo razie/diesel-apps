@@ -13,6 +13,7 @@ import scala.util.Try
 import scala.util.parsing.json.JSONArray
 import razie.diesel.dom.RDOM.P
 import razie.Debug._
+import razie.diesel.expr.Expr
 
 /** an xpath expr */
 case class XPathIdent(val expr: String) extends Expr {

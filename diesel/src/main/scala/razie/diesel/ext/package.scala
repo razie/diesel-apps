@@ -3,6 +3,7 @@ package razie.diesel
 import razie.diesel.dom._
 import razie.diesel.dom.RDOM.{P, PM}
 import razie.diesel.engine.EContent
+import razie.diesel.expr.{AExprIdent, BCMP2}
 import razie.tconf.EPos
 import razie.wiki.Enc
 import razie.wiki.parser.PAS

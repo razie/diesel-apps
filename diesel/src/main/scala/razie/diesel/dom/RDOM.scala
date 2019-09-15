@@ -2,6 +2,7 @@ package razie.diesel.dom
 
 import org.json.{JSONArray, JSONObject}
 import razie.diesel.engine.DomEngine
+import razie.diesel.expr.{AExprIdent, CExpr, DieselExprException, Expr}
 import razie.diesel.ext.CanHtml
 import razie.js
 import razie.wiki.Enc
@@ -57,6 +58,16 @@ object WTypes {
       case l: JSONObject => JSON
 //      case l: EMsg => MSG
       case h @ _ => UNKNOWN
+    }
+
+    t
+  }
+
+  /** get corresponding content-type */
+  def getContentType (ttype:String) = {
+    val t = ttype match {
+      case JSON | ARRAY => appJson
+      case h @ _ => "text/plain"
     }
 
     t
@@ -173,6 +184,11 @@ object RDOM {
       }
     }
 
+    /** non-cached, nice type-aware toString */
+    def asNiceString = {
+      P.asString(value)
+    }
+
     def withStringCache (s:String) = {
       val x = this.copy()
       x.cacheString = Some(s)
@@ -180,6 +196,7 @@ object RDOM {
     }
   }
 
+  /** parm-related helpers */
   object P {
     /** construct proper typed values */
     def fromTypedValue(name:String, v:Any, expectedType:String=WTypes.UNKNOWN) = {
@@ -189,10 +206,7 @@ object RDOM {
         case f: Float =>       P(name, asString(f), WTypes.NUMBER).withValue(f, WTypes.NUMBER)
         case d: Double =>      P(name, asString(d), WTypes.NUMBER).withValue(d, WTypes.NUMBER)
 
-//        case s: Map[_, _] =>   P(name, asString(s), WTypes.JSON).withValue(s, WTypes.JSON)
-//        case s: List[_] =>     P(name, asString(s), WTypes.ARRAY).withValue(s, WTypes.ARRAY)
-//        case s: JSONObject =>  P(name, asString(s), WTypes.JSON).withValue(js.fromObject(s), WTypes.JSON)
-//        case s: JSONArray =>   P(name, asString(s), WTypes.ARRAY).withValue(js.fromArray(s), WTypes.ARRAY)
+          // the "" dflt will force usage of value
         case s: Map[_, _] =>   P(name, "", WTypes.JSON).withValue(s, WTypes.JSON)
         case s: List[_] =>     P(name, "", WTypes.ARRAY).withValue(s, WTypes.ARRAY)
         case s: JSONObject =>  P(name, "", WTypes.JSON).withValue(js.fromObject(s), WTypes.JSON)
