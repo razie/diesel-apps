@@ -57,7 +57,7 @@ trait WikiParserT extends WikiParserMini with CsvParser {
     moreWikiProps.foldLeft(
     wikiPropISection | wikiPropMagic | wikiPropBy | wikiPropWhen | wikiPropXp | wikiPropXmap | wikiPropWhere |
     wikiPropLoc | wikiPropRoles | wikiPropAttrs | wikiPropAttr | wikiPropWidgets | wikiPropCsv | wikiPropCsv2 |
-    wikiPropTable | wikiPropSection | wikiPropImg | wikiPropVideo | wikiPropQuery |
+    wikiPropTable | wikiPropSection | wikiPropHtml | wikiPropImg | wikiPropVideo | wikiPropQuery |
     wikiPropCode | wikiPropField | wikiPropRk | wikiPropFeedRss | wikiPropTag | wikiPropExprS |
     wikiPropRed | wikiPropAlert | wikiPropLater | wikiPropHeading | wikiPropFootref | wikiPropFootnote |
     wikiPropIf | wikiPropJs | wikiPropVisible | wikiPropUserlist
@@ -313,16 +313,24 @@ trait WikiParserT extends WikiParserMini with CsvParser {
         }
         hidden.map(x => StrAstNode.EMPTY) getOrElse {
           if(stype == "template" && ctx.we.isDefined)
-            // hide it
+          // hide it
             TriAstNode(s"""`{{$stype $name:$signature}}` (<small><a href="${ctx.we.get.wid.urlRelative}#$name">view</a></small>)<br>""", "", "").fold(ctx)
           else if ("properties" == stype || "properties" == name)
-            // show it
+          // show it
             TriAstNode(s"`{{$stype $name:$signature}}`<br><pre>", lines, s"</pre><br>`{{/$stype}}` ").fold(ctx)
           else
-            // show it
+          // show it
             TriAstNode(s"`{{$stype $name:$signature}}`<br>", lines, s"<br>`{{/$stype}}` ").fold(ctx)
         }
       }.cacheOk
+    }
+  }
+
+  // to not parse the content, use slines instead of lines
+  /** {{html}}...{{/html}} */
+  def wikiPropHtml: PS = "{{" ~ """html""" ~ "}}" ~> slines <~ ("{{/" ~ """html""" ~ "}}".r) ^^ {
+    case lines => {
+      lines
     }
   }
 
