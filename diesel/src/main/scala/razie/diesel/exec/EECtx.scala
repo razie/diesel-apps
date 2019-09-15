@@ -12,7 +12,8 @@ import razie.diesel.dom.RDOM._
 import razie.diesel.dom.{RDOM, _}
 import razie.diesel.engine.DomEngineSettings.DIESEL_USER_ID
 import razie.diesel.engine._
-import razie.diesel.ext
+import razie.diesel.expr.AExprFunc
+import razie.diesel.{Diesel, ext}
 import razie.diesel.ext.{MatchCollector, _}
 import razie.tconf.DUsers
 import razie.tconf.hosting.Reactors
@@ -117,7 +118,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
               val out = AExprFunc(ea, args).applyTyped("")
               out.calculatedTypedValue.value
             }
-            List(EVal(P.fromTypedValue("payload", res)))
+            List(EVal(P.fromTypedValue(Diesel.PAYLOAD, res)))
           }
           case x@_ => {
             List(EError("map works on lists/arrays, found a: " + x.getClass.getName))
@@ -145,15 +146,12 @@ class EECtx extends EExecutor(EECtx.CTX) {
         }
       }
 
+        // nice print of either input parms of default payload
       case "echo" => {
-        val toPrint = if (in.attrs.size > 0) in.attrs else List(P("payload", ""))
+        val toPrint = if (in.attrs.size > 0) in.attrs else ctx.getp(Diesel.PAYLOAD).toList
 
-        toPrint.map { a =>
-          var p:P = a.calculatedP
-            // for json reformat nicely
-          if(p.ttype == WTypes.JSON) p = p.copy(dflt=p.value.get.asString)
-
-          EInfo(p.toString, p.currentStringValue)
+        toPrint.map { p =>
+          EInfo(p.toString, p.calculatedTypedValue.asNiceString)
         }
       }
 
@@ -167,8 +165,6 @@ class EECtx extends EExecutor(EECtx.CTX) {
             Some(new EVal(name, v.get.currentStringValue))
           else if (v.exists(_.expr.isDefined))
             Some(new EVal(v.get.expr.get.applyTyped("").copy(name = name)))
-//          else if (v.exists(_.expr.isDefined))
-//            Some(new EVal(typified(name, v.get.expr.get.apply(""))))
           else if (v.exists(_.ttype != WTypes.UNDEFINED))
             Some(new EVal(name, v.get.currentStringValue)) // for set (x="")
           else {
@@ -180,7 +176,6 @@ class EECtx extends EExecutor(EECtx.CTX) {
 
             clear(ctx)
             Some(new EInfo("removed " + name))
-//            None
           }
         }.orElse {
           v.map(_.calculatedP) // just v - copy it
@@ -244,7 +239,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
           new EVal(a.name, new String(res).replaceAll("\n", ""))
         }
 
-        res ::: res.headOption.map(x=> x.copy(p=x.p.copy(name="payload"))).toList
+        res ::: res.headOption.map(x=> x.copy(p=x.p.copy(name=Diesel.PAYLOAD))).toList
       }
 
       // take all args and create a json doc with them
@@ -252,7 +247,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         val res = in.attrs.map(a => (a.name, a.calculatedTypedValue.value)).toMap
 
         new EVal(
-          RDOM.P.fromTypedValue("payload", res, WTypes.JSON)
+          RDOM.P.fromTypedValue(Diesel.PAYLOAD, res, WTypes.JSON)
         ) :: Nil
       }
 
@@ -263,7 +258,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
             Some(PValue[Array[Byte]](res, "application/octet-stream"))))
         }
 
-        res ::: res.headOption.map(x=> x.copy(p=x.p.copy(name="payload"))).toList
+        res ::: res.headOption.map(x=> x.copy(p=x.p.copy(name=Diesel.PAYLOAD))).toList
       }
 
       case "sha1" => {
@@ -320,7 +315,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
           new EInfo("User is auth ") :: Nil
         else
           new EVal("diesel.response.http.code", "401") ::
-          new EVal("payload", "Error: User not auth") :: // payload will be shown, needs reset
+          new EVal(Diesel.PAYLOAD, "Error: User not auth") :: // payload will be shown, needs reset
               new EError(s"ctx.authUser - User not auth") ::
               new EEngStop(s"User not auth") :: Nil
       }

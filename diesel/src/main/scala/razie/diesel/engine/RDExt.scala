@@ -246,7 +246,7 @@ object RDExt extends Logging {
     }
 
     // add known executors
-    Executors.all.flatMap(_.messages).map(m=> collect(m.entity, m.met))
+    Executors.withAll(_.flatMap(_.messages).map(m=> collect(m.entity, m.met)))
 
     Map(
       "msg" -> {

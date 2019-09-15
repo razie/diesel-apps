@@ -11,6 +11,7 @@ import org.joda.time.DateTime
 import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.dom.{DomState, RDomain, _}
 import razie.diesel.engine.RDExt._
+import razie.diesel.expr.DieselExprException
 import razie.diesel.ext.{BFlowExpr, FlowExpr, MsgExpr, SeqExpr, _}
 import razie.diesel.model.DieselMsg
 import razie.diesel.utils.DomCollector
@@ -927,7 +928,7 @@ class DomEngine(
     // todo now I run only if nothing else fits
     if (!mocked && !ruled && !settings.simMode) {
       // todo can I just take the first executor that works?
-      Executors.all.filter { x =>
+      Executors.withAll(_.filter { x =>
         // todo inconsistency: I am running rules if no mocks fit, so I should also run
         //  any executor ??? or only the isMocks???
         (true /*!settings.mockMode || x.isMock*/) && x.test(n)
@@ -984,7 +985,7 @@ class DomEngine(
         }
 
         newNodes = newNodes ::: news
-      }
+      })
 
       // nothing matched ?
       if(!mocked && newNodes.isEmpty) {

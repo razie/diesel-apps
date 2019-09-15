@@ -9,17 +9,15 @@ package razie.diesel.exec
 import java.io.{BufferedReader, InputStreamReader, PrintWriter}
 import java.net.Socket
 import java.util.regex.Pattern
-
 import com.novus.salat._
 import com.razie.pub.comms.Comms
 import org.json.JSONObject
 import razie.db.RazSalatContext._
 import razie.diesel.dom.RDOM._
-import razie.diesel.engine.InfoAccumulator
+import razie.diesel.engine.{EContent, InfoAccumulator}
 import razie.diesel.ext._
 import razie.tconf.DTemplate
 import razie.{Snakk, SnakkRequest, SnakkResponse, SnakkUrl}
-
 import scala.Option.option2Iterable
 import scala.collection.mutable
 import scala.concurrent.{Awaitable, Future, Promise}
@@ -29,6 +27,7 @@ import scala.xml.Node
 /** a single snakk call to make
   *
   * @param protocol http, telnet
+  * @param method GET, POST, open etc
   */
 case class SnakkCall(protocol: String, method: String, url: String, headers: Map[String, String], content: String, template:Option[DTemplate] = None) {
   def toJson = grater[SnakkCall].toPrettyJSON(this)
@@ -55,6 +54,7 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
 
   def setUrl(u: SnakkUrl) = {
     isurl = u
+    this
   }
 
   def postContent = if (content != null && content.length > 0) Some(content) else None
@@ -69,6 +69,11 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
   var icode: Option[Int] = None
 
   def body = ibody getOrElse makeCall
+
+  /** make the call and return all details */
+  def eContent = {
+    new EContent(body, this.iContentType.getOrElse(""), this.icode.getOrElse(-1), this.iHeaders.getOrElse(Map.empty), this.root)
+  }
 
   def makeCall = {
     val conn = Snakk.conn(isurl, postContent)

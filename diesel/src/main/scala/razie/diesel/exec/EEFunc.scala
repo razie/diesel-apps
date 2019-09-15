@@ -85,12 +85,19 @@ object EEFunc {
       // typed result
       r._3 match {
 
-        case i:Integer => P("", i.toString, WTypes.NUMBER).withValue(i, WTypes.NUMBER)
+       case i:Integer => P("", i.toString, WTypes.NUMBER).withValue(i, WTypes.NUMBER)
 
         case i:Double => P("", i.toString, WTypes.NUMBER).withValue(i, WTypes.NUMBER)
 
         case o : ScriptObjectMirror => {
-          P("", r._2.toString, WTypes.JSON).withValue(o, WTypes.appJson)
+                    P("", r._2.toString, WTypes.JSON).withCachedValue(o, WTypes.appJson, r._2.toString)
+//          val str = r._2.toString
+//          if(str.trim.startsWith("{"))
+//            P.fromTypedValue("", str, WTypes.JSON)//.withValue(o, WTypes.appJson)
+//          else if(str.trim.startsWith("["))
+//            P.fromTypedValue("", str, WTypes.ARRAY)//.withValue(o, WTypes.appJson)
+//          else
+//            P("", r._2.toString, WTypes.UNKNOWN)//.withValue(o, WTypes.appJson)
         }
 
         case e: Throwable => P("", "+"+offset+r._2, WTypes.EXCEPTION).withValue(e, WTypes.EXCEPTION)

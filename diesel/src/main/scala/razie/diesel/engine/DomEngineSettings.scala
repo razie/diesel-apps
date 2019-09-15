@@ -129,5 +129,7 @@ case class DomEngineSettings
     ).getOrElse(Map.empty) ++
     Map(SIM_MODE -> simMode.toString)
   }
+
+  override def toString = razie.js.tojsons(toJson)
 }
 

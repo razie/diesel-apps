@@ -49,13 +49,13 @@ object RMongo extends SI[Auditor] ("RMongo.Auditor") with razie.Logging {
   def aud = getInstance
 
   /** audit creation of an entity */
-  def auditCreate[T](entity: T)(implicit txn: Txn): T = { audit(aud.logdb(ENTITY_CREATE, s"User: ${txn.user}, txn: ${txn.name}", entity.toString)); entity }
-  def auditCreatenoaudit[T](entity: T)(implicit txn: Txn): T = { audit(ENTITY_CREATE + " " + entity.toString); entity }
+  def auditCreate[T](entity: T)(implicit txn: Txn): T =        { audit(aud.logdb(ENTITY_CREATE, s"User: ${txn.user}, txn: ${txn.name}", entity.toString.take(1000))); entity }
+  def auditCreatenoaudit[T](entity: T)(implicit txn: Txn): T = { audit(ENTITY_CREATE + " " + entity.toString.take(1000)); entity }
   /** audit update of an entity */
-  def auditUpdate[T](entity: T)(implicit txn: Txn): T = { audit(aud.logdb(ENTITY_UPDATE, s"User: ${txn.user}, txn: ${txn.name}", entity.toString)); entity }
-  def auditUpdatenoaudit[T](entity: T)(implicit txn: Txn): T = { audit(ENTITY_UPDATE + " " + entity.toString); entity }
+  def auditUpdate[T](entity: T)(implicit txn: Txn): T = { audit(aud.logdb(ENTITY_UPDATE, s"User: ${txn.user}, txn: ${txn.name}", entity.toString.take(1000))); entity }
+  def auditUpdatenoaudit[T](entity: T)(implicit txn: Txn): T = { audit(ENTITY_UPDATE + " " + entity.toString.take(1000)); entity }
   /** audit delete of an entity */
-  def auditDelete[T](entity: T)(implicit txn: Txn): T = { audit(aud.logdb(ENTITY_DELETE, s"User: ${txn.user}, txn: ${txn.name}", entity.toString)); entity }
+  def auditDelete[T](entity: T)(implicit txn: Txn): T = { audit(aud.logdb(ENTITY_DELETE, s"User: ${txn.user}, txn: ${txn.name}", entity.toString.take(1000))); entity }
 
   final val ENTITY_CREATE = "ENTITY_CREATE"
   final val ENTITY_UPDATE = "ENTITY_UPDATE"

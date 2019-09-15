@@ -8,19 +8,20 @@ import razie.tconf.{DSpec, DTemplate}
 import scala.util.Try
 
 /*
- * a map like context of attribute values.
+ * A map-like context of attribute values, used by the Diesel engine.
  *
- * contexts are hierarchical, with inheritance
+ * These contexts are hierarchical, with inheritance and overwriting. Each engine has a root context. There are also
+ * scope contexts (which don't allow propagation of values) etc
  *
  * They also capture a spec environment: a list of specs (could be drafts or a specific version)
  *
- * Also, they have an optional domain
+ * Also, they have an optional domain - this is used to source values and functions and other objects for expressions.
+ * Normally, the domain is set by the engine at the root context level.
  *
- * keep a ref to the original specs, to get more details
- *
- * So, for the duration of this context, the configuration is the right version
+ * todo keep a ref to the original specs, to get more details, so for the duration of this context, the configuration is the right version
  */
 trait ECtx {
+
   /** root domain - it normally is an instance of DomEngineCtx and you can get more details from it */
   def root: DomEngECtx
   /** in a hierarchy, this is my failback */
@@ -123,11 +124,12 @@ trait ECtx {
   * @param attrs
   */
 class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curNode:Option[DomAst] = None) extends ECtx {
-  var attrs: List[P] = Nil
-  var _domain: Option[RDomain] = None
-  var _specs: List[DSpec] = Nil
-  var _hostname:Option[String] = None
+  protected var _domain: Option[RDomain] = None
+  protected var _specs: List[DSpec] = Nil
   private var userId:Option[String] = None
+
+  var attrs: List[P] = Nil
+  var _hostname:Option[String] = None
 
   def credentials: Option[String] = userId orElse base.flatMap(_.credentials)
   // once given, you cannot change credentials
@@ -149,9 +151,6 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
 
   def hostname: Option[String] = _hostname orElse base.flatMap(_.hostname)
 
-//  def domain_= (x:Option[RDomain])  = base.map(_.domain = x) getOrElse (_domain = x)
-//  def specs_= (x : List[DSpec]) = base.map(_.specs = x) getOrElse (_specs = x)
-
   def findTemplate (ea:String, direction:String="") : Option[DTemplate] = {
     specs.flatMap(_.findSection(ea, direction).toList).headOption
   }
@@ -159,7 +158,7 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
   /** find template with predicate */
   def findTemplate (p : DTemplate => Boolean) : Option[DTemplate] = {
     specs.foldLeft[Option[DTemplate]](None)((a,s) =>
-      // stop searching when found
+      // todo low stop searching when found
       a.orElse(s.findSection(p))
     )
   }
@@ -170,7 +169,7 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
   def remove (name: String): Option[P] = {
     attrs.find(a=> a.name == name).map { p =>
       attrs = attrs.filter(_.name != name)
-//      base.flatMap(_.remove(name)) // remove anyways from base, in case it was defined
+      // not removing from base
       p
     } orElse base.flatMap(_.remove(name))
   }
@@ -202,8 +201,8 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
   def put(p: P): Unit =
     if(base.isDefined)
       base.get.put(p)
-//    else if(p.ttype == WTypes.UNDEFINED)
-//      remove(p)
+    //    else if(p.ttype == WTypes.UNDEFINED)
+    //    remove(p)
     else
       attrs = p :: attrs.filter(_.name != p.name)
 
@@ -211,8 +210,8 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
   def putAll(p: List[P]): Unit =
     if(base.isDefined) base.get.putAll(p)
     else attrs = p ::: attrs.filter(x => !p.exists(_.name == x.name))
-//    p.map(put)
-  // this old ver would not remove null/UNDEF
+    // p.map(put)
+    // this old ver would not remove null/UNDEF
 
   def root: DomEngECtx = base.map(_.root).getOrElse(this).asInstanceOf[DomEngECtx]
 

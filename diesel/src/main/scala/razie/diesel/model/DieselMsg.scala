@@ -47,14 +47,14 @@ class DieselTarget (
 case class DieselMsg(
   e: String,
   a: String,
-  parms: Map[String, Any],
+  args: Map[String, Any],
   target: DieselTarget = DieselTarget.RK,
   osettings:Option[DomEngineSettings] = None
 ) {
 
   def toMsgString = DieselMsgString(
     s"$$msg $e.$a (" +
-      (parms
+      (args
         .map(
           t =>
             t._1 + "=" + (t._2 match {
@@ -67,6 +67,19 @@ case class DieselMsg(
       ")",
     target
   )
+
+  def toJson : Map[String,Any] = {
+    Map(
+      "e" -> e,
+      "a" -> a,
+      "ea" -> (e+"."+a),
+      "args" -> args,
+      "target" -> target.toString
+    ) ++ osettings.map(x=> Map("osettings" -> x.toJson)
+    ).getOrElse(Map.empty)
+  }
+
+  override def toString = razie.js.tojsons(toJson)
 }
 
 object DieselTarget {
@@ -128,7 +141,9 @@ case class DieselTargetList(
   override val stories:List[TSpecPath]) extends DieselTarget(realm)
 
 object DieselMsg {
+  final val CRON_TICK = "$msg diesel.cron.tick"
   final val GUARDIAN_POLL = "$msg diesel.guardian.poll"
+  final val GUARDIAN_RUN = "$msg diesel.guardian.run"
   final val WIKI_UPDATED = "$msg diesel.wiki.updated"
   final val USER_JOINED = "$msg diesel.user.joined"
 
