@@ -10,8 +10,9 @@ import razie.diesel.dom._
 
 import scala.collection.mutable.ListBuffer
 
-/** an applicable - can execute a message */
+/** an applicable or message executor - can execute a message */
 trait EApplicable {
+
   /** is this applicable... applicable? */
   def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) : Boolean
 
@@ -48,16 +49,25 @@ trait EApplicable {
   def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any]
 }
 
-// can execute messages -
-// todo can these add more decomosition or just proces leafs?
+/**
+  * a message executor - these can decompose leafs into values or generate more messages
+  *
+  * Executors are hardcoded logic, connectors etc
+  *
+  * @param name - the name of this executor
+  */
 abstract class EExecutor (val name:String) extends EApplicable {
   def messages : List[EMsg] = Nil
 }
 
+/** manage all executors */
 object Executors {
-  val _all = new ListBuffer[EExecutor]()
+  private val _all = new ListBuffer[EExecutor]()
 
-  def all : List[EExecutor] = _all.toList
+  def withAll[T] (f: List[EExecutor] => T) : T = synchronized {
+    f(_all.toList)
+  }
 
-  def add (e:EExecutor) = {_all append e}
+  def add (e:EExecutor) = synchronized { _all append e }
 }
+

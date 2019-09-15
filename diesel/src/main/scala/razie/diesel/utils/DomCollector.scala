@@ -42,9 +42,9 @@ object DomCollector {
 
   /** statically collect more asts */
   def collectAst (stream:String, realm:String, xid:String, userId:Option[String], eng:DomEngine, details:String="") = synchronized {
-    val newAsts = CollectedAst(stream, realm, xid, userId, eng, details) :: asts.filter(_.id != xid)
+    var newAsts = CollectedAst(stream, realm, xid, userId, eng, details) :: asts.filter(_.id != xid)
 
-    if(! eng.settings.collect.exists(_ == 0)) { // no collect
+    if(! eng.settings.collect.exists(_ <= 0)) { // no collect
 
       // does it have collect settings?
       if (eng.settings.collect.exists(_ > 0)) {
@@ -53,10 +53,11 @@ object DomCollector {
         if(lesser.size > eng.settings.collect.get) {
           // remove one of this kind
           val lastId = lesser.last.id
-          asts = newAsts.filter(_.id != lastId).take(eng.settings.collect.get - 1)
+          newAsts = newAsts.filter(_.id != lastId).take(MAX_SIZE - 1)
         }
       }
 
+      // if too many lower prio now, remove one
       val lower = asts.filter(_.isLowerPriority)
 
       if (lower.size > MAX_SIZE_LOWER) {
