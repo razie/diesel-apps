@@ -188,12 +188,12 @@ class REntity[T <: { def _id: ObjectId }](implicit m: Manifest[T]) { this: T =>
   }
 }
 
-  /** wiki entries are trashed when deleted - a copy of each older version when udpated or deleted
-    *
-    * todo some ways to recover them
-    * */
-  @RTable
-  case class WikiTrash(table:String, entry: DBObject, by:String, txnId:String, date:DateTime=DateTime.now, _id: ObjectId = new ObjectId()) {
-    def create (implicit txn:Txn) = RCreate.noAudit[WikiTrash](this)
-  }
+/** wiki entries are trashed when deleted - a copy of each older version when udpated or deleted
+  *
+  * todo some ways to recover them
+  * */
+@RTable
+case class WikiTrash(table:String, entry: DBObject, by:String, txnId:String, date:DateTime=DateTime.now, _id: ObjectId = new ObjectId()) {
+  def create (implicit txn:Txn) = RCreate.noAudit[WikiTrash](this)
+}
 

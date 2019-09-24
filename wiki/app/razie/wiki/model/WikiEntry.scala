@@ -15,7 +15,7 @@ import razie.db.RazSalatContext._
 import razie.db._
 import razie.diesel.dom.WikiDTemplate
 import razie.tconf.parser.StrAstNode
-import razie.tconf.{DSpec, DTemplate, SpecPath}
+import razie.tconf.{DSpec, DTemplate, SpecPath, Visibility}
 import razie.wiki.Services
 import razie.wiki.model.features.{FieldDef, FormStatus, WikiCount, WikiForm}
 import razie.wiki.parser.WAST
@@ -186,7 +186,7 @@ case class WikiEntry(
   def findParent = parent flatMap (p => Wikis(realm).find(p))
 
   def isReserved = props.get(PROP_RESERVED).exists(_ == "yes")
-  def isDraft = props.contains("draft")
+  override def isDraft = props.contains("draft")
 
   def isPrivate = "User" == category || (props.exists(e => PROP_OWNER == e._1))
   def isOwner(id: String) = ("User" == category && name == id) || (props.exists(e => PROP_OWNER == e._1 && id == e._2))
