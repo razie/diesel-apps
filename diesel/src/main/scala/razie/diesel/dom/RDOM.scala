@@ -67,6 +67,7 @@ object WTypes {
   def getContentType (ttype:String) = {
     val t = ttype match {
       case JSON | ARRAY => appJson
+      case HTML => "text/html"
       case h @ _ => "text/plain"
     }
 
