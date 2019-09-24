@@ -98,6 +98,8 @@ case class WikiEntry(
   import WikiEntry._
 
   // from DSpec
+  override def cat = category
+  // from DSpec
   override def specPath =
     new SpecPath("local", this.wid.wpath, this.realm) {
       override def ahref: Option[String] = Some(wid.ahref)
@@ -199,7 +201,7 @@ case class WikiEntry(
   def getFirstParagraph = content.lines.find(s => !s.trim.isEmpty && !".{".contains(s.trim.charAt(0)))
   def wordCount = content.count(_ == ' ')
 
-  def visibility = props.get(PROP_VISIBILITY).getOrElse(Visibility.PUBLIC)
+  override def visibility = props.get(PROP_VISIBILITY).getOrElse(Visibility.PUBLIC)
   def wvis = props.get(PROP_WVIS).getOrElse(visibility)
 
   def create = {

@@ -8,6 +8,7 @@ package razie.diesel.ext
 
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
+import razie.diesel.exec.Executors
 import razie.diesel.expr.AExprIdent
 import razie.tconf.EPos
 import razie.wiki.Enc

@@ -94,7 +94,8 @@ case class BCMP2(a: Expr, op: String, b: Expr)
           case ">"           => a(in).toString > b(in).toString
 
           case "contains"    =>   a(in).toString contains b(in).toString
-          case "containsNot" => !(a(in).toString contains b(in).toString)
+          case "containsNot" => !(a(in).toString contains b(in).toString) // todo deprecate
+          case "not" if b.toString == "contains" => !(a(in).toString contains b(in).toString)
 
           // THESE CANNOT CHANGE...
 
@@ -124,6 +125,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
 
           case "is"  if b.toString == "undefined" => ap.ttype == WTypes.UNDEFINED
           case "not" if b.toString == "undefined" => ap.ttype != WTypes.UNDEFINED
+
 
           case "is" if b_is("number") => as.matches("[0-9.]+")
 

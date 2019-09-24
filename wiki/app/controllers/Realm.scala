@@ -20,6 +20,7 @@ import razie.audit.Audit
 import org.joda.time.DateTime
 import razie.db._
 import razie.hosting.{Website, WikiReactors}
+import razie.tconf.Visibility
 import razie.wiki.admin.SendEmail
 import razie.wiki.model._
 import razie.wiki.model.features.WForm

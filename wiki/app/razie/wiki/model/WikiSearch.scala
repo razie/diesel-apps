@@ -13,7 +13,7 @@ import razie.diesel.dom.{RDOM, RDomain, WikiDomain}
 import razie.diesel.ext.{EMsg, ExpectM}
 import razie.hosting.Website
 import razie.tconf.TagQuery
-import razie.wiki.model.Visibility.PUBLIC
+import razie.tconf.Visibility.PUBLIC
 import scala.Array.canBuildFrom
 import scala.collection.mutable.ListBuffer
 

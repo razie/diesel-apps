@@ -2,8 +2,7 @@ package razie.tconf
 
 import com.mongodb.DBObject
 import com.mongodb.casbah.Imports._
-import razie.wiki.model.Visibility.PUBLIC
-import razie.wiki.model.WikiEntry
+import razie.tconf.Visibility.PUBLIC
 
 /**
   * important concept - query/select a list of topics, based on inclusion/exclusion of tags
@@ -73,7 +72,7 @@ class TagQuery(val tags: String) {
         ))
   }
 
-  def matches (u:WikiEntry) = {
+  def matches (u:DSpec) = {
     val utags = u.tags.mkString
 
     def checkT(b: String) = {
@@ -81,7 +80,7 @@ class TagQuery(val tags: String) {
         b == "*" ||
         (b == "draft" && u.isDraft) ||
         (b == "public" && u.visibility == PUBLIC) ||
-        u.category.toLowerCase == b
+        u.cat.toLowerCase == b
     }
 
     qt.size <= 0 ||

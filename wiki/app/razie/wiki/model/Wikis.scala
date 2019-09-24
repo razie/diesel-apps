@@ -19,7 +19,7 @@ import razie.db.{RMany, RazMongo}
 import razie.diesel.dom.WikiDomain
 import razie.hosting.WikiReactors
 import razie.tconf.parser.{BaseAstNode, LeafAstNode, ParserSettings, StrAstNode}
-import razie.wiki.model.Visibility.PUBLIC
+import razie.tconf.Visibility.PUBLIC
 import razie.wiki.model.features.{WForm, WikiForm}
 import razie.wiki.parser.WAST
 import razie.wiki.util.QueryParms

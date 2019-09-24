@@ -4,10 +4,10 @@
  *  )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
  */
-package razie.diesel.ext
+package razie.diesel.exec
 
 import razie.diesel.dom._
-
+import razie.diesel.ext.{EMsg, MatchCollector}
 import scala.collection.mutable.ListBuffer
 
 /** an applicable or message executor - can execute a message */

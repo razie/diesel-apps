@@ -13,7 +13,7 @@ import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.RDExt.{DieselJsonFactory, spec}
 import razie.diesel.engine.{DomEngECtx, EContent, InfoAccumulator}
-import razie.diesel.exec.SnakkCall
+import razie.diesel.exec.{EExecutor, SnakkCall}
 import razie.diesel.ext.{MatchCollector, _}
 import razie.diesel.snakk.FFDPayload
 import razie.tconf.{DTemplate, EPos}

@@ -329,6 +329,8 @@ trait WikiParserT extends WikiParserMini with CsvParser {
   // to not parse the content, use slines instead of lines
   /** {{html}}...{{/html}} */
   def wikiPropHtml: PS = "{{" ~ """html""" ~ "}}" ~> slines <~ ("{{/" ~ """html""" ~ "}}".r) ^^ {
+    // todo only allow this for localhost or paid realms, not free realms? or admins etc?
+    // todo why have this and the escaped htmls (like scripts etc)
     case lines => {
       lines
     }

@@ -9,6 +9,7 @@ package razie.diesel.ext
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.{DEMsg, DomEngine, InfoNode}
+import razie.diesel.exec.EApplicable
 import razie.diesel.expr.{BExpr, CExpr}
 import razie.tconf.EPos
 import razie.wiki.Enc
@@ -77,10 +78,10 @@ case class ExpectV(not: Boolean, pm: MatchAttrs, cond: Option[EIf] = None) exten
   }
 
   override def toHtml =
-    kspan("expect::") + " " + toHtmlMAttrs(pm) + cond.map(_.toHtml).mkString
+    kspan("expect::") + (if(not) "NOT" else "") + " " + toHtmlMAttrs(pm) + cond.map(_.toHtml).mkString
 
   override def toString =
-    "expect:: " + pm.mkString("(", ",", ")") + cond.map(_.toHtml).mkString
+    "expect:: " + (if(not) "NOT" else "") + " " + pm.mkString("(", ",", ")") + cond.map(_.toHtml).mkString
 
   def withGuard(guard: EMatch) = {
     this.when = Some(guard); this
@@ -103,16 +104,17 @@ case class ExpectV(not: Boolean, pm: MatchAttrs, cond: Option[EIf] = None) exten
     * @param ctx
     */
   def test(a: Attrs, cole: Option[MatchCollector] = None, nodes: List[DomAst])(implicit ctx: ECtx) = {
-    testA(a, pm, cole, Some({ p =>
+    val res = testA(a, pm, cole, Some({ p =>
       // start a new collector for each value we're looking for, to mark this value
       cole.foreach{c=>
         nodes
           .find(_.value.asInstanceOf[EVal].p.name == p.name)
           .foreach(n => c.newMatch(n))
         }
-    }))
+    }), !not)
     // we don't check the cond - it just doesn't apply
     // && cond.fold(true)(_.test(a, cole))
+    res
   }
 
   /** check to match the arguments */
