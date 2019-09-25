@@ -88,7 +88,7 @@ class DomEngine(
   def errorCount = root.errorCount
   def successTestCount = root.successTestCount
   def totalTestCount = root.totalTestCount
-  def progress:String = root.totalTestCount + "/" + root.todoTestCount
+  def progress:String = root.failedTestCount + "/" + root.totalTestCount + "/" + root.todoTestCount
   def totalCount = root.totalTestCount
 
   /** collect generated values */
@@ -145,12 +145,12 @@ class DomEngine(
     addEvent(DEventExpNode(parent.id, children))
   }
 
-  def evChangeStatus (node:DomAst, status:String) : Unit = {
+  private[engine] def evChangeStatus (node:DomAst, status:String) : Unit = {
 //    node.status = status
     addEvent(DEventNodeStatus(node.id, status))
   }
 
-  def evAddDepy (p:DomAst, d:DomAst) : Unit = {
+  private[engine] def evAddDepy (p:DomAst, d:DomAst) : Unit = {
 //    depys.append(DADepy(p,d))
     addEvent(DADepyEv(p.id,d.id))
   }
@@ -158,7 +158,7 @@ class DomEngine(
   //==========================
 
   /** spawn new engine */
-  def spawn (nodes:List[DomAst]) = {
+  private def spawn (nodes:List[DomAst]) = {
     val newRoot = DomAst("root", AstKinds.ROOT).withDetails("(spawned)")
     evAppChildren(newRoot, nodes)
     val engine = DieselAppContext.mkEngine(dom, newRoot, settings, pages, "engine:spawn")
@@ -167,7 +167,7 @@ class DomEngine(
   }
 
   /** process a list of continuations */
-  def later (m:List[DEMsg]): List[Any] = {
+  private def later (m:List[DEMsg]): List[Any] = {
     if(synchronous) {
       m.map(processDEMsg)
     } else
@@ -230,10 +230,10 @@ class DomEngine(
   }
 
   /** dependencies */
-  val depys = ListBuffer[DADepy]()
+  private val depys = ListBuffer[DADepy]()
 
   /** create / add some dependencies, so d waits for p */
-  def crdep(p:List[DomAst], d:List[DomAst]) = {
+  private def crdep(p:List[DomAst], d:List[DomAst]) = {
     d.map{d=>
       // d will wait
       if(p.nonEmpty) evChangeStatus(d, DomState.DEPENDENT)
@@ -253,7 +253,7 @@ class DomEngine(
     * @param results - the results returned from a's executor
     * @return
     */
-  def findFront(a: DomAst, results:List[DomAst]): List[DomAst] = {
+  private def findFront(a: DomAst, results:List[DomAst]): List[DomAst] = {
     // any flows to shape it?
     var res = results
 
@@ -306,7 +306,7 @@ class DomEngine(
     * @param recurse
     * @param level
     */
-  def req(a: DomAst, recurse: Boolean = true, level: Int): Unit = {
+  private def req(a: DomAst, recurse: Boolean = true, level: Int): Unit = {
     var msgs : List[DEMsg] = Nil
 
     if(!DomState.isDone(a.status)) { // may have been skipped by others
@@ -482,7 +482,7 @@ class DomEngine(
     * @param level
     * @return continuations
     */
-  def expand(a: DomAst, recurse: Boolean = true, level: Int): List[DEMsg] = {
+  private def expand(a: DomAst, recurse: Boolean = true, level: Int): List[DEMsg] = {
     var msgs : List[DEMsg] = Nil // continuations from this cycle
 
     if (level >= maxLevels) {
@@ -1328,7 +1328,7 @@ class DomEngine(
   }
 
   /** main processing of next - called from actor in async and in thread when sync/decompose */
-  def processDEMsg (m:DEMsg) = {
+  private[engine] def processDEMsg (m:DEMsg) = {
     m match {
       case DEReq(eid, a, r, l) => {
         require(eid == this.id) // todo logical error not a fault
@@ -1351,6 +1351,8 @@ class DomEngine(
 
   /** extract the resulting values from this engine */
   def extractValues (e:String, a:String) = {
+    require(DomState.isDone(this.status)) // no sync
+
     // find the spec and check its result
     // then find the resulting value.. if not, then json
     val oattrs = dom.moreElements.collect {
@@ -1372,6 +1374,8 @@ class DomEngine(
     * 3. payload
     * */
   def extractFinalValue (e:String, a:String) = {
+    require(DomState.isDone(this.status)) // no sync
+
     // find the spec and check its result
     // then find the resulting value.. if not, then json
     val oattrs = dom.moreElements.collect {
@@ -1400,6 +1404,8 @@ class DomEngine(
   }
 
   def finalContext (e:String, a:String) = {
+    require(DomState.isDone(this.status)) // no sync
+
     // find the spec and check its result
     // then find the resulting value.. if not, then json
     val oattrs = dom.moreElements.collect {
