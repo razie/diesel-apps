@@ -12,7 +12,9 @@ import razie.wiki.model.{WID, WikiSearch}
   */
 case class DieselMsgString(msg: String,
                            target: DieselTarget = DieselTarget.RK,
-                           ctxParms: Map[String, String] = Map.empty) {
+                           ctxParms: Map[String, String] = Map.empty,
+                           osettings:Option[DomEngineSettings] = None
+                          ) {
   def mkMsgString: String = {
     if (ctxParms.nonEmpty) {
       // add the params to the context with an artificial ctx.set message
@@ -65,7 +67,9 @@ case class DieselMsg(
         )
         .mkString(", ")) +
       ")",
-    target
+    target,
+    Map.empty,
+    osettings
   )
 
   def toJson : Map[String,Any] = {
