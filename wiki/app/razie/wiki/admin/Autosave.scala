@@ -11,13 +11,13 @@ import razie.wiki.model.WID
   */
 @RTable
 case class Autosave(
-  what: String,                    // kind of object
-  realm: String,                   // realm
-  name: String,                    // object id in string format, i.e. wpath
+  what: String,                     // kind of object
+  realm: String,                    // realm
+  name: String,                     // object id in string format, i.e. wpath
   userId: ObjectId,
-  contents: Map[String,String],    // actual content autosaved
-  ver: Long = 0,                   // auto-increasing version
-  crDtm: DateTime = DateTime.now,
+  contents: Map[String,String],     // actual content autosaved
+  ver: Long = 0,                    // auto-increasing version
+  crDtm:  DateTime = DateTime.now,
   updDtm: DateTime = DateTime.now,
   _id: ObjectId = new ObjectId()) extends REntity[Autosave] {
 
@@ -29,18 +29,32 @@ case class Autosave(
 /** autosave utils */
 object Autosave {
 
-  private def rec(what: String, realm: String, name: String, userId: ObjectId) = {
+  def rec(what: String, realm: String, name: String, userId: ObjectId) = {
     ROne[Autosave]("what" -> what, "realm" -> realm, "name" -> name, "userId" -> userId)
   }
 
   def findAll(what:String, w:WID, userId: ObjectId) =
     RMany[Autosave]("what" -> what, "realm" -> w.getRealm, "name" -> w.wpath, "userId" -> userId)
 
-  /** create or update */
-  def set(what: String, wid: WID, userId: ObjectId, c: Map[String, String]) =
+  /** create or update
+    *
+    * @param what
+    * @param wid
+    * @param userId
+    * @param c
+    * @param editorMsec use it to overwrite updDtm and detect stale data
+    */
+  def set(what: String, wid: WID, userId: ObjectId, c: Map[String, String], editorMsec:Option[DateTime] = None) =
     rec(what, wid.getRealm, wid.wpath, userId)
-      .map(x => x.copy(contents = c, ver = x.ver + 1, updDtm = DateTime.now).update)
-      .getOrElse(Autosave(what, wid.getRealm, wid.wpath, userId, c).create)
+      .map(x => x.copy(
+        contents = c,
+        ver = x.ver + 1,
+        updDtm = editorMsec.getOrElse(DateTime.now)
+      ).update)
+      .getOrElse(Autosave(what, wid.getRealm, wid.wpath, userId, c, 0,
+        editorMsec.getOrElse(DateTime.now),
+        editorMsec.getOrElse(DateTime.now)
+      ).create)
 
   def findForUser(userId: ObjectId) =
     RMany[Autosave]("userId" -> userId)
