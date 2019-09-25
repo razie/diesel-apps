@@ -122,9 +122,8 @@ class WikiIndex (val realm:String, val fallBacks : List[WikiIndex]) {
   }
 
   def update(oldVer: WikiEntry, newVer: WikiEntry) = withIndex { idx =>
-//    if (oldVer.category != newVer.category || oldVer.name != newVer.name || oldVer.realm != newVer.realm) {
-
-    // doing it all the time because these WIDs cache the old version of the page so they need refreshing
+    /* doing it all the time because these WIDs cache the old version of the page so they need refreshing*/
+    // so this is not good: if (oldVer.category != newVer.category || oldVer.name != newVer.name || oldVer.realm != newVer.realm) {
 
     idx.remove2(oldVer.name, oldVer.wid)
     idx.put(newVer.name, newVer.wid, oldVer._id)
@@ -137,7 +136,6 @@ class WikiIndex (val realm:String, val fallBacks : List[WikiIndex]) {
     newVer.tags.foreach { t =>
       usedTags.put(t, "")
     }
-//    }
     up(newVer)
   }
 
@@ -162,18 +160,15 @@ class WikiIndex (val realm:String, val fallBacks : List[WikiIndex]) {
   }
 
   def containsName(name: String) : Boolean = withIndex { idx =>
-//    idx.idx.contains(name) || fallBack.exists(_.actualIndex.idx.contains(name))
     idx.idx.contains(name) || fallBacks.exists(_.containsName(name))
   }
 
   def containsLower(name: String)  : Boolean = withIndex { idx =>
-//    lower.contains(name) || fallBack.exists(_.lower.contains(name))
     lower.contains(name) || fallBacks.exists(_.containsLower(name))
   }
 
   // TODO stupidest name this month
   def getForLower(name: String) : Option[String] = withIndex { idx =>
-//    lower.get(name) orElse fallBack.flatMap(_.lower.get(name))
     lower.get(name) orElse mixins.first(_.getForLower(name))
   }
 
@@ -196,7 +191,6 @@ class WikiIndex (val realm:String, val fallBacks : List[WikiIndex]) {
   }
 
   def label(name: String) : Option[String] = withIndex { idx =>
-//    labels.get(name) orElse fallBack.flatMap(_.labels.get(name))
     labels.get(name) orElse mixins.first(_.label(name))
   }
 
