@@ -145,6 +145,7 @@ package object ext {
     * @param cond
     * @param cole collector for match/fail
     * @param foundName opt function to mark value in collector
+    * @param positive - false if the condition is negative, like filterNot
    *
    * (a,b,c) they occur in whatever sequence
    *
@@ -156,9 +157,10 @@ package object ext {
   def testA(in: Attrs,
             cond: MatchAttrs,
             cole: Option[MatchCollector] = None,
-            foundName:Option[RDOM.P => Unit]=None)(implicit ctx: ECtx) = {
+            foundName:Option[RDOM.P => Unit]=None,
+            positive:Boolean = true)(implicit ctx: ECtx) = {
     // for each match
-    cond.zipWithIndex.foldLeft(true)((a, b) => a && {
+    val result = cond.zipWithIndex.foldLeft(true)((a, b) => a && {
       var res = false
 
       val pm = b._1
@@ -168,7 +170,7 @@ package object ext {
         if (b._1.name.size > 0) {
           res = in.exists(x => check(x, b._1)) || ctx.exists(x => check(x, b._1))
 
-          if(!res) in.find(_.name == b._1.name).map {p=>
+          if(!res && positive || res && !positive) in.find(_.name == b._1.name).map {p=>
             // mark it in the cole
             foundName.map(_.apply(p))
           }
@@ -177,9 +179,9 @@ package object ext {
             // last try: any value in context
             res = new BCMP2(pm.ident, pm.op, pm.valExpr).apply("")
 
-            if(!res) // failed to find any valid exprs, just evaluate the left side to get some info
-              cole.map(_.missedValue(AExprIdent(pm.name).applyTyped("")))
-            else {
+            if(!res) { // failed to find any valid exprs, just evaluate the left side to get some info
+              if(positive) cole.map(_.missedValue(AExprIdent(pm.name).applyTyped("")))
+            } else {
               // for regex matches, use each capture group and set as parm in context
               if(pm.op == "~=") {
                 // extract parms
@@ -192,7 +194,7 @@ package object ext {
             }
           }
 
-          if (res) cole.map(_.plus(b._1.name + b._1.op + b._1.dflt))
+          if (res && positive) cole.map(_.plus(b._1.name + b._1.op + b._1.dflt))
           else cole.map(_.minus(b._1.name, in.find(_.name == b._1.name).mkString, b._1))
         }
       } else {
@@ -201,12 +203,14 @@ package object ext {
           // I don't include the context - this leads to side-effects, just use an IF after the match...
           res = in.exists(_.name == b._1.name) // || ctx.exists(_.name == b._1.name)
 
-          if (res) cole.map(_.plus(b._1.name))
+          if (res && positive) cole.map(_.plus(b._1.name))
           else cole.map(_.minus(b._1.name, b._1.name, b._1))
         }
       }
       res
     })
+
+    if(positive) result else !result
   }
 
   trait HasPosition {
