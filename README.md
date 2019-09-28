@@ -7,6 +7,7 @@ Components:
 1. [diesel](/diesel) - a light reactive rules-based workflow engine - can be re-used by itself
    * [tconf](/diesel/src/main/scala/razie/tconf) - TBD, for specs-driven logic
    * [dom](/diesel/src/main/scala/razie/diesel/dom) - TBD, domain configuration
+   * [db](/diesel/src/main/scala/razie/db) - simple entity persistence layer for Mongo
    * [diesel-snakk](http://specs.dieselapps.com/wiki/Spec:rest_spec) - snakked on steroids: simple REST snakking, XML and JSON template parsing etc
    * [diesel-rest](http://specs.dieselapps.com/wiki/Spec:restMock-spec) - mocking of REST services
 1. [diesel-wiki](WIKI.md) - A domain-driven Markdown Wiki - the basis for configuration, text-first, with support for extensible DSLs
