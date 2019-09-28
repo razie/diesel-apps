@@ -1,6 +1,6 @@
 # Diesel Apps
 
-A Scala DSL framework for developing domain and rules-driven reactive services and apps. Rapid mocking, prototyping, development, testing and hosting of (micro)services and websites. See it in action at [DieselApps.com](http://www.dieselapps.com).
+A Scala DSL framework for developing domain and rules-driven reactive services and apps. Rapid mocking, prototyping, development, testing and hosting of (micro)services and websites. See it in action and go serverless at [DieselApps.com](http://www.dieselapps.com).
 
 Components:
 
