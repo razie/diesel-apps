@@ -5,16 +5,19 @@ A Scala DSL framework for developing domain and rules-driven reactive services a
 Components:
 
 1. [diesel](/diesel) - a light reactive rules-based workflow engine - can be re-used by itself
-1.1. [tconf](/diesel/src/main/scala/razie/tconf) - for specs-driven logic
-1.1. [dom](/diesel/src/main/scala/razie/diesel/dom) -
+   * [tconf](/diesel/src/main/scala/razie/tconf) - TBD, for specs-driven logic
+   * [dom](/diesel/src/main/scala/razie/diesel/dom) - TBD, domain configuration
 1. [diesel-wiki](WIKI.md) - A domain-driven Markdown Wiki - the basis for configuration, text-first, with support for extensible DSLs
 1. [diesel-play](/wiki) - the play code to make everything work as a website
 
 ## Diesel - Rules and workflows
 
-Rules, flows, actors and microservices.
+Rules, flows, actors and microservices. See:
+- [Language reference](http://specs.dieselapps.com/Topic/DSL_Reference)
+- [Expressions and pattern matching](http://specs.dieselapps.com/Topic/Expressions_and_pattern_matching)
+- Towers of Hanoi example: [spec](http://specs.dieselapps.com/wiki/Spec:hanoi-spec) and [story](http://specs.dieselapps.com/wiki/Story:hanoi-story)
 
-A simple asynchronous, message-oriented workflow framework, driven by rules and layered on top of akka actors.
+A simple asynchronous, message-oriented workflow framework, driven by rules and layered on top of akka actors. The rules are based on pattern matching:
 
 ```js
 $when home.guest_arrived => lights.on
@@ -24,7 +27,7 @@ $when home.guest_arrived(name=="Jane") => chimes.welcome(name)
 $mock chimes.welcome(name) => (greeting = "Greetings, "+name)
 ```
 
-## Testing
+### Testing
 
 Relies on a DSL to define microservices, rules and test and run these.
 
@@ -39,6 +42,10 @@ $expect chimes.welcome(name is "Janexx")
 ```
 
 You can embed in your app or use as is. You can run it on-prem or in cloud, at http://www.dieselapps.com - see [The simplest micro-service you ever created](http://www.dieselapps.com/wiki/Cool_Scala/The_one-liner_microservice)
+
+## Diesel-wiki
+
+Domain driven markdown wiki. See more at [Markup_and_DSL](http://specs.dieselapps.com/Topic/Markup_and_DSL).
 
 ## Versions and technologies
 
