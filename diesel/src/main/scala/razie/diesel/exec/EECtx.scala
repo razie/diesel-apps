@@ -1,21 +1,19 @@
-/**
-  * ____    __    ____  ____  ____,,___     ____  __  __  ____
+/**  ____    __    ____  ____  ____,,___     ____  __  __  ____
   * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
   * )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
   * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
   **/
 package mod.diesel.model.exec
 
-import org.apache.commons.codec.digest.DigestUtils
-import razie.{clog, js}
+import razie.clog
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom.{RDOM, _}
 import razie.diesel.engine.DomEngineSettings.DIESEL_USER_ID
 import razie.diesel.engine._
 import razie.diesel.exec.EExecutor
 import razie.diesel.expr.AExprFunc
-import razie.diesel.{Diesel, ext}
 import razie.diesel.ext.{MatchCollector, _}
+import razie.diesel.{Diesel, ext}
 import razie.tconf.DUsers
 import razie.tconf.hosting.Reactors
 import razie.wiki.Base64
@@ -26,6 +24,7 @@ object EECtx {
   final val CTX = "ctx"
 }
 
+/** executor for "ctx." messages - operations on the current context */
 class EECtx extends EExecutor(EECtx.CTX) {
 
   import EECtx.CTX

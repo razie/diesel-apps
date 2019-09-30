@@ -1,18 +1,14 @@
+/**   ____    __    ____  ____  ____,,___     ____  __  __  ____
+  *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \          Read
+  *  )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+  * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+  */
 package razie.diesel.dom
 
-import mod.diesel.model.exec.EESnakk
-import org.json.JSONObject
-import razie.audit.Audit
-import razie._
-import razie.diesel.dom.RDOM.{P, PValue}
-import razie.diesel.exec.EEFunc
-import razie.diesel.ext.CanHtml
-import razie.wiki.parser.SimpleExprParser
-import scala.collection.mutable
-import scala.util.Try
-import scala.util.parsing.json.JSONArray
-import razie.diesel.dom.RDOM.P
 import razie.Debug._
+import razie._
+import razie.audit.Audit
+import razie.diesel.dom.RDOM.P
 import razie.diesel.expr.Expr
 
 /** an xpath expr */

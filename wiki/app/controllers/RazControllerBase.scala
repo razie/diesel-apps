@@ -13,7 +13,7 @@ import razie.wiki.Services
 import razie.wiki.model.WikiUser
 
 /** base class for controllers - common controller utilities */
-class RazControllerBase extends Controller with Logging with Validation {
+class RazControllerBase extends Controller with Logging with Validation with PlayValidation {
 
   /** authentication - find the user currently logged in */
   def wauth(implicit request: Request[_]): Option[WikiUser] = {

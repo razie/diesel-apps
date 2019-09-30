@@ -1,9 +1,8 @@
-/**
-  *   ____    __    ____  ____  ____,,___     ____  __  __  ____
+/**   ____    __    ____  ____  ____,,___     ____  __  __  ____
   *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
   *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
   *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
- **/
+  */
 package razie.audit
 
 import org.bson.types.ObjectId
@@ -34,22 +33,21 @@ case class Audit(
   when: DateTime = DateTime.now,
   _id: ObjectId = new ObjectId
 ) extends REntity[Audit] {
-  // quiet - can't audit the audit entries
-  override def create(implicit txn: Txn = tx.auto) =
-    RCreate.noAudit[Audit](this)
+
+  // quiet - can't audit the audit entries themselves...
+  override def create(implicit txn: Txn = tx.auto) = RCreate.noAudit[Audit](this)
 }
 
 /**
   * just a proxy to auditing
   */
-object Audit extends AuditService with Logging {
-  // default NEEDS to be dumb and is changed in Module
-  var impl: AuditService = new NoAuditService
+object Audit extends SI[AuditService]("Audit", new NoAuditService) with AuditService with Logging {
+  // inject yours, in your Module - we use the MdbAuditService but it needs the DB initialized...
 
   def logdb(what: String, details: Any*) =
-    impl.logdb(what, details: _*)
+    getInstance.logdb(what, details: _*)
 
   /** log a db operation */
   def logdbWithLink(what: String, link: String, details: Any*) =
-    impl.logdbWithLink(what, link, details: _*)
+    getInstance.logdbWithLink(what, link, details: _*)
 }

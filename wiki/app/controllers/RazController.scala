@@ -1,6 +1,5 @@
 package controllers
 
-import admin.Config
 import com.mongodb.WriteResult
 import model._
 import play.api.data.validation.{Constraint, Invalid, Valid, ValidationError}
@@ -10,8 +9,7 @@ import razie.Logging
 import razie.audit.Audit
 import razie.hosting.Website
 import razie.wiki.model._
-import razie.wiki.Services
-
+import razie.wiki.{Config, Services}
 import scala.concurrent.Future
 
 /** common controller utilities */

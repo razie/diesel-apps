@@ -1,19 +1,15 @@
-/**
- *  ____    __    ____  ____  ____,,___     ____  __  __  ____
+/** ____    __    ____  ____  ____,,___     ____  __  __  ____
  * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
  *  )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
  */
 package razie.diesel.engine
 
-import java.util.concurrent.TimeUnit
-
 import akka.actor.{Actor, Stash}
+import java.util.concurrent.TimeUnit
 import play.libs.Akka
 import razie.audit.Audit
 import razie.clog
-import razie.diesel.dom.DomAst
-
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 
@@ -70,7 +66,7 @@ class DomEngineRouter () extends Actor {
     case DEInit => {
       // todo is this fair?
       // in case other services don't start me - i will start myself
-      Akka.system.scheduler.scheduleOnce(
+      DieselAppContext.getActorSystem.scheduler.scheduleOnce(
         Duration.create(7, TimeUnit.SECONDS),
         this.self,
         "startAll"
@@ -160,7 +156,7 @@ class DomEngineActor (eng:DomEngine) extends Actor with Stash {
 
     case timer @ DELater(id,d,m) => {
       if(eng.id == id) {
-        Akka.system.scheduler.scheduleOnce(
+        DieselAppContext.getActorSystem.scheduler.scheduleOnce(
           Duration.create(d, TimeUnit.MILLISECONDS),
           this.self,
           m
@@ -171,7 +167,7 @@ class DomEngineActor (eng:DomEngine) extends Actor with Stash {
 
     case timer @ DEStartTimer(id,d,m) => {
       if(eng.id == id) {
-        Akka.system.scheduler.scheduleOnce(
+        DieselAppContext.getActorSystem.scheduler.scheduleOnce(
           Duration.create(d, TimeUnit.MILLISECONDS),
           this.self,
           DETimer(id,m)

@@ -1,7 +1,13 @@
+/**
+  *   ____    __    ____  ____  ____,,___     ____  __  __  ____
+  *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+  */
 package razie.diesel
 
-import razie.diesel.dom._
 import razie.diesel.dom.RDOM.{P, PM}
+import razie.diesel.dom._
 import razie.diesel.engine.EContent
 import razie.diesel.expr.{AExprIdent, BCMP2}
 import razie.tconf.EPos

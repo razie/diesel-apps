@@ -9,8 +9,6 @@ package razie.diesel.utils
 import razie.diesel.dom.RDomain
 import razie.tconf.DSpec
 
-import scala.collection.mutable
-
 /**
   * cache of domain and parsed specs and expiry
   *
@@ -23,28 +21,33 @@ object SpecCache {
   final val MAX = 100
 
   // stupid LRU expiry
-  val cachel = new mutable.HashMap[String, Long]()
+  private var cachel = new collection.concurrent.TrieMap[String, Long]()
 
   // cache by page content - so versioning embedded
-  val cachem = new mutable.HashMap[String,(DSpec,Option[RDomain])]()
+  private var cachem = new collection.concurrent.TrieMap[String,(DSpec,Option[RDomain])]()
 
   def orcached (we:DSpec, d: =>Option[RDomain]) : Option[RDomain] = {
     val res = cachem.get(we.content).flatMap(_._2).orElse {
-      cachem.put(we.content, (we, d))
-      cachel.put(we.content, System.currentTimeMillis())
-      if(cachel.size > MAX) {
-        var min = System.currentTimeMillis()
-        var minc = ""
-        cachel.foreach(x=> if(x._2 < min) {
-          min = x._2
-          minc = x._1
-        })
-        if(minc != we.content) {
-          cachel.remove(minc)
-          cachem.remove(minc)
+        cachem.put(we.content, (we, d))
+        cachel.put(we.content, System.currentTimeMillis())
+
+        // prune by size
+        if (cachel.size > MAX) {
+          var min = System.currentTimeMillis()
+          var minc = ""
+          cachel.foreach(x => if (x._2 < min) {
+            min = x._2
+            minc = x._1
+          })
+          if (minc != we.content) {
+            cachel.remove(minc)
+            cachem.remove(minc)
+          }
         }
-      }
-      d
+
+        cachem = cachem
+        cachel = cachel
+        d
     }
     cachel.update(we.content, System.currentTimeMillis())
     res

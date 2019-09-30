@@ -16,7 +16,9 @@ import scala.collection.mutable
 
 /** a diesel application context - setup actor infrastructure etc
   *
-  * todo properly injecting these */
+  * todo properly injecting these
+  * todo eventually supporting more contexts per JVM
+  */
 class DieselAppContext(node: String, app: String) {
 
   /** make an engine instance for the given AST root */
@@ -48,25 +50,25 @@ object DieselAppContext extends Logging {
   }
 
   /** use this actor system - defaults to creating its own */
-  def setActorSystem(s: ActorSystem) = {
+  def setActorSystem(s: ActorSystem) = synchronized {
     actorSystem = Some(s)
   }
 
   /** todo poor man's injection - use guice or stomething */
-  def setActorSystemFactory(s: () => ActorSystem) = {
+  def setActorSystemFactory(s: () => ActorSystem) = synchronized {
     actorSystemFactory = Some(s)
   }
 
   /** get current system, if set, or make a default one */
-  def getActorSystem: ActorSystem = {
-    synchronized {
+  def getActorSystem: ActorSystem = synchronized {
       actorSystem.getOrElse {
         actorSystem =
-          actorSystemFactory.map(_.apply()).orElse(Some(ActorSystem.apply()))
+          actorSystemFactory
+              .map(_.apply())
+              .orElse(Some(ActorSystem.apply()))
         actorSystem.get
       }
     }
-  }
 
   /** when in a cluster, you need to set this on startup... */
   var localNode = "localhost"
@@ -110,7 +112,7 @@ object DieselAppContext extends Logging {
     eng
   }
 
-  /** these actors won'y start processing unless this module/service is "started"
+  /** these actors won't start processing unless this module/service is "started"
     * they put a lot of load and slow down the init of the website and it's acting eratic
     * so nothing is processed in the first 5 seconds or so...
     */

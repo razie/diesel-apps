@@ -9,7 +9,7 @@ package razie.diesel.engine
 import org.bson.types.ObjectId
 import org.joda.time.DateTime
 import razie.diesel.dom.RDOM.{P, PValue}
-import razie.diesel.dom.{DomState, RDomain, _}
+import razie.diesel.dom.{ECtx, RDOM, RDomain, ScopeECtx, StaticECtx, WTypes}
 import razie.diesel.engine.RDExt._
 import razie.diesel.exec.{EApplicable, Executors}
 import razie.diesel.expr.DieselExprException
@@ -84,12 +84,12 @@ class DomEngine(
   /** myself */
   def href (format:String="") = s"/diesel/engine/view/$id?format=$format"
 
-  def failedTestCount = root.failedTestCount
-  def errorCount = root.errorCount
-  def successTestCount = root.successTestCount
-  def totalTestCount = root.totalTestCount
-  def progress:String = root.failedTestCount + "/" + root.totalTestCount + "/" + root.todoTestCount
-  def totalCount = root.totalTestCount
+  def failedTestCount = DomEngineView.failedTestCount(root)
+  def errorCount = DomEngineView.errorCount(root)
+  def successTestCount = DomEngineView.successTestCount(root)
+  def totalTestCount = DomEngineView.totalTestCount(root)
+  def progress:String = DomEngineView.failedTestCount(root) + "/" + DomEngineView.totalTestCount(root) + "/" + DomEngineView.todoTestCount(root)
+  def totalCount = DomEngineView.totalTestCount(root)
 
   /** collect generated values */
   def resultingValues() = root.collect {
@@ -459,7 +459,7 @@ class DomEngine(
 
       // async start
       //    val msgs = root.children.toList.map{x=>
-      val msgs = findFront(root, prepRoot(root.children).toList).toList.map { x =>
+      val msgs = findFront(root, prepRoot(root.children).toList).map { x =>
         x.status = DomState.LATER
         DEReq(id, x, true, 0)
       }
@@ -498,7 +498,7 @@ class DomEngine(
     // link the spec - some messages get here without a spec, because the DOM is not available when created
     if(a.value.isInstanceOf[EMsg] && a.value.asInstanceOf[EMsg].spec.isEmpty) {
       val m = a.value.asInstanceOf[EMsg]
-      val spec = dom.moreElements.collect {
+      dom.moreElements.collect {
         case s: EMsg if s.entity == m.entity && s.met == m.met => m.withSpec(Some(s))
       }.headOption
     }
@@ -714,7 +714,7 @@ class DomEngine(
         p.value.map {v=>
           val err = if(v.value.isInstanceOf[javax.script.ScriptException]) {
             // special handling of Script exceptions - no point showing stack trace
-            new EError("ScriptException: " + p.dflt + v.asThrowable.getMessage)
+            EError("ScriptException: " + p.dflt + v.asThrowable.getMessage)
           } else {
             new EError(p.dflt, v.asThrowable)
           }

@@ -1,18 +1,17 @@
-/**
-  * ____    __    ____  ____  ____,,___     ____  __  __  ____
+/**  ____    __    ____  ____  ____,,___     ____  __  __  ____
   * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
   * )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
   * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
   **/
 package mod.diesel.model.exec
 
-import java.net.{URI, URL}
 import com.razie.pub.comms.{CommRtException, Comms}
+import java.net.{URI, URL}
 import razie.Snakk._
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.RDExt.{DieselJsonFactory, spec}
-import razie.diesel.engine.{DomEngECtx, EContent, InfoAccumulator}
+import razie.diesel.engine.{AstKinds, DomEngECtx, EContent, InfoAccumulator}
 import razie.diesel.exec.{EExecutor, SnakkCall}
 import razie.diesel.ext.{MatchCollector, _}
 import razie.diesel.snakk.FFDPayload
@@ -24,7 +23,7 @@ import scala.Option.option2Iterable
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
-/** snakk REST APIs */
+/** executor for snakking REST APIs */
 class EESnakk extends EExecutor("snakk") with Logging {
   import EESnakk._
 

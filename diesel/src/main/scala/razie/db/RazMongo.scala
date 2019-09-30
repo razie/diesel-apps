@@ -21,33 +21,6 @@ package object RazSalatContext {
   }
 }
 
-/** SingletonInstance - our model for pre-configured singleton instances
-  *
-  * todo use some injection library of some kind
-  *
-  * Your final singletons extend this, such as RMongo extends SI[xxx]
-  *
-  * Singletons are initialized by someone on startup (i.e. injection)
-  */
-abstract class SI[T >: Null] (what:String) {
-  private var idb : T = null
-
-  /** set the instance to use */
-  def setInstance (adb:T) = {
-    if(idb != null)
-      throw new IllegalStateException(what+" instance already initialized... ")
-    idb = prep(adb)
-  }
-  def getInstance = {
-    if(idb == null)
-      throw new IllegalStateException(what+" NOT initialized...")
-    idb
-  }
-
-  /** overwrite this to prepare your instance i.e. initialize it */
-  protected def prep(t:T) : T = {t} // nop
-}
-
 /** represents a mongo db instance
   *
   * we limit our usage to primitives that can be implemented by any rather stupid JSON document store.
@@ -58,7 +31,6 @@ object RazMongo extends SI[MongoDB] ("MongoDB") {
   def db = getInstance
 
   // upgrades handled in Global
-  protected override def prep(adb:MongoDB) = {adb}
 
   /** important during the upgrades themselves - you can't recursively use db */
   def withDb[B](d: MongoCollection, reason:String="-")(f: MongoCollection => B) =

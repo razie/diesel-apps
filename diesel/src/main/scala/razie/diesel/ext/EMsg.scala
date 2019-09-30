@@ -8,6 +8,7 @@ package razie.diesel.ext
 
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
+import razie.diesel.engine.DomAstInfo
 import razie.diesel.exec.Executors
 import razie.diesel.expr.AExprIdent
 import razie.tconf.EPos
@@ -18,8 +19,6 @@ import scala.Option.option2Iterable
 /** simple assignment - needed because the left side is more than just a val
   */
 case class EMsgPas(attrs: List[PAS]=Nil) extends CanHtml with HasPosition with DomAstInfo {
-
-  import EMsg._
 
   /** the pos of the rule that decomposes me, as a spec */
   var rulePos: Option[EPos] = None

@@ -12,7 +12,7 @@ import razie.{Logging, cdebug, clog}
   *
   * they are audited and timed in the log automatically
   *
-  * otherwise, this is not really useful right now
+  * otherwise, this is not really useful right now, other than allowing me to organize the code
   */
 class Txn (val name: String, val user:String, val xid:String = System.currentTimeMillis().toString) {
   clog << "DB.TX.START "+name
@@ -38,7 +38,6 @@ class Txn (val name: String, val user:String, val xid:String = System.currentTim
   *
   * since Mongo doens't do transactions, that's all this is for now
   *
-  * todo it seems fairly simple to implement rollbacks with a JSON document commit log, at some point.
   */
 object tx {
   def apply[A] (name: String, user:String) (f: Txn => A) : A = {

@@ -1,31 +1,34 @@
+/**
+  *   ____    __    ____  ____  ____,,___     ____  __  __  ____
+  *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+  */
 package tests
 
-import akka.actor.ActorSystem
-import akka.testkit.TestKit
-import org.scalatest.{MustMatchers, OptionValues, WordSpecLike}
-import razie.diesel.engine.{DieselAppContext, DomEngineSettings}
-import razie.diesel.samples.DomEngineUtils
+import razie.wiki.parser.DieselTextSpec
 
 /**
-  * Created by raz on 2017-07-06.
+  * sample stories and specs
   */
 object SampleSpecs1 {
-  // 1. setup rules configuration
+
+  // 1. the specs: setup rules configuration
   val specs = List(
-    SampleTextSpec("spec1",
+    DieselTextSpec("spec1",
       """
 $when home.guest_arrived(name) => lights.on
 $when home.guest_arrived(name == "Jane") => chimes.welcome(name)
 """.stripMargin
     ),
 
-    SampleTextSpec("spec2",
+    DieselTextSpec("spec2",
       """
 $when chimes.welcome(name) => (greeting = "Greetings, "+name)
 """.stripMargin
     ),
 
-    SampleTextSpec("spec3",
+    DieselTextSpec("spec3",
       """
 $val aval="someval"
 
@@ -34,8 +37,9 @@ $mock some.mock(name) => (greeting = "Greetings, "+name)
     )
   )
 
+  // a multi-line spec
   val specMultline =
-    SampleTextSpec("multiline",
+    DieselTextSpec("multiline",
       """
 $when home.guest_arrived(name == "Jane")
 => chimes.welcome(name)
@@ -44,20 +48,19 @@ $when home.guest_arrived(name == "Jane")
 """.stripMargin
     )
 
-  // 2. some trigger message/test
+  // 2. stories: some trigger message/test
   val storySend =
-    SampleTextSpec("story1",
+    DieselTextSpec("story1",
       """
 $send home.guest_arrived(name="Jane")
 """.stripMargin
     )
 
   val storyExpect =
-    SampleTextSpec("story1",
+    DieselTextSpec("story1",
       """
 $expect (greeting contains "Jane")
 """.stripMargin
     )
 }
-
 

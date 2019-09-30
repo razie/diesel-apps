@@ -1,5 +1,4 @@
-/**
-  * ____    __    ____  ____  ____,,___     ____  __  __  ____
+/**  ____    __    ____  ____  ____,,___     ____  __  __  ____
   * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
   * )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
   * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
@@ -90,7 +89,7 @@ object EEFunc {
         case i:Double => P("", i.toString, WTypes.NUMBER).withValue(i, WTypes.NUMBER)
 
         case o : ScriptObjectMirror => {
-                    P("", r._2.toString, WTypes.JSON).withCachedValue(o, WTypes.appJson, r._2.toString)
+                    P("", r._2.toString, WTypes.JSON).withCachedValue(o, WTypes.Mime.appJson, r._2.toString)
 //          val str = r._2.toString
 //          if(str.trim.startsWith("{"))
 //            P.fromTypedValue("", str, WTypes.JSON)//.withValue(o, WTypes.appJson)

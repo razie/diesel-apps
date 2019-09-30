@@ -6,22 +6,17 @@
   **/
 package controllers
 
-import java.util
-import javax.inject.{Inject, Singleton}
-
-import play.api.mvc.{Action, Controller}
-import razie.{Logging, Snakk, SnakkResponse, js}
-import razie.diesel.exec.{AsyncSnakkCallList, SnakkCall}
-import razie.tconf.DTemplate
-
-import scala.collection.mutable
-import scala.concurrent._
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration._
-import akka.pattern.after
 import akka.actor.ActorSystem
+import akka.pattern.after
+import javax.inject.{Inject, Singleton}
+import play.api.mvc.Action
+import razie.diesel.exec.{SnakkCallAsyncList, SnakkCall}
+import razie.{Logging, Snakk}
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent._
+import scala.concurrent.duration._
 
-/** a single snakk call to make
+/** a proxy server, based on polling
   *
   * @param protocol http, telnet
   * */
@@ -32,8 +27,8 @@ class SnakkCallServer @Inject() (actorSystem: ActorSystem)(implicit exec: Execut
 
   /** proxy checking if there are any requests */
   def check(host: String) = RAction { implicit request =>
-    AsyncSnakkCallList.calls.synchronized {
-      AsyncSnakkCallList.next(host).map { t =>
+    SnakkCallAsyncList.calls.synchronized {
+      SnakkCallAsyncList.next(host).map { t =>
         Ok(razie.js.tojsons(t._2.toSnakkRequest(t._1).toJson))
       } getOrElse Ok("")
     }
@@ -50,7 +45,7 @@ class SnakkCallServer @Inject() (actorSystem: ActorSystem)(implicit exec: Execut
       log("RECEIVED: " + body)
 
       val resp = Snakk.responseFromJson(body)
-      AsyncSnakkCallList.complete(id, resp)
+      SnakkCallAsyncList.complete(id, resp)
     } catch {
       case t : Throwable => log(t.toString)
     }

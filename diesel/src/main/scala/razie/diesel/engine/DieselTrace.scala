@@ -1,29 +1,16 @@
-/**
- *  ____    __    ____  ____  ____  ___     ____  __  __  ____
+/*  ____    __    ____  ____  ____  ___     ____  __  __  ____
  * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
  *  )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
  */
 package razie.diesel.engine
 
-import org.bson.types.ObjectId
-import org.joda.time.DateTime
-import razie.clog
-import razie.diesel.dom.RDOM.P
-import razie.diesel.dom.{DomState, RDomain, _}
-import razie.diesel.engine.RDExt._
-import razie.diesel.ext.{BFlowExpr, FlowExpr, MsgExpr, SeqExpr, _}
-import razie.diesel.utils.DomCollector
-import razie.tconf.DSpec
-import razie.wiki.Enc
-
+import razie.diesel.ext._
 import scala.Option.option2Iterable
-import scala.collection.mutable.ListBuffer
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{Future, Promise}
-import scala.util.Try
 
-/** a trace */
+/** a trace. traces can be communicated between engines. Also, this is what you get when setting the
+  * response type to trace
+  */
 case class DieselTrace (
   root:DomAst,
   node:String,        // actual server node

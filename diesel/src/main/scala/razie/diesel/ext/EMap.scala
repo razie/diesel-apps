@@ -8,6 +8,7 @@ package razie.diesel.ext
 
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
+import razie.diesel.engine.AstKinds
 import razie.tconf.EPos
 import razie.wiki.parser.PAS
 import scala.Option.option2Iterable
@@ -17,7 +18,7 @@ object EMap {
 
   /** soure the attributes for a message
     *
-    * @param in parent message
+    * @param parent message
     * @param spec specification attributes of current message (to source)
     * @param destSpec destination spec, if any
     * @param deferEvaluation

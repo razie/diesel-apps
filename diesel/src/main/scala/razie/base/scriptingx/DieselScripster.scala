@@ -1,5 +1,4 @@
-/**
- *   ____    __    ____  ____  ____,,___     ____  __  __  ____
+/**  ____    __    ____  ____  ____,,___     ____  __  __  ____
  *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
@@ -12,10 +11,8 @@ import jdk.nashorn.api.scripting.{ClassFilter, NashornScriptEngineFactory, Scrip
 import org.bson.types.ObjectId
 import razie.audit.Audit
 import razie.diesel.dom.ECtx
-import razie.diesel.engine.DomEngECtx
 import razie.tconf.DUsers
-import razie.{CSTimer, Logging, csys, js}
-import razie.wiki.model.WikiUsers
+import razie.{CSTimer, Logging, js}
 import scala.util.Try
 
 /** preliminary JS scripster for embedded diesel scripts */

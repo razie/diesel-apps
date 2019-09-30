@@ -1,3 +1,8 @@
+/**   ____    __    ____  ____  ____,,___     ____  __  __  ____
+  *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+  */
 package razie.diesel.expr
 
 import org.json.JSONObject
@@ -6,7 +11,7 @@ import razie.diesel.dom._
 import scala.collection.mutable
 import scala.util.parsing.json.JSONArray
 
-/** arithmetic expressions */
+/** arithmetic expressions on various types, including json, strings, arrays etc */
 case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
   val expr = (a.toDsl + op + b.toDsl)
 
@@ -138,6 +143,22 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
           case _ => {
             PValue("")
           }
+        }
+      }
+
+      case "as" => {
+        val av = a.applyTyped(v).calculatedTypedValue
+        b match {
+          case _ if b.toString == "number" =>
+            P.fromTypedValue("", av.value, WTypes.NUMBER).calculatedTypedValue
+
+          case _ if b.toString == "string" =>
+            P.fromTypedValue("", av.value, WTypes.STRING).calculatedTypedValue
+
+          case t : CExpr[String] => // x as "application/pdf"
+            P("", "", av.value.toString, t.ee).withValue(av.value, t.ee).calculatedTypedValue
+
+          case _ => throw new DieselExprException("Can't typecast to: " + b.toString)
         }
       }
 

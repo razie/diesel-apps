@@ -6,11 +6,11 @@
  */
 package razie.diesel.dom
 
+import razie.diesel.engine.{AstKinds, DomAst}
 import scala.collection.mutable
 
-case class DomContextEntry[T] (role:String, value:T, link:Option[String])
 
-/** a context - somewhat like a current request context
+/** WIP - a context - somewhat like a current request context
   *
   * - you can put objects in the context
   * - it interacts with the domain model and data sources
@@ -51,6 +51,8 @@ class DomContext (
     objects.get(key)
   }
 }
+
+case class DomContextEntry[T] (role:String, value:T, link:Option[String])
 
 object DomContext {
   final val CTX_DEFAULT = "default"

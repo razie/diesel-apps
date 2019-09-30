@@ -1,3 +1,9 @@
+/**
+  *  ____    __    ____  ____  ____,,___     ____  __  __  ____
+  * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+  *  )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+  * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+  */
 package razie.diesel.dom
 
 import org.json.{JSONArray, JSONObject}
@@ -8,83 +14,16 @@ import razie.js
 import razie.wiki.Enc
 import scala.concurrent.Future
 
-/** expression and data types
-  *
-  * note these are physical or base types.
-  */
-object WTypes {
-  final val NUMBER="Number"
-  final val STRING="String"
-  final val DATE="Date"
-  final val REGEX="Regex"
-
-  final val INT="Int"
-  final val FLOAT="Float"
-  final val BOOLEAN="Boolean"
-
-  final val RANGE="Range"
-
-  final val HTML="HTML" // why not... html templates?
-
-  final val XML="JSON"
-  final val JSON="JSON" // see asJson
-  final val OBJECT="Object" // same as json
-
-  final val ARRAY="Array" //pv.asArray
-
-  final val BYTES="Bytes"
-
-  final val EXCEPTION="Exception"
-
-  final val UNKNOWN=""
-
-  final val UNDEFINED="Undefined" // same as null
-
-  final val appJson = "application/json"
-
-  final val MSG = "Msg" // a message (to call)
-  final val FUNC = "Func" // a function (to call)
-
-  // see also P.fromTypedValue
-  def typeOf (x:Any) = {
-    val t = x match {
-      case m: Map[_, _] => JSON
-      case s: String => STRING
-      case i: Int => NUMBER
-      case f: Double => NUMBER
-      case f: Float => NUMBER
-      case l: List[_] => ARRAY
-      case l: JSONArray => ARRAY
-      case l: JSONObject => JSON
-//      case l: EMsg => MSG
-      case h @ _ => UNKNOWN
-    }
-
-    t
-  }
-
-  /** get corresponding content-type */
-  def getContentType (ttype:String) = {
-    val t = ttype match {
-      case JSON | ARRAY => appJson
-      case HTML => "text/html"
-      case h @ _ => "text/plain"
-    }
-
-    t
-  }
-}
-
 /**
- * simple, neutral domain model representation: class/object/function
+ * simple, neutral domain model representation: class/object/function/value etc
  *
  * These are collected in RDomain
  */
 object RDOM {
   // archtetypes
 
-  class CM // abstract Class Member
   trait DE // abstract base class for Domain Elements (classes etc)
+  class CM // abstract Class Member
 
   private def classLink (name:String) = s""" <b><a href="/wikie/show/Category:$name">$name</a></b> """
 
@@ -100,7 +39,17 @@ object RDOM {
     * @param assocs      assocs to other classes
     * @param props       annotations and other properties
     */
-  case class C (name:String, archetype:String, stereotypes:String, base:List[String], typeParam:String, parms:List[P]=Nil, methods:List[F]=Nil, assocs:List[A]=Nil, props:List[P]=Nil) extends DE {
+  case class C (
+    name:String,
+    archetype:String,
+    stereotypes:String,
+    base:List[String],
+    typeParam:String,
+    parms:List[P]=Nil,
+    methods:List[F]=Nil,
+    assocs:List[A]=Nil,
+    props:List[P]=Nil) extends DE {
+
     override def toString = fullHtml
 
     def fullHtml = {
@@ -144,7 +93,7 @@ object RDOM {
     }
   }
 
-
+  /** name value pair */
   type NVP = Map[String,String]
 
   /** a basic typed value
@@ -403,7 +352,8 @@ object RDOM {
     * @param dflt
     * @param expr
     */
-  case class PM (ident:AExprIdent, ttype:String, ref:String, multi:String, op:String, dflt:String, expr:Option[Expr] = None) extends CM with CanHtml {
+  case class PM (ident:AExprIdent, ttype:String, ref:String, multi:String, op:String,
+                 dflt:String, expr:Option[Expr] = None) extends CM with CanHtml {
 
     def name : String = ident.start
 
@@ -434,7 +384,9 @@ object RDOM {
     * @param script
     * @param body
     */
-  case class F (name:String, parms:List[P], ttype:String, archetype:String, script:String="", body:List[Executable]=List.empty) extends CM with CanHtml {
+  case class F (name:String, parms:List[P], ttype:String, archetype:String, script:String="",
+                body:List[Executable]=List.empty) extends CM with CanHtml {
+
     override def toHtml = "   "+  span(s"$archetype:") + s" <b>$name</b> " +
       mks(parms, " (", ", ", ") ") +
       smap(ttype) (":" + _)
@@ -501,12 +453,17 @@ object RDOM {
   /** Diamond */
   class D  (val roles:List[(String, String)], val ac:Option[AC]=None) extends DE //diamond association
 
-  /** name is not required */
+  /** Associations
+    *
+    * name is not required
+    */
   case class A  (name:String, a:String, z:String, aRole:String, zRole:String, parms:List[P]=Nil, override val ac:Option[AC]=None) //association
     extends D (List(a->aRole, z->zRole), ac) {
     override def toString = s"assoc $name $a:$aRole -> $z:$zRole " +
       mks(parms, " (", ", ", ") ")
   }
+
+  /** Association class */
   case class AC (name:String, a:String, z:String, aRole:String, zRole:String, cls:C) //association class
 
   // Diamond Class

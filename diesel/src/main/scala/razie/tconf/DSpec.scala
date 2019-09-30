@@ -1,3 +1,8 @@
+/**   ____    __    ____  ____  ____,,___     ____  __  __  ____
+  *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+  **/
 package razie.tconf
 
 import razie.diesel.ext
@@ -6,9 +11,10 @@ import razie.wiki.parser.{ParserBase, SimpleSpecParser}
 
 /** a specification - can be a text, a wiki or anything else we can parse to extract some piece of configuration
   *
-  * Specifications are meant to be parsed and DOM/diesel elements collected.
+  * Specifications are meant to be parsed and DOM/diesel elements collected. Also, they are addressable (specPath)
   *
-  * We do not concern with the way these are found
+  * We do not concern with the way these are found - that's the inventory, but usually they are passed into an
+  * engine etc
   */
 trait DSpec {
   def specPath: TSpecPath
@@ -57,7 +63,7 @@ trait DSpec {
   def cat : String = ""
 }
 
-/** a specification of a template
+/** a specification of a template - templates are sections inside specs
   * name = name
   * parmStr = list of tags, really
   */
@@ -81,11 +87,8 @@ trait DTemplate {
 /** can retrieve specs, by wpath and ver */
 trait DSpecInventory {
   def findSpec(path: TSpecPath): Option[DSpec]
+  def querySpecs(realm:String, q: String, scope:String, curTags:String="", max:Int=2000) : List[DSpec]
 }
-
-/** the simplest spec - from a named string property */
-case class TextSpec(override val name: String, override val text: String)
-    extends BaseTextSpec(name, text) {}
 
 /** most specifications are made of a text content, which is parsed */
 class BaseTextSpec(val name: String, val text: String, val tags:Seq[String] = Seq()) extends DSpec {
@@ -134,3 +137,9 @@ class BaseTextSpec(val name: String, val text: String, val tags:Seq[String] = Se
   /** all properties contained in this spec, in various forms */
   def allProps: Map[String, String] = Map.empty
 }
+
+/** the simplest spec - from a named string property */
+case class TextSpec(override val name: String, override val text: String)
+    extends BaseTextSpec(name, text) {}
+
+

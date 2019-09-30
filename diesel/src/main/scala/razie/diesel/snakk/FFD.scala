@@ -7,7 +7,6 @@
 package razie.diesel.snakk
 
 import razie.diesel.dom.RDOM.P
-
 import scala.util.Try
 import scala.util.parsing.combinator.RegexParsers
 

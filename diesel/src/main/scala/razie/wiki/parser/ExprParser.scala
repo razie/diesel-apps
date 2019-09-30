@@ -64,7 +64,7 @@ trait ExprParser extends RegexParsers {
 
   def expr: Parser[Expr] = ppexpr | pterm1
 
-  def ppexpr: Parser[Expr] = pterm1 ~ rep(ows ~> ("*" | "+" | "-" | "||" | "|") ~ ows ~ pterm1) ^^ {
+  def ppexpr: Parser[Expr] = pterm1 ~ rep(ows ~> ("*" | "+" | "-" | "||" | "|" | "as") ~ ows ~ pterm1) ^^ {
     case a ~ l if l.isEmpty => a
     case a ~ l => l.foldLeft(a)((a, b) =>
       b match {

@@ -8,7 +8,6 @@ package razie.diesel.utils
 
 import org.joda.time.DateTime
 import razie.diesel.engine.DomEngine
-import razie.diesel.ext.EMsg
 import razie.diesel.model.DieselMsg
 
 // todo make instance in Reactor instead of a static

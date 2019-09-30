@@ -1,5 +1,4 @@
-/**
- *  ____    __    ____  ____  ____,,___     ____  __  __  ____
+/** ____    __    ____  ____  ____,,___     ____  __  __  ____
  * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
  *  )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
@@ -16,7 +15,7 @@ trait EApplicable {
   /** is this applicable... applicable? */
   def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) : Boolean
 
-  /** is this async?
+  /** is this async? note that this flag is just for info, not needed, but do read this comment on async execs
     *
     * If SYNC, we'll wait in this thread on the call to apply - avoid a switch. This is great for
     * local support like DB, logging, echo and other services
@@ -57,17 +56,23 @@ trait EApplicable {
   * @param name - the name of this executor
   */
 abstract class EExecutor (val name:String) extends EApplicable {
+  /** the list of message specs for this executor - overwrite and return them for content assist */
   def messages : List[EMsg] = Nil
 }
 
 /** manage all executors */
 object Executors {
-  private val _all = new ListBuffer[EExecutor]()
+  private var _all : List[EExecutor] = Nil
 
-  def withAll[T] (f: List[EExecutor] => T) : T = synchronized {
-    f(_all.toList)
+  def withAll[T] (f: List[EExecutor] => T) : T = {
+    // no synchronization needed -
+    val temp = _all
+    f(temp.toList)
   }
 
-  def add (e:EExecutor) = synchronized { _all append e }
+  def add (e:EExecutor) = synchronized {
+    // copy list to be mt-safe
+    _all = _all ::: e :: Nil
+  }
 }
 

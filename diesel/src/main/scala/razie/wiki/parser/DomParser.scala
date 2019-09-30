@@ -10,6 +10,7 @@ import mod.diesel.model.exec.EESnakk
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.DomEngine
+import razie.diesel.expr.{BExpr, CExpr}
 import razie.diesel.ext._
 import razie.tconf.parser.{FoldingContext, LazyAstNode, StrAstNode, TriAstNode}
 import razie.tconf.{DSpec, DUser, EPos}
@@ -146,11 +147,11 @@ trait DomParser extends ParserBase with ExprParser {
     }
   }
 
-  /** ent.met */
-  def clsMet: Parser[(String, String, List[RDOM.P])] = (ident | "*" | jsregex) ~ " *. *".r ~ (ident | "*" | jsregex) ~ rep("." ~> (ident | "*" | jsregex)) ~ optAttrs ^^ {
+  /** ent.met (parms) */
+  def clsMet: Parser[(String, String, List[RDOM.P])] = (ident | "*" | jsregex) ~ " *. *".r ~ (ident | "*" | jsregex) ~ rep("." ~> (ident | "*" | jsregex)) ~ opt(pcallattrs) ^^ {
     case i ~ _ ~ j ~ l ~ a => {
       val qcm = qualified(i :: j :: l)
-      (qcm._1, qcm._2, a)
+      (qcm._1, qcm._2, a.toList.flatten)
     }
   }
 

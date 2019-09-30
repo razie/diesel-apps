@@ -1,9 +1,14 @@
+/**   ____    __    ____  ____  ____,,___     ____  __  __  ____
+  *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+  */
 package razie.diesel.expr
 
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
 
-/** a qualified identifier
+/** resolving qualified identifier, including arrays, ranges, json docs etc
   *
   * @param start qualified expr a.b.c - this is used in places as such... don't replace with just a
   * @param rest the rest from the first []

@@ -6,7 +6,6 @@
  */
 package controllers
 
-import admin.Config
 import com.mongodb.DBObject
 import com.mongodb.casbah.Imports._
 import com.novus.salat._
@@ -25,7 +24,7 @@ import razie.wiki.admin.SendEmail
 import razie.wiki.model._
 import razie.wiki.model.features.WForm
 import razie.wiki.util.{PlayTools, Staged}
-import razie.wiki.{Base64, Enc, Sec, Services}
+import razie.wiki.{Base64, Config, Enc, Sec, Services}
 
 /** overall settings and state for this deployment */
 @RTable

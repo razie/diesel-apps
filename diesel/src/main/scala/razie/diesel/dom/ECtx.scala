@@ -1,13 +1,17 @@
+/**  ____    __    ____  ____  ____,,___     ____  __  __  ____
+ *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+ *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+ *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+ */
 package razie.diesel.dom
 
-import razie.{cdebug, clog}
 import razie.diesel.dom.RDOM.P
-import razie.diesel.engine.DomEngECtx
+import razie.diesel.engine.{DomAst, DomEngECtx}
 import razie.diesel.ext.{EVal, EWarning}
 import razie.tconf.{DSpec, DTemplate}
 import scala.util.Try
 
-/*
+/**
  * A map-like context of attribute values, used by the Diesel engine.
  *
  * These contexts are hierarchical, with inheritance and overwriting. Each engine has a root context. There are also
@@ -65,7 +69,9 @@ trait ECtx {
 
   def curNode : Option[DomAst]
 
-  /** see if this is a qualified name in a structure */
+  /** see if this is a qualified name in a structure
+    * @deprecated - use AExprIdent instead
+    */
   def sourceStruc (name:String, root:Option[Map[String,Any]] = None) : Option[P] = {
     val x:Option[_] = if (name contains ".") {
       try {
@@ -120,8 +126,6 @@ trait ECtx {
   * @param cur
   * @param base
   * @param curNode
-  *
-  * @param attrs
   */
 class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curNode:Option[DomAst] = None) extends ECtx {
   protected var _domain: Option[RDomain] = None

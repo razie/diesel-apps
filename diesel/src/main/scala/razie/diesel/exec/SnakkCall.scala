@@ -1,16 +1,15 @@
-/**
-  * ____    __    ____  ____  ____,,___     ____  __  __  ____
+/**  ____    __    ____  ____  ____,,___     ____  __  __  ____
   * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
   * )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
   * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
   **/
 package razie.diesel.exec
 
-import java.io.{BufferedReader, InputStreamReader, PrintWriter}
-import java.net.Socket
-import java.util.regex.Pattern
 import com.novus.salat._
 import com.razie.pub.comms.Comms
+import java.io.PrintWriter
+import java.net.Socket
+import java.util.regex.Pattern
 import org.json.JSONObject
 import razie.db.RazSalatContext._
 import razie.diesel.dom.RDOM._
@@ -20,11 +19,11 @@ import razie.tconf.DTemplate
 import razie.{Snakk, SnakkRequest, SnakkResponse, SnakkUrl}
 import scala.Option.option2Iterable
 import scala.collection.mutable
-import scala.concurrent.{Awaitable, Future, Promise}
+import scala.concurrent.{Future, Promise}
 import scala.util.Try
 import scala.xml.Node
 
-/** a single snakk call to make
+/** a single snakk call to make - goes beyond Snakk.body
   *
   * @param protocol http, telnet
   * @param method GET, POST, open etc
@@ -101,7 +100,7 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
   def future : Future[SnakkResponse] = {
     if(! this.pro.isDefined) {
       this.pro = Some(Promise[SnakkResponse]())
-      AsyncSnakkCallList.put(this)
+      SnakkCallAsyncList.put(this)
     }
     pro.get.future
   }

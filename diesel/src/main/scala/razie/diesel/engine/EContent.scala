@@ -1,5 +1,4 @@
-/**
-  * ____    __    ____  ____  ____,,___     ____  __  __  ____
+/**  ____    __    ____  ____  ____,,___     ____  __  __  ____
   * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
   * )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
   * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
@@ -15,7 +14,7 @@ import razie.xp.JsonOWrapper
 import scala.Option.option2Iterable
 import scala.util.Try
 
-/** a REST request or response: content and type */
+/** a REST request or response: content and type and processing thereof */
 class EContent(
                  val body: String,
                  val contentType: String,

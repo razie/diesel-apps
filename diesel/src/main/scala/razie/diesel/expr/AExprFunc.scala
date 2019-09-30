@@ -1,13 +1,18 @@
+/**   ____    __    ____  ____  ____,,___     ____  __  __  ____
+  *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+  */
 package razie.diesel.expr
 
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
-import razie.diesel.engine.DomEngine
+import razie.diesel.engine.{AstKinds, DomAst, DomEngine}
 import razie.diesel.exec.EEFunc
 import razie.diesel.ext.EMsg
 import razie.wiki.parser.SimpleExprParser
 
-/** a function call */
+/** a "function" call: built-in functions, msg functions (exec'd in same engine, sync) */
 case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
 
   override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).calculatedValue
