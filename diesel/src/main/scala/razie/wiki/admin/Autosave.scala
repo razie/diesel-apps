@@ -25,11 +25,11 @@ case class Autosave(
   ver: Long = 0,                    // auto-increasing version
   crDtm:  DateTime = DateTime.now,
   updDtm: DateTime = DateTime.now,
-  _id: ObjectId = new ObjectId()) extends REntity[Autosave] {
+  _id: ObjectId = new ObjectId()) extends REntityNoAudit[Autosave] {
 
-  override def create(implicit txn: Txn=tx.auto) = RCreate.noAudit[Autosave](this)
-  override def update (implicit txn: Txn=tx.auto) = RUpdate.noAudit(Map("_id" -> _id), this)
-  override def delete(implicit txn: Txn=tx.auto) = RDelete.noAudit[Autosave](this)
+  override def create(implicit txn: Txn=tx.auto) = createNoAudit
+  override def update (implicit txn: Txn=tx.auto) = updateNoAudit
+  override def delete(implicit txn: Txn=tx.auto) = deleteNoAudit
 }
 
 /** autosave utils */
