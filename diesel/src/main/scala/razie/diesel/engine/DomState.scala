@@ -10,6 +10,7 @@ object DomState {
   final val INIT="initial.init" // new node
   final val STARTED="exec.started" // is executing now
   final val DONE="final.done" // done
+  final val CANCEL="final.cancelled" // done
   final val SKIPPED="final.skipped" // skipped
   final val LATER="exec.later" // queued up somewhere for later
   final val ASYNC="exec.async" // started but will complete itself later

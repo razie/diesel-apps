@@ -296,7 +296,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
          */
 
         val d = in.attrs.find(_.name == "duration").map(_.currentStringValue.toInt).getOrElse(1000)
-        new EInfo("ctx.sleep - slept " + d) ::
+        EInfo("ctx.sleep - slept " + d) ::
             ext.EEngSuspend("ctx.sleep", "", Some((e, a, l) => {
               DieselAppContext.router.map(_ ! DELater(e.id, d, DEComplete(e.id, a, true, l, Nil)))
             })) ::

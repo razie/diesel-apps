@@ -174,9 +174,17 @@ class DomEngine(
       m.map(m=>DieselAppContext.router.map(_ ! m))
   }
 
+  /** stop and discard this engine */
+  def discard = {
+    status = DomState.CANCEL
+    trace("DomEng "+id+" discard")
+    finishP.success(this)
+    DieselAppContext.stopActor(id)
+  }
+
   /** stop me now */
   def stopNow = {
-      status = DomState.DONE
+      status = DomState.CANCEL
       trace("DomEng "+id+" stopNow")
       DomCollector.collectAst ("engine", settings.realm.mkString, id, settings.userId, this)
       finishP.success(this)
