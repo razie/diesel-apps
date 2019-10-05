@@ -12,12 +12,12 @@ import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.dom.{ECtx, RDOM, RDomain, ScopeECtx, StaticECtx, WTypes}
 import razie.diesel.engine.RDExt._
 import razie.diesel.exec.{EApplicable, Executors}
-import razie.diesel.expr.DieselExprException
+import razie.diesel.expr.{AExprIdent, DieselExprException}
 import razie.diesel.ext.{BFlowExpr, FlowExpr, MsgExpr, SeqExpr, _}
 import razie.diesel.model.DieselMsg
 import razie.diesel.utils.DomCollector
 import razie.tconf.DSpec
-import razie.wiki.parser.PAS
+import razie.wiki.parser.{ExprParser, PAS, SimpleExprParser}
 import razie.{Logging, js}
 import scala.Option.option2Iterable
 import scala.collection.mutable.{ArrayBuffer, HashMap, ListBuffer}
@@ -329,7 +329,7 @@ class DomEngine(
           info("Exception wile decompose() " + t.getMessage)
           val err = DEError(this.id, t.toString)
           val ast = DomAst(
-            new EError("Exception: " + t.getMessage)
+            new EError("Exception: " + t.getMessage, t)
           ).withStatus(DomState.DONE)
 
           evAppChildren(a, ast)
@@ -564,6 +564,7 @@ class DomEngine(
 
       case in: EMsg => {
         // todo should collect all parent contexts from root to here...
+        // todo problem right now: parent parms are not in context, so can't use in child messages
 //        implicit val parentCtx = new StaticECtx(in.attrs, Some(this.ctx), Some(a))
         msgs = expandEMsg(a, in, recurse, level, this.ctx) ::: msgs
       }
@@ -869,7 +870,7 @@ class DomEngine(
   private def expandEMsgImpl(a: DomAst, in: EMsg, recurse: Boolean, level: Int, parentCtx:ECtx) : List[DomAst] = {
     var newNodes : List[DomAst] = Nil // nodes generated this call collect here
 
-//    implicit var ctx = new StaticECtx(in.attrs, Some(parentCtx), Some(a))
+    // implicit var ctx = new StaticECtx(in.attrs, Some(parentCtx), Some(a))
     implicit var ctx = parentCtx
 
     // if the message attrs were expressions, calculate their values
@@ -1012,14 +1013,15 @@ class DomEngine(
 
         // not for internal diesel messages
         val ms = n.entity + "." + n.met
-        if(!ms.startsWith("diesel."))
+        if(!ms.startsWith("diesel.")) {
           evAppChildren(a, DomAst(
             EWarning(
               "No rules, mocks or executors match for " + in.toString,
-              "Review your engine configuration (blender, mocks, drafts, tags), " +
+              s"Review your engine configuration (blender=${settings.blenderMode}, mocks=${settings.blenderMode}, drafts=${settings.blenderMode}, tags), " +
                 "spelling of messages or rule clauses / pattern matches"),
             AstKinds.DEBUG
           ))
+        }
       }
     }
 

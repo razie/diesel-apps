@@ -6,13 +6,12 @@
  */
 package razie.diesel.engine
 
-import mod.diesel.model.exec._
 import razie.Logging
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom.{RDomain, _}
-import razie.diesel.exec.{EEDieselDT, EEDieselMongodDb, EEDieselSharedDb, EEFormatter, EEFunc, EETest, Executors}
+import razie.diesel.exec.Executors
 import razie.diesel.ext.{CanHtml, _}
-import razie.tconf.{DSpec, EPos, TSpecPath}
+import razie.tconf.EPos
 import razie.wiki.Enc
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
@@ -35,18 +34,6 @@ class InfoAccumulator (var eres : List[Any] = Nil) {
 /** RDOM extensions */
 object RDExt extends Logging {
 
-  def init = {
-    new EECtx ::
-      new EEDieselDT ::
-      new EEDieselMemDb ::
-      new EEDieselSharedDb ::
-      new EEDieselMongodDb ::
-      new EESnakk ::
-      new EETest ::
-      new EEFunc ::
-      new EEFormatter ::
-      Nil map Executors.add
-  }
 
   /** parse from/to json utils */
   object DieselJsonFactory {

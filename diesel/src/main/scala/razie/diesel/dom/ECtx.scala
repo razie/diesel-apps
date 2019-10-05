@@ -100,7 +100,7 @@ trait ECtx {
         }.flatten
       }
       catch {
-        case t: Throwable => throw new IllegalArgumentException(s"Can't sourceStruc parmname: ${name.take(100)}", t)
+        case t: Throwable => throw new IllegalArgumentException(s"Can't sourceStruc parm with name: ${name.take(100)}", t)
       }
     }
       else

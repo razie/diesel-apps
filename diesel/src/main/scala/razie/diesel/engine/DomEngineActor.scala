@@ -182,6 +182,11 @@ class DomEngineActor (eng:DomEngine) extends Actor with Stash {
       else DieselAppContext.router.map(_ ! timer)
     }
   }
+
+  override def postStop() = {
+    // assert it's stopped
+    // DieselAppContext.activeActors.remove(eng.id)
+  }
 }
 
 
