@@ -87,19 +87,20 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       case "map" => {
-        // todo use "list" as an expression, not just a source, use AExprIdent
-        val ctxList = parm("list")
-        val list = if(ctxList.exists(_.calculatedTypedValue.contentType == WTypes.ARRAY)) {
-          ctxList.get
-        } else if(ctxList.exists(_.calculatedTypedValue.contentType == WTypes.STRING)) {
-          ctx.getRequiredp(ctxList.get.currentStringValue)
-        } else {
-          P("", "", WTypes.UNDEFINED) //throw new IllegalArgumentException(s"Can't source input list: $ctxList")
+        // l can be a constant with another parm name OR the actual array
+        val list = {
+          val l = ctx.getRequiredp("list").calculatedP
+          if(l.isOfType(WTypes.ARRAY)) {
+            l
+          } else if(l.isOfType(WTypes.STRING)) {
+            ctx.getRequiredp(l.currentStringValue)
+          } else {
+            P("", "", WTypes.UNDEFINED) //throw new IllegalArgumentException(s"Can't source input list: $ctxList")
+          }
         }
 
-        val RE = """(\w+)\.(\w+)""".r
         val ea = parm("msg").get.currentStringValue
-        val RE(e, m) = ea
+        val EMsg.REGEX(e, m) = ea
 
         val x =
           if(list.calculatedTypedValue.contentType == WTypes.ARRAY)
@@ -127,16 +128,29 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       case "foreach" => {
-        // todo use "list" as an expression, not just a source, use AExprIdent
-        val list = ctx.getp(parm("list").get.currentStringValue).get
-        val RE = """(\w+)\.(\w+)""".r
-        val RE(e, m) = parm("msg").get.currentStringValue
+        // l can be a constant with another parm name OR the actual array
+        val list = {
+          val l = ctx.getRequiredp("list").calculatedP
+          if(l.isOfType(WTypes.ARRAY)) {
+            l
+          } else if(l.isOfType(WTypes.STRING)) {
+            ctx.getRequiredp(l.currentStringValue)
+          } else {
+            P("", "", WTypes.UNDEFINED) //throw new IllegalArgumentException(s"Can't source input list: $ctxList")
+          }
+        }
+
+        val EMsg.REGEX(e, m) = parm("msg").get.currentStringValue
+        val itemName = parm("item").get.currentStringValue
 
         razie.js.parse(s"{ list : ${list.currentStringValue} }").apply("list") match {
           case l: List[Any] => {
+            // passing any other parameters that were given to foreach
             val nat = in.attrs.filter(e => !Array("list", "item", "msg").contains(e.name))
+
             l.map { item: Any =>
-              val itemP = P.fromTypedValue(parm("item").get.currentStringValue, item)
+              // for each item in list, create message
+              val itemP = P.fromTypedValue(itemName, item)
               EMsg(e, m, itemP :: nat)
             }
           }

@@ -7,9 +7,11 @@
 package razie.diesel.engine
 
 import akka.actor.{ActorRef, ActorSystem, Props}
+import mod.diesel.model.exec.{EECtx, EESnakk}
 import razie.Logging
 import razie.audit.Audit
-import razie.diesel.dom.{RDomain, _}
+import razie.diesel.dom.RDomain
+import razie.diesel.exec.{EEFormatter, EEFunc, EETest, Executors}
 import razie.tconf.DSpec
 
 import scala.collection.mutable
@@ -33,6 +35,7 @@ class DieselAppContext(node: String, app: String) {
 /** an application static - engine factory, manager and cache */
 object DieselAppContext extends Logging {
   private var appCtx: Option[DieselAppContext] = None
+  private var _simpleMode = false
 
   /** active engines */
   val activeEngines = new mutable.HashMap[String, DomEngine]()
@@ -44,6 +47,16 @@ object DieselAppContext extends Logging {
   /** the actor system used */
   private var actorSystem: Option[ActorSystem] = None
   private var actorSystemFactory: Option[() => ActorSystem] = None
+
+  /** when this is set, no multi-tenant and other features are used, you don't need to initialize
+    * too much infrastructure
+    */
+  def simpleMode = _simpleMode
+
+  def withSimpleMode() = {
+    this._simpleMode = true
+    this
+  }
 
   def stopActor(id: String) = {
     activeActors.get(id).map(getActorSystem.stop)
@@ -73,15 +86,27 @@ object DieselAppContext extends Logging {
   /** when in a cluster, you need to set this on startup... */
   var localNode = "localhost"
 
+  def initExecutors = {
+    new EECtx ::
+        new EESnakk ::
+        new EETest ::
+        new EEFunc ::
+        new EEFormatter ::
+        Nil map Executors.add
+  }
+
   /** initialize the engine cache and actor infrastructure */
   def init(node: String = "", app: String = "") = {
-    if (appCtx.isEmpty)
+    log("DieselAppContext.init")
+
+    if (appCtx.isEmpty) {
       appCtx = Some(
         new DieselAppContext(
           if (node.length > 0) node else localNode,
           if (app.length > 0) app else "default"
         )
       )
+    }
 
     val p = Props(new DomEngineRouter())
     val a = getActorSystem.actorOf(p)
