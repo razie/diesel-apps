@@ -81,6 +81,10 @@ object WikiReactors extends Logging with Reactors {
     reactors.getOrElse(realm, rk)
   } // using RK as a fallback
 
+  def maybeFind (realm:String = Wikis.RK) : Option[Reactor] = {
+    reactors.get(realm)
+  }
+
   override def getProperties (realm:String) : Map[String,String] = {
     apply(realm).websiteProps.props
   }

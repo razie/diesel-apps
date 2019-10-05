@@ -26,14 +26,11 @@ case class Autosave(
   crDtm:  DateTime = DateTime.now,
   updDtm: DateTime = DateTime.now,
   _id: ObjectId = new ObjectId()) extends REntityNoAudit[Autosave] {
-
-  override def create(implicit txn: Txn=tx.auto) = createNoAudit
-  override def update (implicit txn: Txn=tx.auto) = updateNoAudit
-  override def delete(implicit txn: Txn=tx.auto) = deleteNoAudit
 }
 
 /** autosave utils */
 object Autosave {
+  implicit val txn: Txn=tx.auto
 
   def rec(what: String, realm: String, name: String, userId: ObjectId) = {
     ROne[Autosave]("what" -> what, "realm" -> realm, "name" -> name, "userId" -> userId)

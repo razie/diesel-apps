@@ -6,11 +6,16 @@
   */
 package razie.wiki.parser
 
+import razie.Snakk
 import razie.tconf.BaseTextSpec
 
 /** the simplest spec used in samples and tests - uses the Diesel-Dom parser */
 case class DieselTextSpec (override val name:String, override val text:String) extends BaseTextSpec(name, text) {
   override def mkParser = new DieselTextParser("rk")
+
+  def + (other:DieselTextSpec) : DieselTextSpec = {
+    DieselTextSpec(name+other.name, text+other.text)
+  }
 }
 
 /** A simple parser for diesel specs
@@ -21,5 +26,15 @@ case class DieselTextSpec (override val name:String, override val text:String) e
 class DieselTextParser(val realm: String) extends SimpleSpecParser with DomParser {
   // include the rules to parse the domainBlocks
   withBlocks(domainBlocks)
+}
+
+/** the simplest remote spec, from URL */
+case class DieselUrlTextSpec (url:String, override val name:String)
+    extends BaseTextSpec(name, Snakk.body(Snakk.url(url))) {
+  override def mkParser = new DieselTextParser("rk")
+
+  def + (other:DieselTextSpec) : DieselTextSpec = {
+    DieselTextSpec(name+other.name, text+other.text)
+  }
 }
 

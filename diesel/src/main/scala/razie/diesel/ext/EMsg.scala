@@ -308,4 +308,6 @@ object EMsg {
   val PROTECTED = "protected"
 
   val WARNING = "warn"
+
+  val REGEX = """([\w.]+)[./](\w+)""".r
 }

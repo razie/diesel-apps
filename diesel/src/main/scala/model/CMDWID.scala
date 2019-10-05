@@ -7,7 +7,7 @@ package model
 
 import razie.wiki.model.WID
 
-/** a special command wid, contains a command, what and WID - used in routes
+/** a special command wid, contains a command, what and WID - used in play routes
   *
   * i.e. for x/cat:name/xp/path - the wid is can:name, cmd is xp and rest is path
   */

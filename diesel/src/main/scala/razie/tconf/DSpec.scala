@@ -116,7 +116,7 @@ class BaseTextSpec(val name: String, val text: String, val tags:Seq[String] = Se
   def parsed: String = sparsed.getOrElse {
     val res = {
       val p = mkParser
-      p.apply(text).fold(new JMapFoldingContext(Some(this), None)).s
+      p.apply(content).fold(new JMapFoldingContext(Some(this), None)).s
     }
     sparsed = Some(res)
     iparsed = Some(this)

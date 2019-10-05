@@ -133,7 +133,7 @@ object Website {
 
   def forRealm (r:String):Option[Website] = {
     cache.values.find(_.w.reactor == r).map(_.w).orElse {
-      val web = WikiReactors(r).we.map(we=> new Website(we))
+      val web = WikiReactors.maybeFind(r).flatMap(_.we).map(we=> new Website(we))
       web.foreach {w=>
         cache.put(w.domain, CacheEntry(w, System.currentTimeMillis()+EXP))
       }

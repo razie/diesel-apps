@@ -45,7 +45,7 @@ case class EError(msg: String, details: String = "") extends CanHtml with HasPos
               span("fail-error::", "danger", details) + " " + msg
             )
 
-  override def toString = "fail-error::" + msg
+  override def toString = "fail-error::" + msg + details
 }
 
 /** some error, with a message and details */

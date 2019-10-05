@@ -9,10 +9,12 @@ be swapped out for other db if needed.
 The premise is using a mongo db and mapping classes/entities to collections.
 
 Features:
-- audited access: update ops are audited and logged.
+- audited access: update ops are audited and logged, good as a general principle.
 
 See:
+- `RTable` annotate case classes with this - optionally change collection name
 - `REntity` base class for entity classes - has CRUD ops
+ - or `REntityNoAudit` - for entities where you dno't want to audit operations (like Audit itself or irrelevant events etc)
 - `ROne` and `RMany` for searches (find)
 - `RUpgrade` base class to the upgrade framework
 
@@ -28,16 +30,12 @@ case class Autosave(
   contents: String,
   crDtm: DateTime = DateTime.now,
   updDtm: DateTime = DateTime.now,
-  _id: ObjectId = new ObjectId()) extends REntity[Autosave] {
-
-  // override base to disble audit of these entity's ops
-  override def create(implicit txn: Txn=tx.auto) = RCreate.noAudit[Autosave](this)
-  override def update (implicit txn: Txn=tx.auto) = RUpdate.noAudit(Map("_id" -> _id), this)
-  override def delete(implicit txn: Txn=tx.auto) = RDelete.noAudit[Autosave](this)
+  _id: ObjectId = new ObjectId()) extends REntityNoAudit[Autosave] {
 }
 
 /** inventory class */
 object Autosave {
+  implicit txn: Txn=tx.auto
 
   def find(what: String) = {
     ROne[Autosave]("what" -> what)

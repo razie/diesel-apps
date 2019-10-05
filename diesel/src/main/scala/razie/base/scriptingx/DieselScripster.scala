@@ -19,6 +19,8 @@ import scala.util.Try
 // todo use MiniScripster and WikiScripster when decoupled
 object DieselScripster extends Logging {
 
+  val DEBUG = false
+
  //todo deprecate - use EEFunc.newestFiddle(
   def isfiddleMap(
                      script: String,
@@ -74,7 +76,7 @@ object DieselScripster extends Logging {
         // attempt to use typed bindings, if available
         q.foreach{t =>
           val v = typed.flatMap(_.get(t._1)).getOrElse(jstypeSafe(t._2))
-          debug("SFIDDLE_EXEC JS bind: " + t._1 + " = " + v.toString.take(100))
+          if(DEBUG) debug("SFIDDLE_EXEC JS bind: " + t._1 + " = " + v.toString.take(100))
 
           if(v.isInstanceOf[Map[_,_]]) {
             val m = v.asInstanceOf[Map[_, _]]

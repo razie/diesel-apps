@@ -14,7 +14,7 @@ case class DomEngineSettings
   var mockMode    : Boolean = false,
   var blenderMode : Boolean = true,
   var draftMode   : Boolean = true,
-  var sketchMode  : Boolean = true,
+  var sketchMode  : Boolean = false,
   var execMode    : String = "sync",
   var resultMode    : String = "",
 

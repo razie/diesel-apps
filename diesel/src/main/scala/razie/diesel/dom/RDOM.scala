@@ -233,6 +233,11 @@ object RDOM {
       ref != ""
     }
 
+    /** check if this value or def is of type t */
+    def isOfType(t:String) = {
+      value.map(_.contentType == t).getOrElse(ttype == t)
+    }
+
     /** proper way to get the value */
     def calculatedValue(implicit ctx: ECtx) : String =
       // important to avoid toString JSONS all the time...
