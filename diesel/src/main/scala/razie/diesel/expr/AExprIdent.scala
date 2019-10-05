@@ -111,7 +111,7 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
 
           case _ => throwIt
         }
-      } else if (av.contentType == WTypes.STRING) {
+      } else if (av.contentType == WTypes.STRING || av.contentType.isEmpty || av.contentType == WTypes.UNKNOWN) {
         pv.contentType match {
 
           case WTypes.JSON =>
@@ -182,6 +182,10 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
         throwIt
       }
     }
+  }
+
+  def dropLast = {
+    this.copy(start=this.start, rest = this.rest.dropRight(1))
   }
 
   def toStringCalc (implicit ctx:ECtx) = {

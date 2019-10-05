@@ -38,6 +38,10 @@ trait ExprParser extends RegexParsers {
     case i ~ l => (i :: l).mkString(".")
   }
 
+  def qlident: Parser[List[String]] = ident ~ rep("." ~> ident) ^^ {
+    case i ~ l => i :: l
+  }
+
   def boolConst: Parser[String] = "true" | "false" ^^ {
     case b => b
   }
@@ -149,15 +153,15 @@ trait ExprParser extends RegexParsers {
   //==================================== ACCESSORS
 
   // qualified identifier
-  def aident: Parser[AExprIdent] = qident ^^ { case i => new AExprIdent(i) }
+  def aident: Parser[AExprIdent] = qlident ^^ { case i => new AExprIdent(i.head, i.tail.map(P("", _))) }
 
   // simple qident or complex one
   def aidentExpr: Parser[AExprIdent] = aidentaccess | aident
 
   // full accessor to value: a.b[4].c.r["field1"]["subfield2"][4].g
   // note this kicks in at the first use of [] and continues... so that aident above catches all other
-  def aidentaccess: Parser[AExprIdent] = qident ~ (sqbraccess | sqbraccessRange | accessorNum) ~ accessors ^^ {
-    case i ~ sa ~ a => new AExprIdent(i, sa :: a)
+  def aidentaccess: Parser[AExprIdent] = qlident ~ (sqbraccess | sqbraccessRange | accessorNum) ~ accessors ^^ {
+    case i ~ sa ~ a => new AExprIdent(i.head, i.tail.map(P("", _)) ::: sa :: a)
   }
 
   def accessors: Parser[List[RDOM.P]] = rep(sqbraccess | sqbraccessRange | accessorIdent | accessorNum)
