@@ -109,8 +109,8 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
   def root: Option[Snakk.Wrapper[_]] = {
     val b = body
     iContentType match {
-      case Some("application/xml") => Some(Snakk.xml(b))
-      case Some("application/json") => Some(Snakk.json(b))
+      case Some(s) if s.trim.startsWith("application/xml") => Some(Snakk.xml(b))
+      case Some(s) if s.trim.startsWith("application/json") => Some(Snakk.json(b))
       case x@_ => {
         //        throw new IllegalStateException ("unknown content-type: "+x)
         None
