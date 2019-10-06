@@ -8,6 +8,7 @@ package razie.diesel.engine
 
 import org.bson.types.ObjectId
 import org.joda.time.DateTime
+import razie.diesel.Diesel
 import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.dom.{ECtx, RDOM, RDomain, ScopeECtx, StaticECtx, WTypes}
 import razie.diesel.engine.RDExt._
@@ -866,6 +867,28 @@ class DomEngine(
     }
   }
 
+  // if the message attrs were expressions, calculate their values
+  private def calcMsg (in:EMsg)(implicit ctx: ECtx) : EMsg = {
+    in.copy(
+      attrs = in.attrs.flatMap { p =>
+        // flattening objects first
+        if(p.expr.exists{e=>
+            e.isInstanceOf[AExprIdent] &&
+                e.asInstanceOf[AExprIdent].rest.size > 0 &&
+                e.asInstanceOf[AExprIdent].rest.last.name.equals("asAttrs")
+        }) {
+          p :: flattenJson(p)
+        } else if(p.name.endsWith(".asAttrs")) {
+          // we have to resolve it here and flatten it
+          val ap = new SimpleExprParser().parseIdent(p.name).map(_.dropLast)
+          p :: flattenJson(p.copy(expr = ap).calculatedP)
+        } else {
+          List(p.calculatedP) // only calculate if not already calculated =likely in a different context=
+        }
+      }
+    ).copiedFrom(in)
+  }
+
   /** expand a single message */
   private def expandEMsgImpl(a: DomAst, in: EMsg, recurse: Boolean, level: Int, parentCtx:ECtx) : List[DomAst] = {
     var newNodes : List[DomAst] = Nil // nodes generated this call collect here
@@ -873,12 +896,14 @@ class DomEngine(
     // implicit var ctx = new StaticECtx(in.attrs, Some(parentCtx), Some(a))
     implicit var ctx = parentCtx
 
-    // if the message attrs were expressions, calculate their values
-    val n: EMsg = in.copy(
-      attrs = in.attrs.map { p =>
-        p.calculatedP // only calculate if not already calculated =likely in a different context=
-      }
-    )
+    // expand message expr if the message attrs were expressions, calculate their values
+    val n: EMsg = calcMsg(in)(ctx)
+    // replace it so we see the calculated values
+    a.value = n
+
+    // this is causing problems
+    // a.children.append(DomAst(in, AstKinds.TRACE).withStatus(DomState.SKIPPED))
+    //a.children.append(DomAst(EInfoWrapper(in), AstKinds.TRACE).withStatus(DomState.SKIPPED))
 
     ctx = new StaticECtx(n.attrs, Some(parentCtx), Some(a))
 
@@ -991,7 +1016,9 @@ class DomEngine(
         } catch {
           case e: Throwable =>
             razie.Log.alarmThis("wtf", e)
-            List(DomAst(new EError("Exception:", e), AstKinds.ERROR))
+            val p = EVal(P(Diesel.PAYLOAD, e.getMessage, WTypes.EXCEPTION).withValue(e, WTypes.EXCEPTION))
+            ctx.put(p.p)
+            List(DomAst(new EError("Exception:", e), AstKinds.ERROR), DomAst(p, AstKinds.ERROR))
         }
 
         newNodes = newNodes ::: news

@@ -144,6 +144,15 @@ package object ext {
     }
   }
 
+  def flattenJson (p: P)(implicit ctx: ECtx) : Attrs = {
+    val v = p.calculatedTypedValue
+    assert(v.contentType == WTypes.JSON, "input needs to be JSON, but it's: "+p)
+    val j = p.calculatedTypedValue.asJson
+    j.map{t=>
+      P.fromTypedValue(t._1, t._2)
+    }.toList
+  }
+
   /**
    * matching attrs
     *
@@ -158,65 +167,65 @@ package object ext {
    * (1,b,c) it occurs in position with value
    *
    * (a=1) it occurs with value
-   *
    */
   def testA(in: Attrs,
             cond: MatchAttrs,
             cole: Option[MatchCollector] = None,
             foundName:Option[RDOM.P => Unit]=None,
-            positive:Boolean = true)(implicit ctx: ECtx) = {
+            positive:Boolean = true)(implicit ctx: ECtx): Boolean = {
     // for each match
-    val result = cond.zipWithIndex.foldLeft(true)((a, b) => a && {
-      var res = false
 
-      val pm = b._1
+      val result = cond.zipWithIndex.foldLeft(true)((a, b) => a && {
+        var res = false
 
-      // testing for name and value
-      if (b._1.dflt.size > 0 || b._1.expr.isDefined) {
-        if (b._1.name.size > 0) {
-          res = in.exists(x => check(x, b._1)) || ctx.exists(x => check(x, b._1))
+        val pm = b._1
 
-          if(!res && positive || res && !positive) in.find(_.name == b._1.name).map {p=>
-            // mark it in the cole
-            foundName.map(_.apply(p))
-          }
+        // testing for name and value
+        if (b._1.dflt.size > 0 || b._1.expr.isDefined) {
+          if (b._1.name.size > 0) {
+            res = in.exists(x => check(x, b._1)) || ctx.exists(x => check(x, b._1))
 
-          if(!res) {
-            // last try: any value in context
-            res = new BCMP2(pm.ident, pm.op, pm.valExpr).apply("")
+            if (!res && positive || res && !positive) in.find(_.name == b._1.name).map { p =>
+              // mark it in the cole
+              foundName.map(_.apply(p))
+            }
 
-            if(!res) { // failed to find any valid exprs, just evaluate the left side to get some info
-              if(positive) cole.map(_.missedValue(AExprIdent(pm.name).applyTyped("")))
-            } else {
-              // for regex matches, use each capture group and set as parm in context
-              if(pm.op == "~=") {
-                // extract parms
-                val a = pm.ident.apply("")
-                val b = pm.valExpr.apply("")
-                val groups = EContent.extractRegexParms(b.toString, a.toString)
+            if (!res) {
+              // last try: any value in context
+              res = new BCMP2(pm.ident, pm.op, pm.valExpr).apply("")
 
-                groups.foreach(t=> ctx.put(P(t._1, t._2)))
+              if (!res) { // failed to find any valid exprs, just evaluate the left side to get some info
+                if (positive) cole.map(_.missedValue(AExprIdent(pm.name).applyTyped("")))
+              } else {
+                // for regex matches, use each capture group and set as parm in context
+                if (pm.op == "~=") {
+                  // extract parms
+                  val a = pm.ident.apply("")
+                  val b = pm.valExpr.apply("")
+                  val groups = EContent.extractRegexParms(b.toString, a.toString)
+
+                  groups.foreach(t => ctx.put(P(t._1, t._2)))
+                }
               }
             }
+
+            if (res && positive) cole.map(_.plus(b._1.name + b._1.op + b._1.dflt))
+            else cole.map(_.minus(b._1.name, in.find(_.name == b._1.name).mkString, b._1))
           }
+        } else {
+          // test just the name (presence): check and record the name failure
+          if (b._1.name.size > 0) {
+            // I don't include the context - this leads to side-effects, just use an IF after the match...
+            res = in.exists(_.name == b._1.name) // || ctx.exists(_.name == b._1.name)
 
-          if (res && positive) cole.map(_.plus(b._1.name + b._1.op + b._1.dflt))
-          else cole.map(_.minus(b._1.name, in.find(_.name == b._1.name).mkString, b._1))
+            if (res && positive) cole.map(_.plus(b._1.name))
+            else cole.map(_.minus(b._1.name, b._1.name, b._1))
+          }
         }
-      } else {
-        // test just the name (presence): check and record the name failure
-        if (b._1.name.size > 0) {
-          // I don't include the context - this leads to side-effects, just use an IF after the match...
-          res = in.exists(_.name == b._1.name) // || ctx.exists(_.name == b._1.name)
+        res
+      })
 
-          if (res && positive) cole.map(_.plus(b._1.name))
-          else cole.map(_.minus(b._1.name, b._1.name, b._1))
-        }
-      }
-      res
-    })
-
-    if(positive) result else !result
+      if (positive) result else !result
   }
 
   trait HasPosition {
