@@ -7,6 +7,7 @@
 package razie.diesel.dom
 
 import razie.diesel.engine.{AstKinds, DomAst}
+import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 
 
@@ -57,7 +58,7 @@ case class DomContextEntry[T] (role:String, value:T, link:Option[String])
 object DomContext {
   final val CTX_DEFAULT = "default"
 
-  val map = new mutable.HashMap[String, DomContext]()
+  val map = new TrieMap[String, DomContext]()
 
   def apply (realm:String, ctx:String, userId:Option[String]) = {
     new DomContext(realm, ctx, userId)
