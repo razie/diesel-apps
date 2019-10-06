@@ -43,7 +43,7 @@ case class BCMP1(a: BExpr, op: String, b: BExpr)
     case "||" | "or"  => a.apply(in) || b.apply(in)
     case "&&" | "and" => a.apply(in) && b.apply(in)
     case _ => {
-      clog << "[ERR Operator " + op + " UNKNOWN!!!]"; false
+      clog << s"[ERR BoolOperator $op UNKNOWN!!!] as in $a $op $b"; false
     }
   }
 
@@ -55,148 +55,143 @@ case class BCMP2(a: Expr, op: String, b: Expr)
     extends BExpr(a.toDsl + " " + op + " " + b.toDsl) {
 
   override def apply(in: Any)(implicit ctx: ECtx): Boolean = {
-    (a, b) match {
-      case (CExpr(aa, WTypes.NUMBER), CExpr(bb, WTypes.NUMBER)) => {
-        val as = aa.toString
-        val bs = bb.toString
+    try {
+      (a, b) match {
+        case (CExpr(aa, WTypes.NUMBER), CExpr(bb, WTypes.NUMBER)) => {
+          val as = aa.toString
+          val bs = bb.toString
 
-        cmpNums(as, bs, op)
-      }
-
-      case _ => {
-        lazy val ap = a.applyTyped(in)
-        lazy val bp = b.applyTyped(in)
-        lazy val as = ap.calculatedValue
-
-        def b_is(s: String) =
-          b.isInstanceOf[AExprIdent] && s == b
-            .asInstanceOf[AExprIdent]
-            .expr
-            .toLowerCase
-
-        def isNum(p:P) = {
-          p.ttype == WTypes.NUMBER || p.value.exists(_.contentType == WTypes.NUMBER)
+          cmpNums(as, bs, op)
         }
 
-        val cmpop = op match {
-          case "?=" | "==" | "!=" | "~=" | "like" | "<=" | ">=" | "<" | ">" => true
-          case _ => false
-        }
+        case _ => {
+          lazy val ap = a.applyTyped(in)
+          lazy val bp = b.applyTyped(in)
+          lazy val as = ap.calculatedValue
 
-        // if one of them is number, don't care about the other... could be a string containing a num...
-        if (cmpop && (isNum(ap) || isNum(bp))) {
-          return cmpNums(ap.calculatedValue, bp.calculatedValue, op)
-        }
+          def b_is(s: String) =
+            b.isInstanceOf[AExprIdent] && s == b
+                .asInstanceOf[AExprIdent]
+                .expr
+                .toLowerCase
 
-        op match {
-          case "?="          => a(in).toString.length >= 0 // anything with a default
-          case "!="          => a(in) != b(in)
-          case "~=" | "matches" => a(in).toString matches b(in).toString
-          case "<="          => a(in).toString <= b(in).toString
-          case ">="          => a(in).toString >= b(in).toString
-          case "<"           => a(in).toString < b(in).toString
-          case ">"           => a(in).toString > b(in).toString
+          def isNum(p: P) = {
+            p.ttype == WTypes.NUMBER || p.value.exists(_.contentType == WTypes.NUMBER)
+          }
 
-          case "contains"    =>   a(in).toString contains b(in).toString
-          case "containsNot" => !(a(in).toString contains b(in).toString) // todo deprecate
-          case "not" if b.toString == "contains" => !(a(in).toString contains b(in).toString)
+          val cmpop = op match {
+            case "?=" | "==" | "!=" | "~=" | "like" | "<=" | ">=" | "<" | ">" => true
+            case _ => false
+          }
 
-          // THESE CANNOT CHANGE...
+          // if one of them is number, don't care about the other... could be a string containing a num...
+          if (cmpop && (isNum(ap) || isNum(bp))) {
+            return cmpNums(ap.calculatedValue, bp.calculatedValue, op)
+          }
 
-          case "is"  if b.toString == "null" => ap.ttype == WTypes.UNDEFINED
-          case "not" if b.toString == "null" => ap.ttype != WTypes.UNDEFINED
-          case "is"  if b.toString == "defined" => ap.ttype != WTypes.UNDEFINED
-          case "not" if b.toString == "defined" => ap.ttype == WTypes.UNDEFINED //as.length <= 0
+          op match {
+            case "?=" => a(in).toString.length >= 0 // anything with a default
+            case "!=" => a(in) != b(in)
+            case "~=" | "matches" => a(in).toString matches b(in).toString
+            case "<=" => a(in).toString <= b(in).toString
+            case ">=" => a(in).toString >= b(in).toString
+            case "<" => a(in).toString < b(in).toString
+            case ">" => a(in).toString > b(in).toString
 
-          case "is"  if b.toString == "nzlen" => ap.ttype != WTypes.UNDEFINED && as.length > 0 && as.trim != "null"
-          case "not" if b.toString == "nzlen" => ap.ttype == WTypes.UNDEFINED || as.length <= 0 || as.trim == "null"
+            case "contains" => a(in).toString contains b(in).toString
+            case "containsNot" => !(a(in).toString contains b(in).toString) // todo deprecate
+            case "not" if b.toString == "contains" => !(a(in).toString contains b(in).toString)
 
-          case "is"  if b.toString == "empty" =>
-            if (ap.calculatedTypedValue.contentType == WTypes.JSON)
-               ap.calculatedTypedValue.asJson.isEmpty
-            else if (ap.calculatedTypedValue.contentType == WTypes.ARRAY)
-               ap.calculatedTypedValue.asArray.isEmpty
-            else
+            // THESE CANNOT CHANGE...
+
+            case "is" if b.toString == "null" => ap.ttype == WTypes.UNDEFINED
+            case "not" if b.toString == "null" => ap.ttype != WTypes.UNDEFINED
+            case "is" if b.toString == "defined" => ap.ttype != WTypes.UNDEFINED
+            case "not" if b.toString == "defined" => ap.ttype == WTypes.UNDEFINED //as.length <= 0
+
+            case "is" if b.toString == "nzlen" => ap.ttype != WTypes.UNDEFINED && as.length > 0 && as.trim != "null"
+            case "not" if b.toString == "nzlen" => ap.ttype == WTypes.UNDEFINED || as.length <= 0 || as.trim == "null"
+
+            case "is" if b.toString == "empty" =>
+              if (ap.calculatedTypedValue.contentType == WTypes.JSON)
+                ap.calculatedTypedValue.asJson.isEmpty
+              else if (ap.calculatedTypedValue.contentType == WTypes.ARRAY)
+                ap.calculatedTypedValue.asArray.isEmpty
+              else
               /*ap.ttype != WTypes.UNDEFINED &&*/ as.length == 0
 
-          case "not" if b.toString == "empty" =>
-            if (ap.calculatedTypedValue.contentType == WTypes.JSON)
-              !ap.calculatedTypedValue.asJson.isEmpty
-            else if (ap.calculatedTypedValue.contentType == WTypes.ARRAY)
-              !ap.calculatedTypedValue.asArray.isEmpty
-            else
-            /*ap.ttype != WTypes.UNDEFINED &&*/ as.length != 0
+            case "not" if b.toString == "empty" =>
+              if (ap.calculatedTypedValue.contentType == WTypes.JSON)
+                !ap.calculatedTypedValue.asJson.isEmpty
+              else if (ap.calculatedTypedValue.contentType == WTypes.ARRAY)
+                !ap.calculatedTypedValue.asArray.isEmpty
+              else
+              /*ap.ttype != WTypes.UNDEFINED &&*/ as.length != 0
 
-          case "is"  if b.toString == "undefined" => ap.ttype == WTypes.UNDEFINED
-          case "not" if b.toString == "undefined" => ap.ttype != WTypes.UNDEFINED
+            case "is" if b.toString == "undefined" => ap.ttype == WTypes.UNDEFINED
+            case "not" if b.toString == "undefined" => ap.ttype != WTypes.UNDEFINED
 
 
-          case "is" if b_is("number") => as.matches("[0-9.]+")
+            case "is" if b_is("number") => as.matches("[0-9.]+")
 
-          case "is" if b_is("boolean") =>
-            a.getType == WTypes.BOOLEAN || ap.calculatedTypedValue.contentType == WTypes.BOOLEAN
+            case "is" if b_is("boolean") =>
+              a.getType == WTypes.BOOLEAN || ap.calculatedTypedValue.contentType == WTypes.BOOLEAN
 
-          case "is" if b_is("json") || b_is("object") =>
-            ap.calculatedTypedValue.contentType == WTypes.JSON
+            case "is" if b_is("json") || b_is("object") =>
+              ap.calculatedTypedValue.contentType == WTypes.JSON
 
-          case "is" if b_is("array") => {
-            val av = ap.calculatedTypedValue
-            av.contentType == WTypes.ARRAY
-          }
-
-          case "is" | "==" if bp.ttype == WTypes.ARRAY || ap.ttype == WTypes.ARRAY => {
-            val av = ap.calculatedTypedValue
-            val bv = bp.calculatedTypedValue
-            val al = av.asArray
-            val bl = bv.asArray
-
-            if(al.size != bl.size) {
-              false
-            } else {
-              al.zip(bl).foldLeft(true)((a,b) => a && (b._1 == b._2))
+            case "is" if b_is("array") => {
+              val av = ap.calculatedTypedValue
+              av.contentType == WTypes.ARRAY
             }
-          }
 
-          case "is" => { // is nuber or is date or is string etc
-            /* x is TYPE */
-            if (b.isInstanceOf[AExprIdent])
-              (
-                /* x is TYPE */
-                a.getType.toLowerCase == b
-                  .asInstanceOf[AExprIdent]
-                  .expr
-                  .toLowerCase ||
+            case "is" | "==" if bp.ttype == WTypes.ARRAY || ap.ttype == WTypes.ARRAY => {
+              val av = ap.calculatedTypedValue
+              val bv = bp.calculatedTypedValue
+              val al = av.asArray
+              val bl = bv.asArray
 
-                /* x is string */
-                //                "string" == b.asInstanceOf[AExprIdent].expr.toLowerCase &&
-                //                  a.getType.length == 0 ||
+              if (al.size != bl.size) {
+                false
+              } else {
+                al.zip(bl).foldLeft(true)((a, b) => a && (b._1 == b._2))
+              }
+            }
 
-                /** just evaluate b */
-                (as equals bp.calculatedValue)
-              )
-            else
+            case "is" => { // is nuber or is date or is string etc
+              /* x is TYPE */
+              if (b.isInstanceOf[AExprIdent])
+                (
+                    a.getType.toLowerCase == b.asInstanceOf[AExprIdent].expr.toLowerCase ||
+                    ap.calculatedTypedValue.contentType.toLowerCase == b.asInstanceOf[AExprIdent].expr.toLowerCase ||
+                    (as equals bp.calculatedValue)
+                )
+              else
               /* if type expr not known, then behave like equals */
-              (as == b(in).toString)
-          }
+                (as == b(in).toString)
+            }
 
 
-          // also should be
-          // todo why also should be ???
-          case "not" => a(in).toString.length > 0 && a(in) != b(in)
+            // also should be
+            // todo why also should be ???
+            case "not" => a(in).toString.length > 0 && a(in) != b(in)
 
-          case "=="          => a(in) == b(in)
+            case "==" => a(in) == b(in)
 
-          case _ if op.trim == "" => {
-            // no op - look for boolean parms?
-            ap.ttype == WTypes.BOOLEAN && "true" == a(in).toString
-          }
+            case _ if op.trim == "" => {
+              // no op - look for boolean parms?
+              ap.ttype == WTypes.BOOLEAN && "true" == a(in).toString
+            }
 
-          case _ => {
-            clog << "[ERR Operator " + op + " UNKNOWN!!!]";
-            false
+            case _ => {
+              clog << s"[ERR (a) Operator $op UNKNOWN!!!] as in $a $op $b";
+              false
+            }
           }
         }
       }
+    } catch {
+      case t @ _ => throw new DieselExprException("Can't typecast to: " + t.toString).initCause(t)
     }
   }
 
@@ -214,6 +209,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
     op match {
       case "?="  => true
       case "=="  => ai == bi
+      case "~="  => ai == bi
       case "!="  => ai != bi
       case "<="  => ai <= bi
       case ">="  => ai >= bi
@@ -222,7 +218,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
       case "is"  => ai == bi
       case "not" => ai != bi
       case _ => {
-        clog << "[ERR Operator " + op + " UNKNOWN!!!]";
+        clog << s"[ERR Operator $op UNKNOWN!!!] as in $ai $op $bi" ;
         false
       }
     }
