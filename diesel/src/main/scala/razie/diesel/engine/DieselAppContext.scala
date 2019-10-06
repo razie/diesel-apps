@@ -13,8 +13,7 @@ import razie.audit.Audit
 import razie.diesel.dom.RDomain
 import razie.diesel.exec.{EEFormatter, EEFunc, EETest, Executors}
 import razie.tconf.DSpec
-
-import scala.collection.mutable
+import scala.collection.concurrent.TrieMap
 
 /** a diesel application context - setup actor infrastructure etc
   *
@@ -34,12 +33,13 @@ class DieselAppContext(node: String, app: String) {
 
 /** an application static - engine factory, manager and cache */
 object DieselAppContext extends Logging {
-  private var appCtx: Option[DieselAppContext] = None
   private var _simpleMode = false
 
-  /** active engines */
-  val activeEngines = new mutable.HashMap[String, DomEngine]()
-  val activeActors = new mutable.HashMap[String, ActorRef]()
+  @volatile private var appCtx: Option[DieselAppContext] = None
+
+  /** active engines -ussed for routing so weak concurrent control ok */
+  val activeEngines = new TrieMap[String, DomEngine]()
+  val activeActors = new TrieMap[String, ActorRef]()
 
   /** router - routes messages to individual engines */
   var router: Option[ActorRef] = None

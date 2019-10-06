@@ -17,7 +17,7 @@ import razie.diesel.{Diesel, ext}
 import razie.tconf.DUsers
 import razie.tconf.hosting.Reactors
 import razie.wiki.Base64
-import scala.collection.mutable
+import scala.collection.concurrent.TrieMap
 import scala.util.Try
 
 object EECtx {
@@ -30,7 +30,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
   import EECtx.CTX
 
   /** map of active contexts per transaction */
-  val contexts = new mutable.HashMap[String, ECtx]()
+  val contexts = new TrieMap[String, ECtx]()
 
   override def isMock: Boolean = true
 
@@ -39,6 +39,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
   }
 
   override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = {
+    // todo I don't think i need this - the context should be a static msg context with all those anyways
     def parm(s: String): Option[P] = in.attrs.find(_.name == s).orElse(ctx.getp(s))
 
     in.met match {
