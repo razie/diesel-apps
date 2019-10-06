@@ -81,8 +81,8 @@ trait ExprParser extends RegexParsers {
     case b => new CExprNull
   }
 
-  def pterm1: Parser[Expr] = numexpr | bcexpr | escexpr | cexpr | jnull | xpident | jsexpr1 | jsexpr2 |
-      scexpr1 | scexpr2 | afunc | aidentaccess | aident | jsexpr3 |
+  def pterm1: Parser[Expr] = numexpr | bcexpr | escexpr | cexpr | jnull | xpident | jsexpr2 | jsexpr1 |
+      scexpr2 | scexpr1 | afunc | aidentaccess | aident | jsexpr3 |
       exregex | eblock | jarray | jobj
 
   def eblock: Parser[Expr] = "(" ~ ows ~> expr <~ ows ~ ")" ^^ { case ex => BlockExpr(ex) }
