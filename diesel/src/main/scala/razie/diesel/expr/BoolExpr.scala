@@ -162,9 +162,9 @@ case class BCMP2(a: Expr, op: String, b: Expr)
               /* x is TYPE */
               if (b.isInstanceOf[AExprIdent])
                 (
-                    a.getType.toLowerCase == b.asInstanceOf[AExprIdent].expr.toLowerCase ||
-                    ap.calculatedTypedValue.contentType.toLowerCase == b.asInstanceOf[AExprIdent].expr.toLowerCase ||
-                    (as equals bp.calculatedValue)
+                    WTypes.isSubtypeOf(a.getType, b.asInstanceOf[AExprIdent].expr) ||
+                    WTypes.isSubtypeOf(ap.calculatedTypedValue.contentType, b.asInstanceOf[AExprIdent].expr) ||
+                    WTypes.isSubtypeOf(as, bp.calculatedValue)
                 )
               else
               /* if type expr not known, then behave like equals */

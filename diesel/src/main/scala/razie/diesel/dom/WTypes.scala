@@ -23,19 +23,23 @@ object WTypes {
 
   final val RANGE="Range"
 
-  final val HTML="HTML" // why not... html templates?
+  final val HTML="HTML"     // why not... html templates?
 
   final val XML="XML"
-  final val JSON="JSON" // see asJson
+  final val JSON="JSON"     // see asJson
   final val OBJECT="Object" // same as json
 
-  final val ARRAY="Array" //pv.asArray
+  final val ARRAY="Array"   // pv.asArray
 
   final val BYTES="Bytes"
 
   final val EXCEPTION="Exception"
+  final val ERROR="Error"
 
   final val UNKNOWN=""
+
+  final val MSG = "Msg"   // a message (to call)
+  final val FUNC = "Func" // a function (to call)
 
   final val UNDEFINED="Undefined" // same as null - it means it's missing, not that it has an empty value
 
@@ -46,9 +50,6 @@ object WTypes {
     final val textPlain = "text/plain"
     final val textHtml = "text/html"
   }
-
-  final val MSG = "Msg" // a message (to call)
-  final val FUNC = "Func" // a function (to call)
 
   // see also P.fromTypedValue
   def typeOf (x:Any) = {
@@ -64,7 +65,6 @@ object WTypes {
 //      case l: EMsg => MSG
       case h @ _ => UNKNOWN
     }
-
     t
   }
 
@@ -77,8 +77,13 @@ object WTypes {
       case h @ _ if h.trim.length > 0 => h.trim // whatever came in - maybe it's valid :)
       case _ => Mime.textPlain
     }
-
     t
+  }
+
+  def isSubtypeOf (a:String, b:String) = {
+    a.toLowerCase == b.toLowerCase || {
+      a.toLowerCase == EXCEPTION && b.toLowerCase == ERROR
+    }
   }
 }
 
