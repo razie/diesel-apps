@@ -37,10 +37,18 @@ function popupError (content) {
   $("#oneModal").modal('show');
 }
 
-function popupContent (content) {
+/** see adminDiff on how to make the diaog large */
+function popupLargeDialog (content) {
     loadInDivContent("#oneModal > div > div > div.modal-body", content);
-    $("#oneModal").modal('show');
+  $(".modal-dialog").css({"position": "relative", "display": "table", "overflow-y": "auto", "overflow-x": "auto", "width": "auto", "min-width":"300px", "max-height": "600px"});
+  $("#oneModal").modal('show');
   }
+
+function popupContent (content) {
+  loadInDivContent("#oneModal > div > div > div.modal-body", content);
+  $("#oneModal").modal('show');
+}
+
 
 function  loadInDivContent(div, content, complete) {
     $(div).html(content);
