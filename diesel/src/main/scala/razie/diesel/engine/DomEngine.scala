@@ -423,9 +423,9 @@ class DomEngine(
 
   /** add built-in triggers */
   private def prepRoot(l:ListBuffer[DomAst]) : ListBuffer[DomAst] = {
-    val vals = DomAst(EMsg(DieselMsg.ENGINE.ENTITY, DieselMsg.ENGINE.VALS), AstKinds.TRACE)
-    val before = DomAst(EMsg(DieselMsg.ENGINE.ENTITY, DieselMsg.ENGINE.BEFORE), AstKinds.TRACE)
-    val after = DomAst(EMsg(DieselMsg.ENGINE.ENTITY, DieselMsg.ENGINE.AFTER), AstKinds.TRACE)
+    val vals = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_VALS), AstKinds.TRACE)
+    val before = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_BEFORE), AstKinds.TRACE)
+    val after = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_AFTER), AstKinds.TRACE)
 
     // create dependencies and add them to the list
     after.prereq = l.map(_.id).toList
@@ -820,7 +820,8 @@ class DomEngine(
 
   /** if it's an internal engine message, execute it */
   private def expandEngineEMsg(a: DomAst, in: EMsg) : Boolean = {
-    if(in.entity == "diesel" && in.met == "return") {
+    val ea = in.ea
+    if(ea == "diesel.return") {
       // expand all spec vals
       in.attrs.map(_.calculatedP).foreach {p=>
         evAppChildren(a, DomAst(EVal(p)))
@@ -838,7 +839,7 @@ class DomEngine(
         }
       }
       true
-    } else if(in.entity == "diesel" && in.met == DieselMsg.ENGINE.VALS) {
+    } else if(ea == DieselMsg.ENGINE.DIESEL_VALS) {
       // expand all spec vals
       dom.moreElements.collect {
         case v:EVal => {
@@ -848,13 +849,13 @@ class DomEngine(
       }
 
       true
-    } else if(in.entity == DieselMsg.SCOPE.ENTITY && in.met == "push") {
+    } else if(ea == DieselMsg.SCOPE.DIESEL_PUSH) {
       this.ctx = new ScopeECtx(Nil, Some(this.ctx), Some(a))
       true
-    } else if(in.entity == DieselMsg.SCOPE.ENTITY && in.met == "pop" && this.ctx.isInstanceOf[ScopeECtx]) {
+    } else if(ea == DieselMsg.SCOPE.DIESEL_POP && this.ctx.isInstanceOf[ScopeECtx]) {
       this.ctx = this.ctx.base.get
       true
-    } else if(in.entity == "diesel.engine" && in.met == "debug") {
+    } else if(ea == "diesel.engine.debug") {
       val s = this.settings.toJson
       val c = this.ctx.toString
       val e = this.toString
@@ -998,6 +999,7 @@ class DomEngine(
 //            case l@List => e
             case e@_ => e
           }.map{x =>
+              // and now wrap in AST
             (
               if((x.isInstanceOf[DieselTrace]))
                 x.asInstanceOf[DieselTrace].toAst

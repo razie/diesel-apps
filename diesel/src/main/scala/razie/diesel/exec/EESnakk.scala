@@ -8,6 +8,7 @@ package mod.diesel.model.exec
 import com.razie.pub.comms.{CommRtException, Comms}
 import java.net.{URI, URL}
 import razie.Snakk._
+import razie.diesel.Diesel.PAYLOAD
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.RDExt.{DieselJsonFactory, spec}
@@ -207,21 +208,21 @@ class EESnakk extends EExecutor("snakk") with Logging {
 
       // if no typed result, add a generic text
       if (eres.eres.collect {
-        case EVal(p) if p.name == "payload" => p
+        case EVal(p) if p.name == PAYLOAD => p
       }.isEmpty) {
-        eres += new EVal("payload", reply.body)
+        eres += new EVal(PAYLOAD, reply.body)
       }
 
       // make sure payload is last
       eres.eres.filter {
-        case v@EVal(p) if p.name == "payload" => false
+        case v@EVal(p) if p.name == PAYLOAD => false
         case x@_ => true
       } :::
         new EInfo("snakk.response", reply.body) ::
         new EVal(reply.httpCodep).withKind(AstKinds.DEBUG) ::
         new EVal(reply.headersp).withKind(AstKinds.DEBUG) ::
       eres.eres.collect {
-        case v@EVal(p) if p.name == "payload" => v
+        case v@EVal(p) if p.name == PAYLOAD => v
       }
     }
 
@@ -289,7 +290,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
             new EVal(content.httpCodep).withKind(AstKinds.DEBUG) ::
             new EVal(content.headersp).withKind(AstKinds.DEBUG) ::
             // todo here's where i would add the response headers - make the snakk.response an object?
-            new EVal("payload", content.body) ::
+            new EVal(PAYLOAD, content.body) ::
             Nil
       } getOrElse
           // need to create a val - otherwise DomApi.rest returns the last Val
@@ -386,7 +387,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
       Nil
 }
 
-/** snakk REST APIs */
+/** snakk REST and formatting/parsing utilities */
 object EESnakk {
 
   /** parse a template into a SNakkCall
@@ -581,30 +582,32 @@ object EESnakk {
     map
   }
 
-  /** prepare the template content - expand $parm expressions */
-  def prepStr2(content: String, attrs: Attrs)(implicit ctx:ECtx) = {
+  val BRACKET_EXPR_PAT = """\$\{([^\}]*)\}""".r
+
+  /** prepare the template content - expand ${parm} expressions - WITH SUPPORT FOR SIMPLE EXPRESSIONS */
+  def prepStr2(content: String, attrs: Attrs, allowSimpleExpansion:Boolean = true)(implicit ctx:ECtx) = {
     // what style is used?
     if(content contains "${") {
-      val PAT = """\$\{([^\}]*)\}""".r
-      val s1 = PAT.replaceAllIn(content, { m =>
+      val s1 = BRACKET_EXPR_PAT.replaceAllIn(content, { m =>
         (new SimpleExprParser).parseExpr(m.group(1)).map {e=>
           P ("x", "", "", "", "", Some(e)).calculatedValue
         } getOrElse
           s"{ERROR: ${m.group(1)}"
       })
       s1
-    } else
+    } else if(allowSimpleExpansion)
       prepStr(content, attrs, Some(ctx))
+    else
+      content // no expansion
   }
 
   /** prepare the template content - expand $parm expressions */
   def expandExpr(url: String, attrs: Option[Attrs], ctx:Option[ECtx]):String = {
-    val PATTERN = """\$\{([^\}]*)\}""".r
     //    val eeEscaped = es.replaceAllLiterally("(", """\(""").replaceAllLiterally(")", """\)""")
 
     var u = ""
     try {
-      u = PATTERN.replaceSomeIn(url, { m =>
+      u = BRACKET_EXPR_PAT.replaceSomeIn(url, { m =>
         val n = m.group(1)
         attrs.flatMap(_.find(_.name == n)).orElse(ctx.flatMap(_.getp(n))).map(x =>
           ctx.map { implicit ctx =>
@@ -655,8 +658,7 @@ object EESnakk {
     // todo either this or prepUrl not both
     var s1 = expandExpr(content, None, Some(ctx))
 
-    val PAT = """\$\{([^\}]*)\}""".r
-    s1 = PAT.replaceSomeIn(s1, { m =>
+    s1 = BRACKET_EXPR_PAT.replaceSomeIn(s1, { m =>
       val n = m.group(1)
       if(n.length > 1)
         ctx.get(n) orElse Some("") // orElse causes $msg to expand to nothing if no msg
@@ -693,7 +695,7 @@ object EESnakk {
 
       results.toList.flatMap {res=>
         output.toList.map(name=>P.fromTypedValue(name, res, WTypes.JSON)) :::
-          EVal(P.fromTypedValue("payload", res, WTypes.JSON)) :: Nil
+          EVal(P.fromTypedValue(PAYLOAD, res, WTypes.JSON)) :: Nil
       } ::: parsed.getErrors.map(EError(_))
     }
   }
@@ -715,7 +717,7 @@ object EESnakk {
 
     results.getResult.toList.flatMap {res=>
       output.toList.map(name=>P(name, res)) :::
-        EVal(P("payload", res)) :: Nil
+        EVal(P(PAYLOAD, res)) :: Nil
     } ::: results.getErrors.map(EError(_))
   }
 

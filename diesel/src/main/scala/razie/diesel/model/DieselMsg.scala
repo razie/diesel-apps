@@ -171,13 +171,17 @@ object DieselMsg {
 
   object SCOPE {
     final val ENTITY = "diesel.scope"
-    final val PUSH = "push"
-    final val POP = "pop"
+    final val DIESEL_PUSH ="diesel.scope.push"
+    final val DIESEL_POP = "diesel.scope.pop"
   }
 
   object ENGINE {
     final val ENTITY = "diesel"
     final val VALS = "vals"
+    final val DIESEL_VALS = "diesel.vals"
+    final val DIESEL_BEFORE = "diesel.before"
+    final val DIESEL_AFTER = "diesel.after"
+    final val DIESEL_DEBUG = "diesel.debug"
     final val BEFORE = "before"
     final val AFTER = "after"
     final val DEBUG = "debug"

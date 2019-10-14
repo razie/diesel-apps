@@ -310,4 +310,10 @@ object EMsg {
   val WARNING = "warn"
 
   val REGEX = """([\w.]+)[./](\w+)""".r
+
+  def apply(ea:String) : EMsg = {
+    val REGEX(ee, aa) = ea
+    EMsg(ee, aa)
+  }
+
 }
