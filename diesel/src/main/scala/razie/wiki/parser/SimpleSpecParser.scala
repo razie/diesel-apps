@@ -67,6 +67,7 @@ trait SimpleSpecParser extends ParserBase with Tokens {
   protected def dotProps: PS = moreDotProps.foldLeft(dotPropNothing)((x,y) => x | y) | dotProp
 
   def wikiProp: PS = "{{" ~> """[^}: ]+""".r ~ """[: ]""".r ~ """[^}]*""".r <~ "}}" ^^ {
+//  def wikiProp: PS = "\\{\\{(?=[^\\s\\n])".r ~> """[^}: ]+""".r ~ """[: ]""".r ~ """[^}]*""".r <~ "}}XX" ^^ {
     case name ~ _ ~ value => {
         if (name startsWith ".")
           StrAstNode("", Map(name.substring(1) -> value)) // hidden

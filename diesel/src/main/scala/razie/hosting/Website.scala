@@ -58,6 +58,7 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
   def adsOnSide = this bprop "adsOnSide" OR true
   def adsForUsers = this bprop "adsForUsers" OR true
   def noadsForPerms = (this prop "noAdsForPerms").map(_.split(",")) OR Array.empty[String]
+  def needsConsent = this bprop "needsConsent" OR true
 
   def openMembership         = this bprop "users.openMembership" OR true
   def membersCanCreateTopics = this bprop "users.membersCanCreateTopics" OR true
