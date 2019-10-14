@@ -129,6 +129,8 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       case "foreach" => {
+        var info : List[Any] = Nil
+
         // l can be a constant with another parm name OR the actual array
         val list = {
           val l = ctx.getRequiredp("list").calculatedP
@@ -137,6 +139,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
           } else if(l.isOfType(WTypes.STRING)) {
             ctx.getRequiredp(l.currentStringValue)
           } else {
+            info = EWarning(s"Can't source input list - what type is it? ${l}") :: info
             P("", "", WTypes.UNDEFINED) //throw new IllegalArgumentException(s"Can't source input list: $ctxList")
           }
         }
@@ -153,10 +156,10 @@ class EECtx extends EExecutor(EECtx.CTX) {
               // for each item in list, create message
               val itemP = P.fromTypedValue(itemName, item)
               EMsg(e, m, itemP :: nat)
-            }
+            } ::: info
           }
           case x@_ => {
-            List(EError("list was not a list", x.getClass.getName))
+            List(EError("list was not a list", x.getClass.getName) :: info)
           }
         }
       }
