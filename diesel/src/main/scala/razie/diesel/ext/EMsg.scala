@@ -204,7 +204,7 @@ case class EMsg(
     if (x.endsWith("&") || x.endsWith("?")) ""
     else if (x contains "?") x = x + "&"
     else x = x + "?"
-    x = x + "resultMode="+resultMode
+    if("value" != resultMode) x = x + "resultMode="+resultMode
 
     if(section != "") {
       x = x + "&dfiddle=" + section
@@ -218,7 +218,7 @@ case class EMsg(
     if (x.endsWith("&") || x.endsWith("?")) ""
     else if (x contains "?") x = x + "&"
     else x = x + "?"
-    x = x + "resultMode="+resultMode
+    if("value" != resultMode) x = x + "resultMode="+resultMode
 
     if(section != "") {
       x = x + "&dfiddle=" + section
