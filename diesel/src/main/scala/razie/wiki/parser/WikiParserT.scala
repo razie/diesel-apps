@@ -280,9 +280,15 @@ trait WikiParserT extends WikiParserMini with CsvParser {
     )
   }
 
+  /** args: name,value */
   private def expandWidget (args:List[(String,String)])(content:String) = {
+    // will sort first so not greedy so AMT doesn't replace inside RECAMT first
       StrAstNode(
-          args.foldLeft(content)((c, a) => c.replaceAll(a._1, a._2))
+          args
+              .sortWith((a,b) => a._1.length > a._2.length)
+              .foldLeft(content)(
+                (c, a) => c.replaceAll(a._1, a._2)
+              )
       )
   }
 
