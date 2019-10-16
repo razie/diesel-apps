@@ -21,41 +21,31 @@ object DieselScripster extends Logging {
 
   val DEBUG = false
 
- //todo deprecate - use EEFunc.newestFiddle(
-  def isfiddleMap(
-                     script: String,
-                     lang: String,
-                     q: Map[String, String],
-                     typed: Option[Map[String, Any]] = None,
-                     exprs:Map[String,String] = Map.empty,
-                     ctx:ECtx) =
-    newsfiddleMap(script, lang, q, typed, false, exprs, ctx)
-
-  /** run a fiddle with a map of arguments "queryParms"
+  /** run a script with a map of arguments "queryParms"
     *
-    * @param script
-    * @param lang
-    * @param q
-    * @param typed
-    * @param doAudit
+    * @param script the script content in language
+    * @param lang the language (js/ruby/scala)
+    * @param q the input parms
+    * @param typed typed input parms
+    * @param doAudit shoudl we audit this?
+    * @param exprs expressions to include in the script content (other functions etc)
     *
     * @return (succ/fail, x.toString, x)
     */
   // todo protect calls to this
   def newsfiddleMap(
-                       script: String,
-                       lang: String,
-                       q: Map[String, String],
-                       typed: Option[Map[String, Any]] = None,
-                       doAudit: Boolean = true,
-                       exprs:Map[String,String] = Map.empty,
-                       ctx:ECtx) : (Boolean, String, Any) = {
+    script: String,
+    lang: String,
+    q: Map[String, String],
+    typed: Option[Map[String, Any]] = None,
+    doAudit: Boolean = true,
+    exprs:Map[String,String] = Map.empty,
+    ctx:ECtx) : (Boolean, String, Any) = {
+
     val c = new CSTimer("script", "?")
     c.start("DieselScripster.newsfiddleMap")
 
     if (lang == "js") {
-
-      val qj = qtojson(q)
 
       var expressions = exprs.map {
         t=> s"${t._1} = ${t._2} ;\n"
@@ -150,7 +140,6 @@ object DieselScripster extends Logging {
 
     } else if (lang == "ruby") {
 
-      val qj = qtojson(q)
       val jscript = "" //s"""var queryParms = $qj;\n$script"""
       try {
         val factory = new ScriptEngineManager()
@@ -207,12 +196,6 @@ object DieselScripster extends Logging {
       v
     } //"'"+v+"'" }
   }
-
-  /** old qtoj - manual, no escaping etc - bad idea */
-  def qtojson1(q: Map[String, String]) = "{" + q.map(t => s"""'${t._1}' : ${typeSafe(t._2)} """).mkString(",") + "}"
-
-  /** new qtoj - use json object via js */
-  def qtojson(q: Map[String, String]) = js.tojsons(q.map(t=>(t._1, jstypeSafe(t._2))))
 
   def qtourl(q: Map[String, String]) = q.map(t => s"""${t._1}=${t._2}""").mkString("&")
 
