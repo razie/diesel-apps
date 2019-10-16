@@ -19,6 +19,8 @@ import razie.wiki.model._
 import razie.wiki.util.DslProps
 import razie.wiki.{Services, WikiConfig}
 import scala.collection.mutable.ListBuffer
+import scala.concurrent.{Future, Promise}
+import scala.util.Try
 
 /**
   * reactor management (multi-tenant) - we can host multiple wikis/websites, each is a "reactor"
@@ -92,6 +94,7 @@ object WikiReactors extends Logging with Reactors {
 
   // ====================================== loading
 
+  // stays on even after they're loaded
   @volatile var loading = false
 
   private def loadReactors(): Unit = synchronized {
@@ -121,7 +124,13 @@ object WikiReactors extends Logging with Reactors {
 
     // filter toload and keep only what's actually there - on localhost, not all are there
     toload = toload.filter(allLowercase.contains)
-    clog << "Preloading reactors: " + toload.mkString
+
+    clog <<
+        s"""
+          |=======================================================
+          |          Preloading reactors: ${toload.mkString}
+          |=======================================================
+          |""".stripMargin
 
     // load the basic reactors ahead of everyone that might depend on them
     if(toload contains RK) loadReactor(RK)
@@ -153,9 +162,23 @@ object WikiReactors extends Logging with Reactors {
 
       }
       // all loaded - start other problematic services
+      clog <<
+          """
+            |=======================================================
+            |
+            |                Reactors loaded
+            |
+            |=======================================================
+            |""".stripMargin
       DieselAppContext.start
+      reactorsLoadedP.success(true)
     }
   }
+
+  private val reactorsLoadedP : Promise[Boolean] = Promise[Boolean]()
+
+  /** wait here if you need reactors */
+  val reactorsLoadedF : Future[Boolean] = reactorsLoadedP.future
 
   /** lazy load a reactor
     *
@@ -163,7 +186,10 @@ object WikiReactors extends Logging with Reactors {
     * @param useThis when reloading a new version
     */
   private def loadReactor(r:String, useThis:Option[WikiEntry] = None, reload:Boolean=false) : Unit = synchronized {
-    clog << "loadReactor " + r
+    clog <<
+        s"""
+           |===========  loadReactor: $r
+           |""".stripMargin
 
     if (!reload && lowerCase.contains(r.toLowerCase) && useThis.isEmpty) return;
 
