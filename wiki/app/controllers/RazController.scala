@@ -172,15 +172,18 @@ If you got this message in error, please describe the issue in a <a href="/doe/s
     else
       log("UNAUTHORIZED BY %s - Info: %s PATH: %s HEADERS: %s".format((xauth.map(_.userName).getOrElse("")), more + " " + errCollector.mkString, request.path, request.headers))
 
+    val details = s"""
+
+${errCollector.mkString}
+<br><br>
+"""
+
     Unauthorized(
       views.html.util.reactorLayout12(
         views.html.util.utilMsg(
           more,
-          s"""
-
-${errCollector.mkString}
-<br><br>
-"""+md("Admin:Unauthorized"), None, xauth)(rhRequest), Seq.empty)(rhRequest))
+          details+md("Admin:Unauthorized"), None, xauth)(rhRequest), Seq.empty)(rhRequest))
+        .withHeaders("details" -> details.replaceAllLiterally("\n", ";"))
   }
 
   /** some error */
