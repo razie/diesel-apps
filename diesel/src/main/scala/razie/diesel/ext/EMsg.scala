@@ -163,8 +163,8 @@ case class EMsg(
     else "primary"
 
   /** extract a match from this message signature */
-  def asMatch = EMatch(entity, met, attrs.filter(_.dflt != "").map {p=>
-    PM (AExprIdent(p.name), p.ttype, p.ref, p.multi, "==", p.dflt)
+  def asMatch = EMatch(entity, met, attrs.filter(p=> p.dflt != "" || p.expr.isDefined).map {p=>
+    PM (AExprIdent(p.name), p.ttype, p.ref, p.multi, "==", p.dflt, p.expr)
   })
 
   /** message name as a nice link to spec as well */

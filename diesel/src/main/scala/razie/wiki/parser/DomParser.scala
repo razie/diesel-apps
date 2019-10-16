@@ -502,6 +502,14 @@ trait DomParser extends ParserBase with ExprParser {
     Some(EPos("", k.pos.line, k.pos.column))
   }
 
+  private def lastMsg(we: Option[DSpec]) = {
+    we.flatMap { w =>
+      val rest = w.collector.getOrElse(RDomain.DOM_LIST, List[Any]()).asInstanceOf[List[Any]]
+      // important to be at the front...
+      rest.find(_.isInstanceOf[EMsg]).map(_.asInstanceOf[EMsg])
+    }
+  }
+
   /**
     * .receive object.func (a,b)
     *
@@ -581,8 +589,14 @@ trait DomParser extends ParserBase with ExprParser {
       lazys { (current, ctx) =>
         val pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
         val f = qcm.map(qcm =>
-          ExpectM(not.isDefined, pif, EMatch(qcm._1, qcm._2, attrs, cond)).withPos(pos))
-          .getOrElse(ExpectV(not.isDefined, attrs, cond).withPos(pos))
+          ExpectM(not.isDefined, pif, EMatch(qcm._1, qcm._2, attrs, cond))
+              .withPos(pos)
+              .withGuard(lastMsg(ctx.we).map(_.asMatch))
+        ).getOrElse(
+          ExpectV(not.isDefined, attrs, cond)
+                .withPos(pos)
+                .withGuard(lastMsg(ctx.we).map(_.asMatch))
+          )
         collectDom(f, ctx.we)
         StrAstNode(f.toHtml + "<br>")
       }
@@ -613,6 +627,7 @@ trait DomParser extends ParserBase with ExprParser {
   private def collectDom(x: Any, we: Option[DSpec]) = {
     we.foreach { w =>
       val rest = w.collector.getOrElse(RDomain.DOM_LIST, List[Any]()).asInstanceOf[List[Any]]
+      // important to be at the front...
       w.collector.put(RDomain.DOM_LIST, x :: rest)
     }
   }
@@ -650,6 +665,13 @@ trait DomParser extends ParserBase with ExprParser {
   def optScript: PS = opt(" *\\{\\{ *".r ~> "(?s).*?(?=}})".r <~ "}}") ^^ {
     case Some(lines) => lines
     case None => ""
+  }
+
+  /** optional script body */
+  // using positive exlusive lookahead and .*? is not-greedy
+  def pblock: PS = " *\\{\\{ *".r ~> "(?s).*?(?=}})".r <~ "}}" ^^ {
+    case lines => lines
+      // todo return a lambda JS executable
   }
 
   /**

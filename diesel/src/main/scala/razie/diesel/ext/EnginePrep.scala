@@ -285,35 +285,59 @@ object EnginePrep extends Logging {
 
       root.children appendAll RDomain.domFilter(story) {
         case o: O if o.name != "context" => List(DomAst(o, AstKinds.RECEIVED))
+
         case v: EMsg if v.entity == "ctx" && v.met == "storySync" => {
           inSequence = true
           Nil
         }
+
         case v: EMsg if v.entity == "ctx" && v.met == "storyAsync" => {
           inSequence = false
           Nil
         }
+
         case v: EMsg => addMsg(v)
+
         case v: EVal => {
           // vals are also in sequence... because they use values in context
           lastAst = List(DomAst(v, AstKinds.RECEIVED).withPrereq(lastAst.map(_.id)))
           lastAst
         }
+
         case e: ExpectM if (!justMocks) => {
-          lastAst = List(DomAst(e.withGuard(lastMsg.map(_.asMatch)).withTarget(lastMsgAst), "test").withPrereq(lastAst.map(_.id)))
+          // todo withGuard is connected in pexpect - is it really needed again?/
+          lastAst = List(DomAst(
+            e
+                .withGuard(lastMsg.map(_.asMatch))
+                .withTarget(lastMsgAst), "test").withPrereq(lastAst.map(_.id)
+          ))
           lastAst
         }
+
         case e: ExpectV if (!justMocks) => {
-          lastAst = List(DomAst(e.withGuard(lastMsg.map(_.asMatch)).withTarget(lastMsgAst), "test").withPrereq(lastAst.map(_.id)))
+          // todo withGuard is connected in pexpect - is it really needed again?/
+          lastAst = List(DomAst(
+            e
+                .withGuard(lastMsg.map(_.asMatch))
+                .withTarget(lastMsgAst), "test").withPrereq(lastAst.map(_.id)
+          ))
           lastAst
         }
+
         case e: ExpectAssert if (!justMocks) => {
-          lastAst = List(DomAst(e.withGuard(lastMsg.map(_.asMatch)).withTarget(lastMsgAst), "test").withPrereq(lastAst.map(_.id)))
+          // todo withGuard is connected in pexpect - is it really needed again?/
+          lastAst = List(DomAst(
+            e
+                .withGuard(lastMsg.map(_.asMatch))
+                .withTarget(lastMsgAst), "test").withPrereq(lastAst.map(_.id)
+          ))
           lastAst
         }
+
         // these don't wait - they don't run, they are collected together
         // todo this is a bit inconsistent - if one declares vals and then a mock then a val
         case v: ERule => List(DomAst(v, AstKinds.RULE))
+
         case v: EMock => List(DomAst(v, AstKinds.RULE))
       }.flatten
 

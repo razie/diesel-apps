@@ -83,10 +83,6 @@ case class ExpectV(not: Boolean, pm: MatchAttrs, cond: Option[EIf] = None) exten
   override def toString =
     "expect:: " + (if(not) "NOT" else "") + " " + pm.mkString("(", ",", ")") + cond.map(_.toHtml).mkString
 
-  def withGuard(guard: EMatch) = {
-    this.when = Some(guard); this
-  }
-
   def withGuard(guard: Option[EMatch]) = {
     this.when = guard; this
   }

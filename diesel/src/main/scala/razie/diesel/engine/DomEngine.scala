@@ -1058,10 +1058,16 @@ class DomEngine(
 
     // last ditch attempt, in sketch mode: if no mocks or rules, run the expects
     if (!mocked && settings.sketchMode) {
-      // sketch messages
+      // sketch messages - from AST and then dom, as the stories are not always told
+      // when running as an API from REST (wrest) the story is collected in DOM not in AST
       (collectValues {
         case x: ExpectM if x.when.exists(_.test(n)) => x
-      }).map { e =>
+      }.headOption
+          orElse
+          dom.moreElements.collect {
+        case x: ExpectM if x.when.exists(_.test(n)) => x
+      }.headOption
+      ).map { e =>
         mocked = true
 
         val spec = dom.moreElements.collect {
@@ -1073,10 +1079,16 @@ class DomEngine(
         newNodes = newNodes ::: news
       }
 
-      // sketch values
+      // sketch messages - from AST and then dom, as the stories are not always told
+      // when running as an API from REST (wrest) the story is collected in DOM not in AST
       (collectValues {
         case x: ExpectV if x.when.exists(_.test(n)) => x
-      }).map { e =>
+      }.headOption
+          orElse
+          dom.moreElements.collect {
+        case x: ExpectV if x.when.exists(_.test(n)) => x
+      }.headOption
+      ).map { e =>
         val newctx = new StaticECtx(n.attrs, Some(ctx), Some(a))
         val news = e.sketch(None)(newctx).map(x => EVal(x)).map(x => DomAst(x, AstKinds.SKETCHED).withSpec(e))
         mocked = true
