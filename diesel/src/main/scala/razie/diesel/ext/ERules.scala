@@ -279,7 +279,10 @@ case class ERule(e: EMatch, arch:String, i: List[EMap]) extends CanHtml with EAp
     i.flatMap(_.apply(in, destSpec, pos, false, arch))
   }
 
-  override def toHtml = span(arch+"::", "default") + s" ${e.toHtml} <br>${i.map(_.toHtml).mkString("<br>")} <br>"
+  override def toHtml =
+    span(arch+"::", "default") +
+        e.asMsg.hrefBtnGlobal +
+        s" ${e.toHtml} <br>${i.map(_.toHtml).mkString("<br>")} <br>"
 
   override def toString = arch+":: " + e + " => " + i.mkString
 }
