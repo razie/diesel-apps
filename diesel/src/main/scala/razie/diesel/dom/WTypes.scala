@@ -12,6 +12,46 @@ import org.json.{JSONArray, JSONObject}
   * note these are physical or base types.
   */
 object WTypes {
+
+  /** constants for complex types */
+  object wt {
+    final val NUMBER=WType("Number")
+    final val STRING=WType("String")
+    final val DATE=WType("Date")
+    final val REGEX=WType("Regex")
+
+    final val INT=WType("Int")
+    final val FLOAT=WType("Float")
+    final val BOOLEAN=WType("Boolean")
+
+    final val RANGE=WType("Range")
+
+    final val HTML=WType("HTML")     // why not... html templates?
+
+    final val XML=WType("XML")
+    final val JSON=WType("JSON")     // see asJson
+    final val OBJECT=WType("Object") // java object - serialize via json
+
+    final val ARRAY=WType("Array")   // pv.asArray
+
+    final val BYTES=WType("Bytes")
+
+    final val EXCEPTION=WType("Exception")
+    final val ERROR=WType("Error")
+
+    final val UNKNOWN=WType("")
+
+    final val MSG = WType("Msg")   // a message (to call)
+    final val FUNC = WType("Func") // a function (to call)
+
+    final val UNDEFINED=WType("Undefined") // same as null - it means it"s missing, not that it has an empty value
+
+    final val EMPTY=WType("")
+  }
+
+  // constants for simple types -
+  // todo should deprecate
+
   final val NUMBER="Number"
   final val STRING="String"
   final val DATE="Date"
@@ -23,11 +63,11 @@ object WTypes {
 
   final val RANGE="Range"
 
-  final val HTML="HTML"     // why not... html templates?
+  final val HTML="HTML"     // why not... html templates? msg can create html results
 
   final val XML="XML"
   final val JSON="JSON"     // see asJson
-  final val OBJECT="Object" // same as json
+  final val OBJECT="Object" // java object - serialize via json. todo: need a serialization framework
 
   final val ARRAY="Array"   // pv.asArray
 
@@ -43,6 +83,9 @@ object WTypes {
 
   final val UNDEFINED="Undefined" // same as null - it means it's missing, not that it has an empty value
 
+  final val CONTENT_TYPE="Content-type" // same as null - it means it's missing, not that it has an empty value
+
+  /** just a few mime types */
   object Mime {
     final val appJson = "application/json"
     final val appText = "application/text"
@@ -52,6 +95,7 @@ object WTypes {
   }
 
   // see also P.fromTypedValue
+  /** find the simple type of value, by type */
   def typeOf (x:Any) = {
     val t = x match {
       case m: Map[_, _] => JSON
@@ -68,9 +112,9 @@ object WTypes {
     t
   }
 
-  /** get corresponding content-type */
-  def getContentType (ttype:String) = {
-    val t = ttype match {
+  /** get corresponding mime content-type */
+  def getContentType (ttype:WType):String = {
+    val t = ttype.name match {
       case JSON | ARRAY => Mime.appJson
       case XML => Mime.appXml
       case HTML => Mime.textHtml
@@ -80,11 +124,63 @@ object WTypes {
     t
   }
 
-  def isSubtypeOf (a:String, b:String) = {
+  // todo is more fancy with types... schemas inherit
+  /** check known static subtype hierarchies
+    *
+    * for dynamic hierarchies, based on DOM, use the RDomain
+    */
+  def isSubtypeOf (a:WType, b:WType):Boolean = {
+    a.name.toLowerCase == b.name.toLowerCase || {
+      a.name.toLowerCase == EXCEPTION && b.name.toLowerCase == ERROR
+    }
+  }
+
+  /** check known static subtype hierarchies
+    *
+    * for dynamic hierarchies, based on DOM, use the RDomain
+    */
+  def isSubtypeOf (a:String, b:String):Boolean = {
     a.toLowerCase == b.toLowerCase || {
       a.toLowerCase == EXCEPTION && b.toLowerCase == ERROR
     }
   }
+
+  /** check known static subtype hierarchies
+    *
+    * for dynamic hierarchies, based on DOM, use the RDomain
+    */
+  def isSubtypeOf (a:WType, b:String):Boolean = isSubtypeOf(a, WType(b))
+
+  // todo deprecate when typecast not needed
+//  def apply(wt:WType):WType = wt
 }
 
+/** an actual type, with a schema
+  *
+  * with this marker now we can add more types...
+  *
+  * @param name is the WType
+  * @param schema is either a DOMType or some indication of a schema in context
+  */
+case class WType (name:String, schema:String = WTypes.UNKNOWN, mime:String="") {
+
+  override def equals(obj: Any) = {
+    obj match {
+      case wt:WType => this.name == wt.name && this.schema == wt.schema
+      case s:String => this.name == s
+    }
+  }
+
+  def withSchema (s:String) = copy(schema=s)
+  def hasSchema (s:String) = schema != "" && schema != WTypes.UNKNOWN
+
+  override def toString = {
+    if(schema == WTypes.UNKNOWN) name
+    else if(name == WTypes.OBJECT && schema != WTypes.UNKNOWN) schema
+    else name + (if(schema == WTypes.UNKNOWN) "" else "("+schema+")")
+  }
+
+  def isEmpty = name.isEmpty
+  def nonEmpty = name.nonEmpty
+}
 

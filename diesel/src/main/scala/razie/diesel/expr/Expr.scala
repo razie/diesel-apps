@@ -52,7 +52,7 @@ trait WFunc { // extends PartialFunc ?
   }
 
   /** what is the resulting type - when known */
-  def getType: String = ""
+  def getType: WType = WTypes.wt.EMPTY
 }
 
 /** an expression */
@@ -66,7 +66,7 @@ abstract class Expr extends WFunc with HasDsl with CanHtml {
 
 case class ExprRange(val start: Expr, val end: Option[Expr]) extends Expr {
   /** what is the resulting type - when known */
-  override def getType: String = WTypes.RANGE
+  override def getType: WType = WTypes.wt.RANGE
   override def expr = toString
 
   override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).calculatedValue
@@ -89,7 +89,7 @@ case class ExprRange(val start: Expr, val end: Option[Expr]) extends Expr {
 
 /** a function */
 case class CExprNull() extends Expr {
-  override def getType: String = WTypes.UNDEFINED
+  override def getType: WType = WTypes.wt.UNDEFINED
   override def expr = "null"
 
   override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).calculatedValue
@@ -104,7 +104,7 @@ case class CExprNull() extends Expr {
 /**
   * constant expression - similar to PValue
   */
-case class CExpr[T](ee: T, ttype: String = "") extends Expr {
+case class CExpr[T](ee: T, ttype: WType = WTypes.wt.EMPTY) extends Expr {
   val expr = ee.toString
 
   override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).currentStringValue
@@ -155,7 +155,7 @@ case class CExpr[T](ee: T, ttype: String = "") extends Expr {
   }
 
   override def toDsl = if (ttype == "String") ("\"" + expr + "\"") else expr
-  override def getType: String = ttype
+  override def getType: WType = ttype
   override def toHtml = tokenValue(escapeHtml(toDsl))
 }
 
@@ -163,7 +163,7 @@ case class CExpr[T](ee: T, ttype: String = "") extends Expr {
 case class BlockExpr(ex: Expr) extends Expr {
   val expr = "( " + ex.toString + " )"
   override def apply(v: Any)(implicit ctx: ECtx) = ex.apply(v)
-  override def getType: String = ex.getType
+  override def getType: WType = ex.getType
 }
 
 /** a js expression
@@ -173,7 +173,7 @@ case class BlockExpr(ex: Expr) extends Expr {
 case class JSSExpr(s: String) extends Expr {
   val expr = "js{{ " + s + " }}"
 
-  override def getType: String = WTypes.UNKNOWN
+  override def getType: WType = WTypes.wt.UNKNOWN
 
   override def apply(v: Any)(implicit ctx: ECtx) =
     EEFunc.execute(s) //.dflt
@@ -190,7 +190,7 @@ case class JSSExpr(s: String) extends Expr {
 case class SCExpr(s: String) extends Expr {
   val expr = "sc{{ " + s + " }}"
 
-  override def getType: String = WTypes.UNKNOWN
+  override def getType: WType = WTypes.wt.UNKNOWN
 
   override def apply(v: Any)(implicit ctx: ECtx) = ???
 

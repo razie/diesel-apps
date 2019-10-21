@@ -57,7 +57,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
   override def apply(in: Any)(implicit ctx: ECtx): Boolean = {
     try {
       (a, b) match {
-        case (CExpr(aa, WTypes.NUMBER), CExpr(bb, WTypes.NUMBER)) => {
+        case (CExpr(aa, WTypes.wt.NUMBER), CExpr(bb, WTypes.wt.NUMBER)) => {
           val as = aa.toString
           val bs = bb.toString
 
@@ -230,7 +230,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
 case class BCMPSingle(a: Expr) extends BExpr(a.toDsl) {
 
   def toBoolean(in: P)(implicit ctx: ECtx) = {
-    a.getType match {
+    a.getType.name match {
 
       case WTypes.NUMBER => {
         throw new DieselExprException("Found :number expected :boolean")
@@ -251,7 +251,7 @@ case class BCMPSingle(a: Expr) extends BExpr(a.toDsl) {
       case s @ _ => {
         // it was some parameter that apply() evaluated
 
-        in.ttype match {
+        in.ttype.name match {
 
           case WTypes.NUMBER => {
             throw new DieselExprException(

@@ -69,8 +69,9 @@ trait DomParser extends ParserBase with ExprParser {
     */
   def pclass: PS =
     """[.$]class""".r ~> ws ~>
-      ident ~ opt(ows ~> "[" ~> ows ~> repsep(ident, ",") <~ "]") ~ optAttrs ~
-      opt(ws ~> "extends" ~> ws ~> repsep(ident, ",")) ~
+      qident ~ opt(ows ~> "[" ~> ows ~> repsep(qident, ",") <~ "]") ~
+       optAttrs ~
+      opt(ws ~> "extends" ~> ws ~> repsep(qident, ",")) ~
       opt(ws ~> "<" ~> ows ~> repsep(ident, ",") <~ ">") ~ " *".r ~ optClassBody ^^ {
       case name ~ tParm ~ attrs ~ ext ~ stereo ~ _ ~ funcs => {
         lazys { (current, ctx) =>
@@ -362,6 +363,8 @@ trait DomParser extends ParserBase with ExprParser {
       }
     }
 
+  // what is the second ident - the class? examples?
+  // $object ha.haha.ha sdfsdfsdf (asdfasdfasdf)
   def pobject: PS =
     keyw("""[.$]object """.r) ~> ident ~ " *".r ~ ident ~ optAttrs ^^ {
       case name ~ _ ~ cls ~ l => {
@@ -441,7 +444,8 @@ trait DomParser extends ParserBase with ExprParser {
     *
     * pmatch is more than just a simple conditional expression
     */
-  def pmatchattr: Parser[RDOM.PM] = ows ~> (aidentaccess | aident) ~
+  def pmatchattr: Parser[RDOM.PM] = ows ~>
+      (aidentaccess | aident) ~
       opt(ows ~> ":" ~> ows ~> opt("<>") ~ ident ~ optKinds) ~
       opt(" *\\* *".r) ~
       opt(ows ~> OPS1 ~ ows ~ expr) ^^ {
@@ -457,9 +461,9 @@ trait DomParser extends ParserBase with ExprParser {
         case None => ("", None)
       }
       t match {
-        case Some(Some(ref) ~ tt ~ k) => PM(ident, tt + k.s, ref, multi.mkString, exp._1, dflt, exp._2)
-        case Some(None ~ tt ~ k) => PM(ident, tt + k.s, "", multi.mkString, exp._1, dflt, exp._2)
-        case None => PM(ident, ttype, "", multi.mkString, exp._1, dflt, exp._2)
+        case Some(Some(ref) ~ tt ~ k) => PM(ident, WType(tt + k.s), ref, multi.mkString, exp._1, dflt, exp._2)
+        case Some(None ~ tt ~ k) => PM(ident, WType(tt + k.s), "", multi.mkString, exp._1, dflt, exp._2)
+        case None => PM(ident, WType(ttype), "", multi.mkString, exp._1, dflt, exp._2)
       }
     }
   }

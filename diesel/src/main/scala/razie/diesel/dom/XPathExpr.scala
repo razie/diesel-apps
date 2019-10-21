@@ -88,7 +88,7 @@ object DASXpSolver extends XpSolver[DASWrapper] {
   override def getNext(o: (T, U), tag: String, assoc: String, xe:Option[XpElement]): List[(T, U)] = {
     if(debug) println("-getNext ("+o.toString+") ("+tag+")")
     // 1. apply continuation and filter just in case... all children of type
-    o._2.apply(tag, assoc).filter(zz => XP.stareq(zz.p.ttype, tag)).teeIf(debug,"D").map(children(_, xe)).tee("E").toList
+    o._2.apply(tag, assoc).filter(zz => XP.stareq(zz.p.ttype.name, tag)).teeIf(debug,"D").map(children(_, xe)).tee("E").toList
   }
 
   private def children2(node: DASWrapper, tag: String): Seq[DASWrapper] = {
@@ -105,7 +105,7 @@ object DASXpSolver extends XpSolver[DASWrapper] {
     (xe.cond match {
       case null => curr.asInstanceOf[List[(T, U)]]
       case _    => curr.asInstanceOf[List[(T, U)]].filter(x => xe.cond.passes(x._1, this))
-    }).filter(gaga => XP.stareq(gaga._1.asInstanceOf[DASWrapper].p.ttype, xe.name))
+    }).filter(gaga => XP.stareq(gaga._1.asInstanceOf[DASWrapper].p.ttype.name, xe.name))
 }
 
 

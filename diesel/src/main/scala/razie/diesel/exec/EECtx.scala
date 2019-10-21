@@ -272,7 +272,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
       case "base64decode" => {
         val res = in.attrs.filter(_.name != "result").map { a =>
           val res = Base64.dec(a.calculatedValue)
-          new EVal(RDOM.P(a.name, "", WTypes.BYTES, "", "", None,
+          new EVal(RDOM.P(a.name, "", WTypes.wt.BYTES, "", "", None,
             Some(PValue[Array[Byte]](res, "application/octet-stream"))))
         }
 

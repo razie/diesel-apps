@@ -114,27 +114,27 @@ trait ExprParser extends RegexParsers {
   def jexpr: Parser[Expr] = jobj | jarray | jbool | jother ^^ { case ex => ex } //ex.toString }
 
   def jbool: Parser[Expr] = ("true" | "false") ^^ {
-    case b => new CExpr(b, WTypes.BOOLEAN)
+    case b => new CExpr(b, WTypes.wt.BOOLEAN)
   }
 
 //  def jother: Parser[String] = "[^{}\\[\\],]+".r ^^ { case ex => ex }
   def jother: Parser[Expr] = expr ^^ { case ex => ex }
 
   // a number
-  def numexpr: Parser[Expr] = (afloat | aint ) ^^ { case i => new CExpr(i, WTypes.NUMBER) }
+  def numexpr: Parser[Expr] = (afloat | aint ) ^^ { case i => new CExpr(i, WTypes.wt.NUMBER) }
 
   // string const with escaped chars
   def cexpr: Parser[Expr] = "\"" ~> """(\\.|[^\"])*""".r <~ "\"" ^^ {
-    e => new CExpr(e.replaceAll("\\\\(.)", "$1"), WTypes.STRING)
+    e => new CExpr(e.replaceAll("\\\\(.)", "$1"), WTypes.wt.STRING)
   }
 
   // escaped multiline string const with escaped chars
   def escexpr: Parser[Expr] = "\"\"\"" ~> """(?s)((?!\"\"\").)*""".r <~ "\"\"\"" ^^ {
-    e => new CExpr(e.replaceAll("\\\\(.)", "$1"), WTypes.STRING)
+    e => new CExpr(e.replaceAll("\\\\(.)", "$1"), WTypes.wt.STRING)
   }
 
   def bcexpr: Parser[Expr] = ("true" | "false") ^^ {
-    b => new CExpr(b, WTypes.BOOLEAN)
+    b => new CExpr(b, WTypes.wt.BOOLEAN)
   }
 
   // XP identifier (either json or xml)
@@ -148,7 +148,7 @@ trait ExprParser extends RegexParsers {
 
   // regular expression, JS style
   def exregex: Parser[Expr] =
-    """/[^/]*/""".r ^^ { case x => new CExpr(x, WTypes.REGEX) }
+    """/[^/]*/""".r ^^ { case x => new CExpr(x, WTypes.wt.REGEX) }
 
   //==================================== ACCESSORS
 
@@ -160,22 +160,23 @@ trait ExprParser extends RegexParsers {
 
   // full accessor to value: a.b[4].c.r["field1"]["subfield2"][4].g
   // note this kicks in at the first use of [] and continues... so that aident above catches all other
+
   def aidentaccess: Parser[AExprIdent] = qlident ~ (sqbraccess | sqbraccessRange | accessorNum) ~ accessors ^^ {
     case i ~ sa ~ a => new AExprIdent(i.head, i.tail.map(P("", _)) ::: sa :: a)
   }
 
   def accessors: Parser[List[RDOM.P]] = rep(sqbraccess | sqbraccessRange | accessorIdent | accessorNum)
 
-  private def accessorIdent: Parser[RDOM.P] = "." ~> ident ^^ {case id => P("", id, WTypes.STRING)}
+  private def accessorIdent: Parser[RDOM.P] = "." ~> ident ^^ {case id => P("", id, WTypes.wt.STRING)}
 
-  private def accessorNum: Parser[RDOM.P] = "." ~> "[0-9]+".r ^^ {case id => P("", id, WTypes.NUMBER)}
+  private def accessorNum: Parser[RDOM.P] = "." ~> "[0-9]+".r ^^ {case id => P("", id, WTypes.wt.NUMBER)}
 
   private def sqbraccess: Parser[RDOM.P] = "\\[".r ~> ows ~> expr <~ ows <~ "]" ^^ {
     case e => P("", "").copy(expr=Some(e))
   }
   // for now the range is only numeric
   private def sqbraccessRange: Parser[RDOM.P] = "\\[".r ~> ows ~> numexpr ~ ows ~ ".." ~ ows ~ opt(numexpr) <~ ows <~ "]" ^^ {
-    case e1 ~ _ ~ _ ~ _ ~ e2 => P("", "", WTypes.RANGE).copy(
+    case e1 ~ _ ~ _ ~ _ ~ e2 => P("", "", WTypes.wt.RANGE).copy(
       expr = Some(ExprRange(e1, e2))
     )
   }
@@ -208,7 +209,7 @@ trait ExprParser extends RegexParsers {
   def pcallattrs: Parser[List[RDOM.P]] = " *\\(".r ~> ows ~> repsep(pcallattr, ows ~ "," ~ ows) <~ ows <~ ")"
   def pcallattr: Parser[P] = " *".r ~> qident ~ opt(" *= *".r ~> expr) ^^ {
     case ident ~ ex => {
-      P(ident, "", ex.map(_.getType).getOrElse(""), "", "", ex)
+      P(ident, "", ex.map(_.getType).getOrElse(WTypes.wt.EMPTY), "", "", ex)
     }
   }
 
@@ -234,7 +235,7 @@ trait ExprParser extends RegexParsers {
         case Some(ref ~ tt ~ k) => // ref or no archetype
           P(name, dflt, tt + k.s, ref.mkString, multi.mkString, ex)
         case None => // infer type from expr
-          P(name, dflt, ex.map(_.getType).getOrElse(""), "", multi.mkString, ex)
+          P(name, dflt, ex.map(_.getType).getOrElse(WTypes.wt.EMPTY), "", multi.mkString, ex)
       }
     }
   }

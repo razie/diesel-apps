@@ -22,10 +22,10 @@ case class JBlockExpr(ex: List[(String, Expr)]) extends Expr {
     val orig = ex
       .map(t=> (t._1, t._2.applyTyped(v)))
       .map(t=> (t._1, t._2 match {
-        case p@P(n,d,WTypes.NUMBER, _, _, _, Some(PValue(i:Int, _, _))) => i
-        case p@P(n,d,WTypes.NUMBER, _, _, _, Some(PValue(i:Double, _, _))) => i
+        case p@P(n,d,WTypes.wt.NUMBER, _, _, _, Some(PValue(i:Int, _))) => i
+        case p@P(n,d,WTypes.wt.NUMBER, _, _, _, Some(PValue(i:Double, _))) => i
 
-        case p@P(n,d,WTypes.BOOLEAN, _, _, _, Some(PValue(b:Boolean, _, _))) => b
+        case p@P(n,d,WTypes.wt.BOOLEAN, _, _, _, Some(PValue(b:Boolean, _))) => b
 
         case p:P => p.currentStringValue match {
           case i: String if i.trim.startsWith("[") && i.trim.endsWith("]") => i
@@ -42,7 +42,7 @@ case class JBlockExpr(ex: List[(String, Expr)]) extends Expr {
 //    new JSONObject(s"{$orig}").toString(2)
   }
 
-  override def getType: String = WTypes.JSON
+  override def getType: WType = WTypes.wt.JSON
 
   // replace ${e} with value
   def template(s: String)(implicit ctx: ECtx) = {
@@ -69,7 +69,7 @@ case class JArrExpr(ex: List[Expr]) extends Expr {
     P.fromTypedValue("", ja)
   }
 
-  override def getType: String = WTypes.ARRAY
+  override def getType: WType = WTypes.wt.ARRAY
 
   // replace ${e} with value
   def template(s: String)(implicit ctx: ECtx) = {

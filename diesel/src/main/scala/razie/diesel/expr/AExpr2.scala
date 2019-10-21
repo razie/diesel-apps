@@ -28,7 +28,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
     }
 
     def isNum(x: Expr): Boolean = x match {
-      case CExpr(_, WTypes.NUMBER) => true
+      case CExpr(_, WTypes.wt.NUMBER) => true
       case aei:AExprIdent          => aei.tryApplyTyped("").exists(_.ttype == WTypes.NUMBER)
       case _                       => false
     }

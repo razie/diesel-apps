@@ -54,8 +54,8 @@ object EMap {
 
         val tt =
           v.map(_.ttype).getOrElse {
-            if (p.ttype.isEmpty && !p.expr.exists(_.getType != "") && (v.isInstanceOf[Int] || v.isInstanceOf[Float])) WTypes.NUMBER
-            else if (p.ttype.isEmpty) p.expr.map(_.getType).mkString
+            if (p.ttype.isEmpty && !p.expr.exists(_.getType.nonEmpty) && (v.isInstanceOf[Int] || v.isInstanceOf[Float])) WTypes.wt.NUMBER
+            else if (p.ttype.isEmpty) WType(p.expr.map(_.getType).mkString)
             else p.ttype
           }
 
