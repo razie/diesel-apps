@@ -28,7 +28,6 @@ import scala.collection.mutable.ListBuffer
 class EESnakk extends EExecutor("snakk") with Logging {
   import EESnakk._
 
-  private def trimmed(s:String, len:Int = 2000) = (if(s.length > len) s"(>$len):\n" else "\n") + s.take(len)
 
   /** can I execute this task? */
   override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
@@ -39,12 +38,14 @@ class EESnakk extends EExecutor("snakk") with Logging {
       (s contains "TELNET") ||
       (s contains "HTTP")
 
+    // snakk messages
     m.entity == "snakk" && m.met == "json"      ||
     m.entity == "snakk" && m.met == "xml"       ||
     m.entity == "snakk" && m.met == "text"      ||
     m.entity == "snakk" && m.met == "telnet"    ||
     m.entity == "snakk" && m.met == "ffd"       ||
     m.entity == "snakk" && m.met == "ffdFormat" ||
+    // and also if the stypes are known and there are templates for them
     known(m.stype) ||
       spec(m).exists(m => known(m.stype) ||
           // todo big performance issue - looking up templates for each message, called from expandEMsg
@@ -64,13 +65,10 @@ class EESnakk extends EExecutor("snakk") with Logging {
     else if(in.entity == "snakk" && in.met == "ffdFormat")
       return formatFfd(in, destSpec)
 
-    val httpOptions = in.attrs.find(_.name == "snakkHttpOptions")
     var filteredAttrs = in.attrs.filter(_.name != "snakkHttpOptions")
 
-    if(httpOptions.flatMap(_.calculatedTypedValue.asJson.get("readTimeout")).isDefined) {
-      val s = httpOptions.flatMap(_.calculatedTypedValue.asJson.get("readTimeout")).map(_.toString).mkString
-      filteredAttrs = P("snakkHttpOptions.readTimeout", s) :: filteredAttrs
-    }
+    // flatten the options and add to filteredAttrs - that's convention with Comms
+    filteredAttrs = snakkHttpOptions(in.attrs) ::: filteredAttrs
 
     // templates?
     val templateReq  = ctx.findTemplate(in.entity + "." + in.met, "request")
@@ -340,11 +338,11 @@ class EESnakk extends EExecutor("snakk") with Logging {
           code = t.asInstanceOf[CommRtException].httpCode
           errContent = t.asInstanceOf[CommRtException].details
 
-          val respCode = httpOptions.flatMap(_.calculatedTypedValue.asJson.get("responseCode")).map(_.toString)
+          val respCode = httpOptions(in.attrs).get("responseCode").map(_.toString)
 
           if(respCode.exists(x=> x == "*" || x.toInt == code)) {
             eres += new EInfo(
-              "Error - accepted code: " + Enc.escapeHtml(t.getMessage),
+              "Warn - accepted code: " + Enc.escapeHtml(t.getMessage),
               Enc.escapeHtml(t.asInstanceOf[CommRtException].details)
             ) :: Nil
           } else {
@@ -375,8 +373,6 @@ class EESnakk extends EExecutor("snakk") with Logging {
     }
   }
 
-  def html(s:String, len:Int = 2000) = Enc.escapeHtml(trimmed(s, len))
-
   override def toString = "$executor::snakk "
 
   override val messages: List[EMsg] =
@@ -389,6 +385,9 @@ class EESnakk extends EExecutor("snakk") with Logging {
 
 /** snakk REST and formatting/parsing utilities */
 object EESnakk {
+
+  private def trimmed(s:String, len:Int = 2000) = (if(s.length > len) s"(>$len):\n" else "\n") + s.take(len)
+  def html(s:String, len:Int = 2000) = Enc.escapeHtml(trimmed(s, len))
 
   /** parse a template into a SNakkCall
     *
@@ -497,12 +496,7 @@ object EESnakk {
         headers = P("Content-Type", "application/xml") :: headers
     }
 
-    // todo add all parms in snakkHttpOptions
-    val httpOptions = attrs.find(_.name == "snakkHttpOptions")
-    if(httpOptions.flatMap(_.calculatedTypedValue.asJson.get("readTimeout")).isDefined) {
-      val s = httpOptions.flatMap(_.calculatedTypedValue.asJson.get("readTimeout")).map(_.toString).mkString
-      headers = P("snakkHttpOptions.readTimeout", s) :: headers
-    }
+    headers = snakkHttpOptions(attrs) ::: headers
 
     val hattr = headers.map(p=> (p.name, p.calculatedValue)).toSeq.toMap
 
@@ -514,6 +508,21 @@ object EESnakk {
       content
     )
   }
+
+  def httpOptions (attrs:Attrs)(implicit ctx: ECtx) =
+    attrs.find(_.name == "snakkHttpOptions").map(_.calculatedP).flatMap(_.value).map(_.asJson).getOrElse(Map.empty)
+
+  // flatten the options and add to filteredAttrs/headers - that's convention with Comms
+  def snakkHttpOptions (attrs:Attrs)(implicit ctx: ECtx) = {
+    val httpOptions = attrs.find(_.name == "snakkHttpOptions").map(_.calculatedP).flatMap(_.value).map(_.asJson).getOrElse(Map.empty)
+    var filteredAttrs = attrs.filter(_.name != "snakkHttpOptions")
+
+    httpOptions.map {t=>
+      val s = t._2.toString
+      P("snakkHttpOptions." + t._1, s)
+    }.toList
+  }
+
 
   /** extract a snakk call from message args - good for snakk.json and snakk.xml */
   def scFromMsgTelnet(attrs: Attrs)(implicit ctx:ECtx) : SnakkCall = {
