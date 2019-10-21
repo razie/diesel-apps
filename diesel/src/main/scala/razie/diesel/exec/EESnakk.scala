@@ -722,6 +722,62 @@ object EESnakk {
   }
 
   override def toString = "$executor::snakk "
+
+  def caughtSnakkException (t:Throwable, httpOptions:Map[String, Any], response:String) = {
+    var eres = new InfoAccumulator()
+    var code = -1
+    var errContent = ""
+
+    val cause =
+      if(t.getCause != null &&
+          (t.getCause.isInstanceOf[java.net.SocketTimeoutException] ||
+              t.getCause.isInstanceOf[java.net.ConnectException] ||
+              t.getCause.getClass.getCanonicalName.startsWith("java.net.") // why not all java.net ex - no point remembering the stack traces
+              )
+      ) {
+        razie.Log.log("error snakking: " + t.getClass.getName + " : " + t.getMessage + " cause: " + t.getCause.getMessage)
+        eres += new EError("Exception: ", t.getMessage) :: Nil
+        t.getCause
+      } else if( t.isInstanceOf[CommRtException] && t.asInstanceOf[CommRtException].httpCode > 0 ) {
+        razie.Log.log("error snakking: " + t.getClass.getName + " : " + t.getMessage);
+        code = t.asInstanceOf[CommRtException].httpCode
+        errContent = t.asInstanceOf[CommRtException].details
+
+        val respCode = httpOptions.get("responseCode").map(_.toString)
+
+        if(respCode.exists(x=> x == "*" || x.toInt == code)) {
+          eres += new EInfo(
+            "Warn - accepted code: " + Enc.escapeHtml(t.getMessage),
+            Enc.escapeHtml(t.asInstanceOf[CommRtException].details)
+          ) :: Nil
+        } else {
+          eres += new EError("Exception: " + Enc.escapeHtml(t.getMessage),
+            Enc.escapeHtml(t.asInstanceOf[CommRtException].details)
+          ) :: Nil
+        }
+        t
+      } else {
+        razie.Log.log("error snakking", t)
+        eres += new EError("Exception: ", t) :: Nil
+        t
+      }
+
+//      durationMillis = System.currentTimeMillis() - startMillis
+//      eres += EDuration(durationMillis)
+
+    eres += EInfo("Response: ", html(response)) :: Nil
+
+    if(code > 0) eres += EVal(P.fromTypedValue("snakkHttpCode", code)) :: Nil
+    if(errContent.length > 0) eres += EVal(P.fromTypedValue("snakkHttpResponse", errContent)) :: Nil
+
+    eres +=
+        // need to create a val - otherwise DomApi.rest returns the last Val
+        EVal(P("snakkError", html(cause.getMessage, 10000))) ::
+            Nil
+
+    eres
+  }
+
 }
 
 
