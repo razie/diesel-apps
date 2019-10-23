@@ -13,6 +13,7 @@ import scala.util.Try
 
 /**
  * A map-like context of attribute values, used by the Diesel engine.
+ * Also, most expression evaluators work within a context.
  *
  * These contexts are hierarchical, with inheritance and overwriting. Each engine has a root context. There are also
  * scope contexts (which don't allow propagation of values) etc

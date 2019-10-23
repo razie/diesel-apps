@@ -15,9 +15,9 @@ import razie.diesel.engine.RDExt._
 import razie.diesel.exec.{EApplicable, Executors}
 import razie.diesel.expr.{AExprIdent, DieselExprException}
 import razie.diesel.ext.{BFlowExpr, FlowExpr, MsgExpr, SeqExpr, _}
-import razie.diesel.model.DieselMsg
+import razie.diesel.model.{DieselMsg, DieselMsgString, DieselTarget}
 import razie.diesel.utils.DomCollector
-import razie.tconf.DSpec
+import razie.tconf.{DSpec, TagQuery}
 import razie.wiki.parser.{ExprParser, PAS, SimpleExprParser}
 import razie.{Logging, js}
 import scala.Option.option2Iterable
@@ -606,7 +606,9 @@ class DomEngine(
   // todo is it really needed?
   def execSync(ast:DomAst, level:Int, ctx: ECtx) : Option[P] = {
     // stop propagation of local vals to parent engine
-    val newCtx = new ScopeECtx(Nil, Some(ctx), Some(ast))
+    var newCtx:ECtx = new ScopeECtx(Nil, Some(ctx), Some(ast))
+    // include this messages' context
+    newCtx = new StaticECtx(ast.value.asInstanceOf[EMsg].attrs, Some(newCtx), Some(ast))
 
     // inherit all context from parent engine
 //    this.ctx.root.overwrite(newCtx)
@@ -821,7 +823,7 @@ class DomEngine(
   /** if it's an internal engine message, execute it */
   private def expandEngineEMsg(a: DomAst, in: EMsg) : Boolean = {
     val ea = in.ea
-    if(ea == "diesel.return") {
+    if(ea == DieselMsg.ENGINE.DIESEL_RETURN) {
       // expand all spec vals
       in.attrs.map(_.calculatedP).foreach {p=>
         evAppChildren(a, DomAst(EVal(p)))
@@ -967,8 +969,9 @@ class DomEngine(
       Executors.withAll(_.filter { x =>
         // todo inconsistency: I am running rules if no mocks fit, so I should also run
         //  any executor ??? or only the isMocks???
-        (true /*!settings.mockMode || x.isMock*/) && x.test(n)
-      }.map { r =>
+        (true /*!settings.mockMode || x.isMock*/) && x._2.test(n)
+      }.map { t =>
+          val r = t._2
         mocked = true
 
         val news = try {
@@ -1018,7 +1021,7 @@ class DomEngine(
         } catch {
           case e: Throwable =>
             razie.Log.alarmThis("wtf", e)
-            val p = EVal(P(Diesel.PAYLOAD, e.getMessage, WTypes.EXCEPTION).withValue(e, WTypes.EXCEPTION))
+            val p = EVal(P(Diesel.PAYLOAD, e.getMessage, WTypes.wt.EXCEPTION).withValue(e, WTypes.wt.EXCEPTION))
             ctx.put(p.p)
             List(DomAst(new EError("Exception:", e), AstKinds.ERROR), DomAst(p, AstKinds.ERROR))
         }

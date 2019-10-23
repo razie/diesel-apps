@@ -17,7 +17,7 @@ import razie.diesel.samples.DomEngineUtils
 import razie.wiki.parser.DieselTextSpec
 
 /* a sync executor */
-class EESyncExec extends EExecutor("diesel.cron") {
+class EESyncExec extends EExecutor("testSync") {
   /** what messages do I apply to */
   override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
     m.entity == "sync"
@@ -29,7 +29,7 @@ class EESyncExec extends EExecutor("diesel.cron") {
 }
 
 /* an async executor */
-class EEAsyncExec extends EExecutor("diesel.cron") {
+class EEAsyncExec extends EExecutor("testAsync") {
   /** what messages do I apply to */
   override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
     m.entity == "async"

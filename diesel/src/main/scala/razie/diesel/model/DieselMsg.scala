@@ -178,10 +178,12 @@ object DieselMsg {
   object ENGINE {
     final val ENTITY = "diesel"
     final val VALS = "vals"
+    final val DIESEL_RETURN = "diesel.return"
     final val DIESEL_VALS = "diesel.vals"
     final val DIESEL_BEFORE = "diesel.before"
     final val DIESEL_AFTER = "diesel.after"
     final val DIESEL_DEBUG = "diesel.debug"
+    final val DIESEL_LATER = "diesel.later"
     final val BEFORE = "before"
     final val AFTER = "after"
     final val DEBUG = "debug"
