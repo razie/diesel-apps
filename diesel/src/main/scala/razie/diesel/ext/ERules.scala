@@ -177,7 +177,7 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
       case Some(CExpr(e, _)) => e.toString
       case _ => ""
     }
-    P(p.name, df, p.ttype, p.ref, p.multi)
+    P(p.name, df, p.ttype)
   })
 
   override def toHtml = ea(cls, met) + " " + toHtmlMAttrs(attrs) + cond.map(_.toHtml).mkString

@@ -114,11 +114,11 @@ case class CExpr[T](ee: T, ttype: WType = WTypes.wt.EMPTY) extends Expr {
 
     if (ttype == WTypes.NUMBER) {
       if (es.contains("."))
-        P("", es, ttype).withValue(es.toDouble, WTypes.NUMBER)
+        P("", es, ttype).withValue(es.toDouble, WTypes.wt.NUMBER)
       else
-        P("", es, ttype).withValue(es.toInt, WTypes.NUMBER)
+        P("", es, ttype).withValue(es.toInt, WTypes.wt.NUMBER)
     } else if (ttype == WTypes.BOOLEAN) {
-      P("", es, ttype).withValue(es.toBoolean, WTypes.BOOLEAN)
+      P("", es, ttype).withValue(es.toBoolean, WTypes.wt.BOOLEAN)
     } else {
       // expand templates by default
       if (es contains "${") {
@@ -131,21 +131,26 @@ case class CExpr[T](ee: T, ttype: WType = WTypes.wt.EMPTY) extends Expr {
           s1 = PAT.replaceAllIn(es, {
             m =>
               (new SimpleExprParser).parseExpr(m.group(1)).map { e =>
-                val res = P("x", "", "", "", "", Some(e)).calculatedValue
+                val res = P("x", "", WTypes.wt.EMPTY, Some(e)).calculatedValue
 
                 // if the parm's value contains $ it would not be expanded - that's enough, eh?
                 // todo recursive expansions?
-                val escaped = res
-                  .replaceAllLiterally("\\", "\\\\")
-                  .replaceAll("\\$", "\\\\\\$")
+                var e1 = res
+                    .replaceAllLiterally("\\", "\\\\") // escape escaped
+                    .replaceAll("\\$", "\\\\\\$")
+                // should not escape double quotes all the time !!
+//                e1 = e1
+//                    .replaceAll("^\"", "\\\\\"") // escape double quotes
+//                e1 = e1
+//                    .replaceAll("""([^\\])"""", "$1\\\\\"") // escape unescaped double quotes
 
-                escaped
+                e1
               } getOrElse
                 s"{ERROR: ${m.group(1)}"
           })
         } catch {
           case e: Exception =>
-            throw new DieselExprException(s"REGEX err for $es ")
+            throw new DieselExprException(s"REGEX err for $es - " + e.getMessage)
               .initCause(e)
         }
         P("", s1, ttype)

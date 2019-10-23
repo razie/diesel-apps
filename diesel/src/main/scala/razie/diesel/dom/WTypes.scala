@@ -155,14 +155,16 @@ object WTypes {
 //  def apply(wt:WType):WType = wt
 }
 
-/** an actual type, with a schema
+/** an actual type, with a schema and a contained type
   *
   * with this marker now we can add more types...
   *
   * @param name is the WType
   * @param schema is either a DOMType or some indication of a schema in context
+  * @param subType is T in A[T]
+  * @param mime is an optional precise mime to be represented in
   */
-case class WType (name:String, schema:String = WTypes.UNKNOWN, mime:String="") {
+case class WType (name:String, schema:String = WTypes.UNKNOWN, subType:Option[String]=None, mime:Option[String]=None, isRef:Boolean=false) {
 
   override def equals(obj: Any) = {
     obj match {
@@ -174,10 +176,19 @@ case class WType (name:String, schema:String = WTypes.UNKNOWN, mime:String="") {
   def withSchema (s:String) = copy(schema=s)
   def hasSchema (s:String) = schema != "" && schema != WTypes.UNKNOWN
 
+  def withMime (s:Option[String]) = copy(mime=s)
+  def withRef (b:Boolean) = copy(isRef=b)
+
   override def toString = {
-    if(schema == WTypes.UNKNOWN) name
+    val col = if (name.isEmpty) "" else ":" + (if(isRef) "<>" else "")
+
+    var res = if(schema == WTypes.UNKNOWN) col+name
     else if(name == WTypes.OBJECT && schema != WTypes.UNKNOWN) schema
     else name + (if(schema == WTypes.UNKNOWN) "" else "("+schema+")")
+
+    res = res + subType.map("["+ _ +"]").mkString
+    res = res + mime.map("["+ _ +"]").mkString
+    res
   }
 
   def isEmpty = name.isEmpty

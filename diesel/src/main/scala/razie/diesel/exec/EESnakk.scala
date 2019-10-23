@@ -599,7 +599,7 @@ object EESnakk {
     if(content contains "${") {
       val s1 = BRACKET_EXPR_PAT.replaceAllIn(content, { m =>
         (new SimpleExprParser).parseExpr(m.group(1)).map {e=>
-          P ("x", "", "", "", "", Some(e)).calculatedValue
+          P ("x", "", WTypes.wt.EMPTY, Some(e)).calculatedValue
         } getOrElse
           s"{ERROR: ${m.group(1)}"
       })

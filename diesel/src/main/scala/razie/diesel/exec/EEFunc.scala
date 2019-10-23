@@ -11,6 +11,7 @@ import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.DieselJs
 import razie.diesel.engine.RDExt.spec
+import razie.diesel.expr.DieselExprException
 import razie.diesel.ext.{MatchCollector, _}
 
 // the context persistence commands
@@ -59,9 +60,9 @@ object EEFunc {
           val r = newestFiddle(s, "js", in.attrs, ctx)
           scriptResToTypedP(r, offset)
         } else
-          P("", "ABSTRACT FUNC", WTypes.EXCEPTION)
+          P("", "ABSTRACT FUNC", WTypes.wt.EXCEPTION)
       } catch {
-        case e: Throwable => P("", e.getMessage, WTypes.EXCEPTION).withValue(e, WTypes.EXCEPTION)
+        case e: Throwable => P("", e.getMessage, WTypes.wt.EXCEPTION).withValue(e, WTypes.wt.EXCEPTION)
       }
     res
   }
@@ -84,9 +85,9 @@ object EEFunc {
       // typed result
       r._3 match {
 
-       case i:Integer => P("", i.toString, WTypes.NUMBER).withValue(i, WTypes.NUMBER)
+       case i:Integer => P("", i.toString, WTypes.wt.NUMBER).withValue(i, WTypes.wt.NUMBER)
 
-        case i:Double => P("", i.toString, WTypes.NUMBER).withValue(i, WTypes.NUMBER)
+        case i:Double => P("", i.toString, WTypes.wt.NUMBER).withValue(i, WTypes.wt.NUMBER)
 
         case o : ScriptObjectMirror => {
                     P("", r._2.toString, WTypes.JSON).withCachedValue(o, WTypes.Mime.appJson, r._2.toString)
@@ -99,12 +100,12 @@ object EEFunc {
 //            P("", r._2.toString, WTypes.UNKNOWN)//.withValue(o, WTypes.appJson)
         }
 
-        case e: Throwable => P("", "+"+offset+r._2, WTypes.EXCEPTION).withValue(e, WTypes.EXCEPTION)
+        case e: Throwable => P("", "+"+offset+r._2, WTypes.wt.EXCEPTION).withValue(e, WTypes.wt.EXCEPTION)
 
-        case _ => P("", r._2.toString, WTypes.STRING)
+        case _ => P("", r._2.toString, WTypes.wt.STRING)
       }
     } catch {
-      case e: Throwable => P("", e.getMessage, WTypes.EXCEPTION).withValue(e, WTypes.EXCEPTION)
+      case e: Throwable => P("", e.getMessage, WTypes.wt.EXCEPTION).withValue(e, WTypes.wt.EXCEPTION)
     }
 
     x
@@ -118,7 +119,7 @@ object EEFunc {
       val r = newestFiddle(script, "js", ctx.listAttrs, ctx)
       scriptResToTypedP(r, 0)
     } catch {
-      case e: Throwable => P("", e.getMessage, WTypes.EXCEPTION).withValue(e, WTypes.EXCEPTION)
+      case e: Throwable => P("", e.getMessage, WTypes.wt.EXCEPTION).withValue(e, WTypes.wt.EXCEPTION)
     }
 
     r
@@ -133,7 +134,7 @@ object EEFunc {
 
     val typed = qTypedP(qp, None)(ctx) + ("diesel" -> new DieselJs(ctx))
 
-    val r = DieselScripster.isfiddleMap(script, "js", q, Some(typed), exprs, ctx)
+    val r = DieselScripster.newsfiddleMap(script, "js", q, Some(typed), false, exprs, ctx)
 
     r
   }

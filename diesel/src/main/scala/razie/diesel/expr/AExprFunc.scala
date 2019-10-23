@@ -37,10 +37,10 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
 
             if (pv.contentType == WTypes.ARRAY) {
               val sz = pv.asArray.size
-              P("", sz.toString, WTypes.NUMBER).withValue(sz, WTypes.NUMBER)
+              P("", sz.toString, WTypes.wt.NUMBER).withValue(sz, WTypes.wt.NUMBER)
             } else if (pv.contentType == WTypes.JSON) {
               val sz = pv.asJson.size
-              P("", sz.toString, WTypes.NUMBER).withValue(sz, WTypes.NUMBER)
+              P("", sz.toString, WTypes.wt.NUMBER).withValue(sz, WTypes.wt.NUMBER)
             } else {
               throw new DieselExprException(
                 "Not array: " + p.name + " is:" + pv.toString

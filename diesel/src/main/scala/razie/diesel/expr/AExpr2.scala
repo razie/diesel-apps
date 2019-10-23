@@ -41,11 +41,11 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
             if (as.contains(".")) {
               val ai = as.toFloat
               val bi = b(v).toString.toFloat
-              PValue(ai * bi, WTypes.NUMBER)
+              PValue(ai * bi, WTypes.wt.NUMBER)
             } else {
               val ai = as.toInt
               val bi = b(v).toString.toInt
-              PValue(ai * bi, WTypes.NUMBER)
+              PValue(ai * bi, WTypes.wt.NUMBER)
             }
             // todo float and type safe numb
           }
@@ -64,13 +64,13 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
           // json exprs are different, like cart + { item:...}
           case (aei:AExprIdent, JBlockExpr(jb))
             if aei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) =>
-            PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.JSON)
+            PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.wt.JSON)
 
           // json exprs are different, like cart + { item:...}
           case (aei:AExprIdent, bei:AExprIdent)
             if aei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) &&
                 bei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) =>
-            PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.JSON)
+            PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.wt.JSON)
 
           case _ if isNum(a) && isNum (b) => {
             // if a is num, b will be converted to num
@@ -78,11 +78,11 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
             if (as.contains(".")) {
               val ai = as.toFloat
               val bi = b(v).toString.toFloat
-              PValue(ai + bi, WTypes.NUMBER)
+              PValue(ai + bi, WTypes.wt.NUMBER)
             } else {
               val ai = as.toInt
               val bi = b(v).toString.toInt
-              PValue(ai + bi, WTypes.NUMBER)
+              PValue(ai + bi, WTypes.wt.NUMBER)
             }
           }
 
@@ -96,11 +96,11 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
               val al = if(av.ttype == WTypes.ARRAY) av.calculatedTypedValue.asArray else List(av.calculatedTypedValue.value)
               val bl = if(bv.ttype == WTypes.ARRAY) bv.calculatedTypedValue.asArray else List(bv.calculatedTypedValue.value)
               val res = al ::: bl
-              PValue(res, WTypes.ARRAY)
+              PValue(res, WTypes.wt.ARRAY)
            } else  if(bv.ttype == WTypes.JSON ||
                   av.ttype == WTypes.JSON) {
               // json exprs are different, like cart + { item:...}
-              PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.JSON)
+              PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.wt.JSON)
             } else {
               PValue(av.calculatedValue + bv.calculatedValue)
             }
@@ -116,11 +116,11 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
             if (as.contains(".")) {
               val ai = as.toFloat
               val bi = b(v).toString.toFloat
-              PValue(ai - bi, WTypes.NUMBER)
+              PValue(ai - bi, WTypes.wt.NUMBER)
             } else {
               val ai = as.toInt
               val bi = b(v).toString.toInt
-              PValue(ai - bi, WTypes.NUMBER)
+              PValue(ai - bi, WTypes.wt.NUMBER)
             }
           }
 
@@ -156,7 +156,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
             P.fromTypedValue("", av.value, WTypes.STRING).calculatedTypedValue
 
           case t : CExpr[String] => // x as "application/pdf"
-            P("", "", av.value.toString, t.ee).withValue(av.value, t.ee).calculatedTypedValue
+            P("", av.value.toString, WType(t.ee)).withValue(av.value, t.ee).calculatedTypedValue
 
           case _ => throw new DieselExprException("Can't typecast to: " + b.toString)
         }

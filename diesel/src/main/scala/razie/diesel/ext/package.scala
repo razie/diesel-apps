@@ -38,7 +38,7 @@ package object ext {
   def sketchAttrs(defs:MatchAttrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) : Attrs = {
     defs.map{p=>
       val v = if(p.dflt.length > 0) p.dflt else p.expr.map(_.apply("")).mkString
-      P(p.name, v, p.ttype, p.ref, p.multi)
+      P(p.name, v, p.ttype)
     }
   }
 

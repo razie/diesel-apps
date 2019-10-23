@@ -209,21 +209,31 @@ trait ExprParser extends RegexParsers {
   def pcallattrs: Parser[List[RDOM.P]] = " *\\(".r ~> ows ~> repsep(pcallattr, ows ~ "," ~ ows) <~ ows <~ ")"
   def pcallattr: Parser[P] = " *".r ~> qident ~ opt(" *= *".r ~> expr) ^^ {
     case ident ~ ex => {
-      P(ident, "", ex.map(_.getType).getOrElse(WTypes.wt.EMPTY), "", "", ex)
+      P(ident, "", ex.map(_.getType).getOrElse(WTypes.wt.EMPTY), ex)
     }
   }
 
   def pasattrs: Parser[List[PAS]] = " *\\(".r ~> ows ~> repsep(pasattr, ows ~ "," ~ ows) <~ ows <~ ")"
 
   /**
+    * :<>type[kind]*
+    * <> means it's a ref, not ownership
+    * * means it's a list
+    */
+  def optType: Parser[WType] = opt(" *: *".r ~> opt("<>") ~ ident ~ optKinds ~ opt(" *\\* *".r)) ^^ {
+    case Some(ref ~ tt ~ k ~ None) => WType(tt, "", Some(k.s)).withRef(ref.isDefined)
+    case Some(ref ~ tt ~ k ~ Some(_)) => WType(WTypes.ARRAY, "", Some(tt)).withRef(ref.isDefined)
+    case None => WTypes.wt.EMPTY
+  }
+
+  /**
     * name:<>type[kind]*~=default
     * <> means it's a ref, not ownership
     * * means it's a list
     */
-  def pattr: Parser[RDOM.P] = " *".r ~> qident ~ opt(" *: *".r ~> opt("<> *".r) ~ ident ~ optKinds) ~
-    opt(" *\\* *".r) ~ opt(" *~?= *".r ~> expr) ^^ {
+  def pattr: Parser[RDOM.P] = " *".r ~> qident ~ optType ~ opt(" *~?= *".r ~> expr) ^^ {
 
-    case name ~ t ~ multi ~ e => {
+    case name ~ t ~ e => {
       val (dflt, ex) = e match {
         //        case Some(CExpr(ee, "String")) => (ee, None)
         // todo good optimization but I no longer know if some parm is erased like (a="a", a="").
@@ -232,10 +242,10 @@ trait ExprParser extends RegexParsers {
       }
       t match {
         // k - kind is [String] etc
-        case Some(ref ~ tt ~ k) => // ref or no archetype
-          P(name, dflt, tt + k.s, ref.mkString, multi.mkString, ex)
-        case None => // infer type from expr
-          P(name, dflt, ex.map(_.getType).getOrElse(WTypes.wt.EMPTY), "", multi.mkString, ex)
+        case WTypes.wt.EMPTY => // infer type from expr
+          P(name, dflt, ex.map(_.getType).getOrElse(WTypes.wt.EMPTY), ex)
+        case tt => // ref or no archetype
+          P(name, dflt, tt, ex)
       }
     }
   }

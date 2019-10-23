@@ -25,7 +25,18 @@ object RDOM {
   trait DE // abstract base class for Domain Elements (classes etc)
   class CM // abstract Class Member
 
-  private def classLink (name:String) = s""" <b><a href="/wikie/show/Category:$name">$name</a></b> """
+  private def classLink (s:String):String = s"""<b><a href="/wikie/show/Category:$s">$s</a></b>"""
+
+  private def classLink (t:WType):String = {
+      val col = if (t.name.isEmpty) "" else ":" + (if(t.isRef) "<>" else "")
+      var res = if(t.schema == WTypes.UNKNOWN) col+classLink(t.name)
+      else if(t.name == WTypes.OBJECT && t.schema != WTypes.UNKNOWN) t.schema
+      else classLink(t.name) + (if(t.schema == WTypes.UNKNOWN) "" else "("+t.schema+")")
+
+      res = res + t.subType.map("["+ classLink(_) +"]").mkString
+      res = res + t.mime.map("["+ _ +"]").mkString
+      res
+  }
 
   /** represents a Class
     *
@@ -164,34 +175,34 @@ object RDOM {
     /** construct proper typed values */
     def fromTypedValue(name:String, v:Any, expectedType:WType=WTypes.wt.UNKNOWN):P = {
       val res = v match {
-        case i: Boolean =>     P(name, asString(i), WTypes.BOOLEAN).withValue(i, WTypes.BOOLEAN)
-        case i: Int =>         P(name, asString(i), WTypes.NUMBER).withValue(i, WTypes.NUMBER)
-        case f: Float =>       P(name, asString(f), WTypes.NUMBER).withValue(f, WTypes.NUMBER)
-        case d: Double =>      P(name, asString(d), WTypes.NUMBER).withValue(d, WTypes.NUMBER)
+        case i: Boolean =>     P(name, asString(i), WTypes.wt.BOOLEAN).withValue(i, WTypes.wt.BOOLEAN)
+        case i: Int =>         P(name, asString(i), WTypes.wt.NUMBER).withValue(i, WTypes.wt.NUMBER)
+        case f: Float =>       P(name, asString(f), WTypes.wt.NUMBER).withValue(f, WTypes.wt.NUMBER)
+        case d: Double =>      P(name, asString(d), WTypes.wt.NUMBER).withValue(d, WTypes.wt.NUMBER)
 
           // the "" dflt will force usage of value
-        case s: Map[_, _] =>   P(name, "", WTypes.JSON).withValue(s, WTypes.JSON)
-        case s: List[_] =>     P(name, "", WTypes.ARRAY).withValue(s, WTypes.ARRAY)
-        case s: JSONObject =>  P(name, "", WTypes.JSON).withValue(js.fromObject(s), WTypes.JSON)
-        case s: JSONArray =>   P(name, "", WTypes.ARRAY).withValue(js.fromArray(s), WTypes.ARRAY)
+        case s: Map[_, _] =>   P(name, "", WTypes.wt.JSON).withValue(s, WTypes.wt.JSON)
+        case s: List[_] =>     P(name, "", WTypes.wt.ARRAY).withValue(s, WTypes.wt.ARRAY)
+        case s: JSONObject =>  P(name, "", WTypes.wt.JSON).withValue(js.fromObject(s), WTypes.wt.JSON)
+        case s: JSONArray =>   P(name, "", WTypes.wt.ARRAY).withValue(js.fromArray(s), WTypes.wt.ARRAY)
 
-        case r: Range =>       P(name, asString(r), WTypes.RANGE).withValue(r, WTypes.RANGE)
+        case r: Range =>       P(name, asString(r), WTypes.wt.RANGE).withValue(r, WTypes.wt.RANGE)
         case s: String =>      {
           expectedType match {
-            case WType(WTypes.JSON,_,_)  => P(name, s, expectedType).withCachedValue(js.fromObject(new JSONObject(s)), expectedType, s)
-            case WType(WTypes.ARRAY,_,_) => P(name, s, expectedType).withCachedValue(js.fromArray(new JSONArray(s)), expectedType, s)
-            case WType(WTypes.BOOLEAN,_,_) => P(name, s, expectedType).withCachedValue(s.toBoolean, expectedType, s)
-            case WType(WTypes.NUMBER,_,_) => P(name, s, expectedType).withCachedValue(s.toFloat, expectedType, s)
+            case WType(WTypes.JSON,_,_,_, _)  => P(name, s, expectedType).withCachedValue(js.fromObject(new JSONObject(s)), expectedType, s)
+            case WType(WTypes.ARRAY,_,_,_, _) => P(name, s, expectedType).withCachedValue(js.fromArray(new JSONArray(s)), expectedType, s)
+            case WType(WTypes.BOOLEAN,_,_,_, _) => P(name, s, expectedType).withCachedValue(s.toBoolean, expectedType, s)
+            case WType(WTypes.NUMBER,_,_,_, _) => P(name, s, expectedType).withCachedValue(s.toFloat, expectedType, s)
             case _ if expectedType.trim.length > 0 =>
               throw new DieselExprException(s"$expectedType is an unknown type")
-            case _ => P(name, asString(s), WTypes.STRING)
+            case _ => P(name, asString(s), WTypes.wt.STRING)
           }
         }
 
         // java object - it's better to create this yourself
         case x@_ if expectedType == WTypes.OBJECT => P(name, "", expectedType).withValue(v, expectedType)
 
-        case x@_ => P(name, x.toString, WTypes.UNKNOWN)
+        case x@_ => P(name, x.toString, WTypes.wt.UNKNOWN)
       }
 
       // assert expected type if given
@@ -220,20 +231,8 @@ object RDOM {
       res
     }
 
-    def apply (name:String, dflt:String):P = new P(name, dflt, WTypes.wt.EMPTY)
+    @deprecated
     def apply (name:String, dflt:String, ttype:String):P = P(name, dflt, WType(ttype))
-
-//    def apply (name:String, dflt:String, ttype:WType = WTypes.wtEMPTY, ref:String="", multi:String="", expr:Option[Expr]=None,var value:Option[PValue[_]] = None)
-
-    def apply (name:String, dflt:String, ttype:String, ref:String) : P =
-      P(name, dflt, WType(ttype), ref)
-
-    def apply (name:String, dflt:String, ttype:String, ref:String, multi:String) : P =
-      P(name, dflt, WType(ttype), ref, multi)
-
-    def apply (name:String, dflt:String, ttype:String, ref:String, multi:String, expr:Option[Expr]) : P =
-      P(name, dflt, WType(ttype), ref, multi, expr)
-
   }
 
   //  implicit def toWtype2(s:String) : WType = WType(s)
@@ -249,14 +248,13 @@ object RDOM {
     * @param name   name of parm
     * @param dflt   current value (for values) or default value (for specs) or a cache for the typed .value
     * @param ttype  type if known
-    * @param ref
-    * @param multi  is this a list/array?
     * @param expr   expression - for sourced parms
     */
-  case class P (name:String, dflt:String, ttype:WType = WTypes.wt.EMPTY, ref:String="", multi:String="", expr:Option[Expr]=None,
+  case class P (name:String, dflt:String, ttype:WType = WTypes.wt.EMPTY, expr:Option[Expr]=None,
                 var value:Option[PValue[_]] = None
                ) extends CM with razie.diesel.ext.CanHtml {
 
+    @deprecated
     def withValue[T](va:T, ctype:String="", domClassName:String=WTypes.UNKNOWN) = {
       this.copy(ttype=WType(ctype), value=Some(PValue[T](va, WType(ctype, domClassName))))
     }
@@ -266,12 +264,10 @@ object RDOM {
     }
 
     def withCachedValue[T](va:T, ctype:WType=WTypes.wt.EMPTY, cached:String) = {
-      this.copy(ttype=WType(ctype), value=Some(PValue[T](va, ctype).withStringCache(cached)))
+      this.copy(ttype=ctype, value=Some(PValue[T](va, ctype).withStringCache(cached)))
     }
 
-    def isRef = {
-      ref != ""
-    }
+    def isRef = ttype.isRef
 
     /** check if this value or def is of type t */
     def isOfType(t:String) = {
@@ -360,8 +356,7 @@ object RDOM {
 
     override def toString =
       s"$name" +
-        smap(ttype) (":" + ref + _) +
-        smap(multi)(identity) +
+        ttype +
         smap(strimmedDflt) (s=> "=" + (if("Number" == ttype) s else quot(s))) +
         (if(dflt=="") expr.map(x=>smap(x.toString) ("=" + _)).mkString else "")
 
@@ -370,8 +365,7 @@ object RDOM {
 
     def toHtml (shorten:Boolean = true)=
       s"<b>$name</b>" +
-        (if(ttype.toLowerCase != "string") smap(ttype) (s=> ":" + ref + typeHtml(s)) else "") +
-        smap(multi)(identity) +
+        (if(ttype.name.toLowerCase != "string") typeHtml(ttype) else "") +
         smap(Enc.escapeHtml(if(shorten) htrimmedDflt else currentStringValue)) {s=>
           "=" + tokenValue(if("Number" == ttype) s else escapeHtml(quot(s)))
         } +
@@ -379,8 +373,8 @@ object RDOM {
         (if(shorten && currentStringValue.length > 60) "<b><small>...</small></b>" else "") +
         (if(dflt=="") expr.map(x=>smap(x.toHtml) ("<-" + _)).mkString else "")
 
-    private def typeHtml(s:String) = {
-      s.toLowerCase match {
+    private def typeHtml(s:WType) = {
+      s.name.toLowerCase match {
         case "string" | "number" | "date" => s"<b>$s</b>"
         case _ => classLink(s)
       }
@@ -397,7 +391,7 @@ object RDOM {
     * @param dflt
     * @param expr
     */
-  case class PM (ident:AExprIdent, ttype:WType, ref:String, multi:String, op:String,
+  case class PM (ident:AExprIdent, ttype:WType, op:String,
                  dflt:String, expr:Option[Expr] = None) extends CM with CanHtml {
 
     def name : String = ident.start
@@ -407,15 +401,13 @@ object RDOM {
 
     override def toString =
       s"$ident" +
-        (if(ttype!="String") smap(ttype) (":" + ref + _) else "") +
-        smap(multi)(identity) +
+        ttype +
         smap(dflt) (s=> op + (if("Number" == ttype) s else quot(s))) +
         (if(dflt=="") expr.map(x=>smap(x.toString) (" " + op +" "+ _)).mkString else "")
 
     override def toHtml =
       s"<b>$ident</b>" +
-        (if(ttype!="String") smap(ttype) (":" + ref + _) else "") +
-      smap(multi)(identity) +
+      classLink(ttype) +
       smap(dflt) (s=> op + tokenValue(if("Number" == ttype) s else quot(s))) +
         (if(dflt=="") expr.map(x=>smap(x.toHtml) (" <b>"+op +"</b> "+ _)).mkString else "")
   }
@@ -429,7 +421,7 @@ object RDOM {
     * @param script
     * @param body
     */
-  case class F (name:String, parms:List[P], ttype:String, archetype:String, script:String="",
+  case class F (name:String, parms:List[P], ttype:WType, archetype:String, script:String="",
                 body:List[Executable]=List.empty) extends CM with CanHtml {
 
     override def toHtml = "   "+  span(s"$archetype:") + s" <b>$name</b> " +

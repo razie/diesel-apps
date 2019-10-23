@@ -22,10 +22,10 @@ case class JBlockExpr(ex: List[(String, Expr)]) extends Expr {
     val orig = ex
       .map(t=> (t._1, t._2.applyTyped(v)))
       .map(t=> (t._1, t._2 match {
-        case p@P(n,d,WTypes.wt.NUMBER, _, _, _, Some(PValue(i:Int, _))) => i
-        case p@P(n,d,WTypes.wt.NUMBER, _, _, _, Some(PValue(i:Double, _))) => i
+        case p@P(n,d,WTypes.wt.NUMBER, _, Some(PValue(i:Int, _))) => i
+        case p@P(n,d,WTypes.wt.NUMBER, _, Some(PValue(i:Double, _))) => i
 
-        case p@P(n,d,WTypes.wt.BOOLEAN, _, _, _, Some(PValue(b:Boolean, _))) => b
+        case p@P(n,d,WTypes.wt.BOOLEAN, _, Some(PValue(b:Boolean, _))) => b
 
         case p:P => p.currentStringValue match {
           case i: String if i.trim.startsWith("[") && i.trim.endsWith("]") => i
