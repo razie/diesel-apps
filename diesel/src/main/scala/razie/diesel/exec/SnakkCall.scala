@@ -49,12 +49,14 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
   var pro : Option[Promise[SnakkResponse]] = None
 
   // todo this class won't work if this is not set from the outside - that's wrong and confusing, to say the least...
-  private var isurl: SnakkUrl = null
+  private var _isurl: SnakkUrl = null //Snakk.url(url, headers, (if(method.length == 0) "GET" else method)) //null
 
   def setUrl(u: SnakkUrl) = {
-    isurl = u
+    _isurl = u
     this
   }
+
+  def isurl = if (_isurl != null) _isurl else Snakk.url(url, headers, (if(method.length == 0) "GET" else method))
 
   def postContent = if (content != null && content.length > 0) Some(content) else None
 
