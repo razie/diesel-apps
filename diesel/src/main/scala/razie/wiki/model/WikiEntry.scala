@@ -112,7 +112,13 @@ case class WikiEntry(
     */
   override def findSection(name: String, tags:String=""): Option[DTemplate] =
     this
-      .templateSections
+        .sections
+        .filter(t=>
+          t.name == name && (tags=="" || t.signature.startsWith(tags))
+        )
+        .headOption
+        .map {t=> new WikiDTemplate (t) } orElse
+        templateSections
       .filter(t=>
         t.name == name && (tags=="" || t.signature.startsWith(tags))
       )
@@ -122,11 +128,13 @@ case class WikiEntry(
   /** find template with predicate */
   override def findSection(p : DTemplate => Boolean) : Option[DTemplate] = {
     this
-      .templateSections
+        .sections
+        .map {t=> new WikiDTemplate (t) }
+        .find(p) orElse
+        templateSections
       .map {t=> new WikiDTemplate (t) }
       .find(p)
   }
-
 
   /** is this just an alias?
     *
@@ -269,7 +277,6 @@ case class WikiEntry(
 
   /** these are normal - all sections after include */
   lazy val sections = findSections(included, PATT_SEC) ::: findSections(included, PATT_TEM)
-  def sectionsNoInclude = findSections(content, PATT_SEC) ::: findSections(content, PATT_TEM)
 
   /** these are when used as a template - template sections do not resolve include */
   lazy val templateSections = findSections(included, PATT_TEM) ::: findSections(content, PATT_TEM)
@@ -329,7 +336,7 @@ case class WikiEntry(
   lazy val scripts = sections.filter(x => "def" == x.stype || "lambda" == x.stype || "inline" == x.stype)
 
   // when signing an edited page, we don't look at includes - big boom
-  def scriptsNoInclude = sectionsNoInclude.filter(x => "def" == x.stype || "lambda" == x.stype || "inline" == x.stype)
+  def scriptsNoInclude = (findSections(content, PATT_SEC) ::: findSections(content, PATT_TEM)).filter(x => "def" == x.stype || "lambda" == x.stype || "inline" == x.stype)
 
   /** pre processed form - parsed and graphed. No context is used when parsing - only when folding this AST, so you can reuse the AST */
   lazy val ast = Wikis.preprocess(this.wid, this.markup, Wikis.noBadWords(this.content), Some(this))
