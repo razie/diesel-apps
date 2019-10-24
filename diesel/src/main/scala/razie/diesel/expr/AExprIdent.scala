@@ -57,6 +57,8 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
         None
       }
 
+      //=============== index is number
+
       if (av.contentType == WTypes.NUMBER) {
         val ai = av.asInt
 
@@ -111,6 +113,9 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
 
           case _ => throwIt
         }
+
+        //================================ index is string
+
       } else if (av.contentType == WTypes.STRING || av.contentType.isEmpty || av.contentType == WTypes.UNKNOWN) {
         pv.contentType match {
 
@@ -129,8 +134,19 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
             None // field not found - undefined
             }
 
+            // =============== string functions
+
+          case WTypes.STRING | WTypes.UNKNOWN if av.asString == "length" =>
+            Some(P.fromTypedValue(newpname, pv.asString.length, WTypes.wt.NUMBER))
+
+          case WTypes.STRING | WTypes.UNKNOWN if av.asString == "lines" =>
+            Some(P.fromTypedValue(newpname, pv.asString.lines.toList, WType(WTypes.ARRAY, WTypes.UNKNOWN, Some(WTypes.STRING))))
+
           case _ => throwIt
         }
+
+        //================================ index is rangr
+
       } else if (av.contentType == WTypes.RANGE) {
         // todo support reversing, if ai < zi
         var ai = av.asRange.start
