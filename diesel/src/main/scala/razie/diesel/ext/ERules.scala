@@ -149,7 +149,7 @@ case class ExpectAssert(not: Boolean, exprs: List[BExpr]) extends CanHtml with H
 
   /** check to match the arguments */
   def test(a: Attrs, cole: Option[MatchCollector] = None, nodes: List[DomAst])(implicit ctx: ECtx) = {
-    exprs.foldLeft(true)((a,b)=> a && b.apply("") )
+    exprs.foldLeft(true)((a,b)=> a && b.bapply("") )
 //    testA(a, pm, cole, Some({ p =>
       // start a new collector to mark this value
 //      cole.foreach(c => nodes.find(_.value.asInstanceOf[EVal].p.name == p.name).foreach(n => c.newMatch(n)))
@@ -305,7 +305,7 @@ case class EIfm(attrs: MatchAttrs) extends CanHtml with EIf {
 // an expression condition
 case class EIfc(cond: BExpr) extends CanHtml with EIf {
   def test(e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
-    cond.apply("")
+    cond.bapply("")
 
   override def toHtml = span("$ifc::") + cond.toDsl
 

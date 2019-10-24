@@ -7,41 +7,46 @@
 package razie.diesel.expr
 
 import razie.clog
-import razie.diesel.dom.RDOM.P
+import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.dom._
 import scala.util.Try
 
 
 /** boolean expressions */
-abstract class BExpr(e: String) extends HasDsl {
-  def apply(e: Any)(implicit ctx: ECtx): Boolean
+abstract class BExpr(e: String) extends Expr with HasDsl {
+  override def getType = WTypes.wt.BOOLEAN
+  override def expr = e
+  override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v)
+  override def applyTyped(v: Any)(implicit ctx: ECtx) = P.fromTypedValue("", bapply(v), WTypes.wt.BOOLEAN)
+
+  def bapply(v: Any)(implicit ctx: ECtx):Boolean
 
   override def toDsl = e
 }
 
 /** boolean expression block - show the () when printing */
 case class BExprBlock(a: BExpr) extends BExpr("") {
-  override def apply(e: Any)(implicit ctx: ECtx) = a.apply(e)
+  override def bapply(e: Any)(implicit ctx: ECtx) = a.bapply(e)
   override def toDsl = "(" + a.toDsl + ")"
 }
 
 /** negated boolean expression */
 case class BCMPNot(a: BExpr) extends BExpr("") {
-  override def apply(e: Any)(implicit ctx: ECtx) = !a.apply(e)
+  override def bapply(e: Any)(implicit ctx: ECtx) = !a.bapply(e)
   override def toDsl = "NOT (" + a.toDsl + ")"
 }
 
 /** const boolean expression */
 case class BCMPConst(a: String) extends BExpr(a) {
-  override def apply(e: Any)(implicit ctx: ECtx) = a == "true"
+  override def bapply(e: Any)(implicit ctx: ECtx) = a == "true"
 }
 
 /** composed boolean expression */
 case class BCMP1(a: BExpr, op: String, b: BExpr)
     extends BExpr(a.toDsl + " " + op + " " + b.toDsl) {
-  override def apply(in: Any)(implicit ctx: ECtx) = op match {
-    case "||" | "or"  => a.apply(in) || b.apply(in)
-    case "&&" | "and" => a.apply(in) && b.apply(in)
+  override def bapply(in: Any)(implicit ctx: ECtx) = op match {
+    case "||" | "or"  => a.bapply(in) || b.bapply(in)
+    case "&&" | "and" => a.bapply(in) && b.bapply(in)
     case _ => {
       clog << s"[ERR BoolOperator $op UNKNOWN!!!] as in $a $op $b"; false
     }
@@ -54,7 +59,7 @@ case class BCMP1(a: BExpr, op: String, b: BExpr)
 case class BCMP2(a: Expr, op: String, b: Expr)
     extends BExpr(a.toDsl + " " + op + " " + b.toDsl) {
 
-  override def apply(in: Any)(implicit ctx: ECtx): Boolean = {
+  override def bapply(in: Any)(implicit ctx: ECtx): Boolean = {
     try {
       (a, b) match {
         case (CExpr(aa, WTypes.wt.NUMBER), CExpr(bb, WTypes.wt.NUMBER)) => {
@@ -287,7 +292,7 @@ case class BCMPSingle(a: Expr) extends BExpr(a.toDsl) {
     }
   }
 
-  override def apply(in: Any)(implicit ctx: ECtx) = {
+  override def bapply(in: Any)(implicit ctx: ECtx) = {
     val ap = a.applyTyped(in)
     toBoolean(ap)
   }
@@ -295,7 +300,7 @@ case class BCMPSingle(a: Expr) extends BExpr(a.toDsl) {
 
 /** just a constant expr */
 object BExprFALSE extends BExpr("FALSE") {
-  def apply(e: Any)(implicit ctx: ECtx): Boolean = false
+  def bapply(e: Any)(implicit ctx: ECtx): Boolean = false
 
   override def toDsl = "FALSE"
 }

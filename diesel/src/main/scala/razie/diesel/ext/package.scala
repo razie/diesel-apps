@@ -125,7 +125,7 @@ package object ext {
   def check (in:P, pm:PM)(implicit ctx: ECtx) = {
     // match simple names - look at testA for complex evaluators
     in.name == pm.name && pm.ident.rest.isEmpty && {
-      val r = new BCMP2(in.valExpr, pm.op, pm.valExpr).apply("")
+      val r = new BCMP2(in.valExpr, pm.op, pm.valExpr).bapply("")
 
       // for regex matches, use each capture group and set as parm in context
       if(pm.op == "~=") {
@@ -192,7 +192,7 @@ package object ext {
 
             if (!res) {
               // last try: any value in context
-              res = new BCMP2(pm.ident, pm.op, pm.valExpr).apply("")
+              res = new BCMP2(pm.ident, pm.op, pm.valExpr).bapply("")
 
               if (!res) { // failed to find any valid exprs, just evaluate the left side to get some info
                 if (positive) cole.map(_.missedValue(AExprIdent(pm.name).applyTyped("")))
