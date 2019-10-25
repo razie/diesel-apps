@@ -67,9 +67,9 @@ object EEFunc {
     res
   }
 
-  def execute (script:String)(implicit ctx: ECtx): Any = {
+  def execute (lang:String, script:String)(implicit ctx: ECtx): Any = {
     val res : Any = try {
-      val r = newestFiddle(script, "js", ctx.listAttrs, ctx)
+      val r = newestFiddle(script, lang, ctx.listAttrs, ctx)
       r._2
     } catch {
       case e: Throwable => e.getMessage
@@ -112,11 +112,11 @@ object EEFunc {
   }
 
   /** core of JS execution */
-  def executeTyped (script:String)(implicit ctx: ECtx): P = {
+  def executeTyped (lang:String, script:String)(implicit ctx: ECtx): P = {
     val r = try {
 
       // run the script
-      val r = newestFiddle(script, "js", ctx.listAttrs, ctx)
+      val r = newestFiddle(script, lang, ctx.listAttrs, ctx)
       scriptResToTypedP(r, 0)
     } catch {
       case e: Throwable => P("", e.getMessage, WTypes.wt.EXCEPTION).withValue(e, WTypes.wt.EXCEPTION)
@@ -134,7 +134,7 @@ object EEFunc {
 
     val typed = qTypedP(qp, None)(ctx) + ("diesel" -> new DieselJs(ctx))
 
-    val r = DieselScripster.newsfiddleMap(script, "js", q, Some(typed), false, exprs, ctx)
+    val r = DieselScripster.newsfiddleMap(script, lang, q, Some(typed), false, exprs, ctx)
 
     r
   }

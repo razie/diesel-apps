@@ -8,8 +8,10 @@ package razie.base.scriptingx
 import api.dwix
 import javax.script.ScriptEngineManager
 import jdk.nashorn.api.scripting.{ClassFilter, NashornScriptEngineFactory, ScriptObjectMirror}
+import model.WikiScripster
 import org.bson.types.ObjectId
 import razie.audit.Audit
+import razie.base.scripting.RazScript.{RSError, RSSucc}
 import razie.diesel.dom.ECtx
 import razie.tconf.DUsers
 import razie.{CSTimer, Logging, js}
@@ -170,7 +172,27 @@ object DieselScripster extends Logging {
 
     } else if (lang == "scala") {
 
-      throw new IllegalArgumentException ("scala not supported at this point")
+      try {
+//        val sctx = ScalaScriptContext.sbt(typed.get)
+//        val s = ScalaScript(script)
+//        val res = s.eval(sctx)
+
+        val res = WikiScripster.implScala.runScriptAny(script, lang, None, None, q, true)
+        Audit.logdb("SFIDDLE_EXEC", "scala", script)
+
+                (true, res.toString, res)
+//        res match {
+//          case RSSucc(x) => (true, x.toString, x)
+//          case RSError(x) => (false, x.toString, x)
+//          case _ => (false, res.toString, res)
+//        }
+      } catch {
+        case t: Throwable => {
+          log(s"while executing script\n$script", t)
+//                    throw t
+          (false, t.toString, t)
+        }
+      }
 
     } else (false, script, script)
   }

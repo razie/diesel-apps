@@ -181,10 +181,10 @@ case class JSSExpr(s: String) extends Expr {
   override def getType: WType = WTypes.wt.UNKNOWN
 
   override def apply(v: Any)(implicit ctx: ECtx) =
-    EEFunc.execute(s) //.dflt
+    EEFunc.execute("js", s) //.dflt
 
   override def applyTyped(v: Any)(implicit ctx: ECtx): P = {
-      EEFunc.executeTyped(s)
+      EEFunc.executeTyped("js", s)
   }
 }
 
@@ -197,9 +197,11 @@ case class SCExpr(s: String) extends Expr {
 
   override def getType: WType = WTypes.wt.UNKNOWN
 
-  override def apply(v: Any)(implicit ctx: ECtx) = ???
+  override def apply(v: Any)(implicit ctx: ECtx) =
+    EEFunc.execute("scala", s) //.dflt
 
-  override def applyTyped(v: Any)(implicit ctx: ECtx): P = ???
+  override def applyTyped(v: Any)(implicit ctx: ECtx): P =
+    EEFunc.executeTyped("scala", s)
 }
 
 
