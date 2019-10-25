@@ -6,10 +6,15 @@
   */
 package razie.diesel.samples
 
+import org.bson.types.ObjectId
+import razie.audit.Audit
+import razie.ctrace
 import razie.diesel.dom._
 import razie.diesel.engine._
 import razie.diesel.ext.{EMsg, EVal, EnginePrep}
+import razie.diesel.model.DieselMsg
 import razie.tconf.DSpec
+import razie.wiki.model.{WID, WikiEntry}
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
@@ -51,6 +56,8 @@ object DomEngineUtils {
     engine
   }
 
+  final val NOUSER = new ObjectId()
+
   /** execute message - this is the typical use of an engine
     *
     * @param msg "entity.action(p=value,etc)
@@ -59,30 +66,61 @@ object DomEngineUtils {
     * @param settings engine settings
     * @return
     */
-  def runDom(msg:String, specs:List[DSpec], stories: List[DSpec], settings:DomEngineSettings) : Future[Map[String,Any]] = {
-//    Audit.logdb("DIESEL_RUNDOM")
+
+  /** execute message to given reactor
+    *
+    * this is only used from the CQRS, internally - notice no request
+    */
+  def runDom(msg:String, specs:List[WID], stories: List[WID], settings:DomEngineSettings) : Future[Map[String,Any]] = {
+    val realm = settings.realm getOrElse specs.headOption.map(_.getRealm).mkString
+    val page = new WikiEntry("Spec", "fiddle", "fiddle", "md", "", NOUSER, Seq("dslObject"), realm)
+
+    // don't audit diesel messages - too many
+    if(
+      msg.startsWith(DieselMsg.REALM.REALM_LOADED_MSG) ||
+          msg.startsWith(DieselMsg.GUARDIAN_RUN) ||
+          msg.startsWith(DieselMsg.GUARDIAN_POLL) ||
+          msg.startsWith(DieselMsg.WIKI_UPDATED) ||
+          msg.startsWith(DieselMsg.CRON_TICK) ||
+          false
+    ) {
+      // clog?
+    }
+    else
+      Audit.logdb("DIESEL_FIDDLE_RUNDOM ", msg)
+
+    val pages = (specs ::: stories).filter(_.section.isEmpty).flatMap(_.page)
 
     // to domain
-    val dom = RDomain.domFrom(specs.head, specs.tail)
+    val dom = WikiDomain.domFrom(page, pages)
 
     // make up a story
-    var originalMsg = msg
-    var story = if (msg.trim.startsWith("$msg")) {
-      originalMsg = msg.trim.replace("$msg ", "").trim
-      msg
-    } else "$msg " + msg
+    val FILTER = Array("sketchMode", "mockMode", "blenderMode", "draftMode")
+    var story = if (msg.trim.startsWith("$msg") || msg.trim.startsWith("$send")) msg else "$msg " + msg
+    ctrace << "STORY: " + story
 
-    val idom =
-      if(stories.isEmpty) RDomain.empty
-      else RDomain.domFrom(stories.head, stories.tail).revise addRoot
+    // todo this has no EPos - I'm loosing the epos on sections
+    // put together all sections
+    val story2 = (specs ::: stories).filter(_.section.isDefined).flatMap(_.content).mkString("\n")
+    story = story + "\n" + story2.lines.filterNot(x =>
+      x.trim.startsWith("$msg") || x.trim.startsWith("$send")
+    ).mkString("\n") + "\n"
+
+    val ipage = new WikiEntry("Story", "fiddle", "fiddle", "md", story, NOUSER, Seq("dslObject"), realm)
+    val idom = WikiDomain.domFrom(ipage).get.revise addRoot
 
     var res = ""
 
-    val root = DomAst("root", AstKinds.ROOT)
-    EnginePrep.addStoriesToAst(root, stories)
+    val root = DomAst("root", "root")
+    EnginePrep.addStoriesToAst(root, List(ipage))
 
     // start processing all elements
-    val engine = DieselAppContext.mkEngine(dom plus idom, root, settings, stories ::: specs, "simpleFlow")
+    val engine = DieselAppContext.mkEngine(
+      dom plus idom,
+      root,
+      settings,
+      ipage :: pages map WikiDomain.spec,
+      DieselMsg.runDom+msg)
 
     engine.process.map { engine =>
 
@@ -107,12 +145,14 @@ object DomEngineUtils {
       }
 
       var m = Map(
-        "value" -> values.headOption.map(_._2).map(stripQuotes).getOrElse(""),
+//                   "value" -> values.headOption.map(_._2).map(stripQuotes).getOrElse(""),
+        "value" -> engine.resultingValue,
         "values" -> values.toMap,
         "totalCount" -> (engine.totalTestCount),
         "failureCount" -> engine.failedTestCount,
         "errors" -> errors.toList,
         "root" -> root,
+        "engineId" -> engine.id,
         "dieselTrace" -> DieselTrace(root, settings.node, engine.id, "diesel", "runDom", settings.parentNodeId).toJson
       )
       m

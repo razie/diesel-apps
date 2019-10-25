@@ -6,7 +6,10 @@
   */
 package razie.diesel.model
 
-import razie.diesel.engine.DomEngineSettings
+import razie.audit.Audit
+import razie.{clog, cout}
+import razie.diesel.engine.{DieselAppContext, DomEngineSettings}
+import razie.diesel.samples.DomEngineUtils
 import razie.tconf.{SpecPath, TSpecPath, TagQuery}
 import razie.wiki.model.{WID, WikiSearch}
 
@@ -31,6 +34,43 @@ case class DieselMsgString(msg: String,
   }
 
   def withContext(p: Map[String, String]) = this.copy(ctxParms = ctxParms ++ p)
+
+  def startMsg = {
+    val m=this
+    // todo auth/auth
+    cout << "======== DIESEL MSG: " + m
+    val settings = osettings.getOrElse(new DomEngineSettings())
+    settings.realm = Some(target.realm)
+    // important to use None here, to let the engines use the envList setting otherwise
+    settings.env = if(target.env == DieselTarget.DEFAULT) None else Some(target.env)
+
+    val ms = m.mkMsgString
+
+    import scala.concurrent.ExecutionContext.Implicits.global
+    DomEngineUtils
+        .runDom(ms, target.specs, target.stories, settings)
+        .map { res =>
+          // don't audit these frequent ones
+          if(
+            m.msg.startsWith(DieselMsg.WIKI_UPDATED) ||
+                m.msg.startsWith(DieselMsg.CRON_TICK) ||
+                m.msg.startsWith(DieselMsg.GUARDIAN_POLL) ||
+                false//        m.msg.startsWith(DieselMsg.REALM_LOADED)
+          ) {
+            clog << "DIESEL_MSG: " + m + " : RESULT: " + res.get("value").mkString.take(500)
+          } else {
+            val id = res.get("engineId").mkString
+            // this will also clog it - no need to clog it
+            Audit.logdb(
+              "DIESEL_MSG",
+              m.toString,
+              s"[[DieselEngine:$id]]",
+              "result-length: "+res.get("value").mkString.length,
+              res.get("value").mkString.take(500)
+            )
+          }
+        }
+  }
 }
 
 /** schedule a message for later - send this to Services */
