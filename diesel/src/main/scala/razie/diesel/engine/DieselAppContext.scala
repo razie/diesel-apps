@@ -14,6 +14,7 @@ import razie.diesel.dom.RDomain
 import razie.diesel.exec.{EEFormatter, EEFunc, EETest, Executors}
 import razie.tconf.DSpec
 import scala.collection.concurrent.TrieMap
+import scala.concurrent.ExecutionContext
 
 /** a diesel application context - setup actor infrastructure etc
   *
@@ -33,9 +34,15 @@ class DieselAppContext(node: String, app: String) {
 
 /** an application static - engine factory, manager and cache */
 object DieselAppContext extends Logging {
+  val DIESEL_DISPATCHER = "diesel-dispatcher"
+
   private var _simpleMode = false
 
   @volatile private var appCtx: Option[DieselAppContext] = None
+
+  implicit def executionContext =
+    if(simpleMode) ExecutionContext.Implicits.global
+    else getActorSystem.dispatchers.lookup(DIESEL_DISPATCHER)
 
   /** active engines -ussed for routing so weak concurrent control ok */
   val activeEngines = new TrieMap[String, DomEngine]()
@@ -48,8 +55,8 @@ object DieselAppContext extends Logging {
   private var actorSystem: Option[ActorSystem] = None
   private var actorSystemFactory: Option[() => ActorSystem] = None
 
-  /** when this is set, no multi-tenant and other features are used, you don't need to initialize
-    * too much infrastructure
+  /** when this is set, no multi-tenant or special thread pools and other features are used,
+    * you don't need to initialize too much infrastructure
     */
   def simpleMode = _simpleMode
 
@@ -63,13 +70,30 @@ object DieselAppContext extends Logging {
   }
 
   /** use this actor system - defaults to creating its own */
-  def setActorSystem(s: ActorSystem) = synchronized {
+  def mkExecutionContext () = {
+    // default
+    //    ExecutionContext.Implicits.global
+
+    // custom
+    ExecutionContext.fromExecutor(
+      // flexible fork-join pool
+      // new java.util.concurrent.ForkJoinPool(5)
+
+      //If you want fixed size thread pool:
+      java.util.concurrent.Executors.newFixedThreadPool(5)
+    )
+  }
+
+  /** use this actor system - defaults to creating its own */
+  def withActorSystem(s: ActorSystem) = synchronized {
     actorSystem = Some(s)
+    this
   }
 
   /** todo poor man's injection - use guice or stomething */
-  def setActorSystemFactory(s: () => ActorSystem) = synchronized {
+  def withActorSystemFactory(s: () => ActorSystem) = synchronized {
     actorSystemFactory = Some(s)
+    this
   }
 
   /** get current system, if set, or make a default one */
@@ -109,11 +133,18 @@ object DieselAppContext extends Logging {
     }
 
     val p = Props(new DomEngineRouter())
-    val a = getActorSystem.actorOf(p)
+    val a = actorOf(p)
     router = Some(a)
     a ! DEInit
 
     appCtx.get
+  }
+
+  /** initialize the engine cache and actor infrastructure */
+  def actorOf(props:akka.actor.Props, name: String="") = {
+    val p = props //if(simpleMode) props else props.withDispatcher("xxt")//DIESEL_DISPATCHER)
+    val a = if(name.isEmpty) getActorSystem.actorOf(p) else getActorSystem.actorOf(p, name)
+    a
   }
 
   /** the static version - delegates to factory */
@@ -125,7 +156,7 @@ object DieselAppContext extends Logging {
 
     val eng = ctx.mkEngine(dom, root, settings, pages, description)
     val p = Props(new DomEngineActor(eng))
-    val a = getActorSystem.actorOf(p, name = "engine-" + eng.id)
+    val a = actorOf(p, name = "engine-" + eng.id)
 
     DieselAppContext.activeEngines.put(eng.id, eng)
     DieselAppContext.activeActors.put(eng.id, a)

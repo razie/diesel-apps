@@ -57,7 +57,9 @@ class TestSimpleAsyncExecutor extends WordSpecLike with MustMatchers with Option
 
   // create an actor system or use the default etc
   implicit val system = ActorSystem("testsystem", ConfigFactory.parseString(""" """))
-  DieselAppContext.setActorSystem(system)
+  DieselAppContext
+      .withSimpleMode()
+      .withActorSystem(system)
 
 
   "simplest engine" should {

@@ -18,7 +18,7 @@ class TestMTEngine extends TestKit(ActorSystem("x")) {
 
   import SampleSpecs1._
 
-  DieselAppContext.setActorSystem(system)
+  DieselAppContext.withActorSystem(system)
 
 //  override def afterAll {
 //    TestKit.shutdownActorSystem(system)

@@ -23,7 +23,9 @@ class TestSimpleEngine extends WordSpecLike with MustMatchers with OptionValues 
   implicit val system = ActorSystem("testsystem", ConfigFactory.parseString(""" """))
 
   // tell the engine to use this system
-  DieselAppContext.setActorSystem(system)
+  DieselAppContext
+      .withSimpleMode()
+      .withActorSystem(system)
 
   "simplest engine" should {
     "execute a message" in {
