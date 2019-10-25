@@ -425,16 +425,6 @@ trait DomParser extends ParserBase with ExprParser {
   // ?
   def attr: Parser[_ >: CM] = pattr
 
-  /**
-    * :<>type[kind]*
-    * <> means it's a ref, not ownership
-    * * means it's a list
-    */
-  def optType: Parser[String] = opt(" *: *".r ~> ident ~ optKinds ~ opt(" *\\* *".r)) ^^ {
-    case Some(tt ~ k ~ multi) => tt + k.s + multi.mkString
-    case None => ""
-  }
-
   def OPS1: Parser[String] = "==|~=|!=|\\?=|>=|<=|>|<|contains|is|not".r
 
   /**
@@ -446,11 +436,10 @@ trait DomParser extends ParserBase with ExprParser {
     */
   def pmatchattr: Parser[RDOM.PM] = ows ~>
       (aidentaccess | aident) ~
-      opt(ows ~> ":" ~> ows ~> opt("<>") ~ ident ~ optKinds) ~
-      opt(" *\\* *".r) ~
+      optType ~
       opt(ows ~> OPS1 ~ ows ~ expr) ^^ {
 
-    case ident ~ t ~ multi ~ e => {
+    case ident ~ t ~ e => {
       var ttype = ""
       var dflt = ""
       val exp = e match {
@@ -460,11 +449,7 @@ trait DomParser extends ParserBase with ExprParser {
         }
         case None => ("", None)
       }
-      t match {
-        case Some(Some(ref) ~ tt ~ k) => PM(ident, WType(tt + k.s), ref, multi.mkString, exp._1, dflt, exp._2)
-        case Some(None ~ tt ~ k) => PM(ident, WType(tt + k.s), "", multi.mkString, exp._1, dflt, exp._2)
-        case None => PM(ident, WType(ttype), "", multi.mkString, exp._1, dflt, exp._2)
-      }
+      PM(ident, t, exp._1, dflt, exp._2)
     }
   }
 
@@ -639,10 +624,10 @@ trait DomParser extends ParserBase with ExprParser {
   /**
     * .func name (a,b) : String
     */
-  def pdef: PS = "[.$]def *".r ~> qident ~ optAttrs ~ opt(" *: *".r ~> ident) ~ optScript ~ optBlock ^^ {
+  def pdef: PS = "[.$]def *".r ~> qident ~ optAttrs ~ optType ~ optScript ~ optBlock ^^ {
     case name ~ attrs ~ optType ~ script ~ block => {
       lazys { (current, ctx) =>
-        val f = F(name, attrs, optType.mkString, "def", script.fold(ctx).s, block)
+        val f = F(name, attrs, optType, "def", script.fold(ctx).s, block)
         collectDom(f, ctx.we)
 
         def mkParms = f.parms.map { p => p.name + "=" + Enc.toUrl(p.currentStringValue) }.mkString("&")
@@ -683,7 +668,7 @@ trait DomParser extends ParserBase with ExprParser {
     */
   def defline: Parser[RDOM.F] = " *\\$?XXdef *".r ~> ident ~ optAttrs ~ optType ~ " *".r ~ optBlock ^^ {
     case name ~ a ~ t ~ _ ~ b => {
-      new F(name, a, t.mkString, "def", "", b)
+      new F(name, a, t, "def", "", b)
     }
   }
 
@@ -692,7 +677,7 @@ trait DomParser extends ParserBase with ExprParser {
     */
   def msgline: Parser[RDOM.F] = " *\\$?msg *".r ~> ident ~ optAttrs ~ optType ~ " *".r ~ opt(pgen) ^^ {
     case name ~ a ~ t ~ _ ~ m => {
-      new F(name, a, t.mkString, "msg", "", m.toList.map(x=>new ExecutableMsg(x)))
+      new F(name, a, t, "msg", "", m.toList.map(x=>new ExecutableMsg(x)))
     }
   }
 
@@ -706,12 +691,10 @@ trait DomParser extends ParserBase with ExprParser {
   def svalue: Parser[Executable] = valueDef ^^ { case p => new ExecutableValue(p) }
 
   // not used yet - class member val
-  def valueDef: Parser[RDOM.P] = "val *".r ~> ident ~ opt(" *: *".r ~> opt("<>") ~ ident) ~ opt(" *\\* *".r) ~ opt(" *= *".r ~> value) ^^ {
-    case name ~ t ~ multi ~ e => t match {
-      case Some(Some(ref) ~ tt) => P(name, e.mkString, tt, ref, multi.mkString)
-      case Some(None ~ tt) => P(name, e.mkString, tt.mkString, "", multi.mkString)
-      case None => P(name, e.mkString, "", "", multi.mkString)
-    }
+  // todo use optType
+//  def valueDef: Parser[RDOM.P] = "val *".r ~> ident ~ opt(" *: *".r ~> opt("<>") ~ ident) ~ opt(" *\\* *".r) ~ opt(" *= *".r ~> value) ^^ {
+  def valueDef: Parser[RDOM.P] = "val *".r ~> ident ~ optType ~ opt(" *= *".r ~> value) ^^ {
+    case name ~ t ~ e => P(name, e.mkString, t)
   }
 
   // not used yet - class member val
