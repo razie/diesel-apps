@@ -100,8 +100,10 @@ package object dom {
 //    )
     else if (p.ttype == WTypes.JSON)
       (t._1, t._2.calculatedTypedValue.asJson)
+    else if (p.ttype == WTypes.ARRAY)
+      (t._1, t._2.calculatedTypedValue.asArray)
     else
-      (t._1, prep(t._2.dflt))
+      (t._1, prep(t._2.calculatedValue))
   }
 
 }
