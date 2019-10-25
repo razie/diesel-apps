@@ -13,7 +13,7 @@ import scala.util.parsing.json.JSONArray
 
 /** arithmetic expressions on various types, including json, strings, arrays etc */
 case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
-  val expr = (a.toDsl + op + b.toDsl)
+  val expr = "("+a.toDsl + " " + op + " " + b.toDsl+")"
 
   override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).currentValue.ee
 
@@ -27,24 +27,29 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
       case _               => Some(P("", P.asString(a(v))))
     }
 
-    def isNum(x: Expr): Boolean = x match {
-      case CExpr(_, WTypes.wt.NUMBER) => true
-      case aei:AExprIdent          => aei.tryApplyTyped("").exists(_.ttype == WTypes.NUMBER)
-      case _                       => false
-    }
+//    def isNum(x: Expr): Boolean = x match {
+//      case CExpr(_, WTypes.wt.NUMBER) => true
+//      case aei:AExprIdent             => aei.tryApplyTyped("").exists(_.ttype == WTypes.NUMBER)
+//      case c:Expr                     => c.getType.name == WTypes.NUMBER
+//    }
+
+    def isNum(p: P): Boolean = p.calculatedTypedValue.cType.name == WTypes.NUMBER
+
+    val av = a.applyTyped(v)
 
     val res: PValue[_] = op match {
       case "*" => {
+        val bv = b.applyTyped(v)
         (a, b) match {
-          case _ if isNum(a) && isNum(b) => {
-            val as = a(v).toString
+          case _ if isNum(av) && isNum(bv) => {
+            val as = av.calculatedValue
             if (as.contains(".")) {
               val ai = as.toFloat
-              val bi = b(v).toString.toFloat
+              val bi = bv.calculatedValue.toFloat
               PValue(ai * bi, WTypes.wt.NUMBER)
             } else {
               val ai = as.toInt
-              val bi = b(v).toString.toInt
+              val bi = bv.calculatedValue.toInt
               PValue(ai * bi, WTypes.wt.NUMBER)
             }
             // todo float and type safe numb
@@ -60,6 +65,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
       }
 
       case "+" => {
+        val bv = b.applyTyped(v)
         (a, b) match {
           // json exprs are different, like cart + { item:...}
           case (aei:AExprIdent, JBlockExpr(jb))
@@ -72,7 +78,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
                 bei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) =>
             PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.wt.JSON)
 
-          case _ if isNum(a) && isNum (b) => {
+          case _ if isNum(av) && isNum (bv) => {
             // if a is num, b will be converted to num
             val as = a(v).toString
             if (as.contains(".")) {
@@ -87,9 +93,6 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
           }
 
           case _ => {
-            val av = a.applyTyped(v)
-            val bv = b.applyTyped(v)
-
             // concat lists
             if(bv.ttype == WTypes.ARRAY ||
                av.ttype == WTypes.ARRAY) {
@@ -109,17 +112,18 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
       }
 
       case "-" => {
+        val bv = b.applyTyped(v)
         (a, b) match {
-          case _ if isNum(a) && isNum (b) => {
+          case _ if isNum(av) && isNum (bv) => {
             // if a is num, b will be converted to num
-            val as = a(v).toString
+            val as = av.calculatedValue
             if (as.contains(".")) {
               val ai = as.toFloat
-              val bi = b(v).toString.toFloat
+              val bi = bv.calculatedValue.toFloat
               PValue(ai - bi, WTypes.wt.NUMBER)
             } else {
               val ai = as.toInt
-              val bi = b(v).toString.toInt
+              val bi = bv.calculatedValue.toInt
               PValue(ai - bi, WTypes.wt.NUMBER)
             }
           }
@@ -147,18 +151,84 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
       }
 
       case "as" => {
-        val av = a.applyTyped(v).calculatedTypedValue
-        b match {
-          case _ if b.toString == "number" =>
-            P.fromTypedValue("", av.value, WTypes.NUMBER).calculatedTypedValue
+        val bs = b.toString.toLowerCase
+        val avalue = av.calculatedTypedValue.value
 
-          case _ if b.toString == "string" =>
-            P.fromTypedValue("", av.value, WTypes.STRING).calculatedTypedValue
+          b match {
+          case _ if bs == "number" =>
+            P.fromTypedValue("", avalue, WTypes.NUMBER).calculatedTypedValue
+
+          case _ if bs == "string" =>
+            P.fromTypedValue("", avalue, WTypes.STRING).calculatedTypedValue
+
+          case _ if bs == "json" || bs == "object" =>
+            P.fromTypedValue("", avalue, WTypes.JSON).calculatedTypedValue
+
+          case _ if bs == "array" =>
+            P.fromTypedValue("", avalue, WTypes.ARRAY).calculatedTypedValue
 
           case t : CExpr[String] => // x as "application/pdf"
-            P("", av.value.toString, WType(t.ee)).withValue(av.value, t.ee).calculatedTypedValue
+            P("", av.calculatedValue, WType(t.ee)).withValue(av.value, t.ee).calculatedTypedValue
 
-          case _ => throw new DieselExprException("Can't typecast to: " + b.toString)
+          case _ => throw new DieselExprException("Can't typecast to: " + b.toString + " from: " + av)
+        }
+      }
+
+      case "map" => {
+        av.calculatedTypedValue.cType.name match {
+          case WTypes.ARRAY => {
+            val elementType = av.calculatedTypedValue.cType.subType
+
+            val arr = av.calculatedTypedValue.asArray
+
+            val resArr = arr.map {x=>
+              val res = if(b.isInstanceOf[LambdaFuncExpr]) {
+                val res = b.applyTyped(x)
+                res
+              } else {
+                // we populate an "x" or should it be "elem" ?
+                val sctx = new StaticECtx(List(P.fromTypedValue("x", x)), Some(ctx))
+                val res = b.applyTyped(x)(sctx)
+                res
+              }
+              res
+            }
+
+            val finalArr = resArr.map(_.calculatedTypedValue.value)
+            PValue(finalArr, WTypes.wt.ARRAY)
+          }
+
+          case _ => throw new DieselExprException("Can't do map on: " + av)
+        }
+      }
+
+      case "filter" => {
+        val av = a.applyTyped(v).calculatedTypedValue
+
+        av.cType.name match {
+          case WTypes.ARRAY => {
+            val elementType = av.cType.subType
+
+            val arr = av.asArray
+
+            val resArr = arr.filter {x=>
+                val res = if(b.isInstanceOf[LambdaFuncExpr]) {
+                  val res = b.applyTyped(x)
+                  res
+                } else {
+                  // we populate an "x" or should it be "elem" ?
+                  val sctx = new StaticECtx(List(P.fromTypedValue("x", x)), Some(ctx))
+                  val res = b.applyTyped(x)(sctx)
+                  res
+                }
+              res.calculatedValue.toBoolean
+            }
+
+            val finalArr = resArr
+            PValue(finalArr, WTypes.wt.ARRAY)
+          }
+
+          case _ => throw new DieselExprException("Can't do map on: " + av)
         }
       }
 

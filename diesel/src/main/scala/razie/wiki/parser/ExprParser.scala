@@ -8,7 +8,7 @@ package razie.wiki.parser
 
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
-import razie.diesel.expr.{AExpr2, AExprFunc, AExprIdent, BCMP1, BCMP2, BCMPConst, BCMPNot, BCMPSingle, BExpr, BExprBlock, BlockExpr, CExpr, CExprNull, Expr, ExprRange, JArrExpr, JBlockExpr, JSSExpr, SCExpr}
+import razie.diesel.expr.{AExpr2, AExprFunc, AExprIdent, BCMP1, BCMP2, BCMPConst, BCMPNot, BCMPSingle, BExpr, BExprBlock, BlockExpr, CExpr, CExprNull, Expr, ExprRange, JArrExpr, JBlockExpr, JSSExpr, LambdaFuncExpr, SCExpr}
 import razie.diesel.ext._
 import razie.tconf.parser.{BaseAstNode, StrAstNode}
 import scala.util.parsing.combinator.RegexParsers
@@ -34,13 +34,22 @@ trait ExprParser extends RegexParsers {
     case s => unquote(s)
   }
 
+  /** qualified idents, . notation, parsed as a single string */
   def qident: Parser[String] = ident ~ rep("." ~> ident) ^^ {
     case i ~ l => (i :: l).mkString(".")
   }
 
-  def qlident: Parser[List[String]] = ident ~ rep("." ~> ident) ^^ {
+  // fix this somehow - these need to be accessed as this - they should be part of a "diesel" object with callbacks
+  def qlidentDiesel: Parser[List[String]] = "diesel." ~ ident ^^ {
+    case d ~ i => List(d+i)
+  }
+
+  /** qualified idents, . notation, parsed as a list */
+  def realmqlident: Parser[List[String]] = ident ~ rep("." ~> ident) ^^ {
     case i ~ l => i :: l
   }
+
+  def qlident: Parser[List[String]] = qlidentDiesel | realmqlident
 
   def boolConst: Parser[String] = "true" | "false" ^^ {
     case b => b
@@ -64,15 +73,46 @@ trait ExprParser extends RegexParsers {
 
   //  def str: PS = """"[^"]*"""".r
 
-  //------------ expressions and conditions
+  //
+  //=========================== expressions and conditions ============================
+  //
 
-  def expr: Parser[Expr] = ppexpr | pterm1
+//  def expr: Parser[Expr] = ppexpr | cond | pterm1
+  def expr:  Parser[Expr] = ppexpr1 | pterm1
+  def expr2: Parser[Expr] = ppexpr2 | pterm1
+  def expr3: Parser[Expr] = ppexpr3 | pterm1
 
-  def ppexpr: Parser[Expr] = pterm1 ~ rep(ows ~> ("*" | "+" | "-" | "||" | "|" | "as") ~ ows ~ pterm1) ^^ {
+  def opsmaps: Parser[String] = "as" | "map" | "filter"
+  def opsmult: Parser[String] = "*" | "/"
+  def opsplus: Parser[String] = "+" | "-" | "||" | "|"
+
+  def ppexpr1: Parser[Expr] = ppexpr2 ~ ows ~ opsmaps ~ ows ~ ppexpr1 ^^ {
+    case a ~ _ ~ op ~ _ ~ e => {
+      // todo how to go left associative
+      if(e.isInstanceOf[AExpr2] && Array("filter", "map").contains(e.asInstanceOf[AExpr2].op)) {
+        val b = e.asInstanceOf[AExpr2]
+        // flip right-associative to left
+        AExpr2(AExpr2(a, op, b.a), b.op, b.b)
+      } else {
+        AExpr2(a, op, e)
+      }
+    }
+  } | ppexpr2
+
+  def ppexpr2: Parser[Expr] = ppexpr3 ~ ows ~ opsplus ~ ows ~ ppexpr2 ^^ {
+    case a ~ _ ~ op ~ _ ~ e => AExpr2(a, op, e)
+  } | ppexpr3
+
+  def ppexpr3: Parser[Expr] = pterm1 ~ ows ~ opsmult ~ ows ~ ppexpr3 ^^ {
+    case a ~ _ ~ op ~ _ ~ e => AExpr2(a, op, e)
+  } | pterm1
+
+  // todo this can't parse properly a map b map c map d
+  def ppexpr6: Parser[Expr] = pterm1 ~ rep(ows ~> ("*" | "+" | "-" | "||" | "|" | "as" | "map" | "filter") ~ ows ~ pterm1) ^^ {
     case a ~ l if l.isEmpty => a
-    case a ~ l => l.foldLeft(a)((a, b) =>
-      b match {
-        case op ~ _ ~ p => AExpr2(a, op, p)
+    case a ~ l => l.foldLeft(a)((x, y) =>
+      y match {
+        case op ~ _ ~ p => AExpr2(x, op, p)
       }
     )
   }
@@ -81,14 +121,25 @@ trait ExprParser extends RegexParsers {
     case b => new CExprNull
   }
 
-  def pterm1: Parser[Expr] = numexpr | bcexpr | escexpr | cexpr | jnull | xpident | jsexpr2 | jsexpr1 |
-      scexpr2 | scexpr1 | afunc | aidentaccess | aident | jsexpr3 |
+  def pterm1: Parser[Expr] = numexpr | bcexpr | escexpr | cexpr | bcexpr | jnull | xpident | //cond |
+      lambda | jsexpr2 | jsexpr1 |
+      scexpr2 | scexpr1 | afunc | aidentaccess | aident | jsexpr4 |
       exregex | eblock | jarray | jobj
+
+  def lambda: Parser[Expr] = ident ~ ows ~ "=>" ~ ows ~ (expr2 | "(" ~> expr <~ ")") ^^ {
+    case id ~ _ ~ a ~ _ ~ ex => LambdaFuncExpr(id, ex)
+  }
+
+  def jsexpr1: Parser[Expr] = "js:" ~> ".*(?=[,)])".r ^^ { case li => JSSExpr(li) }
+  def jsexpr2: Parser[Expr] = "js:{" ~> ".*(?=})".r <~ "}" ^^ { case li => JSSExpr(li) }
+  //  def jsexpr3: Parser[Expr] = "js:{{ " ~> ".*(?=})".r <~ "}}" ^^ { case li => JSSExpr(li) }
+  def scexpr1: Parser[Expr] = "sc:" ~> ".*(?=[,)])".r ^^ { case li => SCExpr(li) }
+  def scexpr2: Parser[Expr] = "sc:{" ~> ".*(?=})".r <~ "}" ^^ { case li => SCExpr(li) }
 
   def eblock: Parser[Expr] = "(" ~ ows ~> expr <~ ows ~ ")" ^^ { case ex => BlockExpr(ex) }
 
   // inline js expr: //1+2//
-  def jsexpr3: Parser[Expr] = "//" ~> ".*(?=//)".r <~ "//" ^^ { case li => JSSExpr(li) }
+  def jsexpr4: Parser[Expr] = "//" ~> ".*(?=//)".r <~ "//" ^^ { case li => JSSExpr(li) }
 
   // json object
   def jobj: Parser[Expr] = "{" ~ ows ~> repsep(jnvp <~ ows, ",") <~ ows ~ "}" ^^ {
@@ -129,7 +180,8 @@ trait ExprParser extends RegexParsers {
   }
 
   // escaped multiline string const with escaped chars
-  def escexpr: Parser[Expr] = "\"\"\"" ~> """(?s)((?!\"\"\").)*""".r <~ "\"\"\"" ^^ {
+  // we're removing the first \n
+  def escexpr: Parser[Expr] = "\"\"\"" ~ opt("\n") ~> """(?s)((?!\"\"\").)*""".r <~ "\"\"\"" ^^ {
     e => new CExpr(e.replaceAll("\\\\(.)", "$1"), WTypes.wt.STRING)
   }
 
@@ -139,12 +191,6 @@ trait ExprParser extends RegexParsers {
 
   // XP identifier (either json or xml)
   def xpident: Parser[Expr] = "xp:" ~> xpath ^^ { case i => new XPathIdent(i) }
-
-  def jsexpr1: Parser[Expr] = "js:" ~> ".*(?=[,)])".r ^^ { case li => JSSExpr(li) }
-  def jsexpr2: Parser[Expr] = "js:{" ~> ".*(?=})".r <~ "}" ^^ { case li => JSSExpr(li) }
-
-  def scexpr1: Parser[Expr] = "sc:" ~> ".*(?=[,)])".r ^^ { case li => SCExpr(li) }
-  def scexpr2: Parser[Expr] = "sc:{" ~> ".*(?=})".r <~ "}" ^^ { case li => SCExpr(li) }
 
   // regular expression, JS style
   def exregex: Parser[Expr] =
@@ -186,9 +232,9 @@ trait ExprParser extends RegexParsers {
 
   def afunc: Parser[Expr] = qident ~ attrs ^^ { case i ~ a => AExprFunc(i, a) }
 
-  def optKinds: Parser[BaseAstNode] = opt(ows ~> "[" ~> ows ~> repsep(ident, ",") <~ "]") ^^ {
-    case Some(tParm) => tParm.mkString
-    case None => ""
+  def optKinds: Parser[Option[String]] = opt(ows ~> "[" ~> ows ~> repsep(ident, ",") <~ "]") ^^ {
+    case Some(tParm) => Some(tParm.mkString)
+    case None => None
   }
 
   /**
@@ -221,7 +267,7 @@ trait ExprParser extends RegexParsers {
     * * means it's a list
     */
   def optType: Parser[WType] = opt(" *: *".r ~> opt("<>") ~ ident ~ optKinds ~ opt(" *\\* *".r)) ^^ {
-    case Some(ref ~ tt ~ k ~ None) => WType(tt, "", Some(k.s)).withRef(ref.isDefined)
+    case Some(ref ~ tt ~ k ~ None) => WType(tt, "", k).withRef(ref.isDefined)
     case Some(ref ~ tt ~ k ~ Some(_)) => WType(WTypes.ARRAY, "", Some(tt)).withRef(ref.isDefined)
     case None => WTypes.wt.EMPTY
   }
