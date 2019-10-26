@@ -92,6 +92,11 @@ package object ext {
 
     def plus(s: String) = cur.plus(s)
 
+    /** negative match
+      * @param name the name I was looking for
+      * @param found the value I found
+      * @param expected the value I expetected to find
+      */
     def minus(name: String, found: Any, expected:Any) =
       cur.minus(name, found, expected)
 
@@ -120,28 +125,6 @@ package object ext {
           )
         }
         .mkString
-  }
-
-  def check (in:P, pm:PM)(implicit ctx: ECtx) = {
-    // match simple names - look at testA for complex evaluators
-    in.name == pm.name && pm.ident.rest.isEmpty && {
-      val r = new BCMP2(in.valExpr, pm.op, pm.valExpr).bapply("")
-
-      // for regex matches, use each capture group and set as parm in context
-      if(pm.op == "~=") {
-        // extract parms
-        val a = in.valExpr.apply("")
-        val b = pm.valExpr.apply("")
-        val groups = EContent.extractRegexParms(b.toString, a.toString)
-
-        groups.foreach(t=> ctx.put(P(t._1, t._2)))
-      }
-
-      if(! r) {
-//         name found but no value match - mark the name
-      }
-      r
-    }
   }
 
   def flattenJson (p: P)(implicit ctx: ECtx) : Attrs = {
@@ -181,21 +164,23 @@ package object ext {
         val pm = b._1
 
         // testing for name and value
-        if (b._1.dflt.size > 0 || b._1.expr.isDefined) {
+        if (pm.isMatch && (pm.dflt.size > 0 || pm.expr.isDefined)) {
           if (b._1.name.size > 0) {
-            res = in.exists(x => check(x, b._1)) || ctx.exists(x => check(x, b._1))
+            res = in.exists(x => pm.check(x)) || ctx.exists(x => pm.check(x))
 
-            if (!res && positive || res && !positive) in.find(_.name == b._1.name).map { p =>
+            if (!res && positive || res && !positive) in.find(_.name == pm.name).map { p =>
               // mark it in the cole
               foundName.map(_.apply(p))
             }
 
             if (!res) {
               // last try: any value in context
-              res = new BCMP2(pm.ident, pm.op, pm.valExpr).bapply("")
+              val bres = new BCMP2(pm.ident, pm.op, pm.valExpr).bapply("")
+              res = bres.value
 
               if (!res) { // failed to find any valid exprs, just evaluate the left side to get some info
-                if (positive) cole.map(_.missedValue(AExprIdent(pm.name).applyTyped("")))
+//                if (positive) cole.map(_.missedValue(AExprIdent(pm.name).applyTyped("")))
+                if (positive && bres.a.isDefined) cole.map(_.missedValue(bres.a.get))
               } else {
                 // for regex matches, use each capture group and set as parm in context
                 if (pm.op == "~=") {

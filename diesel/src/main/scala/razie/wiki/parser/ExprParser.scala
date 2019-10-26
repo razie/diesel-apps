@@ -345,6 +345,7 @@ trait ExprParser extends RegexParsers {
     case a ~ s ~ b => cmp(a, s.trim, b)
   }
 
+  /** true or false constants */
   def bConst: Parser[BExpr] = ("true" | "false") ^^ { BCMPConst }
 
   def eq: Parser[BExpr]   = ibex("==" | "is")
@@ -358,6 +359,7 @@ trait ExprParser extends RegexParsers {
   // default - only used in PM, not conditions
   def df: Parser[BExpr]   = ibex("?=")
 
+  /** single value expressions, where != 0 is true and != null is true */
   def bvalue : Parser[BExpr] = expr ^^ {
     case a => BCMPSingle(a)
   }

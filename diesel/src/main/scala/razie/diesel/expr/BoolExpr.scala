@@ -11,15 +11,23 @@ import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.dom._
 import scala.util.Try
 
+/** details about the result: what values were involved? */
+case class BExprResult (value:Boolean, a:Option[P] = None, b:Option[P] = None) {
+  implicit def toBool : Boolean = value
+
+  def unary_! = this.copy(value = !value)
+  def || (other:BExprResult) = copy(value = this.value || other.value)
+  def && (other:BExprResult) = copy(value = this.value && other.value)
+}
 
 /** boolean expressions */
 abstract class BExpr(e: String) extends Expr with HasDsl {
   override def getType = WTypes.wt.BOOLEAN
   override def expr = e
   override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v)
-  override def applyTyped(v: Any)(implicit ctx: ECtx) = P.fromTypedValue("", bapply(v), WTypes.wt.BOOLEAN)
+  override def applyTyped(v: Any)(implicit ctx: ECtx) = P.fromTypedValue("", bapply(v).value, WTypes.wt.BOOLEAN)
 
-  def bapply(v: Any)(implicit ctx: ECtx):Boolean
+  def bapply(v: Any)(implicit ctx: ECtx):BExprResult
 
   override def toDsl = e
 }
@@ -38,7 +46,7 @@ case class BCMPNot(a: BExpr) extends BExpr("") {
 
 /** const boolean expression */
 case class BCMPConst(a: String) extends BExpr(a) {
-  override def bapply(e: Any)(implicit ctx: ECtx) = a == "true"
+  override def bapply(e: Any)(implicit ctx: ECtx) = BExprResult(a == "true")
 }
 
 /** composed boolean expression */
@@ -48,7 +56,8 @@ case class BCMP1(a: BExpr, op: String, b: BExpr)
     case "||" | "or"  => a.bapply(in) || b.bapply(in)
     case "&&" | "and" => a.bapply(in) && b.bapply(in)
     case _ => {
-      clog << s"[ERR BoolOperator $op UNKNOWN!!!] as in $a $op $b"; false
+      clog << s"[ERR BoolOperator $op UNKNOWN!!!] as in $a $op $b"
+      BExprResult(false)
     }
   }
 
@@ -59,9 +68,32 @@ case class BCMP1(a: BExpr, op: String, b: BExpr)
 case class BCMP2(a: Expr, op: String, b: Expr)
     extends BExpr(a.toDsl + " " + op + " " + b.toDsl) {
 
-  override def bapply(in: Any)(implicit ctx: ECtx): Boolean = {
+  override def bapply(in: Any)(implicit ctx: ECtx): BExprResult = {
+    var oap : Option[P] = None
+    var obp : Option[P] = None
+
+    def ap = {
+      if(!oap.isDefined) {
+        oap = Some(a.applyTyped(in))
+      }
+      oap.get
+    }
+
+    def bp = {
+      if(!obp.isDefined) {
+        obp = Some(b.applyTyped(in))
+      }
+      obp.get
+    }
+
+    def as = ap.calculatedValue
+
     try {
-      (a, b) match {
+      var resV = false
+      var resA = None
+      var resB = None
+
+      val resBool = (a, b) match {
         case (CExpr(aa, WTypes.wt.NUMBER), CExpr(bb, WTypes.wt.NUMBER)) => {
           val as = aa.toString
           val bs = bb.toString
@@ -70,10 +102,6 @@ case class BCMP2(a: Expr, op: String, b: Expr)
         }
 
         case _ => {
-          lazy val ap = a.applyTyped(in)
-          lazy val bp = b.applyTyped(in)
-          lazy val as = ap.calculatedValue
-
           def b_is(s: String) =
             b.isInstanceOf[AExprIdent] && s == b
                 .asInstanceOf[AExprIdent]
@@ -91,7 +119,11 @@ case class BCMP2(a: Expr, op: String, b: Expr)
 
           // if one of them is number, don't care about the other... could be a string containing a num...
           if (cmpop && (isNum(ap) || isNum(bp))) {
-            return cmpNums(ap.calculatedValue, bp.calculatedValue, op)
+            return BExprResult(
+              cmpNums(ap.calculatedValue, bp.calculatedValue, op),
+              oap,
+              obp
+            )
           }
 
           op match {
@@ -173,7 +205,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
                 )
               else
               /* if type expr not known, then behave like equals */
-                (as == b(in).toString)
+                (as == bp.calculatedValue)
             }
 
 
@@ -195,6 +227,9 @@ case class BCMP2(a: Expr, op: String, b: Expr)
           }
         }
       }
+
+      BExprResult(resBool, oap, obp)
+
     } catch {
       case t @ _ => throw new DieselExprException("Can't typecast to: " + t.toString).initCause(t)
     }
@@ -294,13 +329,13 @@ case class BCMPSingle(a: Expr) extends BExpr(a.toDsl) {
 
   override def bapply(in: Any)(implicit ctx: ECtx) = {
     val ap = a.applyTyped(in)
-    toBoolean(ap)
+    BExprResult(toBoolean(ap), Some(ap), None)
   }
 }
 
 /** just a constant expr */
 object BExprFALSE extends BExpr("FALSE") {
-  def bapply(e: Any)(implicit ctx: ECtx): Boolean = false
+  def bapply(e: Any)(implicit ctx: ECtx): BExprResult = BExprResult(false)
 
   override def toDsl = "FALSE"
 }
