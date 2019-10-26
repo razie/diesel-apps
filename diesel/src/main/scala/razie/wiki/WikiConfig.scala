@@ -57,7 +57,7 @@ abstract class WikiConfig {
 
   def pconfig = WikiConfig.playConfig.underlying
 
-  /** get from play config */
+  /** get from play config - needed as in some places I can't load sitecfg before props are needed */
   def prop(name:String, dflt:String="") =
     if(pconfig.hasPath(name)) pconfig.getString(name) else dflt
 

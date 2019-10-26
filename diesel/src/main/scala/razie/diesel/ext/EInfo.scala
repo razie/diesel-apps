@@ -17,7 +17,8 @@ object EErrorUtils {
     val pw = new java.io.PrintWriter(sw)
     t.printStackTrace(pw)
 
-    val s = sw.toString
+    // why always big stack traces? they're kind'a pointless
+    val s = sw.toString.lines.take(30).mkString("\n")
     s
   }
 }

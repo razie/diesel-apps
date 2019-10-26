@@ -7,8 +7,8 @@
 package razie.diesel.dom
 
 import org.json.{JSONArray, JSONObject}
-import razie.diesel.engine.DomEngine
-import razie.diesel.expr.{AExprIdent, CExpr, DieselExprException, Expr}
+import razie.diesel.engine.{DomEngine, EContent}
+import razie.diesel.expr.{AExprIdent, BCMP2, BExpr, CExpr, DieselExprException, Expr}
 import razie.diesel.ext.CanHtml
 import razie.js
 import razie.wiki.Enc
@@ -398,6 +398,40 @@ object RDOM {
 
     /** current calculated value if any or the expression */
     def valExpr = if(dflt.nonEmpty || expr.isEmpty) CExpr(dflt, ttype) else expr.get
+
+    def isMatch = ident.start.nonEmpty
+
+    def check (in:P)(implicit ctx: ECtx) = {
+      val pm = this
+
+      // match simple names - look at testA for complex evaluators
+      in.name == pm.name && pm.ident.rest.isEmpty && {
+        val r = new BCMP2(in.valExpr, pm.op, pm.valExpr).bapply("").value
+
+        // for regex matches, use each capture group and set as parm in context
+        if (pm.op == "~=") {
+          // extract parms
+          val a = in.valExpr.apply("")
+          val b = pm.valExpr.apply("")
+          val groups = EContent.extractRegexParms(b.toString, a.toString)
+
+          groups.foreach(t => ctx.put(P(t._1, t._2)))
+        }
+
+        if (!r) {
+          // todo name found but no value match - mark the name
+        }
+        r
+      }
+    }
+
+    /** if PM is just a cond, nothing to match - use this */
+    def checkAsCond ()(implicit ctx: ECtx) = {
+      val pm = this
+        if(! expr.isDefined) throw new DieselExprException("PMatch without name needs condition expr")
+        if(! expr.get.isInstanceOf[BExpr]) throw new DieselExprException("PMatch condition expr needs to be boolean, when no name is matched")
+        expr.get.asInstanceOf[BExpr].bapply("", ctx)
+    }
 
     override def toString =
       s"$ident" +

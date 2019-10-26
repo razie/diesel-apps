@@ -27,7 +27,7 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
 
   def domain:String = this prop "domain" OR (s"$name.dieselapps.com")
 
-  def homePage:Option[WID] = this wprop "home"
+  def homePage:Seq[(String, String)] = (this prop "home").map("home" -> _).toSeq ++  propFilter(s"home.")
   def userHomePage:Option[WID] = this wprop "userHome"
 
   lazy val trustedSites:Array[String] = (this prop "trustedSites" OR "").split(",")
@@ -80,6 +80,7 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
   def useWikiPrefix:Boolean = this bprop "useWikiPrefix" OR true
 
   //todo optimize - don't parse every time
+  // find properties with prefix and list them
   def propFilter (prefix:String) = {
     propSeq.filter(_._1 startsWith (prefix)).map(t=>(t._1.replaceFirst(prefix, ""), t._2))
   }
