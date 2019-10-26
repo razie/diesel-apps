@@ -194,18 +194,25 @@ package object ext {
               }
             }
 
-            if (res && positive) cole.map(_.plus(b._1.name + b._1.op + b._1.dflt))
-            else cole.map(_.minus(b._1.name, in.find(_.name == b._1.name).mkString, b._1))
+            if (res && positive) cole.map(_.plus(pm.name + pm.op + pm.dflt))
+            else cole.map(_.minus(pm.name, in.find(_.name == pm.name).mkString, pm))
+          }
+        } else if(pm.isMatch) {
+          // test just the name (presence): check and record the name failure
+          if (pm.name.size > 0) {
+            // I don't include the context - this leads to side-effects, just use an IF after the match...
+            res = in.exists(_.name == pm.name) // || ctx.exists(_.name == b._1.name)
+
+            if (res && positive) cole.map(_.plus(pm.name))
+            else cole.map(_.minus(pm.name, pm.name, pm))
           }
         } else {
-          // test just the name (presence): check and record the name failure
-          if (b._1.name.size > 0) {
-            // I don't include the context - this leads to side-effects, just use an IF after the match...
-            res = in.exists(_.name == b._1.name) // || ctx.exists(_.name == b._1.name)
+          val bres = pm.checkAsCond()
+          res = bres.value
 
-            if (res && positive) cole.map(_.plus(b._1.name))
-            else cole.map(_.minus(b._1.name, b._1.name, b._1))
-          }
+          // todo nice to extract a parm that didn't match from the pm.BExpr and report it
+          if (res && positive) cole.map(_.plus(""))
+          else cole.map(_.minus(bres.a.map(_.name).mkString, bres.a.map(_.calculatedValue).mkString, pm))
         }
         res
       })

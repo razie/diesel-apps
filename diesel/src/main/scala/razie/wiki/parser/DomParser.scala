@@ -10,7 +10,7 @@ import mod.diesel.model.exec.EESnakk
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.DomEngine
-import razie.diesel.expr.{BExpr, CExpr}
+import razie.diesel.expr.{AExprIdent, BExpr, CExpr}
 import razie.diesel.ext._
 import razie.tconf.parser.{FoldingContext, LazyAstNode, StrAstNode, TriAstNode}
 import razie.tconf.{DSpec, DUser, EPos}
@@ -425,19 +425,28 @@ trait DomParser extends ParserBase with ExprParser {
   // ?
   def attr: Parser[_ >: CM] = pattr
 
-  def OPS1: Parser[String] = "==|~=|!=|\\?=|>=|<=|>|<|contains|is|not".r
+  val comOperators = "==|~=|!=|\\?=|>=|<=|>|<|contains|is|not".r
+
+  def OPS1: Parser[String] = comOperators
+
+  def pmatchattr: Parser[RDOM.PM] = pmatchattrM | pmatchattrE
 
   /**
-    * name:<>type[kind]*=default
-    * <> means it's a ref, not ownership
+    * name:type[kind] OPerator xx
     * means it's a list
     *
     * pmatch is more than just a simple conditional expression
     */
-  def pmatchattr: Parser[RDOM.PM] = ows ~>
-      (aidentaccess | aident) ~
+  def pmatchattrM: Parser[RDOM.PM] = ows ~>
+      ( (aidentaccess | aident ) <~ not( ows ~ ("(" | not(comOperators | ")" | ":" | ","))) ) ~
+      // don't match ident if func call and only if followed by known symbols for valid matches
+      // ident) ident,PM ident:Type etc
+      // important beause otherwise we want to match pmatchattrE
       optType ~
       opt(ows ~> OPS1 ~ ows ~ expr) ^^ {
+
+    // not(x) is neg lookahead
+    // not(not(x)) is pos lookahead
 
     case ident ~ t ~ e => {
       var ttype = ""
@@ -450,6 +459,17 @@ trait DomParser extends ParserBase with ExprParser {
         case None => ("", None)
       }
       PM(ident, t, exp._1, dflt, exp._2)
+    }
+  }
+
+  /**
+    * condition - bool expr
+    */
+  def pmatchattrE: Parser[RDOM.PM] = ows ~>
+      cond ^^ {
+
+    case cond => {
+      PM(AExprIdent(""), WTypes.wt.UNKNOWN, "", "", Some(cond))
     }
   }
 
