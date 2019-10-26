@@ -426,6 +426,10 @@ class DomEngine(
     val vals = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_VALS), AstKinds.TRACE)
     val before = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_BEFORE), AstKinds.TRACE)
     val after = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_AFTER), AstKinds.TRACE)
+    val desc = (DomAst(EInfo(
+      description,
+      this.pages.map(_.specPath.wpath).mkString("\n") + "\n" + this.settings.toString
+    ), AstKinds.DEBUG).withStatus(DomState.SKIPPED))
 
     // create dependencies and add them to the list
     after.prereq = l.map(_.id).toList
@@ -433,6 +437,7 @@ class DomEngine(
     l.map(x=> x.prereq = before.id :: x.prereq)
     l.prepend(before)
     l.prepend(vals)
+    l.prepend(desc)
 
     l
   }
