@@ -306,7 +306,8 @@ class DomEngine(
       crdep(res.prereq.flatMap(root.find), List(res))
     }
 
-    res.filter(_.status != DomState.DEPENDENT)
+    res
+        .filter(a=> a.status != DomState.DEPENDENT && !DomState.isDone(a.status))
   }
 
   /** a decomp req - starts processing a message. these can be deferred async or recurse synchronously
@@ -909,9 +910,9 @@ class DomEngine(
     // replace it so we see the calculated values
     a.value = n
 
-    // this is causing problems
-    // a.children.append(DomAst(in, AstKinds.TRACE).withStatus(DomState.SKIPPED))
-    //a.children.append(DomAst(EInfoWrapper(in), AstKinds.TRACE).withStatus(DomState.SKIPPED))
+    // this is causing BIG WEIRD problems...
+//     a.children.append(DomAst(in, AstKinds.TRACE).withStatus(DomState.SKIPPED))
+//    a.children.append(DomAst(EInfoWrapper(in), AstKinds.TRACE).withStatus(DomState.SKIPPED))
 
     ctx = new StaticECtx(n.attrs, Some(parentCtx), Some(a))
 
