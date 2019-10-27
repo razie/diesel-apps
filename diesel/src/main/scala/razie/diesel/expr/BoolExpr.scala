@@ -73,14 +73,14 @@ case class BCMP2(a: Expr, op: String, b: Expr)
     var obp : Option[P] = None
 
     def ap = {
-      if(!oap.isDefined) {
+      if(oap.isEmpty) {
         oap = Some(a.applyTyped(in))
       }
       oap.get
     }
 
     def bp = {
-      if(!obp.isDefined) {
+      if(obp.isEmpty) {
         obp = Some(b.applyTyped(in))
       }
       obp.get
@@ -89,10 +89,6 @@ case class BCMP2(a: Expr, op: String, b: Expr)
     def as = ap.calculatedValue
 
     try {
-      var resV = false
-      var resA = None
-      var resB = None
-
       val resBool = (a, b) match {
         case (CExpr(aa, WTypes.wt.NUMBER), CExpr(bb, WTypes.wt.NUMBER)) => {
           val as = aa.toString
@@ -109,7 +105,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
                 .toLowerCase
 
           def isNum(p: P) = {
-            p.ttype == WTypes.NUMBER || p.value.exists(_.contentType == WTypes.NUMBER)
+            p.ttype.name == WTypes.NUMBER || p.value.exists(_.contentType == WTypes.NUMBER)
           }
 
           val cmpop = op match {
@@ -141,13 +137,13 @@ case class BCMP2(a: Expr, op: String, b: Expr)
 
             // THESE CANNOT CHANGE...
 
-            case "is" if b.toString == "null" => ap.ttype == WTypes.UNDEFINED
-            case "not" if b.toString == "null" => ap.ttype != WTypes.UNDEFINED
-            case "is" if b.toString == "defined" => ap.ttype != WTypes.UNDEFINED
-            case "not" if b.toString == "defined" => ap.ttype == WTypes.UNDEFINED //as.length <= 0
+            case "is" if b.toString == "null" => ap.ttype == WTypes.wt.UNDEFINED
+            case "not" if b.toString == "null" => ap.ttype != WTypes.wt.UNDEFINED
+            case "is" if b.toString == "defined" => ap.ttype != WTypes.wt.UNDEFINED
+            case "not" if b.toString == "defined" => ap.ttype == WTypes.wt.UNDEFINED //as.length <= 0
 
-            case "is" if b.toString == "nzlen" => ap.ttype != WTypes.UNDEFINED && as.length > 0 && as.trim != "null"
-            case "not" if b.toString == "nzlen" => ap.ttype == WTypes.UNDEFINED || as.length <= 0 || as.trim == "null"
+            case "is" if b.toString == "nzlen" => ap.ttype != WTypes.wt.UNDEFINED && as.length > 0 && as.trim != "null"
+            case "not" if b.toString == "nzlen" => ap.ttype == WTypes.wt.UNDEFINED || as.length <= 0 || as.trim == "null"
 
             case "is" if b.toString == "empty" =>
               if (ap.calculatedTypedValue.contentType == WTypes.JSON)
@@ -159,20 +155,20 @@ case class BCMP2(a: Expr, op: String, b: Expr)
 
             case "not" if b.toString == "empty" =>
               if (ap.calculatedTypedValue.contentType == WTypes.JSON)
-                !ap.calculatedTypedValue.asJson.isEmpty
+                ap.calculatedTypedValue.asJson.nonEmpty
               else if (ap.calculatedTypedValue.contentType == WTypes.ARRAY)
-                !ap.calculatedTypedValue.asArray.isEmpty
+                ap.calculatedTypedValue.asArray.nonEmpty
               else
               /*ap.ttype != WTypes.UNDEFINED &&*/ as.length != 0
 
-            case "is" if b.toString == "undefined" => ap.ttype == WTypes.UNDEFINED
-            case "not" if b.toString == "undefined" => ap.ttype != WTypes.UNDEFINED
+            case "is" if b.toString == "undefined" => ap.ttype == WTypes.wt.UNDEFINED
+            case "not" if b.toString == "undefined" => ap.ttype != WTypes.wt.UNDEFINED
 
 
             case "is" if b_is("number") => as.matches("[0-9.]+")
 
             case "is" if b_is("boolean") =>
-              a.getType == WTypes.BOOLEAN || ap.calculatedTypedValue.contentType == WTypes.BOOLEAN
+              a.getType == WTypes.wt.BOOLEAN || ap.calculatedTypedValue.contentType == WTypes.BOOLEAN
 
             case "is" if b_is("json") || b_is("object") =>
               ap.calculatedTypedValue.contentType == WTypes.JSON
@@ -182,7 +178,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
               av.contentType == WTypes.ARRAY
             }
 
-            case "is" | "==" if bp.ttype == WTypes.ARRAY || ap.ttype == WTypes.ARRAY => {
+            case "is" | "==" if bp.ttype == WTypes.wt.ARRAY || ap.ttype == WTypes.wt.ARRAY => {
               val av = ap.calculatedTypedValue
               val bv = bp.calculatedTypedValue
               val al = av.asArray
@@ -217,7 +213,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
 
             case _ if op.trim == "" => {
               // no op - look for boolean parms?
-              ap.ttype == WTypes.BOOLEAN && "true" == a(in).toString
+              ap.ttype == WTypes.wt.BOOLEAN && "true" == a(in).toString
             }
 
             case _ => {
@@ -272,48 +268,32 @@ case class BCMPSingle(a: Expr) extends BExpr(a.toDsl) {
   def toBoolean(in: P)(implicit ctx: ECtx) = {
     a.getType.name match {
 
-      case WTypes.NUMBER => {
+      case WTypes.NUMBER =>
         throw new DieselExprException("Found :number expected :boolean")
-      }
 
-      case WTypes.BOOLEAN => {
-        "true" == in.currentStringValue
-      }
+      case WTypes.BOOLEAN => "true" == in.currentStringValue
 
-      case _ if "true" == in.currentStringValue => {
-        true
-      }
+      case _ if "true" == in.currentStringValue => true
 
-      case _ if "false" == in.currentStringValue => {
-        false
-      }
+      case _ if "false" == in.currentStringValue => false
 
       case s @ _ => {
         // it was some parameter that apply() evaluated
 
         in.ttype.name match {
 
-          case WTypes.NUMBER => {
+          case WTypes.NUMBER =>
             throw new DieselExprException(
               "Found :number expected :boolean"
             )
-          }
 
-          case WTypes.BOOLEAN => {
-            "true" == in.currentStringValue
-          }
+          case WTypes.BOOLEAN => "true" == in.currentStringValue
 
-          case _ if "true" == in.currentStringValue => {
-            true
-          }
+          case _ if "true" == in.currentStringValue => true
 
-          case _ if "false" == in.currentStringValue => {
-            false
-          }
+          case _ if "false" == in.currentStringValue => false
 
-          case WTypes.UNDEFINED => {
-            false // todo is this cocher?
-          }
+          case WTypes.UNDEFINED => false // todo is this cocher?
 
           case s @ _ => {
             val t = if (s.length > 0) s else ":unknown"

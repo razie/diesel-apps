@@ -51,10 +51,14 @@ object WikiReactors extends Logging with Reactors {
   private def getMixins (we:Option[WikiEntry]) =
     new DslProps(we, "website,properties")
         .prop("mixins")
-        .map(_.split(","))
+        .map(_
+            .split(",")
+            .filter(_.trim.length > 0))
+        .filter(_.size > 0) // not mixins = NOTHING
         .getOrElse{
           // the basic cannot depend on anyone other than what they want
-          if(we.exists(we=> Array(RK,NOTES,WIKI) contains we.name)) Array.empty[String] else Array(WIKI)
+          if(we.exists(we=> Array(RK,NOTES,WIKI) contains we.name)) Array.empty[String]
+          else Array(WIKI)
         }
 
   def findWikiEntry(name:String, cat:String = "Reactor") =
