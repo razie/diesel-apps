@@ -9,6 +9,7 @@ package razie.diesel.ext
 import org.bson.types.ObjectId
 import razie.Logging
 import razie.diesel.dom.RDOM.O
+import razie.diesel.dom.RDomain.DOM_LIST
 import razie.diesel.dom.{RDomain, WikiDomain}
 import razie.diesel.engine._
 import razie.diesel.utils.{DomUtils, SpecCache}
@@ -186,15 +187,15 @@ object EnginePrep extends Logging {
     startStory.map { we =>
       logger.debug("PrepEngine globalStory:\n"+we.content)
       // main story adds to root, no scope wrappers - this is globals
-      addStoryToAst(root, List(we), false, false, false)
+      addStoryWithFiddlesToAst(root, List(we), false, false, false)
     }
 
-    addStoryToAst(root, stories, justTests, false, addFiddles)
+    addStoryWithFiddlesToAst(root, stories, justTests, false, addFiddles)
 
     endStory.map { we =>
       logger.debug("PrepEngine endStory:\n"+we.content)
       // main story adds to root, no scope wrappers - this is globals
-      addStoryToAst(root, List(we), false, false, false)
+      addStoryWithFiddlesToAst(root, List(we), false, false, false)
     }
 
     // start processing all elements
@@ -205,19 +206,25 @@ object EnginePrep extends Logging {
     engine
   }
 
+  final val FIDDLE = "fiddle"
+
   /* extract more nodes to run from the story - add them to root */
   def sectionsToPages(story: WikiEntry, sections: List[WikiSection]): List[WikiEntry] = {
     sections
       .map { sec =>
-        val newPage = new WikiEntry(story.wid.cat, story.wid.name + "#" + sec.name, "fiddle", "md",
+        // do NOT change the fiddle tag - is used elsewhere
+        val newPage = new WikiEntry(story.wid.cat, story.wid.name + "#" + sec.name, FIDDLE, "md",
           sec.content,
-          story.by, Seq("dslObject"), story.realm)
+          story.by, Seq("dslObject", FIDDLE), story.realm)
         newPage
       }
   }
 
+  def hasFiddleStories (story:DSpec) =
+    story.findSection(s => s.stype == "dfiddle" && (Array("story") contains s.tags)).isDefined
+
   /* extract more nodes to run from the story - add them to root */
-  def addStoryToAst(root: DomAst, stories: List[WikiEntry], justTests: Boolean = false, justMocks: Boolean = false, addFiddles: Boolean = false) = {
+  def addStoryWithFiddlesToAst(root: DomAst, stories: List[WikiEntry], justTests: Boolean = false, justMocks: Boolean = false, addFiddles: Boolean = false) = {
 
     val allStories = if (!addFiddles) {
       stories
@@ -270,19 +277,51 @@ object EnginePrep extends Logging {
     // this is important for diesel.guardian.starts + diese.setEnv - otherwise tehy run after the tests
     lastAst = root.children.toList
 
+    // add a single story
     def addStory (story:DSpec) = {
       var savedInSequence = inSequence
 
       story.parsed
 
+      // add a node to represent the story, if multiple stories or fiddles
       if(stories.size > 1 || addFiddles)
         root.children appendAll {
-          lastAst = List(DomAst(StoryNode(story.specPath), AstKinds.STORY).withPrereq(lastAst.map(_.id)))
+          lastAst = List(DomAst(StoryNode(story.specPath), AstKinds.STORY).withPrereq(lastAst.map(_.id)).withStatus(DomState.SKIPPED))
           lastAst
         }
 
       if(stories.size > 1) root.children appendAll addMsg(EMsg("diesel.scope", "push"))
 
+      // markup all constructs - make sure there are no unparsed elements:
+      if(
+        !hasFiddleStories(story) &&
+        !story.tags.contains(FIDDLE) &&
+        story.contentPreProcessed.contains("$expect")) {
+
+        // optimized to only do this expensive part for test stories, not regular messages
+        // expect for fiddles (line numbers are very off)
+        val domList = story.collector.getOrElse(DOM_LIST, List[Any]()).asInstanceOf[List[Any]].reverse
+
+        def findElemLine(row: Int) = {
+          domList.exists { x =>
+            x.isInstanceOf[HasPosition] && {
+              val h = x.asInstanceOf[HasPosition]
+              h.pos.isDefined && h.pos.get.line == row
+            }
+          }
+        }
+
+        // we could do all, but don't care much about other elements, just the tests...
+        root.children appendAll story.contentPreProcessed.lines.map(_.trim).zipWithIndex.filter(
+          _._1.startsWith("$expect")).collect {
+
+          case (line, row) if !findElemLine(row+1) =>
+            DomAst(EError(s"Unparsed line #$row: " + line, story.specPath.wpath), AstKinds.ERROR).withStatus(
+              DomState.SKIPPED)
+        }
+      }
+
+      // add the actual elements
       root.children appendAll RDomain.domFilter(story) {
         case o: O if o.name != "context" => List(DomAst(o, AstKinds.RECEIVED))
 
@@ -341,6 +380,8 @@ object EnginePrep extends Logging {
         case v: EMock => List(DomAst(v, AstKinds.RULE))
       }.flatten
 
+
+      // final scope pop if multiple stories added
       if(stories.size > 1) root.children appendAll addMsg(EMsg("diesel.scope", "pop"))
 
       inSequence = savedInSequence

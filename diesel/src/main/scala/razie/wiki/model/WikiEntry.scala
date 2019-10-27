@@ -13,9 +13,8 @@ import razie.audit.Audit
 import razie.{AA, Log, cdebug, ctrace}
 import razie.db.RazSalatContext._
 import razie.db._
-import razie.diesel.dom.WikiDTemplate
 import razie.tconf.parser.StrAstNode
-import razie.tconf.{DSpec, DTemplate, SpecPath, Visibility}
+import razie.tconf.{DSpec, DTemplate, EPos, SpecPath, Visibility}
 import razie.wiki.Services
 import razie.wiki.model.features.{FieldDef, FormStatus, WikiCount, WikiForm}
 import razie.wiki.parser.WAST
@@ -169,6 +168,9 @@ case class WikiEntry(
     val x = Wikis.preprocessIncludes(wid, markup, content, Some(this))
     x
   }
+
+  // todo refactor: expand included into this
+  override def contentPreProcessed: String = included
 
   // todo can't use this faster one because of some stupid issues in WikiDomain - to fix at some point
   def included2 : String = ast._2
@@ -345,6 +347,7 @@ case class WikiEntry(
   var ipreprocessed : Option[(StrAstNode, Option[WikiUser])] = None;
   //todo don't hold the actual user, but someone that can get the user... prevents caching?
 
+  /** the actual content, preprocessed */
   override def parsed = preprocessed.s
 
   // smart preprocess with user and stuff
@@ -453,6 +456,18 @@ case class WikiSection(original:String, parent: WikiEntry, stype: String, name: 
   def wid = parent.wid.copy(section=Some(name))
 
   override def toString = s"WikiSection(stype=$stype, name=$name, signature=$signature, args=$args, line=$line)"
+}
+
+/** template wrapper for wiki sections */
+case class WikiDTemplate (t:WikiSection) extends DTemplate {
+  def name : String = t.name
+  def stype : String = t.stype
+  def content : String = t.content
+  def tags : String = t.signature
+  def parms : Map[String,String] = t.args ++ Map("signature" -> t.signature)
+  def specPath = SpecPath("local", t.wid.wpath, t.wid.getRealm)
+  def pos : EPos = EPos(t.wid.copy(section = None).wpath, t.line, t.col)
+
 }
 
 object WikiEntry {

@@ -36,11 +36,23 @@ trait DSpec {
   var cacheable: Boolean = true
 
   /**
-    * original text content
+    * original text content, not pre-processed - this is generally useless
     */
   def content: String
 
-  /** the assumption is that specs can parse themselves and cache the AST elements
+  /** the content, pre-processed, with includes and macros expanded etc. But no parsing done
+    *
+    * NOTE this is not a different representation, like html or something... it is just the content, pre-processed
+    *
+    * todo should be an Either
+    */
+  def contentPreProcessed: String
+
+  /** the content, pre-processed, with includes expanded etc.
+    *
+    * NOTE this is not a different representation, like html or something... it is just the content, pre-processed
+    *
+    * the assumption is that specs can parse themselves and cache the AST elements
     *
     * errors must contain "CANNOT PARSE" and more information
     *
@@ -102,6 +114,7 @@ class BaseTextSpec(val name: String, val text: String, val tags:Seq[String] = Se
   override val collector = new scala.collection.mutable.HashMap[String, Any]()
 
   override def content: String = text
+  override def contentPreProcessed: String = text
 
   /** the assumption is that specs can parse themselves and cache the AST elements
     *

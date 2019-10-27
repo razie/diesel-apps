@@ -598,11 +598,11 @@ trait DomParser extends ParserBase with ExprParser {
       lazys { (current, ctx) =>
         val pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
         val f = qcm.map(qcm =>
-          ExpectM(not.isDefined, pif, EMatch(qcm._1, qcm._2, attrs, cond))
+          ExpectM(not.isDefined, EMatch(qcm._1, qcm._2, attrs, cond.orElse(pif)))
               .withPos(pos)
               .withGuard(lastMsg(ctx.we).map(_.asMatch))
         ).getOrElse(
-          ExpectV(not.isDefined, attrs, cond)
+          ExpectV(not.isDefined, attrs, cond.orElse(pif))
                 .withPos(pos)
                 .withGuard(lastMsg(ctx.we).map(_.asMatch))
           )

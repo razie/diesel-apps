@@ -15,7 +15,7 @@ import razie.tconf.EPos
 import razie.wiki.Enc
 
 /** test - expect a message m. optional guard */
-case class ExpectM(not: Boolean, cond : Option[EIf], m: EMatch) extends CanHtml with HasPosition {
+case class ExpectM(not: Boolean, m: EMatch) extends CanHtml with HasPosition {
   var when: Option[EMatch] = None
   var pos: Option[EPos] = None
   var target: Option[DomAst] = None // if target then applies only in that sub-tree, otherwise guessing scope

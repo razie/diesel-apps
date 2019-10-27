@@ -127,15 +127,4 @@ object WikiDomain {
   val domTagQuery = new TagQuery("DslDomain,dsldomain,Category,domain")
 }
 
-case class WikiDTemplate (t:WikiSection) extends DTemplate {
-  def name : String = t.name
-  def stype : String = t.stype
-  def content : String = t.content
-  def tags : String = t.signature
-  def parms : Map[String,String] = t.args ++ Map("signature" -> t.signature)
-  def specPath = SpecPath("local", t.wid.wpath, t.wid.getRealm)
-  def pos : EPos = EPos(t.wid.copy(section = None).wpath, t.line, t.col)
-
-}
-
 
