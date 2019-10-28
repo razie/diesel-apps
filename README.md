@@ -1,52 +1,55 @@
-# Diesel Apps
+## Reactive rules DSL
 
-A Scala DSL framework for developing domain and rules-driven reactive services and apps. Rapid mocking, prototyping, development, testing and hosting of (micro)services and websites. See it in action and go serverless at [DieselApps.com](http://www.dieselapps.com).
+An asynchronous, message-oriented workflow framework, driven by rules and layered on top of akka actors. The rules are based on pattern matching:
 
-Components:
+```js
+$when math.fact (n == 0)
+=> (payload=1)
 
-1. [diesel](/diesel) - a light reactive rules-based workflow engine - can be re-used by itself
-   * [tconf](/diesel/src/main/scala/razie/tconf) - TBD, for specs-driven logic
-   * [dom](/diesel/src/main/scala/razie/diesel/dom) - TBD, domain configuration
-   * [db](/diesel/src/main/scala/razie/db) - simple entity persistence layer for Mongo
-   * [diesel-snakk](http://specs.dieselapps.com/wiki/Spec:rest_spec) - snakked on steroids: simple REST snakking, XML and JSON template parsing etc
-   * [diesel-rest](http://specs.dieselapps.com/wiki/Spec:restMock-spec) - mocking of REST services
-1. [diesel-wiki](WIKI.md) - A domain-driven Markdown Wiki - the basis for configuration, text-first, with support for extensible DSLs
-1. [diesel-play](/wiki) - the play code to make everything work as a website
+$when math.fact (n > 0)
+=> math.fact (n=n-1)
+=> (payload=payload * n)
+```
 
-Head over to the [academy](http://specs.dieselapps.com/wiki/Diesel_Academy) to read more!
-
-## Diesel - Rules and workflows
-
-Rules, flows, actors and microservices. See:
+See more details here:
 - [Language reference](http://specs.dieselapps.com/Topic/DSL_Reference)
 - [Expressions and pattern matching](http://specs.dieselapps.com/Topic/Expressions_and_pattern_matching)
 - Towers of Hanoi example: [spec](http://specs.dieselapps.com/wiki/Spec:hanoi-spec) and [story](http://specs.dieselapps.com/wiki/Story:hanoi-story)
 
-A simple asynchronous, message-oriented workflow framework, driven by rules and layered on top of akka actors. The rules are based on pattern matching:
+## Testing
+
+The testing framework relies on similar DSL constructs, to define tests and then a [Guardian](http://specs.dieselapps.com/Topic/Guardian), to run these continuously.
 
 ```js
-$when home.guest_arrived => lights.on
+$send math.fact (n=0)
+$expect (payload == 1)
 
-$when home.guest_arrived(name=="Jane") => chimes.welcome(name)
-
-$mock chimes.welcome(name) => (greeting = "Greetings, "+name)
+$send math.fact (n=5)
+$expect (payload == 120)
 ```
 
-### Testing
+See more details and technical notes at [diesel](/diesel).
 
-Relies on a DSL to define microservices, rules and test and run these.
+# Diesel Apps
 
-```js
-$send home.guest_arrived(name="Jane")
+Around the main Diesel DSL for reactive rules, we created an entire Scala DSL framework for developing domain and rules-driven reactive services and apps. Rapid mocking, prototyping, development, testing and hosting of (micro)services and websites, see [The simplest micro-service you ever created](http://www.dieselapps.com/wiki/Cool_Scala/The_one-liner_microservice)
 
-$expect lights.on
-$expect (light is "bright")
+    See it in action and go serverless at [DieselApps.com](http://www.dieselapps.com).
 
-$expect (greeting is "Greetings, Jane")
-$expect chimes.welcome(name is "Janexx")
-```
+You can either use the [DieselApps](http://www.dieselapps.com) cloud, embed the rules or the entire framework in your app or [run your own instances on-prem](http://specs.dieselapps.com/Topic/Running_locally_via_Docker),
 
-You can embed in your app or use as is. You can run it on-prem or in cloud, at http://www.dieselapps.com - see [The simplest micro-service you ever created](http://www.dieselapps.com/wiki/Cool_Scala/The_one-liner_microservice)
+Components:
+
+1. [diesel](/diesel) - the light reactive rules-based workflow engine
+   * [tconf](/diesel/src/main/scala/razie/tconf) - TBD, for specs-driven logic
+   * [dom](/diesel/src/main/scala/razie/diesel/dom) - TBD, domain entities
+   * [db](/diesel/src/main/scala/razie/db) - simple entity persistence layer for Mongo
+   * [diesel-snakk](http://specs.dieselapps.com/wiki/Spec:rest_spec) - snakked on steroids: simple REST snakking, XML and JSON template parsing etc
+   * [diesel-rest](http://specs.dieselapps.com/wiki/Spec:restMock-spec) - mocking of REST services
+1. [diesel-wiki](/wiki) - A domain-driven Markdown Wiki - the basis for configuration, text-first, with support for extensible DSLs
+1. [diesel-play](/wiki/app) - the play code to make everything work as a website
+
+Head over to the [academy](http://specs.dieselapps.com/wiki/Diesel_Academy) to read more!
 
 ## Diesel-wiki
 
@@ -71,17 +74,29 @@ Test the simple REST API - see [Simple microservices testing](http://www.diesela
 ```js
 $send say.hi (name = "Jane")
 $expect (greeting contains "Jane")
+
+OR via the implicit REST API:
+
+snakk.text (url = "http://specs.dieselapps.com/diesel/mock/say.hi?name=Jane")
+$expect (payload contains "Jane")
 ```
 
+The implicit REST API is implemented in Play Framework controllers, which you can include in your routes, see [Routes](ROUTES.md).
+
 ### Scala client - use as a rules library
+
+You can use this library directly in your code, in several ways, see some [samples](/diesel/src/main/scala/razie/diesel/samples) or [unit tests](/diesel/src/test/scala/tests/TestSimpleEngine).
 
 ```scala
 implicit val system = ActorSystem("testsystem", ConfigFactory.parseString(""" """))
 
 // tell the engine to use this system
-DieselAppContext.setActorSystem(system)
+// tell the engine to use this system
+DieselAppContext
+    .withSimpleMode()
+    .withActorSystem(system)
 
-// make a spec
+// make a DSL spec - the rules we will run
 val spec = DieselTextSpec (
     "spec_name",
     """
@@ -93,7 +108,7 @@ val spec = DieselTextSpec (
       |""".stripMargin
   )
 
-  // make a story
+  // make a story DSL - the starting sequence of events
   val story = DieselTextSpec (
     "story_name",
     """
@@ -116,35 +131,3 @@ println(engine.resultingValue)   // resulting value, if any
 // test it
 assert(engine.resultingValue contains "Greetings, Jane")
 ```
-
-Markdown Wiki
-===========================
-
-Embedded Markdown Wiki engine, extensible via scripting, code and DSL. It is a complete multi-tentant, SaaS-ready service and website creation and hosting environment.
-
-Versions and technologies
-========================
-
-- scala 2.11
-- Akka 2.4
-- Play framework 2.4
-- [commonmark](https://github.com/atlassian/commonmark-java) as the markdown parser
-- mongodb/casbah/salat for persistency.
-- bootstrap 3.3.4
-
-Features
-========
-
-Here are some of the basic features:
-
-- you can create separate project websites, like http://myproject.dieselapps.com
-- you can run it on prem as well, on Docker (fork central project)
-- have users, assign permissions
-- supports multiple hosting right off the bat, with custom domains too
-
-Details
-==========
-
-See the http://www.dieselapps.com/engine
-
-See details on the [wiki](WIKI.md).

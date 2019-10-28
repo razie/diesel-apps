@@ -7,9 +7,11 @@ package model
 
 import razie.wiki.model.WID
 
-/** a special command wid, contains a command, what and WID - used in play routes
+/** a special command wid, contains a command, what and WID - used in play routes for proper REST resource
+  * management
   *
-  * i.e. for x/cat:name/xp/path - the wid is can:name, cmd is xp and rest is path
+  * i.e. for URLs like x/cat:name/xp/path - the wid is can:name, cmd is xp and rest is path - you can interpret these
+  * in whichever way
   */
 case class CMDWID(wpath: Option[String], wid: Option[WID], cmd: String, rest: String) {
   def hasGoodWid = wid.exists(!_.isEmpty)

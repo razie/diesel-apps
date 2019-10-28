@@ -1,18 +1,22 @@
 # TConf - simple config framework
 
-A simple and light framework for configuration.
+A light framework for decoupling configuration: decouple the management and form of configuration from its consumers.
+ This allows us to have configuration contained and managed in many ways, and consumed uniformly.
+ 
+You could have configuration in XML, property files, databases, DSL or Word documents (been there, done that, btw). 
 
 ## Overview
 
 Any software has multiple sources of configuration, from property files 
-to other, dedicated configuration files, to database etc.
+to other, dedicated configuration files, to databases etc.
 
 These are the `specifications` of the system, instructing it what to do...
 
 This is a simple framework to manage the configuration and specifications:
 - identify and track all configuration elements
 - parse configuration
-- you can uniquely reference a location in a configuration (file)
+- you can uniquely reference a location in a configuration (file), 
+to point out errors and where things came from.
 
 There is a wiki implementation, in razie.wiki
 
