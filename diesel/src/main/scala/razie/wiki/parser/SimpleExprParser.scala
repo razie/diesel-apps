@@ -8,8 +8,9 @@ package razie.wiki.parser
 
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
-import razie.diesel.expr._
+import razie.diesel.expr.{AExpr2, AExprFunc, AExprIdent, BCMP1, BCMP2, BCMPConst, BCMPNot, BCMPSingle, BExpr, BExprBlock, BlockExpr, CExpr, CExprNull, Expr, ExprRange, JArrExpr, JBlockExpr, JSSExpr, LambdaFuncExpr, SCExpr}
 import razie.diesel.ext._
+import razie.tconf.parser.{BaseAstNode, StrAstNode}
 import scala.util.parsing.combinator.RegexParsers
 
 /** expressions parser */
@@ -77,33 +78,77 @@ trait ExprParser extends RegexParsers {
   //
 
 //  def expr: Parser[Expr] = ppexpr | cond | pterm1
-  def expr:  Parser[Expr] = ppexpr1 | pterm1
+  def expr:  Parser[Expr] = ppexpr1A | pterm1
+  def expr1: Parser[Expr] = ppexpr1 | pterm1
   def expr2: Parser[Expr] = ppexpr2 | pterm1
-  def expr3: Parser[Expr] = ppexpr3 | pterm1
+  def expr3: Parser[Expr] = ppexpr5 | pterm1
+//  def expr4: Parser[Expr] = ppexpr4 | pterm1
 
-  def opsmaps: Parser[String] = "as" | "map" | "filter"
-  def opsmult: Parser[String] = "*" | "/"
+  def opsmaps: Parser[String] = "map" | "filter"
+  def opscond2: Parser[String] = "and" | "or" | "xor" // todo or before and
+  def opscond3: Parser[String] = ">" | "<" | ">=" | "<=" | "==" | "!=" | "~="
   def opsplus: Parser[String] = "+" | "-" | "||" | "|"
+  def opsmult: Parser[String] = "*" | "/"
+
+  def ppexpr1A: Parser[Expr] = ppexpr1 ~ ows ~ "as" ~ ows ~ pterm1 ^^ {
+    case a ~ _ ~ op ~ _ ~ e => {
+        AExpr2(a, op, e)
+    }
+  } | ppexpr1
 
   def ppexpr1: Parser[Expr] = ppexpr2 ~ ows ~ opsmaps ~ ows ~ ppexpr1 ^^ {
     case a ~ _ ~ op ~ _ ~ e => {
       // todo how to go left associative
       if(e.isInstanceOf[AExpr2] && Array("filter", "map").contains(e.asInstanceOf[AExpr2].op)) {
-        val b = e.asInstanceOf[AExpr2]
         // flip right-associative to left
+        val b = e.asInstanceOf[AExpr2]
         AExpr2(AExpr2(a, op, b.a), b.op, b.b)
       } else {
         AExpr2(a, op, e)
       }
     }
-  } | ppexpr2
+  } | ppexpr4
 
-  def ppexpr2: Parser[Expr] = ppexpr3 ~ ows ~ opsplus ~ ows ~ ppexpr2 ^^ {
-    case a ~ _ ~ op ~ _ ~ e => AExpr2(a, op, e)
+  def ppexpr2A: Parser[BExpr] = ppexpr3A ~ ows ~ opscond2 ~ ows ~ ppexpr2A ^^ {
+    case a ~ _ ~ op ~ _ ~ e => bcmp(a, op, e)
+  }
+
+  def ppexpr2: Parser[Expr] = ppexpr3A ~ ows ~ opscond2 ~ ows ~ ppexpr2A ^^ {
+    case a ~ _ ~ op ~ _ ~ e => bcmp(a, op, e)
   } | ppexpr3
 
-  def ppexpr3: Parser[Expr] = pterm1 ~ ows ~ opsmult ~ ows ~ ppexpr3 ^^ {
-    case a ~ _ ~ op ~ _ ~ e => AExpr2(a, op, e)
+  def ppexpr3A: Parser[BExpr] = ppexpr4 ~ ows ~ opscond3 ~ ows ~ ppexpr3A ^^ {
+    case a ~ _ ~ op ~ _ ~ e => cmp(a, op, e)
+  }
+
+  def ppexpr3: Parser[Expr] = ppexpr4 ~ ows ~ opscond3 ~ ows ~ ppexpr3 ^^ {
+    case a ~ _ ~ op ~ _ ~ e => cmp(a, op, e)
+  } | ppexpr4
+
+  def ppexpr4: Parser[Expr] = ppexpr5 ~ ows ~ opsplus ~ ows ~ ppexpr4 ^^ {
+    case a ~ _ ~ op ~ _ ~ e => {
+      // todo how to go left associative
+      if(e.isInstanceOf[AExpr2]) {
+        // flip right-associative to left
+        val b = e.asInstanceOf[AExpr2]
+        AExpr2(AExpr2(a, op, b.a), b.op, b.b)
+      } else {
+        AExpr2(a, op, e)
+      }
+    }
+  } | ppexpr5
+
+  def ppexpr5: Parser[Expr] = pterm1 ~ ows ~ opsmult ~ ows ~ ppexpr5 ^^ {
+    case a ~ _ ~ op ~ _ ~ e => {
+      // todo how to go left associative
+      if(e.isInstanceOf[AExpr2]) {
+        // flip right-associative to left
+        val b = e.asInstanceOf[AExpr2]
+        AExpr2(AExpr2(a, op, b.a), b.op, b.b)
+      } else {
+        AExpr2(a, op, e)
+      }
+    }
   } | pterm1
 
   // todo this can't parse properly a map b map c map d
@@ -394,4 +439,30 @@ trait ExprParser extends RegexParsers {
 
 }
 
+/** A simple parser for our simple specs
+  *
+  * DomParser is the actual Diesel/Dom parser.
+  * We extend from it to include its functionality and then we add its parsing rules with withBlocks()
+  */
+class SimpleExprParser extends ExprParser {
 
+  def parseExpr (input: String):Option[Expr] = {
+    parseAll(expr, input) match {
+      case Success(value, _) => Some(value)
+      case NoSuccess(msg, next) => None
+    }
+  }
+
+  def parseIdent (input: String):Option[AExprIdent] = {
+    parseAll(aidentExpr, input) match {
+      case Success(value, _) => Some(value)
+      case NoSuccess(msg, next) => None
+    }
+  }
+}
+
+/** assignment - needed because the left side is more than just a val */
+case class PAS (left:AExprIdent, right:Expr) extends CanHtml {
+  override def toHtml = left.toHtml + "=" + right.toHtml
+  override def toString = left.toString + "=" + right.toString
+}
