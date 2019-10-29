@@ -90,14 +90,22 @@ object EEFunc {
         case i:Double => P("", i.toString, WTypes.wt.NUMBER).withValue(i, WTypes.wt.NUMBER)
 
         case o : ScriptObjectMirror => {
-                    P("", r._2.toString, WTypes.JSON).withCachedValue(o, WTypes.Mime.appJson, r._2.toString)
-//          val str = r._2.toString
-//          if(str.trim.startsWith("{"))
-//            P.fromTypedValue("", str, WTypes.JSON)//.withValue(o, WTypes.appJson)
-//          else if(str.trim.startsWith("["))
-//            P.fromTypedValue("", str, WTypes.ARRAY)//.withValue(o, WTypes.appJson)
-//          else
-//            P("", r._2.toString, WTypes.UNKNOWN)//.withValue(o, WTypes.appJson)
+          val str = r._2.toString
+
+//          P("", r._2.toString, WTypes.JSON).withCachedValue(o, WTypes.Mime.appJson, r._2.toString)
+
+          if(str.trim.startsWith("{"))
+            P.fromTypedValue("", str, WTypes.JSON)
+          else if(str.trim.startsWith("["))
+            // todo can optimize from List[ScriptObjectMirror], I guess
+            P.fromTypedValue("", str, WTypes.ARRAY)
+          else {
+            razie.Log.warn("scriptResToTypedP warn - unknown type: " + r._3 + " STRING FORM: " + str)
+            throw new DieselExprException("scriptResToTypedP warn - unknown type: " + r._3 + " STRING FORM: " + str)
+            // todo this was all commented out - not sure why I force to JSON... does this ever happen?
+            P.fromTypedValue("", str, WTypes.JSON)
+//            P("", r._2.toString, WTypes.UNKNOWN)
+          }
         }
 
         case e: Throwable => P("", "+"+offset+r._2, WTypes.wt.EXCEPTION).withValue(e, WTypes.wt.EXCEPTION)
