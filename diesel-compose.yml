@@ -1,0 +1,27 @@
+version: "2.1"
+services:
+  diesel:
+    image: razie/raz-diesel:latest
+    ports:
+      - 9003:9000
+    restart: unless-stopped
+    volumes:
+      - dieseldb:/data/db
+    environment:
+        THREADS: 2
+
+  diesel-config:
+    build:
+      context: ./dieseldocker/config
+      dockerfile: ./Dockerfile
+    command: ./bootstrap.sh
+    working_dir: /dieseldocker
+    volumes:
+      - ./dieseldocker:/dieseldocker
+    links:
+      - diesel
+    depends_on:
+      - diesel
+
+volumes:
+  dieseldb:
