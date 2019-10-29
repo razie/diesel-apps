@@ -146,6 +146,14 @@ object RDOM {
 
     def asBoolean : Boolean = value.toString.toBoolean
 
+    /** this will be parsed as JS, so escape things properly */
+    def asEscapedJSString : String = {
+      cType match {
+        case WTypes.wt.STRING => "\"" + asString + "\""
+        case _ => asString
+      }
+    }
+
     /** cached, nicer type-aware toString */
     def asString = {
       if (cacheString.nonEmpty) cacheString.get

@@ -9,6 +9,7 @@ import org.json.JSONObject
 import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.dom._
 import scala.collection.mutable
+import scala.util.Try
 import scala.util.parsing.json.JSONArray
 
 /** arithmetic expressions on various types, including json, strings, arrays etc */
@@ -232,14 +233,18 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
                   val res = b.applyTyped(x)(sctx)
                   res
                 }
-              res.calculatedTypedValue.asBoolean
+              Try {
+                res.calculatedTypedValue.asBoolean
+              }.getOrElse {
+                throw new DieselExprException("Not a boolean expression: " + res.calculatedTypedValue)
+              }
             }
 
             val finalArr = resArr
             PValue(finalArr, WTypes.wt.ARRAY)
           }
 
-          case _ => throw new DieselExprException("Can't do map on: " + av)
+          case _ => throw new DieselExprException("Can't do filter on: " + av)
         }
       }
 

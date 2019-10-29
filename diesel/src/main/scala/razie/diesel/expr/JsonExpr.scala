@@ -55,17 +55,23 @@ case class JBlockExpr(ex: List[(String, Expr)]) extends Expr {
 case class JArrExpr(ex: List[Expr]) extends Expr {
   val expr = "[" + ex.mkString(",") + "]"
 
-  override def apply(v: Any)(implicit ctx: ECtx) = {
-//    val orig = template(expr)
-    val orig = ex.map(_.apply(v)).mkString(",")
+  private def calculate(v: Any)(implicit ctx: ECtx) = {
+    //    val orig = template(expr)
+    val orig = ex.map{e=>
+      val p = e.applyTyped(v)
+      p.calculatedTypedValue.asEscapedJSString
+    }.mkString(",")
     // parse and clean it up so it blows up right here if invalid
-    new org.json.JSONArray(s"[$orig]").toString()
+    new org.json.JSONArray(s"[$orig]")
+  }
+
+  override def apply(v: Any)(implicit ctx: ECtx) = {
+    calculate(v).toString
   }
 
   override def applyTyped(v: Any)(implicit ctx: ECtx): P = {
     val orig = ex.map(_.apply(v)).mkString(",")
-    // parse and clean it up so it blows up right here if invalid
-    val ja = new org.json.JSONArray(s"[$orig]")
+    val ja = calculate(v)
     P.fromTypedValue("", ja)
   }
 

@@ -96,7 +96,6 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
 
   def metas () = propFilter(s"meta.")
 
-  def navTheme:String = this prop "nav.Theme" OR "/doe/selecttheme"
   def navBrand = this prop "navBrand"
 
   def supportUrl:String = this prop "bottom.Support.Support" OR "/doe/support"
