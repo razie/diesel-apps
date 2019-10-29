@@ -15,9 +15,11 @@ import razie.db._
   *
   * Some of these may end up as emails or alerts.
   *
-  * With Mongo implementation, there are two tables: Audit for events to be reviewed and
+  * With the Mongo implementation, there are two tables: Audit for events to be reviewed and
   * AuditCleared for reviewed events. You need your own purging
   * of the AuditCleared table.
+  *
+  * The Play Controller for these is controllers.AdminAudit
   *
   * these are also used for cluster notifications
   *

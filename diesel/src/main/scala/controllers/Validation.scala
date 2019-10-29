@@ -65,6 +65,7 @@ trait Validation extends Logging {
     * <code>
     * */
   case class OptNope[A](o: Option[A]) {
+
     def logging (msg: String*) (implicit errCollector: VErrors = IgnoreErrors) = { log(msg.mkString(",")); this }
     def orErr   (msg: => String) (implicit errCollector: VErrors = IgnoreErrors): Option[A] = { if (o.isDefined) o else Nope(errCollector.add(msg)) }
     def orCorr  (msg: => Corr) (implicit errCollector: VErrors = IgnoreErrors): Option[A] = { if (o.isDefined) o else Nope(errCollector.add(msg).err) }

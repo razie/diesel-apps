@@ -177,8 +177,20 @@ object RDOM {
       val res = v match {
         case i: Boolean =>     P(name, asString(i), WTypes.wt.BOOLEAN).withValue(i, WTypes.wt.BOOLEAN)
         case i: Int =>         P(name, asString(i), WTypes.wt.NUMBER).withValue(i, WTypes.wt.NUMBER)
+        case i: Long =>        P(name, asString(i), WTypes.wt.NUMBER).withValue(i, WTypes.wt.NUMBER)
         case f: Float =>       P(name, asString(f), WTypes.wt.NUMBER).withValue(f, WTypes.wt.NUMBER)
         case d: Double =>      P(name, asString(d), WTypes.wt.NUMBER).withValue(d, WTypes.wt.NUMBER)
+
+        case i: java.lang.Integer =>
+          P(name, asString(i), WTypes.wt.NUMBER).withValue(i.intValue, WTypes.wt.NUMBER)
+        case i: java.lang.Boolean =>
+          P(name, asString(i), WTypes.wt.BOOLEAN).withValue(i.booleanValue, WTypes.wt.BOOLEAN)
+        case i: java.lang.Float =>
+          P(name, asString(i), WTypes.wt.NUMBER).withValue(i.floatValue, WTypes.wt.NUMBER)
+        case i: java.lang.Double =>
+          P(name, asString(i), WTypes.wt.NUMBER).withValue(i.doubleValue, WTypes.wt.NUMBER)
+        case i: java.lang.Long =>
+          P(name, asString(i), WTypes.wt.NUMBER).withValue(i.longValue, WTypes.wt.NUMBER)
 
           // the "" dflt will force usage of value
         case s: Map[_, _] =>   P(name, "", WTypes.wt.JSON).withValue(s, WTypes.wt.JSON)
