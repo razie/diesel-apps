@@ -168,6 +168,7 @@ case class CExpr[T](ee: T, ttype: WType = WTypes.wt.EMPTY) extends Expr {
 case class BlockExpr(ex: Expr) extends Expr {
   val expr = "( " + ex.toString + " )"
   override def apply(v: Any)(implicit ctx: ECtx) = ex.apply(v)
+  override def applyTyped(v: Any)(implicit ctx: ECtx): P = ex.applyTyped(v)
   override def getType: WType = ex.getType
 }
 

@@ -52,12 +52,18 @@ case class BCMPConst(a: String) extends BExpr(a) {
 /** composed boolean expression */
 case class BCMP1(a: BExpr, op: String, b: BExpr)
     extends BExpr(a.toDsl + " " + op + " " + b.toDsl) {
-  override def bapply(in: Any)(implicit ctx: ECtx) = op match {
-    case "||" | "or"  => a.bapply(in) || b.bapply(in)
-    case "&&" | "and" => a.bapply(in) && b.bapply(in)
-    case _ => {
-      clog << s"[ERR BoolOperator $op UNKNOWN!!!] as in $a $op $b"
-      BExprResult(false)
+  override def bapply(in: Any)(implicit ctx: ECtx) = {
+    val av = a.bapply(in)
+    val bv = b.bapply(in)
+
+    op match {
+      case "xor" => (av || bv) && !(av && bv)
+      case "||" | "or" => av || bv   // (av xor bv) xor ((av xor true) xor bv)
+      case "&&" | "and" => av && bv
+      case _ => {
+        clog << s"[ERR BoolOperator $op UNKNOWN!!!] as in $a $op $b"
+        BExprResult(false)
+      }
     }
   }
 
@@ -199,9 +205,10 @@ case class BCMP2(a: Expr, op: String, b: Expr)
                     WTypes.isSubtypeOf(ap.calculatedTypedValue.contentType, b.asInstanceOf[AExprIdent].expr) ||
                     WTypes.isSubtypeOf(as, bp.calculatedValue)
                 )
-              else
+              else {
               /* if type expr not known, then behave like equals */
                 (as == bp.calculatedValue)
+              }
             }
 
 

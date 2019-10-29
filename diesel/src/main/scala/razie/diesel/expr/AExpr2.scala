@@ -152,7 +152,9 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
 
       case "as" => {
         val bs = b.toString.toLowerCase
-        val avalue = av.calculatedTypedValue.value
+        val ap = av.calculatedP
+        val avv = av.calculatedTypedValue
+        val avalue = avv.asString
 
           b match {
           case _ if bs == "number" =>
@@ -168,7 +170,12 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
             P.fromTypedValue("", avalue, WTypes.ARRAY).calculatedTypedValue
 
           case t : CExpr[String] => // x as "application/pdf"
-            P("", av.calculatedValue, WType(t.ee)).withValue(av.value, t.ee).calculatedTypedValue
+            // todo smarter, like "asdf" as Student etc - implicit constructors, typecasts etc
+            if(av.value.isDefined)
+              // todo should we only change theP type not the PVAlue type? like pdf which is a bitstream?
+              P("", av.calculatedValue, WType(t.ee)).withValue(avv.value, WType(t.ee)).calculatedTypedValue
+            else
+              P("", avalue, WType(t.ee)).calculatedTypedValue
 
           case _ => throw new DieselExprException("Can't typecast to: " + b.toString + " from: " + av)
         }
@@ -183,6 +190,10 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
 
             val resArr = arr.map {x=>
               val res = if(b.isInstanceOf[LambdaFuncExpr]) {
+                val res = b.applyTyped(x)
+                res
+              } else if(b.isInstanceOf[BlockExpr] && b.asInstanceOf[BlockExpr].ex.isInstanceOf[LambdaFuncExpr]) {
+                // common case, no need to go through context, Block passes through to Lambda
                 val res = b.applyTyped(x)
                 res
               } else {
@@ -221,7 +232,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
                   val res = b.applyTyped(x)(sctx)
                   res
                 }
-              res.calculatedValue.toBoolean
+              res.calculatedTypedValue.asBoolean
             }
 
             val finalArr = resArr
