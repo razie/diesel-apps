@@ -76,16 +76,18 @@ trait ExprParser extends RegexParsers {
   //=========================== expressions and conditions ============================
   //
 
-//  def expr: Parser[Expr] = ppexpr | cond | pterm1
+  //  def expr: Parser[Expr] = ppexpr | cond | pterm1
   def expr:  Parser[Expr] = ppexpr1 | pterm1
-  def expr2: Parser[Expr] = ppexpr2 | pterm1
-  def expr3: Parser[Expr] = ppexpr3 | pterm1
+  def expr2: Parser[Expr] = ppexpr3 | pterm1
 
   def opsmaps: Parser[String] = "as" | "map" | "filter"
-  def opsmult: Parser[String] = "*" | "/"
+  def opscond2: Parser[String] = "and" | "or" | "xor" // todo or before and
+  def opscond3: Parser[String] = ">" | "<" | ">=" | "<=" | "==" | "!=" | "~="
   def opsplus: Parser[String] = "+" | "-" | "||" | "|"
+  def opsmult: Parser[String] = "*" | "/"
 
-  def ppexpr1: Parser[Expr] = ppexpr2 ~ ows ~ opsmaps ~ ows ~ ppexpr1 ^^ {
+  /*
+  def ppexpr1: Parser[Expr] = ppexpr4 ~ ows ~ opsmaps ~ ows ~ ppexpr1 ^^ {
     case a ~ _ ~ op ~ _ ~ e => {
       // todo how to go left associative
       if(e.isInstanceOf[AExpr2] && Array("filter", "map").contains(e.asInstanceOf[AExpr2].op)) {
@@ -96,15 +98,49 @@ trait ExprParser extends RegexParsers {
         AExpr2(a, op, e)
       }
     }
-  } | ppexpr2
+  } | ppexpr4
+*/
 
-  def ppexpr2: Parser[Expr] = ppexpr3 ~ ows ~ opsplus ~ ows ~ ppexpr2 ^^ {
-    case a ~ _ ~ op ~ _ ~ e => AExpr2(a, op, e)
-  } | ppexpr3
+  def ppexpr1: Parser[Expr] = ppexpr2 ~ opt(ows ~> "as" ~ ows ~ pterm1) ^^ {
+    case a ~ l if l.isEmpty => a
+    case a ~ Some(op ~ _ ~ p) => AExpr2(a, op, p)
+  }
 
-  def ppexpr3: Parser[Expr] = pterm1 ~ ows ~ opsmult ~ ows ~ ppexpr3 ^^ {
-    case a ~ _ ~ op ~ _ ~ e => AExpr2(a, op, e)
-  } | pterm1
+  def ppexpr2: Parser[Expr] = ppexpr4 ~ rep(ows ~> opsmaps ~ ows ~ ppexpr3) ^^ {
+    case a ~ l if l.isEmpty => a
+    case a ~ l => l.foldLeft(a)((x, y) =>
+      y match {
+        case op ~ _ ~ p => AExpr2(x, op, p)
+      }
+    )
+  }
+
+  def ppexpr3: Parser[Expr] = ppexpr4 ~ rep(ows ~> opscond3 ~ ows ~ ppexpr4) ^^ {
+    case a ~ l if l.isEmpty => a
+    case a ~ l => l.foldLeft(a)((x, y) =>
+      y match {
+        case op ~ _ ~ p => cmp(x, op, p)
+      }
+    )
+  }
+
+  def ppexpr4: Parser[Expr] = ppexpr5 ~ rep(ows ~> opsplus ~ ows ~ ppexpr5) ^^ {
+    case a ~ l if l.isEmpty => a
+    case a ~ l => l.foldLeft(a)((x, y) =>
+      y match {
+        case op ~ _ ~ p => AExpr2(x, op, p)
+      }
+    )
+  }
+
+  def ppexpr5: Parser[Expr] = pterm1 ~ rep(ows ~> opsmult ~ ows ~ pterm1) ^^ {
+    case a ~ l if l.isEmpty => a
+    case a ~ l => l.foldLeft(a)((x, y) =>
+      y match {
+        case op ~ _ ~ p => AExpr2(x, op, p)
+      }
+    )
+  }
 
   // todo this can't parse properly a map b map c map d
   def ppexpr6: Parser[Expr] = pterm1 ~ rep(ows ~> ("*" | "+" | "-" | "||" | "|" | "as" | "map" | "filter") ~ ows ~ pterm1) ^^ {
@@ -147,7 +183,7 @@ trait ExprParser extends RegexParsers {
 
   def unquote(s:String) =  {
     if (s.startsWith("'") && s.endsWith("\'") || s.startsWith("\"") && s
-          .endsWith("\""))
+        .endsWith("\""))
       s.substring(1, s.length - 1)
     else
       s
@@ -167,7 +203,7 @@ trait ExprParser extends RegexParsers {
     case b => new CExpr(b, WTypes.wt.BOOLEAN)
   }
 
-//  def jother: Parser[String] = "[^{}\\[\\],]+".r ^^ { case ex => ex }
+  //  def jother: Parser[String] = "[^{}\\[\\],]+".r ^^ { case ex => ex }
   def jother: Parser[Expr] = expr ^^ { case ex => ex }
 
   // a number
