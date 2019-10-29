@@ -145,7 +145,7 @@ case class EMsg(
   }
 
   /** if has executor */
-  def hasExecutor:Boolean = Executors.withAll(_.exists(_.test(this)(ECtx.empty)))
+  def hasExecutor:Boolean = Executors.withAll(_.exists(t=> t._2.test(this)(ECtx.empty)))
 
   def ea:String = entity + "." + met
 

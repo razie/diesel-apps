@@ -483,8 +483,8 @@ trait DomParser extends ParserBase with ExprParser {
     *
     * use them to set options
     */
-  def pval: PS = keyw("[.$]val *".r) ~ pattr ^^ {
-    case k ~ a => {
+  def pval: PS = keyw("[.$]val".r) ~ ows ~ pattr ^^ {
+    case k ~ _ ~ a => {
       lazys { (current, ctx) =>
         val v = EVal(a).withPos(pos(k))
         collectDom(v, ctx.we)

@@ -5,9 +5,13 @@
  */
 package razie.diesel.exec
 
+import razie.diesel.dom.RDOM.PValue
 import razie.diesel.dom._
 import razie.diesel.ext.{EMsg, MatchCollector}
+import scala.collection.concurrent.TrieMap
 import scala.collection.mutable.ListBuffer
+import RDOM.P
+import razie.base.AttrAccess
 
 /** an applicable or message executor - can execute a message */
 trait EApplicable {
@@ -62,17 +66,15 @@ abstract class EExecutor (val name:String) extends EApplicable {
 
 /** manage all executors */
 object Executors {
-  private var _all : List[EExecutor] = Nil
+  private var _all : TrieMap[String, EExecutor] = TrieMap()
 
-  def withAll[T] (f: List[EExecutor] => T) : T = {
-    // no synchronization needed -
-    val temp = _all
-    f(temp.toList)
+  def withAll[T] (f: TrieMap[String, EExecutor] => T) : T = {
+    f(_all)
   }
 
-  def add (e:EExecutor) = synchronized {
-    // copy list to be mt-safe
-    _all = _all ::: e :: Nil
+  def add (e:EExecutor) = {
+    _all.put(e.name, e)
   }
 }
+
 
