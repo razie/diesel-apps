@@ -1,3 +1,5 @@
+![DIESEL](http://cdn.razie.com/Public/diesel/diesel3.png)
+
 ## Reactive rules DSL
 
 An asynchronous, message-oriented workflow framework, driven by rules and layered on top of akka actors. The rules are based on pattern matching:
@@ -42,6 +44,7 @@ Components:
 
 1. [diesel](/diesel) - the light reactive rules-based workflow engine
    * [tconf](/diesel/src/main/scala/razie/tconf) - TBD, for specs-driven logic
+   * [expr](/diesel/src/main/scala/razie/diesel/expr) - expressions and parsing 
    * [dom](/diesel/src/main/scala/razie/diesel/dom) - TBD, domain entities
    * [db](/diesel/src/main/scala/razie/db) - simple entity persistence layer for Mongo
    * [diesel-snakk](http://specs.dieselapps.com/wiki/Spec:rest_spec) - snakked on steroids: simple REST snakking, XML and JSON template parsing etc
