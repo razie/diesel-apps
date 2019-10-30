@@ -1,4 +1,5 @@
-![DIESEL](https://cdn.razie.com/Public/diesel/diesel3round.png) 
+![DIESEL](https://cdn.razie.com/Public/diesel/diesel3round.png)
+[![Maven Central 2.11](https://maven-badges.herokuapp.com/maven-central/com.razie/diesel_2.11/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.razie/diesel_2.11)
 
 ## Reactive rules DSL
  
