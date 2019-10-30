@@ -1,4 +1,4 @@
-![DIESEL](http://cdn.razie.com/Public/diesel/diesel2.jpg)
+![DIESEL](http://cdn.razie.com/Public/diesel/diesel2round.png | width=250) 
 
 ## Reactive rules DSL
  
