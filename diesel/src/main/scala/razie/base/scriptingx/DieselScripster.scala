@@ -12,7 +12,7 @@ import model.WikiScripster
 import org.bson.types.ObjectId
 import razie.audit.Audit
 import razie.base.scripting.RazScript.{RSError, RSSucc}
-import razie.diesel.dom.ECtx
+import razie.diesel.expr.ECtx
 import razie.tconf.DUsers
 import razie.{CSTimer, Logging, js}
 import scala.util.Try

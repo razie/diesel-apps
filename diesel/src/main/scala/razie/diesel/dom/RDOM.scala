@@ -8,7 +8,7 @@ package razie.diesel.dom
 
 import org.json.{JSONArray, JSONObject}
 import razie.diesel.engine.{DomEngine, EContent}
-import razie.diesel.expr.{AExprIdent, BCMP2, BExpr, CExpr, DieselExprException, Expr}
+import razie.diesel.expr.{AExprIdent, BCMP2, BoolExpr, CExpr, DieselExprException, ECtx, Expr}
 import razie.diesel.ext.CanHtml
 import razie.js
 import razie.wiki.Enc
@@ -449,8 +449,8 @@ object RDOM {
     def checkAsCond ()(implicit ctx: ECtx) = {
       val pm = this
         if(! expr.isDefined) throw new DieselExprException("PMatch without name needs condition expr")
-        if(! expr.get.isInstanceOf[BExpr]) throw new DieselExprException("PMatch condition expr needs to be boolean, when no name is matched")
-        expr.get.asInstanceOf[BExpr].bapply("", ctx)
+        if(! expr.get.isInstanceOf[BoolExpr]) throw new DieselExprException("PMatch condition expr needs to be boolean, when no name is matched")
+        expr.get.asInstanceOf[BoolExpr].bapply("", ctx)
     }
 
     override def toString =

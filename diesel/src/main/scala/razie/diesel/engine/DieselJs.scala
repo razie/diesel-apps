@@ -9,6 +9,7 @@ package razie.diesel.engine
 import jdk.nashorn.internal.runtime.Undefined
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
+import razie.diesel.expr.ECtx
 
 /** wrapper for JS scripts - this is the object `diesel` */
 class DieselJs(val ctx: ECtx) {

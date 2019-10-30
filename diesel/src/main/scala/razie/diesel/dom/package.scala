@@ -7,13 +7,14 @@
 package razie.diesel
 
 import razie.diesel.dom.RDOM.P
+import razie.diesel.expr.ECtx
 import razie.js
 import razie.wiki.Enc
 
 /**
  * simple, neutral domain model representation: class/object/function
  *
- * These are collected in RDomain
+ * Domain definitions are collected in RDomain
  */
 package object dom {
   // archtetypes

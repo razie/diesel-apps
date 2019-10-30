@@ -42,26 +42,20 @@ trait WikiAuthorization {
 /** stub sample authorization implementation */
 class NoWikiAuthorization extends WikiAuthorization {
 
-  /** can user see a topic with the given properties? */
-  def isVisible(u: Option[WikiUser], props: Map[String, String], visibility: String = "visibility", we: Option[WikiEntry]=None)(implicit errCollector: VErrors = IgnoreErrors): Boolean = {
-    true
-  }
+  def isVisible(u: Option[WikiUser],
+                props: Map[String, String],
+                visibility: String = "visibility",
+                we: Option[WikiEntry]=None)
+               (implicit errCollector: VErrors = IgnoreErrors): Boolean = { true }
 
-  /**
-   * can the user see the topic - a little more checks than isVisibile - this is the one to use
-   *
-   * can pass admin.IgnoreErrors as an errCollector
-   */
-  def canSee(wid: WID, au: Option[WikiUser], w: Option[WikiEntry])(implicit errCollector: VErrors): Option[Boolean] = {
-    Some(true)
-  }
+  def canSee(wid: WID,
+             au: Option[WikiUser],
+             w: Option[WikiEntry])
+            (implicit errCollector: VErrors): Option[Boolean] = {Some(true)}
 
-  /**
-   * can the user edit the topic
-   *
-   *  can pass admin.IgnoreErrors as an errCollector
-   */
-  def canEdit(wid: WID, u: Option[WikiUser], w: Option[WikiEntry], props: Option[Map[String, String]] = None)(implicit errCollector: VErrors): Option[Boolean] = {
-    Some(true)
-  }
+  def canEdit(wid: WID,
+              u: Option[WikiUser],
+              w: Option[WikiEntry],
+              props: Option[Map[String, String]] = None)
+             (implicit errCollector: VErrors): Option[Boolean] = {Some(true)}
 }

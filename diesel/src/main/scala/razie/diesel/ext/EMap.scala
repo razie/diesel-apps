@@ -9,8 +9,8 @@ package razie.diesel.ext
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.AstKinds
+import razie.diesel.expr.{ECtx, PAS, StaticECtx}
 import razie.tconf.EPos
-import razie.wiki.parser.PAS
 import scala.Option.option2Iterable
 import scala.util.Try
 

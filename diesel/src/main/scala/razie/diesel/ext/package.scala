@@ -9,10 +9,9 @@ package razie.diesel
 import razie.diesel.dom.RDOM.{P, PM}
 import razie.diesel.dom._
 import razie.diesel.engine.EContent
-import razie.diesel.expr.{AExprIdent, BCMP2}
+import razie.diesel.expr.{AExprIdent, BCMP2, ECtx, PAS}
 import razie.tconf.EPos
 import razie.wiki.Enc
-import razie.wiki.parser.PAS
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 

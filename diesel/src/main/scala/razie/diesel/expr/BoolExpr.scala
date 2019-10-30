@@ -1,13 +1,12 @@
-/**
-  *   ____    __    ____  ____  ____,,___     ____  __  __  ____
-  *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
-  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
-  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
-  */
+/*   ____    __    ____  ____  ____,,___     ____  __  __  ____
+ *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+ *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+ *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+ */
 package razie.diesel.expr
 
 import razie.clog
-import razie.diesel.dom.RDOM.{P, PValue}
+import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
 import scala.util.Try
 
@@ -21,37 +20,41 @@ case class BExprResult (value:Boolean, a:Option[P] = None, b:Option[P] = None) {
 }
 
 /** boolean expressions */
-abstract class BExpr(e: String) extends Expr with HasDsl {
+abstract class BoolExpr(e: String) extends Expr with HasDsl {
   override def getType = WTypes.wt.BOOLEAN
+
+  /** specific typed apply */
+  def bapply(v: Any)(implicit ctx: ECtx):BExprResult
+
+  // generic glue as an expression
   override def expr = e
-  override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v)
+  override def apply(v: Any)(implicit ctx: ECtx) = bapply(v).value
   override def applyTyped(v: Any)(implicit ctx: ECtx) = P.fromTypedValue("", bapply(v).value, WTypes.wt.BOOLEAN)
 
-  def bapply(v: Any)(implicit ctx: ECtx):BExprResult
 
   override def toDsl = e
 }
 
 /** boolean expression block - show the () when printing */
-case class BExprBlock(a: BExpr) extends BExpr("") {
+case class BExprBlock(a: BoolExpr) extends BoolExpr("") {
   override def bapply(e: Any)(implicit ctx: ECtx) = a.bapply(e)
   override def toDsl = "(" + a.toDsl + ")"
 }
 
 /** negated boolean expression */
-case class BCMPNot(a: BExpr) extends BExpr("") {
+case class BCMPNot(a: BoolExpr) extends BoolExpr("") {
   override def bapply(e: Any)(implicit ctx: ECtx) = !a.bapply(e)
   override def toDsl = "NOT (" + a.toDsl + ")"
 }
 
 /** const boolean expression */
-case class BCMPConst(a: String) extends BExpr(a) {
+case class BCMPConst(a: String) extends BoolExpr(a) {
   override def bapply(e: Any)(implicit ctx: ECtx) = BExprResult(a == "true")
 }
 
 /** composed boolean expression */
-case class BCMP1(a: BExpr, op: String, b: BExpr)
-    extends BExpr(a.toDsl + " " + op + " " + b.toDsl) {
+case class BCMP1(a: BoolExpr, op: String, b: BoolExpr)
+    extends BoolExpr(a.toDsl + " " + op + " " + b.toDsl) {
   override def bapply(in: Any)(implicit ctx: ECtx) = {
     val av = a.bapply(in)
     val bv = b.bapply(in)
@@ -72,7 +75,7 @@ case class BCMP1(a: BExpr, op: String, b: BExpr)
 
 /** simple boolean expression */
 case class BCMP2(a: Expr, op: String, b: Expr)
-    extends BExpr(a.toDsl + " " + op + " " + b.toDsl) {
+    extends BoolExpr(a.toDsl + " " + op + " " + b.toDsl) {
 
   override def bapply(in: Any)(implicit ctx: ECtx): BExprResult = {
     var oap : Option[P] = None
@@ -270,7 +273,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
 }
 
 /** single term bool expression */
-case class BCMPSingle(a: Expr) extends BExpr(a.toDsl) {
+case class BCMPSingle(a: Expr) extends BoolExpr(a.toDsl) {
 
   def toBoolean(in: P)(implicit ctx: ECtx) = {
     a.getType.name match {
@@ -321,7 +324,7 @@ case class BCMPSingle(a: Expr) extends BExpr(a.toDsl) {
 }
 
 /** just a constant expr */
-object BExprFALSE extends BExpr("FALSE") {
+object BExprFALSE extends BoolExpr("FALSE") {
   def bapply(e: Any)(implicit ctx: ECtx): BExprResult = BExprResult(false)
 
   override def toDsl = "FALSE"

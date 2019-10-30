@@ -6,6 +6,7 @@
 package razie.diesel.exec
 
 import razie.diesel.dom._
+import razie.diesel.expr.ECtx
 import razie.diesel.ext.{MatchCollector, _}
 
 /** execute tests */

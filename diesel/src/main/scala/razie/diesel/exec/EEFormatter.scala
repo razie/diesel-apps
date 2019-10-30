@@ -12,6 +12,7 @@ import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.InfoAccumulator
 import razie.diesel.engine.RDExt.spec
+import razie.diesel.expr.ECtx
 import razie.diesel.ext.{MatchCollector, _}
 import razie.wiki.Enc
 

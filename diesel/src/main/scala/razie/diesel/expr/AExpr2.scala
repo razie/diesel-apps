@@ -1,8 +1,8 @@
-/**   ____    __    ____  ____  ____,,___     ____  __  __  ____
-  *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
-  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
-  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
-  */
+/*   ____    __    ____  ____  ____,,___     ____  __  __  ____
+ *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+ *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+ *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+ */
 package razie.diesel.expr
 
 import org.json.JSONObject
@@ -12,7 +12,7 @@ import scala.collection.mutable
 import scala.util.Try
 import scala.util.parsing.json.JSONArray
 
-/** arithmetic expressions on various types, including json, strings, arrays etc */
+/** type-aware arithmetic expressions of the form "a OP b" - on various types, including json, strings, arrays etc */
 case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
   val expr = "("+a.toDsl + " " + op + " " + b.toDsl+")"
 
@@ -27,12 +27,6 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
       case aei:AExprIdent  => aei.tryApplyTyped(v)
       case _               => Some(P("", P.asString(a(v))))
     }
-
-//    def isNum(x: Expr): Boolean = x match {
-//      case CExpr(_, WTypes.wt.NUMBER) => true
-//      case aei:AExprIdent             => aei.tryApplyTyped("").exists(_.ttype == WTypes.NUMBER)
-//      case c:Expr                     => c.getType.name == WTypes.NUMBER
-//    }
 
     def isNum(p: P): Boolean = p.calculatedTypedValue.cType.name == WTypes.NUMBER
 

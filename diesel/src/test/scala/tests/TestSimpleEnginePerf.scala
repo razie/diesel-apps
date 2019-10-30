@@ -21,7 +21,7 @@ import razie.wiki.parser.{DieselTextSpec, DieselUrlTextSpec}
 class TestSimpleEnginePerf extends WordSpecLike with MustMatchers with OptionValues {
 
   val THREADS = 20
-  val CYCLES  = 50000
+  val CYCLES  = 5000
   val SLEEP = false
 
   implicit val system = ActorSystem("testsystem", ConfigFactory.parseString(""" """))
@@ -30,7 +30,6 @@ class TestSimpleEnginePerf extends WordSpecLike with MustMatchers with OptionVal
       .withActorSystem(system)
       .initExecutors
 
-  razie.Log.log("Starting...")
 
   val rspec = DieselTextSpec("r", "") //DieselUrlTextSpec("http://specs.dieselapps.com/wikie/content/Spec:expr_spec", "expr_spec")
   val rstory = DieselTextSpec("r", "") //DieselUrlTextSpec("http://specs.dieselapps.com/wikie/content/Story:expr_story", "expr_story")
@@ -58,6 +57,8 @@ class TestSimpleEnginePerf extends WordSpecLike with MustMatchers with OptionVal
            |$$send home.guest_arrived(name="Jane")
            |""".stripMargin
       )
+
+  razie.Log.log(s"Starting... CYCLES=$CYCLES THREADS=$THREADS")
 
   "simplest engine" should {
 

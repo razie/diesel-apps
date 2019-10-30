@@ -11,7 +11,7 @@ import razie.diesel.dom.{RDOM, _}
 import razie.diesel.engine.DomEngineSettings.DIESEL_USER_ID
 import razie.diesel.engine._
 import razie.diesel.exec.EExecutor
-import razie.diesel.expr.AExprFunc
+import razie.diesel.expr.{AExprFunc, ECtx, StaticECtx}
 import razie.diesel.ext.{MatchCollector, _}
 import razie.diesel.{Diesel, ext}
 import razie.tconf.DUsers

@@ -1,8 +1,8 @@
-/**   ____    __    ____  ____  ____,,___     ____  __  __  ____
-  *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
-  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
-  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
-  */
+/*   ____    __    ____  ____  ____,,___     ____  __  __  ____
+ *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+ *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+ *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+ */
 package razie.diesel.expr
 
 import razie.diesel.dom.RDOM.P
@@ -106,8 +106,8 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
                 Some(P.fromTypedValue(newpname, v))
 
               case None =>
-//                if (blowUp) throw new DieselExprException(s"$expr does not have field $accessor")
-//                else
+                // if (blowUp) throw new DieselExprException(s"$expr does not have field $accessor")
+                // else
                 None // field not found - undefined
             }
 
@@ -129,8 +129,8 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
                 Some(P.fromTypedValue(newpname, v))
 
               case None =>
-//                if (blowUp) throw new DieselExprException(s"$expr does not have field $accessor")
-//                else
+                // if (blowUp) throw new DieselExprException(s"$expr does not have field $accessor")
+                // else
             None // field not found - undefined
             }
 

@@ -14,11 +14,11 @@ import razie.diesel.dom._
 import razie.diesel.engine.RDExt.{DieselJsonFactory, spec}
 import razie.diesel.engine.{AstKinds, DomEngECtx, EContent, InfoAccumulator}
 import razie.diesel.exec.{EExecutor, SnakkCall}
+import razie.diesel.expr.{ECtx, SimpleExprParser}
 import razie.diesel.ext.{MatchCollector, _}
 import razie.diesel.snakk.FFDPayload
 import razie.tconf.{DTemplate, EPos}
 import razie.wiki.Enc
-import razie.wiki.parser.SimpleExprParser
 import razie.{Logging, js}
 import scala.Option.option2Iterable
 import scala.collection.mutable

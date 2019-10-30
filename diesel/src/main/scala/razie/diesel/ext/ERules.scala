@@ -10,7 +10,7 @@ import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.{AstKinds, DomAst}
 import razie.diesel.exec.EApplicable
-import razie.diesel.expr.{BExpr, CExpr}
+import razie.diesel.expr.{BoolExpr, CExpr, ECtx}
 import razie.tconf.EPos
 import razie.wiki.Enc
 
@@ -121,7 +121,7 @@ case class ExpectV(not: Boolean, pm: MatchAttrs, cond: Option[EIf] = None) exten
 }
 
 /** test - expect a value or more. optional guard */
-case class ExpectAssert(not: Boolean, exprs: List[BExpr]) extends CanHtml with HasPosition {
+case class ExpectAssert(not: Boolean, exprs: List[BoolExpr]) extends CanHtml with HasPosition {
   var when: Option[EMatch] = None
   var pos: Option[EPos] = None
   var target: Option[DomAst] = None // if target then applies only in that sub-tree, otherwise guessing scope
@@ -304,7 +304,7 @@ case class EIfm(attrs: MatchAttrs) extends CanHtml with EIf {
 }
 
 // an expression condition
-case class EIfc(cond: BExpr) extends CanHtml with EIf {
+case class EIfc(cond: BoolExpr) extends CanHtml with EIf {
   def test(e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
     // todo collect from bapply
     cond.bapply("").value

@@ -1,8 +1,8 @@
-/**   ____    __    ____  ____  ____,,___     ____  __  __  ____
-  *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
-  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
-  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
-  */
+/*   ____    __    ____  ____  ____,,___     ____  __  __  ____
+ *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+ *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+ *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+ */
 package razie.diesel.expr
 
 import razie.diesel.dom.RDOM.P
@@ -10,9 +10,12 @@ import razie.diesel.dom._
 import razie.diesel.engine.{AstKinds, DomAst, DomEngine}
 import razie.diesel.exec.EEFunc
 import razie.diesel.ext.EMsg
-import razie.wiki.parser.SimpleExprParser
 
-/** a "function" call: built-in functions, msg functions (exec'd in same engine, sync) */
+/** a "function-like" call:
+  * - built-in functions,
+  * - msg functions (exec'd in same engine, sync)
+  * - domain functions / class members
+  */
 case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
 
   override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).calculatedValue
@@ -36,7 +39,9 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
           }.map (_.calculatedP)
       }
 
+    // is it built-in or generic?
       expr match {
+
         case "sizeOf" => {
           firstParm.map { p =>
             val pv = p.calculatedTypedValue
@@ -68,20 +73,24 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
         }
 
       case _ => {
+
+        // must be in form x...y.func
+        val PAT = """([\w.]+)[./](\w+)""".r
+        val PAT(ee, aa) = expr
+        val msg = EMsg(ee, aa, parms)
+        val ast = DomAst(msg, AstKinds.RECEIVED)
+
+        // is there a spec for it in current domain?
         val spec = ctx.root.domain.flatMap {
           _.moreElements.collect {
             case s: EMsg if s.ea == expr => Some(s)
           }.headOption
         }
 
+        // or is it defined as a func in domain?
         val func = ctx.root.domain.flatMap {
           _.funcs.get (expr)
         }
-
-        val PAT = """([\w.]+)[./](\w+)""".r
-        val PAT(ee, aa) = expr
-        val msg = EMsg(ee, aa, parms)
-        val ast = DomAst(msg, AstKinds.RECEIVED)
 
         spec.flatMap { msgSpec =>
           ctx.root.engine.flatMap{engine=>
@@ -116,6 +125,7 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
             res
           }
         } orElse func.map {f=>
+            // todo add more ast info?
           EEFunc.exec(msg, f)
         } getOrElse {
           throw new DieselExprException("Function/Message not found: " + expr)
@@ -123,23 +133,6 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
       }
     }
 
-  }
-
-  override def toDsl = expr + "(" + parms.mkString(",") + ")"
-  override def toHtml = tokenValue(toDsl)
-}
-
-/** a "function" call: built-in functions, msg functions (exec'd in same engine, sync) */
-case class LambdaFuncExpr(val argName:String, val ex: Expr, parms: List[RDOM.P]=Nil) extends Expr {
-  override def getType: WType = ex.getType
-  override def expr = argName + "->" + ex.toDsl
-
-  override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).calculatedValue
-
-  override def applyTyped(v: Any)(implicit ctx: ECtx): P = {
-    val sctx = new StaticECtx(List(P.fromTypedValue(argName, v)), Some(ctx))
-    val res = ex.applyTyped(v)(sctx)
-    res
   }
 
   override def toDsl = expr + "(" + parms.mkString(",") + ")"

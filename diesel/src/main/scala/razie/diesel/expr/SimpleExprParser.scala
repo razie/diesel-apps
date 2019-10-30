@@ -1,12 +1,10 @@
-/**
-  *  ____    __    ____  ____  ____,,___     ____  __  __  ____
-  * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
-  * )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
-  * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
-  **/
-package razie.wiki.parser
+/*   ____    __    ____  ____  ____,,___     ____  __  __  ____
+ *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+ *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+ *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+ */
+package razie.diesel.expr
 
-import razie.diesel.expr.{AExprIdent, Expr}
 import razie.diesel.ext._
 
 /** A simple parser for our simple specs
@@ -20,6 +18,7 @@ class SimpleExprParser extends ExprParser {
     parseAll(expr, input) match {
       case Success(value, _) => Some(value)
       case NoSuccess(msg, next) => None
+        //todo ? throw new DieselExprException("Parsing error: " + msg)
     }
   }
 
@@ -27,8 +26,18 @@ class SimpleExprParser extends ExprParser {
     parseAll(aidentExpr, input) match {
       case Success(value, _) => Some(value)
       case NoSuccess(msg, next) => None
+      //todo ? throw new DieselExprException("Parsing error: " + msg)
     }
   }
+
+  def parseCond (input: String):Option[BoolExpr] = {
+    parseAll(cond, input) match {
+      case Success(value, _) => Some(value)
+      case NoSuccess(msg, next) => None
+      //todo ? throw new DieselExprException("Parsing error: " + msg)
+    }
+  }
+
 }
 
 /** assignment - needed because the left side is more than just a val */

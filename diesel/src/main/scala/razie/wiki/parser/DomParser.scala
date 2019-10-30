@@ -10,7 +10,7 @@ import mod.diesel.model.exec.EESnakk
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.DomEngine
-import razie.diesel.expr.{AExprIdent, BExpr, CExpr}
+import razie.diesel.expr.{AExprIdent, BoolExpr, CExpr, ExprParser, PAS}
 import razie.diesel.ext._
 import razie.tconf.parser.{FoldingContext, LazyAstNode, StrAstNode, TriAstNode}
 import razie.tconf.{DSpec, DUser, EPos}
@@ -194,7 +194,7 @@ trait DomParser extends ParserBase with ExprParser {
     */
   def pifc: Parser[EIf] =
     """[.$]?ifc?""".r ~> ows ~> notoptCond ^^ {
-            case b : BExpr => EIfc(b)
+            case b : BoolExpr => EIfc(b)
     }
 
 //  def pifc: Parser[EIf] =
@@ -411,14 +411,14 @@ trait DomParser extends ParserBase with ExprParser {
   /**
     * condition / expression
     */
-  private def notoptCond: Parser[BExpr] = " *\\(".r ~> ows ~> cond <~ ows <~ ")" ^^ {
+  private def notoptCond: Parser[BoolExpr] = " *\\(".r ~> ows ~> cond <~ ows <~ ")" ^^ {
     case x => x
   }
 
   /**
     * optional condition / expression
     */
-  private def optCond: Parser[Option[BExpr]] = opt(" *\\(".r ~> ows ~> cond <~ ows <~ ")") ^^ {
+  private def optCond: Parser[Option[BoolExpr]] = opt(" *\\(".r ~> ows ~> cond <~ ows <~ ")") ^^ {
     case x => x
   }
 
@@ -615,7 +615,7 @@ trait DomParser extends ParserBase with ExprParser {
   /**
     * todo is not working
     */
-  def optAssertExprs: Parser[List[BExpr]] = ows ~> cond <~ ows ^^ {
+  def optAssertExprs: Parser[List[BoolExpr]] = ows ~> cond <~ ows ^^ {
     case x => x :: Nil
   }
 

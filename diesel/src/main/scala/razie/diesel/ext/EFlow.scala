@@ -7,6 +7,7 @@ package razie.diesel.ext
 
 import razie.diesel.dom._
 import razie.diesel.exec.EApplicable
+import razie.diesel.expr.ECtx
 import razie.tconf.EPos
 
 /** flows seq/par and depys are processed directly by the engine */

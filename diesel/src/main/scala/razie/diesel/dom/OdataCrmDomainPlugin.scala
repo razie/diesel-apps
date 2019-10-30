@@ -7,15 +7,14 @@
 package razie.diesel.dom
 
 import java.net.{HttpURLConnection, URI}
-
 import com.razie.pub.comms.{CommRtException, Comms}
 import org.json.JSONObject
 import razie.Snakk._
 import razie.diesel.dom.RDOM._
+import razie.diesel.expr.ECtx
 import razie.tconf.{DSpecInventory, SpecPath}
 import razie.wiki.Sec
 import razie.{Snakk, clog, js}
-
 import scala.collection.mutable
 import scala.util.Try
 

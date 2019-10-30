@@ -1,8 +1,8 @@
-/**   ____    __    ____  ____  ____,,___     ____  __  __  ____
-  *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
-  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
-  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
-  */
+/*   ____    __    ____  ____  ____,,___     ____  __  __  ____
+ *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+ *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+ *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+ */
 package razie.diesel.expr
 
 import mod.diesel.model.exec.EESnakk
@@ -10,7 +10,10 @@ import org.json.JSONObject
 import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.dom._
 
-/** a json block */
+/** a json document block:
+  * - you may or may not use quotes for names
+  * -
+  */
 case class JBlockExpr(ex: List[(String, Expr)]) extends Expr {
   val expr = "{" + ex.map(t=>t._1 + ":" + t._2.toString).mkString(",") + "}"
 
@@ -36,10 +39,10 @@ case class JBlockExpr(ex: List[(String, Expr)]) extends Expr {
       }))
       .map(t=> s""" "${t._1}" : ${t._2} """)
       .mkString(",")
+
     // parse and clean it up so it blows up right here if invalid
     val j = new JSONObject(s"{$orig}")
     P.fromTypedValue("", j, WTypes.JSON)
-//    new JSONObject(s"{$orig}").toString(2)
   }
 
   override def getType: WType = WTypes.wt.JSON
@@ -61,6 +64,7 @@ case class JArrExpr(ex: List[Expr]) extends Expr {
       val p = e.applyTyped(v)
       p.calculatedTypedValue.asEscapedJSString
     }.mkString(",")
+
     // parse and clean it up so it blows up right here if invalid
     new org.json.JSONArray(s"[$orig]")
   }

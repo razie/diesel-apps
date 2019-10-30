@@ -12,6 +12,7 @@ import scala.collection.concurrent.TrieMap
 import scala.collection.mutable.ListBuffer
 import RDOM.P
 import razie.base.AttrAccess
+import razie.diesel.expr.ECtx
 
 /** an applicable or message executor - can execute a message */
 trait EApplicable {

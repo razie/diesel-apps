@@ -9,7 +9,8 @@ package razie.diesel.engine
 import api.dwix
 import org.bson.types.ObjectId
 import razie.diesel.dom.RDOM.P
-import razie.diesel.dom.{ECtx, RDomain, SimpleECtx}
+import razie.diesel.dom.RDomain
+import razie.diesel.expr.{ECtx, SimpleECtx}
 import razie.tconf.{DSpec, DUsers}
 
 /** specific root context for an engine instance

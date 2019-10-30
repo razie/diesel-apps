@@ -11,7 +11,7 @@ import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.DieselJs
 import razie.diesel.engine.RDExt.spec
-import razie.diesel.expr.DieselExprException
+import razie.diesel.expr.{DieselExprException, ECtx}
 import razie.diesel.ext.{MatchCollector, _}
 
 // the context persistence commands

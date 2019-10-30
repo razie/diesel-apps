@@ -9,7 +9,7 @@ import razie.Debug._
 import razie._
 import razie.audit.Audit
 import razie.diesel.dom.RDOM.P
-import razie.diesel.expr.Expr
+import razie.diesel.expr.{ECtx, Expr}
 
 /** an xpath expr */
 case class XPathIdent(val expr: String) extends Expr {

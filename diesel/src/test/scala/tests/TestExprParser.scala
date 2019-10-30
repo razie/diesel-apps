@@ -1,33 +1,25 @@
-/**
-  *   ____    __    ____  ____  ____,,___     ____  __  __  ____
-  *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
-  *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
-  *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
-  */
+/*   ____    __    ____  ____  ____,,___     ____  __  __  ____
+ *  (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+ *   )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+ *  (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+ */
 package tests
 
+import akka.actor.ActorSystem
+import com.typesafe.config.ConfigFactory
 import org.scalatest.{FlatSpec, MustMatchers, OptionValues, WordSpecLike}
 import razie.diesel.dom.WTypes
-import razie.diesel.expr.{AExprIdent, CExpr}
-import razie.wiki.parser.ExprParser
-
-/** A simple parser for expressions */
-class SimpleExprParser extends ExprParser {
-  def apply(input: String) = {
-    parseAll(expr, input) match {
-      case Success(value, _) => value
-      // don't change the format of this message
-      case NoSuccess(msg, next) => throw new IllegalArgumentException("CANNOT PARSE: "+input)
-    }
-  }
-}
+import razie.diesel.engine.{DieselAppContext, DomEngineSettings}
+import razie.diesel.expr.{AExprIdent, CExpr, ExprParser}
+import razie.diesel.samples.DomEngineUtils
+import razie.wiki.parser.DieselTextSpec
 
 /**
   * run like: sbt 'testOnly *TestExprParser'
   */
 class TestExprParser extends WordSpecLike with MustMatchers with OptionValues {
 
-  def p(s:String) = (new SimpleExprParser).apply(s)
+  def p(s:String) = (new SimpleExprParser).parseExpr(s)
 
   "CExpr parser" should {
 
@@ -47,10 +39,41 @@ class TestExprParser extends WordSpecLike with MustMatchers with OptionValues {
     "parse id" in {
       assert(p( "anid" ).isInstanceOf[AExprIdent])
       assert(p( "'an id'" ).isInstanceOf[AExprIdent])
-//      assert(p( "anid[23]" ).isInstanceOf[AExprIdent])
-//      assert(p( "anid[\"field1\"]" ).isInstanceOf[AExprIdent])
-//      assert(p( "anid[\"field1\"][4]" ).isInstanceOf[AExprIdent])
-//      assert(p( "anid[\"field1\"][4].jake.gg[4\[\"asfd\"]" ).isInstanceOf[AExprIdent])
+      assert(p( "anid[23]" ).isInstanceOf[AExprIdent])
+      assert(p( "anid[\"field1\"]" ).isInstanceOf[AExprIdent])
+      assert(p( "anid[\"field1\"][4]" ).isInstanceOf[AExprIdent])
+      assert(p( "anid[\"field1\"][4].jake.gg[4\[\"asfd\"]" ).isInstanceOf[AExprIdent])
+    }
+  }
+
+  "epxr parser" should {
+
+    "parse all samples" in {
+      // create an actor system or use the default etc
+
+      implicit val system = ActorSystem("testsystem", ConfigFactory.parseString(""" """))
+
+      // tell the engine to use this system
+      DieselAppContext
+          .withSimpleMode()
+          .withActorSystem(system)
+
+      val spec  = DieselUrlSpec ("http://specs.razie.com/wikie/content/Story:expr_spec", "expr_spec")
+      val story = DieselUrlSpec ("http://specs.razie.com/wikie/content/Story:expr_story", "expr_story")
+
+      // run it: create engine, run story and wait for result
+      val engine = DomEngineUtils.execAndWait(
+        DomEngineUtils.mkEngine(
+          new DomEngineSettings().copy(realm=Some("rk")),
+          List(spec),
+          List(story)
+        )
+      )
+
+      println(engine.root.toString)    // debug trace of engine's execution
+      println(engine.resultingValue)   // resulting value, if any
+
+      assert(engine.failedTestCount == 0)
     }
   }
 }
