@@ -32,6 +32,18 @@ $expect (payload == 120)
 
 See more details and technical notes at [diesel](/diesel).
 
+## Expressions
+
+As an external DSL, the expressions are fairly complex (see more in [expr](/diesel/src/main/scala/razie/diesel/expr)), such as:
+
+```js
+// array/lists with lambdas etc
+[1,2] + [3] filter (x=> x > 1) map (x=> x + 1)
+
+// embedded JS, when you run out of constructs
+js:{var d = new Date(); d.setSeconds(d.getSeconds() + 10); d.toISOString();}
+```
+
 # Diesel Apps
 
 Around the main Diesel DSL for reactive rules, we created an entire Scala DSL framework for developing domain and rules-driven reactive services and apps. Rapid mocking, prototyping, development, testing and hosting of (micro)services and websites, see [The simplest micro-service you ever created](http://www.dieselapps.com/wiki/Cool_Scala/The_one-liner_microservice)
@@ -43,8 +55,8 @@ You can either use the [DieselApps](http://www.dieselapps.com) cloud, embed the 
 Components:
 
 1. [diesel](/diesel) - the light reactive rules-based workflow engine
-   * [tconf](/diesel/src/main/scala/razie/tconf) - TBD, for specs-driven logic
    * [expr](/diesel/src/main/scala/razie/diesel/expr) - expressions and parsing 
+   * [tconf](/diesel/src/main/scala/razie/tconf) - TBD, for specs-driven logic
    * [dom](/diesel/src/main/scala/razie/diesel/dom) - TBD, domain entities
    * [db](/diesel/src/main/scala/razie/db) - simple entity persistence layer for Mongo
    * [diesel-snakk](http://specs.dieselapps.com/wiki/Spec:rest_spec) - snakked on steroids: simple REST snakking, XML and JSON template parsing etc
