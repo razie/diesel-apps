@@ -52,10 +52,12 @@ Easy to use if your project requires expressions. Parse a DSL expression with th
 
 ```scala
 import razie.diesel.expr._
+import razie.diesel.dom.RDOM._
 
 val input = "a + 2"
 val parser = new SimpleExprParser()
-val ctx: ECtx = new SimpleECtx()
+// create and initialize context with "a"
+val ctx: ECtx = new SimpleECtx().withP(P.fromTypedValue("a", 1))
 
 // parse and execute any expression
 val result = parser.parseExpr(input).map(_.applyTyped("")(new SimpleECtx()))

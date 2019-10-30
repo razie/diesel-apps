@@ -28,6 +28,11 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
   def credentials: Option[String] = userId orElse base.flatMap(_.credentials)
   // once given, you cannot change credentials
 
+  def withP(p:P) = {
+    put(p)
+    this
+  }
+
   def withHostname(s: String) = {
     _hostname = Some(s)
     this
