@@ -1,8 +1,9 @@
 ![DIESEL](https://cdn.razie.com/Public/diesel/diesel3round.png)
-[![Maven Central 2.11](https://maven-badges.herokuapp.com/maven-central/com.razie/diesel_2.11/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.razie/diesel_2.11)
+ 
+[![Maven Central 2.11](https://maven-badges.herokuapp.com/maven-central/com.razie/diesel_2.11/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.razie/diesel_2.11) [![License](https://img.shields.io/github/license/Netflix/conductor.svg)](http://www.apache.org/licenses/LICENSE-2.0)
 
 ## Reactive rules DSL
- 
+
 An asynchronous, message-oriented workflow framework, driven by rules and layered on top of akka actors. The rules are based on pattern matching:
 
 ```js
