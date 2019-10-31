@@ -10,16 +10,16 @@ import com.typesafe.config.ConfigFactory
 import org.scalatest.{FlatSpec, MustMatchers, OptionValues, WordSpecLike}
 import razie.diesel.dom.WTypes
 import razie.diesel.engine.{DieselAppContext, DomEngineSettings}
-import razie.diesel.expr.{AExprIdent, CExpr, ExprParser}
+import razie.diesel.expr.{AExprIdent, CExpr, ExprParser, SimpleExprParser}
 import razie.diesel.samples.DomEngineUtils
-import razie.wiki.parser.DieselTextSpec
+import razie.wiki.parser.DieselUrlTextSpec
 
 /**
   * run like: sbt 'testOnly *TestExprParser'
   */
 class TestExprParser extends WordSpecLike with MustMatchers with OptionValues {
 
-  def p(s:String) = (new SimpleExprParser).parseExpr(s)
+  def p(s:String) = (new SimpleExprParser).parseExpr(s).get
 
   "CExpr parser" should {
 
@@ -42,7 +42,7 @@ class TestExprParser extends WordSpecLike with MustMatchers with OptionValues {
       assert(p( "anid[23]" ).isInstanceOf[AExprIdent])
       assert(p( "anid[\"field1\"]" ).isInstanceOf[AExprIdent])
       assert(p( "anid[\"field1\"][4]" ).isInstanceOf[AExprIdent])
-      assert(p( "anid[\"field1\"][4].jake.gg[4\[\"asfd\"]" ).isInstanceOf[AExprIdent])
+      assert(p( "anid[\"field1\"][4].jake.gg[4][\"asfd\"]" ).isInstanceOf[AExprIdent])
     }
   }
 
@@ -58,8 +58,8 @@ class TestExprParser extends WordSpecLike with MustMatchers with OptionValues {
           .withSimpleMode()
           .withActorSystem(system)
 
-      val spec  = DieselUrlSpec ("http://specs.razie.com/wikie/content/Story:expr_spec", "expr_spec")
-      val story = DieselUrlSpec ("http://specs.razie.com/wikie/content/Story:expr_story", "expr_story")
+      val spec  = DieselUrlTextSpec ("http://specs.razie.com/wiki/Story:expr_spec/included", "expr_spec")
+      val story = DieselUrlTextSpec ("http://specs.razie.com/wiki/Story:expr_story/included", "expr_story")
 
       // run it: create engine, run story and wait for result
       val engine = DomEngineUtils.execAndWait(

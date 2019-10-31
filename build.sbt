@@ -50,39 +50,47 @@ libraryDependencies in Global ++= Seq(
 lazy val root = (project in file("."))
   .settings(
     commonSettings
-  ).aggregate(tconf,diesel, pcommon)//, pwiki)
+  ).aggregate(diesel)//, pwiki)
 
-lazy val tconf = (project in file("tconf"))
-  .settings(
-    commonSettings,
-    unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/base/src/main/scala",
-    unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/core/src/main/scala"
-  )
+// lazy val tconf = (project in file("tconf"))
+//   .settings(
+//     commonSettings,
+//     unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/base/src/main/scala",
+//     unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/core/src/main/scala"
+//   )
 
 lazy val diesel = (project in file("diesel"))
   .settings(
     commonSettings,
     unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/base/src/main/scala",
     unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/core/src/main/scala"
+    // unmanagedSourceDirectories in Compile += baseDirectory.value / "../wiki/app"
   )
-  .dependsOn(tconf).aggregate(tconf)
-  // .dependsOn(pcommon).aggregate(pcommon)
 
-lazy val pcommon = (project in file("common")).enablePlugins(PlayScala)
-  .settings(
-    commonSettings,
-    unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/base/src/main/scala",
-    unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/core/src/main/scala"
-  )
-  .dependsOn(diesel).aggregate(diesel)
+// lazy val diesel = (project in file("diesel"))
+//   .settings(
+//     commonSettings,
+//     unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/base/src/main/scala",
+//     unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/core/src/main/scala"
+//   )
+//   .dependsOn(tconf).aggregate(tconf)
+//   .dependsOn(pcommon).aggregate(pcommon)
 
-lazy val pwiki = (project in file("wiki")).enablePlugins(PlayScala)
-  .settings(
-    commonSettings,
-    unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/base/src/main/scala",
-    unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/core/src/main/scala"
-  )
-  .dependsOn(pcommon).aggregate(pcommon)
+// lazy val pcommon = (project in file("common")).enablePlugins(PlayScala)
+//   .settings(
+//     commonSettings,
+//     unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/base/src/main/scala",
+//     unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/core/src/main/scala"
+//   )
+//   .dependsOn(diesel).aggregate(diesel)
+//
+// lazy val pwiki = (project in file("wiki")).enablePlugins(PlayScala)
+//   .settings(
+//     commonSettings,
+//     unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/base/src/main/scala",
+//     unmanagedSourceDirectories in Compile += baseDirectory.value / "../../snakked/core/src/main/scala"
+//   )
+//   .dependsOn(pcommon).aggregate(pcommon)
 
 
 retrieveManaged := true // copy libs in lib_managed
@@ -119,8 +127,8 @@ pomExtra := (
     </license>
   </licenses>
   <scm>
-    <url>git@github.com:razie/diesel-apps.git</url>
-    <connection>scm:git:git@github.com:razie/diesel-apps.git</connection>
+    <url>git@github.com:razie/diesel.git</url>
+    <connection>scm:git:git@github.com:razie/diesel.git</connection>
   </scm>
   <developers>
     <developer>
@@ -130,4 +138,3 @@ pomExtra := (
     </developer>
   </developers>
 )
-

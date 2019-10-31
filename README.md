@@ -1,8 +1,8 @@
 ![DIESEL](https://cdn.razie.com/Public/diesel/diesel3round.png)
- 
+
 [![Maven Central 2.11](https://maven-badges.herokuapp.com/maven-central/com.razie/diesel_2.11/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.razie/diesel_2.11) [![License](https://img.shields.io/github/license/Netflix/conductor.svg)](http://www.apache.org/licenses/LICENSE-2.0)
 
-## Reactive rules DSL
+## Reactive rules and workflow DSL
 
 An asynchronous, message-oriented workflow framework, driven by rules and layered on top of akka actors. The rules are based on pattern matching:
 
@@ -36,7 +36,7 @@ See more details and technical notes at [diesel](/diesel).
 
 ## Expressions
 
-As an external DSL, the expressions are fairly complex (see more in [expr](/diesel/src/main/scala/razie/diesel/expr)), such as:
+The expressions As an external DSL, the expressions are fairly complex (see more in [expr](/diesel/src/main/scala/razie/diesel/expr)), such as:
 
 ```js
 // array/lists with lambdas etc
@@ -57,7 +57,7 @@ You can either use the [DieselApps](http://www.dieselapps.com) cloud, embed the 
 Components:
 
 1. [diesel](/diesel) - the light reactive rules-based workflow engine
-   * [expr](/diesel/src/main/scala/razie/diesel/expr) - expressions and parsing 
+   * [expr](/diesel/src/main/scala/razie/diesel/expr) - expressions and parsing
    * [tconf](/diesel/src/main/scala/razie/tconf) - TBD, for specs-driven logic
    * [dom](/diesel/src/main/scala/razie/diesel/dom) - TBD, domain entities
    * [db](/diesel/src/main/scala/razie/db) - simple entity persistence layer for Mongo

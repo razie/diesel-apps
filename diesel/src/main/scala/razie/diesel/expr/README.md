@@ -13,16 +13,29 @@ quick examples (right side of the `=` sign):
 
 ```js
 $send ctx.set (
+  a284 = [1,2] + [3] filter (x=> x > 1) map (x=> x + 1),
+
+  res40=js:email.replace(/(\w+)@(\w+).com/, "$1") ,
+  
+  later=js:{var d = new Date(); d.setSeconds(d.getSeconds() + 10); d.toISOString();} ,
+
   constants = 321, 
+
   addition = last+first,
+
   jsonBlock={
     "accountNumber": "1729534",
     "start_num": 123
 	},
+
   qualified = jsonBlock.accountNumber,
+
   interpolation="is${1+2}",
+
   url="${HOST}/search?q=dieselapps",
+
   builtInFunctions1 = sizeOf(x=cart.items),
+
   builtInFunctions2 = typeOf(x=cart.items),
   
   anArray =[1,"a",3],
@@ -33,13 +46,7 @@ $send ctx.set (
   
   // embedded Javascript expressions
   simpleJs = js:wix.diesel.env ,
-  res78=js:cart.items[0].sku ,
-  
-  res40=js:email.replace(/(\w+)@(\w+).com/, "$1") ,
-  
-  later=js:{var d = new Date(); d.setSeconds(d.getSeconds() + 10); d.toISOString();} ,
-
-  a284 = [1,2] + [3] filter (x=> x > 1) map (x=> x + 1) 
+  res78=js:cart.items[0].sku 
 )
 
 ```
