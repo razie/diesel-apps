@@ -332,23 +332,33 @@ ${errCollector.mkString}
   def Filter(f: RazRequest => Option[Result]) = new FilteredAction(f)
 
   /** mock teh action filters */
-  class RazAction[A] (val bodyParser: BodyParser[A], auth:Boolean = false) {
-    def apply(f: RazRequest => Result) : Action[A] = async {req=>
-      if(req.au.isEmpty) {
-        Future.successful{
+  class RazAction[A] (val bodyParser: BodyParser[A], auth:Boolean = false, noRob:Boolean=false) {
+    protected def isFromRobot(implicit request: RequestHeader) = {
+      (request.headers.get("User-Agent").exists(ua => Config.robotUserAgents.exists(ua.contains(_))))
+    }
+
+    def doAuth(req:RazRequest):Option[Future[Result]] = {
+      if(auth && req.au.isEmpty) {
+        Some(Future.successful{
           Unauthorized("Need to login...")
-        }
+        })
+      } else if(noRob && isFromRobot(req.oreq.get)) {
+        Some(Future.successful{
+          Ok("eh, robots...")
+        })
       } else
-      Future.successful(f(req))
+      None
+    }
+
+    def apply(f: RazRequest => Result) : Action[A] = async {req=>
+      doAuth(req).getOrElse {
+        Future.successful(f(req))
+      }
     }
 
     def async(f: RazRequest => Future[Result]) : Action[A] = Action.async(bodyParser) {implicit request=>
       val req = razRequest
-      if(req.au.isEmpty) {
-        Future.successful{
-          Unauthorized("Need to login...")
-        }
-      } else {
+      doAuth(req).getOrElse{
         val temp = f(req)
         // only if someone used it
         if (req.isTxnSet) req.txn.commit
@@ -357,7 +367,10 @@ ${errCollector.mkString}
     }
 
     def withAuth =
-      new RazAction(bodyParser, true)
+      new RazAction(bodyParser, true, noRob)
+
+    def noRobots =
+      new RazAction(bodyParser, auth, true)
   }
 
   /** action builder that decomposes the request, extracting user and creating a simple error buffer */
