@@ -31,9 +31,10 @@ object WikiReactors extends Logging with Reactors {
   // reserved reactors
   final val RK = WikiConfig.RK       // original, still decoupling code
   final val WIKI = "wiki"              // main reactor
+  final val SPECS = "specs"              // main reactor
   final val NOTES = WikiConfig.NOTES
 
-  final val ALIASES = Map ("www" -> "wiki")
+  final val ALIASES = Map ("www" -> "specs")
 
   /** lower case index of loaded reactors - reactor names are insensitive */
   val lowerCase = new collection.mutable.HashMap[String,String]()
