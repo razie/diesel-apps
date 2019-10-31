@@ -332,18 +332,32 @@ ${errCollector.mkString}
   def Filter(f: RazRequest => Option[Result]) = new FilteredAction(f)
 
   /** mock teh action filters */
-  class RazAction[A] (val bodyParser: BodyParser[A]) {
+  class RazAction[A] (val bodyParser: BodyParser[A], auth:Boolean = false) {
     def apply(f: RazRequest => Result) : Action[A] = async {req=>
+      if(req.au.isEmpty) {
+        Future.successful{
+          Unauthorized("Need to login...")
+        }
+      } else
       Future.successful(f(req))
     }
 
     def async(f: RazRequest => Future[Result]) : Action[A] = Action.async(bodyParser) {implicit request=>
       val req = razRequest
-      val temp = f(req)
-      // only if someone used it
-      if(req.isTxnSet) req.txn.commit
-      temp
+      if(req.au.isEmpty) {
+        Future.successful{
+          Unauthorized("Need to login...")
+        }
+      } else {
+        val temp = f(req)
+        // only if someone used it
+        if (req.isTxnSet) req.txn.commit
+        temp
+      }
     }
+
+    def withAuth =
+      new RazAction(bodyParser, true)
   }
 
   /** action builder that decomposes the request, extracting user and creating a simple error buffer */

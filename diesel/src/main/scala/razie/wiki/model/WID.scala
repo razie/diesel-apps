@@ -331,7 +331,7 @@ object WID {
       Array("/xp/", "/xpl/", "/tag/", "/react/").collectFirst {
         case tag if path contains tag => splitIt(tag, path)
       } orElse
-        Array("/rss.xml", "/debug", "/edit", "/content", "/included").collectFirst {
+        Array("/rss.xml", "/debug", "/edit", "/content", "/included", "/dualView").collectFirst {
           case tag if path endsWith tag => splitIt(tag, path)
         } orElse
         Some(CMDWID(Some(path), widFromSeg(path split "/"), "", ""))

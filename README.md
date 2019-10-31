@@ -36,7 +36,7 @@ See more details and technical notes at [diesel](/diesel).
 
 ## Expressions
 
-The expressions As an external DSL, the expressions are fairly complex (see more in [expr](/diesel/src/main/scala/razie/diesel/expr)), such as:
+The expressions used in Diese are useful on their own: as an external DSL, the expressions are fairly complex (see more in [expr](/diesel/src/main/scala/razie/diesel/expr)), including lambdas, list operators and inlined Javascript expressions, such as:
 
 ```js
 // array/lists with lambdas etc
@@ -45,6 +45,8 @@ The expressions As an external DSL, the expressions are fairly complex (see more
 // embedded JS, when you run out of constructs
 js:{var d = new Date(); d.setSeconds(d.getSeconds() + 10); d.toISOString();}
 ```
+
+See [expr](/diesel/src/main/scala/razie/diesel/expr) for details and info on using them on their own.
 
 # Diesel Apps
 

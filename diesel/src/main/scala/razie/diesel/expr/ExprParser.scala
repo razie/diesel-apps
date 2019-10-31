@@ -22,6 +22,10 @@ trait ExprParser extends RegexParsers {
 
   def ows = opt(whiteSpace)
 
+  //
+  //=================== idents
+  //
+
   /** a regular ident but also something in single quotes 'a@habibi.34 and - is a good ident eh' */
   def ident: Parser[String] = """[a-zA-Z_][\w]*""".r | """'[\w@. -]+'""".r ^^ {
     case s =>
@@ -41,6 +45,8 @@ trait ExprParser extends RegexParsers {
     case i ~ l => (i :: l).mkString(".")
   }
 
+  def qlident: Parser[List[String]] = qlidentDiesel | realmqlident
+
   // fix this somehow - these need to be accessed as this - they should be part of a "diesel" object with callbacks
   def qlidentDiesel: Parser[List[String]] = "diesel." ~ ident ^^ {
     case d ~ i => List(d+i)
@@ -51,66 +57,35 @@ trait ExprParser extends RegexParsers {
     case i ~ l => i :: l
   }
 
-  def qlident: Parser[List[String]] = qlidentDiesel | realmqlident
-
-  def boolConst: Parser[String] = "true" | "false" ^^ {
-    case b => b
-  }
-
   def xpath: Parser[String] = ident ~ rep("[/@]+".r ~ ident) ^^ {
     case i ~ l => (i :: l.map{x=>x._1+x._2}).mkString("")
   }
 
-  def any: Parser[String] = """.*""".r
-
-  //todo full expr with +-/* and XP
-  def value: Parser[String] = boolConst | qident | afloat | aint | str
-
-  def aint: Parser[String] = """-?\d+""".r
-  def afloat: Parser[String] = """-?\d+[.]\d+""".r
-
-  // todo commented - if " not included in string, evaluation has trouble - see expr(s)
-  // todo see stripq and remove it everywhere when quotes die and proper type inference is used
-  def str: Parser[String] = "\"" ~> """[^"]*""".r <~ "\""
-
-  //  def str: PS = """"[^"]*"""".r
-
   //
-  //=========================== expressions and conditions ============================
+  //======================= MAIN: operator expressions and conditions ========================
   //
 
-  //  def expr: Parser[Expr] = ppexpr | cond | pterm1
-  def expr:  Parser[Expr] = ppexpr1 | pterm1
-  def expr2: Parser[Expr] = ppexpr3 | pterm1
+  def expr:  Parser[Expr] = exprAS | pterm1
 
-  def opsmaps: Parser[String] = "as" | "map" | "filter"
-  def opscond2: Parser[String] = "and" | "or" | "xor" // todo or before and
-  def opscond3: Parser[String] = ">" | "<" | ">=" | "<=" | "==" | "!=" | "~="
-  def opsplus: Parser[String] = "+" | "-" | "||" | "|"
-  def opsmult: Parser[String] = "*" | "/"
+  // a reduced expr, from boolean down
+  def expr2: Parser[Expr] = exprCMP | pterm1
 
-  /*
-  def ppexpr1: Parser[Expr] = ppexpr4 ~ ows ~ opsmaps ~ ows ~ ppexpr1 ^^ {
-    case a ~ _ ~ op ~ _ ~ e => {
-      // todo how to go left associative
-      if(e.isInstanceOf[AExpr2] && Array("filter", "map").contains(e.asInstanceOf[AExpr2].op)) {
-        val b = e.asInstanceOf[AExpr2]
-        // flip right-associative to left
-        AExpr2(AExpr2(a, op, b.a), b.op, b.b)
-      } else {
-        AExpr2(a, op, e)
-      }
-    }
-  } | ppexpr4
-*/
+  def opsas: Parser[String] = "as"
+  def opsmaps: Parser[String] = "map" | "flatMap" | "filter"
+  def opsOR: Parser[String] = "or" | "xor"
+  def opsAND: Parser[String] = "and"
+  def opsCMP: Parser[String] = ">" | "<" | ">=" | "<=" | "==" | "!=" | "~="
+  def opsPLUS: Parser[String] = "+" | "-" | "||" | "|"
+  def opsMULT: Parser[String] = "*" | "/"
 
-  def ppexpr1: Parser[Expr] = ppexpr2 ~ opt(ows ~> "as" ~ ows ~ pterm1) ^^ {
+  // "1" as number
+  def exprAS: Parser[Expr] = exprMAP ~ opt(ows ~> opsas ~ ows ~ pterm1) ^^ {
     case a ~ l if l.isEmpty => a
     case a ~ Some(op ~ _ ~ p) => AExpr2(a, op, p)
   }
 
-  def ppexpr2: Parser[Expr] = ppexpr4 ~ rep(ows ~> opsmaps ~ ows ~ ppexpr3) ^^ {
-    case a ~ l if l.isEmpty => a
+  // x map (x => x+1)
+  def exprMAP: Parser[Expr] = exprPLUS ~ rep(ows ~> opsmaps ~ ows ~ exprCMP) ^^ {
     case a ~ l => l.foldLeft(a)((x, y) =>
       y match {
         case op ~ _ ~ p => AExpr2(x, op, p)
@@ -118,8 +93,8 @@ trait ExprParser extends RegexParsers {
     )
   }
 
-  def ppexpr3: Parser[Expr] = ppexpr4 ~ rep(ows ~> opscond3 ~ ows ~ ppexpr4) ^^ {
-    case a ~ l if l.isEmpty => a
+  // x > y
+  def exprCMP: Parser[Expr] = exprPLUS ~ rep(ows ~> opsCMP ~ ows ~ exprPLUS) ^^ {
     case a ~ l => l.foldLeft(a)((x, y) =>
       y match {
         case op ~ _ ~ p => cmp(x, op, p)
@@ -127,8 +102,8 @@ trait ExprParser extends RegexParsers {
     )
   }
 
-  def ppexpr4: Parser[Expr] = ppexpr5 ~ rep(ows ~> opsplus ~ ows ~ ppexpr5) ^^ {
-    case a ~ l if l.isEmpty => a
+  // x + y
+  def exprPLUS: Parser[Expr] = exprMULT ~ rep(ows ~> opsPLUS ~ ows ~ exprMULT) ^^ {
     case a ~ l => l.foldLeft(a)((x, y) =>
       y match {
         case op ~ _ ~ p => AExpr2(x, op, p)
@@ -136,27 +111,13 @@ trait ExprParser extends RegexParsers {
     )
   }
 
-  def ppexpr5: Parser[Expr] = pterm1 ~ rep(ows ~> opsmult ~ ows ~ pterm1) ^^ {
-    case a ~ l if l.isEmpty => a
+  // x * y
+  def exprMULT: Parser[Expr] = pterm1 ~ rep(ows ~> opsMULT ~ ows ~ pterm1) ^^ {
     case a ~ l => l.foldLeft(a)((x, y) =>
       y match {
         case op ~ _ ~ p => AExpr2(x, op, p)
       }
     )
-  }
-
-  // todo this can't parse properly a map b map c map d
-  def ppexpr6: Parser[Expr] = pterm1 ~ rep(ows ~> ("*" | "+" | "-" | "||" | "|" | "as" | "map" | "filter") ~ ows ~ pterm1) ^^ {
-    case a ~ l if l.isEmpty => a
-    case a ~ l => l.foldLeft(a)((x, y) =>
-      y match {
-        case op ~ _ ~ p => AExpr2(x, op, p)
-      }
-    )
-  }
-
-  def jnull: Parser[Expr] = "null" ^^ {
-    case b => new CExprNull
   }
 
   //
@@ -172,6 +133,7 @@ trait ExprParser extends RegexParsers {
   //==================== lambdas
   //
 
+  // x => x + 4
   def lambda: Parser[Expr] = ident ~ ows ~ "=>" ~ ows ~ (expr2 | "(" ~> expr <~ ")") ^^ {
     case id ~ _ ~ a ~ _ ~ ex => LambdaFuncExpr(id, ex)
   }
@@ -200,6 +162,10 @@ trait ExprParser extends RegexParsers {
       s
   }
 
+  def jnull: Parser[Expr] = "null" ^^ {
+    case b => new CExprNull
+  }
+
   // json object - sequence of nvp assignemnts separated with commas
   def jobj: Parser[Expr] = "{" ~ ows ~> repsep(jnvp <~ ows, ",") <~ ows ~ "}" ^^ {
     case li => JBlockExpr(li)
@@ -225,6 +191,9 @@ trait ExprParser extends RegexParsers {
 
   // a number
   def numexpr: Parser[Expr] = (afloat | aint ) ^^ { case i => new CExpr(i, WTypes.wt.NUMBER) }
+
+  def aint: Parser[String] = """-?\d+""".r
+  def afloat: Parser[String] = """-?\d+[.]\d+""".r
 
   // string const with escaped chars
   def cexpr: Parser[Expr] = "\"" ~> """(\\.|[^\"])*""".r <~ "\"" ^^ {

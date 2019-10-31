@@ -208,6 +208,44 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
         }
       }
 
+      case "flatMap" => {
+        av.calculatedTypedValue.cType.name match {
+          case WTypes.ARRAY => {
+            val elementType = av.calculatedTypedValue.cType.subType
+
+            val arr = av.calculatedTypedValue.asArray
+
+            val resArr = arr.flatMap {x=>
+              val res = if(b.isInstanceOf[LambdaFuncExpr]) {
+                val resp = b.applyTyped(x).calculatedTypedValue
+                if(!resp.cType.equals(WTypes.wt.ARRAY)) throw new DieselExprException("Result of right side not Array!")
+                val res = resp.asArray
+                res
+              } else if(b.isInstanceOf[BlockExpr] && b.asInstanceOf[BlockExpr].ex.isInstanceOf[LambdaFuncExpr]) {
+                // common case, no need to go through context, Block passes through to Lambda
+                val resp = b.applyTyped(x).calculatedTypedValue
+                if(!resp.cType.equals(WTypes.wt.ARRAY)) throw new DieselExprException("Result of right side not Array!")
+                val res = resp.asArray
+                res
+              } else {
+                // we populate an "x" or should it be "elem" ?
+                val sctx = new StaticECtx(List(P.fromTypedValue("x", x)), Some(ctx))
+                val resp = b.applyTyped(x)(sctx).calculatedTypedValue
+                if(!resp.cType.equals(WTypes.wt.ARRAY)) throw new DieselExprException("Result of right side not Array!")
+                val res = resp.asArray
+                res
+              }
+              res
+            }
+
+            val finalArr = resArr
+            PValue(finalArr, WTypes.wt.ARRAY)
+          }
+
+          case _ => throw new DieselExprException("Can't do flatMap on: " + av)
+        }
+      }
+
       case "filter" => {
         val av = a.applyTyped(v).calculatedTypedValue
 

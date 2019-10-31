@@ -8,7 +8,7 @@ Many forms of expressions are permitted, including arithmetic, logical etc, like
 [1,2] + [3] filter (x=> x > 1) map (x=> x + 1) 
 ```
 
-See complete detailed examples in [expr_story](http://specs.razie.com/wiki/Story:expr_story) - here are some 
+See complete detailed examples in [expr_story](http://specs.razie.com/wiki/Story:expr_story/dualView) - here are some 
 quick examples (right side of the `=` sign):
 
 ```js
@@ -51,7 +51,7 @@ $send ctx.set (
 
 ```
 
-The samples at [expr_story](http://specs.razie.com/wiki/Story:expr_story) are also unit tests and the reference for expressions.
+The samples at [expr_story](http://specs.razie.com/wiki/Story:expr_story/dualView) are also unit tests and the reference for expressions.
 
 ## Using
 
