@@ -5,7 +5,7 @@
  */
 package razie.diesel.expr
 
-import razie.diesel.dom.RDOM.P
+import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.dom._
 import razie.diesel.engine.{AstKinds, DomAst, DomEngine}
 import razie.diesel.exec.EEFunc
@@ -59,7 +59,7 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
             }
           }
               .getOrElse(
-                throw new DieselExprException("No arguments for sizeOf")
+                throw new DieselExprException(s"No arguments for $expr")
               )
         }
 
@@ -68,11 +68,37 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
               val pv = p.calculatedTypedValue
               P("", pv.contentType, WTypes.wt.STRING).withValue(pv.contentType, WTypes.wt.STRING)
             }.getOrElse(
-              throw new DieselExprException("No arguments for sizeOf")
+              throw new DieselExprException(s"No arguments for $expr")
             )
         }
 
-      case _ => {
+        case "flatten" => {
+          firstParm.map { p =>
+            val av = p.calculatedP
+            p.calculatedTypedValue.cType.name match {
+              case WTypes.ARRAY => {
+                val elementType = av.calculatedTypedValue.cType.subType
+
+                val arr = av.calculatedTypedValue.asArray.asInstanceOf[List[List[_]]]
+                val resArr = arr.flatMap { x =>
+                  if (x.isInstanceOf[List[Any]])
+                    x.asInstanceOf[List[Any]]
+                  else
+                    throw new DieselExprException("Can't flatten element: " + x)
+                }
+
+                val finalArr = resArr
+                P.fromTypedValue("", finalArr, WTypes.wt.ARRAY)
+              }
+
+              case _ => throw new DieselExprException("Can't do flatten on: " + av)
+            }
+          }
+            }.getOrElse(
+          throw new DieselExprException(s"No arguments for $expr")
+        )
+
+        case _ => {
 
         // must be in form x...y.func
         val PAT = """([\w.]+)[./](\w+)""".r

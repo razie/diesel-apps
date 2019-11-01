@@ -149,7 +149,13 @@ trait DomParser extends ParserBase with ExprParser {
   }
 
   /** ent.met (parms) */
-  def clsMet: Parser[(String, String, List[RDOM.P])] = (ident | "*" | jsregex) ~ " *. *".r ~ (ident | "*" | jsregex) ~ rep("." ~> (ident | "*" | jsregex)) ~ opt(pcallattrs) ^^ {
+  def clsMet: Parser[(String, String, List[RDOM.P])] =
+    (ident | "*" | jsregex) ~
+        " *. *".r ~
+        (ident | "*" | jsregex) ~
+        rep("." ~> (ident | "*" | jsregex)) ~
+        opt(pcallattrs) ^^ {
+
     case i ~ _ ~ j ~ l ~ a => {
       val qcm = qualified(i :: j :: l)
       (qcm._1, qcm._2, a.toList.flatten)
@@ -159,7 +165,12 @@ trait DomParser extends ParserBase with ExprParser {
   def jsregex: P = """/[^/]*/""".r
 
   /** pattern match for ent.met */
-  def clsMatch: Parser[(String, String, List[RDOM.PM])] = (ident | "*" | jsregex) ~ " *. *".r ~ (ident | "*" | jsregex) ~ rep("." ~> (ident | "*" | jsregex)) ~ optMatchAttrs ^^ {
+  def clsMatch: Parser[(String, String, List[RDOM.PM])] =
+    (ident | "*" | jsregex) ~
+        " *. *".r ~
+        (ident | "*" | jsregex) ~
+        rep("." ~> (ident | "*" | jsregex)) ~
+        optMatchAttrs ^^ {
     case i ~ _ ~ j ~ l ~ a => {
       val qcm = qualified(i :: j :: l)
       (qcm._1, qcm._2, a)
@@ -185,26 +196,16 @@ trait DomParser extends ParserBase with ExprParser {
     }
   }
 
-  /**
-    */
+  // if-condition or if-match
   def pif: Parser[EIf] = pifc | pifm
 
-  /**
-    * ifc is the default if
-    */
+  // ifc is the default if
   def pifc: Parser[EIf] =
     """[.$]?ifc?""".r ~> ows ~> notoptCond ^^ {
             case b : BoolExpr => EIfc(b)
     }
 
-//  def pifc: Parser[EIf] =
-//    """[.$]?ifc?""".r ~> ows ~> optCond ^^ {
-//      case b : Option[BExpr] if b.isDefined => EIfc(b.get)
-//      case _ => EIfc(BExprFALSE)
-//    }
-
-  /**
-    */
+  // if-match
   def pifm: Parser[EIf] =
     """[.$]?match""".r ~> ows ~> notoptMatchAttrs ^^ {
       case a : List[PM] => EIfm(a)
@@ -240,11 +241,11 @@ trait DomParser extends ParserBase with ExprParser {
     * => z.role (attrs)
     */
   def pgen: Parser[EMap] =
-    ows ~> keyw(pArrow) ~ ows ~ opt(pif) ~ ows ~ (clsMet | justAttrs) <~ opt(";") <~ optComment ^^ {
+    ows ~> keyw(pArrow) ~ ows ~
+        opt(pif) ~ ows ~
+        (clsMet | justAttrs) <~ opt(";") <~ optComment ^^ {
       case arrow ~ _ ~ cond ~ _ ~ cp => {
-
         cp match {
-
             // class with message
           case Tuple3(zc, zm, za) =>
             EMapCls(zc.toString, zm.toString, za.asInstanceOf[List[RDOM.P]], arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
@@ -317,7 +318,11 @@ trait DomParser extends ParserBase with ExprParser {
     * - others like model or impl are specific
     */
   def pwhen: PS =
-    keyw("""[.$]when|[.$]mock""".r) ~ ws ~ optArch ~ clsMatch ~ ws ~ opt(pif) ~ optComment ~ rep(pgen | pgenStep ) ^^ {
+    keyw("""[.$]when|[.$]mock""".r) ~ ws ~
+        optArch ~
+        clsMatch ~ ws ~
+        opt(pif) ~ optComment ~
+        rep(pgen | pgenStep ) ^^ {
       case k ~ _ ~ oarch ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ _ ~ gens => {
         lazys { (current, ctx) =>
           val x = EMatch(ac, am, aa, cond)
@@ -383,19 +388,6 @@ trait DomParser extends ParserBase with ExprParser {
   /**
     * optional attributes
     */
-  def XXattrs: Parser[List[RDOM.P]] = " *\\(".r ~> ows ~> repsep(pattr, ows ~ "," ~ ows) <~ ows <~ ")"
-
-  /**
-    * optional attributes
-    */
-  def XXoptAttrs: Parser[List[RDOM.P]] = opt(attrs) ^^ {
-    case Some(a) => a
-    case None => List.empty
-  }
-
-  /**
-    * optional attributes
-    */
   private def optMatchAttrs: Parser[List[RDOM.PM]] = opt(" *\\(".r ~> ows ~> repsep(pmatchattr, ows ~> "," ~ ows) <~ ows <~ ")") ^^ {
     case Some(a) => a
     case None => List.empty
@@ -414,16 +406,6 @@ trait DomParser extends ParserBase with ExprParser {
   private def notoptCond: Parser[BoolExpr] = " *\\(".r ~> ows ~> cond <~ ows <~ ")" ^^ {
     case x => x
   }
-
-  /**
-    * optional condition / expression
-    */
-  private def optCond: Parser[Option[BoolExpr]] = opt(" *\\(".r ~> ows ~> cond <~ ows <~ ")") ^^ {
-    case x => x
-  }
-
-  // ?
-  def attr: Parser[_ >: CM] = pattr
 
   val comOperators = "==|~=|!=|\\?=|>=|<=|>|<|contains|is|not".r
 
@@ -713,7 +695,7 @@ trait DomParser extends ParserBase with ExprParser {
   // not used yet - class member val
   // todo use optType
 //  def valueDef: Parser[RDOM.P] = "val *".r ~> ident ~ opt(" *: *".r ~> opt("<>") ~ ident) ~ opt(" *\\* *".r) ~ opt(" *= *".r ~> value) ^^ {
-  def valueDef: Parser[RDOM.P] = "val *".r ~> ident ~ optType ~ opt(" *= *".r ~> value) ^^ {
+  def valueDef: Parser[RDOM.P] = "val *".r ~> ident ~ optType ~ opt(" *= *".r ~> expr) ^^ {
     case name ~ t ~ e => P(name, e.mkString, t)
   }
 
@@ -724,6 +706,34 @@ trait DomParser extends ParserBase with ExprParser {
   }
 
   private def trim(s: String) = s.replaceAll("\r", "").replaceAll("^\n|\n$", "") //.replaceAll("\n", "\\\\n'\n+'")
+
+  //
+  // ---------------------- flow expressions
+  //
+
+  def flowexpr: Parser[FlowExpr] = seqexpr
+
+  def seqexpr: Parser[FlowExpr] = parexpr ~ rep(ows ~> ("+" | "-") ~ ows ~ parexpr) ^^ {
+    case a ~ l =>
+      SeqExpr("+", a :: l.collect {
+        case op ~ _ ~ p => p
+      })
+  }
+
+  def parexpr: Parser[FlowExpr] = parterm1 ~ rep(ows ~> ("|" | "||") ~ ows ~ parterm1) ^^ {
+    case a ~ l =>
+      SeqExpr("|", a :: l.collect {
+        case op ~ _ ~ p => p
+      })
+  }
+
+  def parterm1: Parser[FlowExpr] = parblock | msgterm1
+
+  def parblock: Parser[FlowExpr] = "(" ~ ows ~> seqexpr <~ ows ~ ")" ^^ {
+    case ex => BFlowExpr(ex)
+  }
+
+  def msgterm1: Parser[FlowExpr] = qident ^^ { case i => new MsgExpr(i) }
 
 }
 

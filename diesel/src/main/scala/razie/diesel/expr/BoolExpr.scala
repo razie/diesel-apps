@@ -54,7 +54,7 @@ case class BCMPConst(a: String) extends BoolExpr(a) {
 
 /** composed boolean expression */
 case class BCMP1(a: BoolExpr, op: String, b: BoolExpr)
-    extends BoolExpr(a.toDsl + " " + op + " " + b.toDsl) {
+    extends BoolExpr("("+a.toDsl + " " + op + " " + b.toDsl+")") {
   override def bapply(in: Any)(implicit ctx: ECtx) = {
     val av = a.bapply(in)
     val bv = b.bapply(in)
@@ -75,7 +75,7 @@ case class BCMP1(a: BoolExpr, op: String, b: BoolExpr)
 
 /** simple boolean expression */
 case class BCMP2(a: Expr, op: String, b: Expr)
-    extends BoolExpr(a.toDsl + " " + op + " " + b.toDsl) {
+    extends BoolExpr("("+a.toDsl + " " + op + " " + b.toDsl+")") {
 
   override def bapply(in: Any)(implicit ctx: ECtx): BExprResult = {
     var oap : Option[P] = None
