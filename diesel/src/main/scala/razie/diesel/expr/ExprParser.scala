@@ -65,13 +65,22 @@ trait ExprParser extends RegexParsers {
   //======================= MAIN: operator expressions and conditions ========================
   //
 
+  // foldLeft associative expressions
+  private def foldAssocAexpr2(a:Expr, l:List[String ~ Option[String] ~ Expr], f:(Expr, String, Expr) => Expr) = {
+    l.foldLeft(a)((x, y) =>
+      y match {
+        case op ~ _ ~ p => f(x, op, p)
+      }
+    )
+  }
+
   def expr:  Parser[Expr] = exprAS | pterm1
 
   // a reduced expr, from boolean down
-  def expr2: Parser[Expr] = exprCMP | pterm1
+  def expr2: Parser[Expr] = exprOR | pterm1
 
-  def opsas: Parser[String] = "as"
-  def opsmaps: Parser[String] = "map" | "flatMap" | "filter"
+  def opsAS: Parser[String] = "as"
+  def opsMAP: Parser[String] = "map" | "flatMap" | "filter"
   def opsOR: Parser[String] = "or" | "xor"
   def opsAND: Parser[String] = "and"
   def opsCMP: Parser[String] = ">" | "<" | ">=" | "<=" | "==" | "!=" | "~="
@@ -79,45 +88,40 @@ trait ExprParser extends RegexParsers {
   def opsMULT: Parser[String] = "*" | "/"
 
   // "1" as number
-  def exprAS: Parser[Expr] = exprMAP ~ opt(ows ~> opsas ~ ows ~ pterm1) ^^ {
-    case a ~ l if l.isEmpty => a
+  def exprAS: Parser[Expr] = exprMAP ~ opt(ows ~> opsAS ~ ows ~ pterm1) ^^ {
+    case a ~ None => a
     case a ~ Some(op ~ _ ~ p) => AExpr2(a, op, p)
   }
 
   // x map (x => x+1)
-  def exprMAP: Parser[Expr] = exprPLUS ~ rep(ows ~> opsmaps ~ ows ~ exprCMP) ^^ {
-    case a ~ l => l.foldLeft(a)((x, y) =>
-      y match {
-        case op ~ _ ~ p => AExpr2(x, op, p)
-      }
-    )
+  def exprMAP: Parser[Expr] = exprPLUS ~ rep(ows ~> opsMAP ~ ows ~ exprOR) ^^ {
+    case a ~ l => foldAssocAexpr2(a, l, AExpr2)
   }
 
   // x > y
-  def exprCMP: Parser[Expr] = exprPLUS ~ rep(ows ~> opsCMP ~ ows ~ exprPLUS) ^^ {
-    case a ~ l => l.foldLeft(a)((x, y) =>
-      y match {
-        case op ~ _ ~ p => cmp(x, op, p)
-      }
-    )
+  def exprOR: Parser[Expr] = exprAND ~ rep(ows ~> opsOR ~ ows ~ exprAND) ^^ {
+    case a ~ l => foldAssocAexpr2(a, l, ebcmp)
+  }
+
+  // x > y
+  def exprAND: Parser[Expr] = exprCMP ~ rep(ows ~> opsAND ~ ows ~ exprCMP) ^^ {
+    case a ~ l => foldAssocAexpr2(a, l, ebcmp)
+  }
+
+  // x > y
+  def exprCMP: Parser[Expr] = exprPLUS ~ opt(ows ~> opsCMP ~ ows ~ exprPLUS) ^^ {
+    case a ~ None => a
+    case a ~ Some(op ~ _ ~ b) => cmp(a, op, b)
   }
 
   // x + y
   def exprPLUS: Parser[Expr] = exprMULT ~ rep(ows ~> opsPLUS ~ ows ~ exprMULT) ^^ {
-    case a ~ l => l.foldLeft(a)((x, y) =>
-      y match {
-        case op ~ _ ~ p => AExpr2(x, op, p)
-      }
-    )
+    case a ~ l => foldAssocAexpr2(a, l, AExpr2)
   }
 
   // x * y
   def exprMULT: Parser[Expr] = pterm1 ~ rep(ows ~> opsMULT ~ ows ~ pterm1) ^^ {
-    case a ~ l => l.foldLeft(a)((x, y) =>
-      y match {
-        case op ~ _ ~ p => AExpr2(x, op, p)
-      }
-    )
+    case a ~ l => foldAssocAexpr2(a, l, AExpr2)
   }
 
   //
@@ -391,7 +395,10 @@ trait ExprParser extends RegexParsers {
   }
 
   private def bcmp(a: BoolExpr, s: String, b: BoolExpr) = new BCMP1(a, s, b)
-
+  private def ebcmp(a: Expr, s: String, b: Expr) = (a,b) match {
+    case (a:BoolExpr, b:BoolExpr) => new BCMP1(a, s, b)
+    case (a,b) => throw new DieselExprException("ebcmp - can't combine non-logical expressions with or/and")
+  }
 
   //
   // ---------------------- flow expressions
