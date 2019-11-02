@@ -1,7 +1,7 @@
 scalaVersion := "2.11.12"
 
 libraryDependencies in Global ++= Seq(
-  "com.razie"              %% "diesel"         % "0.9.3-SNAPSHOT"
+  "com.razie"              %% "diesel"         % "0.9.4-SNAPSHOT"
 )
 
 lazy val root = (project in file("."))

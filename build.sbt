@@ -3,15 +3,31 @@ scalaVersion := "2.11.12"
 
 name := "diesel"
 
-lazy val commonSettings = Seq(
-  organization := "com.razie",
-  version := "0.9.3-SNAPSHOT",
-  scalaVersion := "2.11.12",
+publishMavenStyle := true
 
-  organizationName     := "DieselApps",
+lazy val commonSettings = Seq(
+  scalaVersion := "2.11.12",
+  organization := "com.razie",
+  version := "0.9.4-SNAPSHOT",
+  // in sbt 1: publishConfiguration := publishConfiguration.value.withOverwrite(true),
+  organizationName := "DieselApps",
+
+  publishMavenStyle := true,
+
   organizationHomepage := Some(url("http://www.dieselapps.com")),
-  licenses := Seq("BSD-style" -> url("http://www.opensource.org/licenses/bsd-license.php")),
-  homepage := Some(url("http://www.dieselapps.com"))
+
+  homepage := Some(url("http://www.dieselapps.com")),
+
+  scmInfo := Some(ScmInfo(url("https://github.com/razie/diesel"),
+                        "git@github.com:razie/diesel.git")),
+
+  developers := List(Developer("razie",
+                             "Razvan Cojocaru",
+                             "r@razie.com",
+                             url("https://github.com/razie"))),
+
+  licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))
+
 )
 
 libraryDependencies in Global ++= Seq(
@@ -103,7 +119,7 @@ retrieveManaged := true // copy libs in lib_managed
 resolvers +=
   "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
 
-publishTo in Global := {
+publishTo in ThisBuild := {
   val nexus = "https://oss.sonatype.org/"
   if (isSnapshot.value)
     Some("snapshots" at nexus + "content/repositories/snapshots")
@@ -111,30 +127,11 @@ publishTo in Global := {
     Some("releases"  at nexus + "service/local/staging/deploy/maven2")
 }
 
+credentials += Credentials(Path.userHome / ".ivy2.credentials")
+
 publishMavenStyle := true
 
 publishArtifact in Test := false
 
 pomIncludeRepository := { x => false }
 
-pomExtra := (
-  <url>http://www.razie.com</url>
-  <licenses>
-    <license>
-      <name>BSD-style</name>
-      <url>http://www.opensource.org/licenses/bsd-license.php</url>
-      <distribution>repo</distribution>
-    </license>
-  </licenses>
-  <scm>
-    <url>git@github.com:razie/diesel.git</url>
-    <connection>scm:git:git@github.com:razie/diesel.git</connection>
-  </scm>
-  <developers>
-    <developer>
-      <id>razie</id>
-      <name>Razvan Cojocaru</name>
-      <url>http://www.dieselapps.com</url>
-    </developer>
-  </developers>
-)
