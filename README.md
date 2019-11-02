@@ -1,6 +1,6 @@
 ![DIESEL](https://cdn.razie.com/Public/diesel/diesel3round.png)
 
-[![Maven Central 2.11](https://maven-badges.herokuapp.com/maven-central/com.razie/diesel_2.11/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.razie/diesel_2.11) [![License](https://img.shields.io/github/license/Netflix/conductor.svg)](http://www.apache.org/licenses/LICENSE-2.0)
+[<img src="https://img.shields.io/maven-central/v/com.razie/diesel_2.11.svg?label=latest%20release%20for%202.11"/>](http://search.maven.org/#search%7Cga%7C1%7Cg%3Acom.razie%20a%3Adiesel_2.11) [![License](https://img.shields.io/github/license/Netflix/conductor.svg)](http://www.apache.org/licenses/LICENSE-2.0)
 
 ## Reactive rules and workflow DSL
 
