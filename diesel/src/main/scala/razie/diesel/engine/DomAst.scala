@@ -41,7 +41,7 @@ case class DomAst(
   ) extends CanHtml {
 
   /** children should be read-only. If you need to modify them, use append* - do not modify the children directly */
-  def children: List[DomAst] = children.toList
+  def children: List[DomAst] = childrenCol.toList
 
   //=========== runtime data
 
