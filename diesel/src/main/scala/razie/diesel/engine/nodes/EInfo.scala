@@ -1,24 +1,26 @@
-/**
-  *  ____    __    ____  ____  ____,,___     ____  __  __  ____
-  * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
-  *  )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
-  * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
-  */
-package razie.diesel.ext
+/*  ____    __    ____  ____  ____,,___     ____  __  __  ____
+ * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+ *  )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+ * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+ */
+package razie.diesel.engine.nodes
 
-import razie.diesel.engine.{DomAst, DomEngine, InfoNode}
+import razie.diesel.engine._
 import razie.tconf.EPos
 import razie.wiki.Enc
 
 
 object EErrorUtils {
+  val MAX_STACKTRACE_LINES = 30
+
+  /** throwable to string */
   def ttos (t:Throwable) = {
     val sw = new java.io.StringWriter()
     val pw = new java.io.PrintWriter(sw)
     t.printStackTrace(pw)
 
     // why always big stack traces? they're kind'a pointless
-    val s = sw.toString.lines.take(30).mkString("\n")
+    val s = sw.toString.lines.take(MAX_STACKTRACE_LINES).mkString("\n")
     s
   }
 }
@@ -72,49 +74,6 @@ case class EWarning(msg: String, details: String = "") extends CanHtml with HasP
   override def toString = "fail-warn::" + msg
 }
 
-
-/** error and stop engine */
-case class EEngStop(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {
-
-  var pos: Option[EPos] = None
-
-  def withPos(p: Option[EPos]) = {
-    this.pos = p; this
-  }
-
-  override def toHtml =
-    if (details.length > 0)
-      span("error::", "danger", details, "style=\"cursor:help\"") + " " + msg
-    else
-      span("error::", "danger", details) + " " + msg
-
-  override def toString = "error::" + msg
-}
-
-/** suspend execution - presumably waiting for someone to continue this branch
-  *
-  * use onSuspend to start the async message  (like sending a DeRep) - you'll have control next
-  */
-case class EEngSuspend(msg: String, details: String = "", onSuspend:Option[(DomEngine, DomAst, Int) => Unit])
-    extends CanHtml
-    with    HasPosition
-    with    InfoNode {
-
-  var pos: Option[EPos] = None
-
-  def withPos(p: Option[EPos]) = {
-    this.pos = p; this
-  }
-
-  override def toHtml =
-    if (details.length > 0)
-      span("suspend::", "warning", details, "style=\"cursor:help\"") + " " + msg
-    else
-      span("suspend::", "warning", details) + " " + msg
-
-  override def toString = "suspend::" + msg
-}
-
 /** a simple info node with a message and details - details are displayed as a popup */
 case class EInfo(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {
   var pos: Option[EPos] = None
@@ -136,6 +95,17 @@ case class EInfo(msg: String, details: String = "") extends CanHtml with HasPosi
     }
 
   override def toString = "info::" + msg
+}
+
+/** a simple wrapper */
+case class EInfoWrapper(a:Any) extends CanHtml with HasPosition with InfoNode {
+  var pos: Option[EPos] = if(a.isInstanceOf[HasPosition]) a.asInstanceOf[HasPosition].pos else None
+
+  override def toHtml =
+    if(a.isInstanceOf[CanHtml]) a.asInstanceOf[CanHtml].toHtml
+    else span("info::", "info", a.toString)
+
+  override def toString = a.toString
 }
 
 /** duration of the curent op */

@@ -7,6 +7,7 @@ package razie.diesel.expr
 
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom.{RDOM, WType, WTypes, XPathIdent}
+import razie.diesel.engine.nodes.PAS
 import scala.util.parsing.combinator.RegexParsers
 
 /**

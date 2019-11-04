@@ -11,7 +11,7 @@ import razie.audit.Audit
 import razie.ctrace
 import razie.diesel.dom._
 import razie.diesel.engine._
-import razie.diesel.ext.{EMsg, EVal, EnginePrep}
+import razie.diesel.engine.nodes.{EMsg, EVal, EnginePrep}
 import razie.diesel.model.DieselMsg
 import razie.tconf.DSpec
 import razie.wiki.model.{WID, WikiEntry}
@@ -59,15 +59,13 @@ object DomEngineUtils {
   final val NOUSER = new ObjectId()
 
   /** execute message - this is the typical use of an engine
+   * execute message to given reactor
     *
     * @param msg "entity.action(p=value,etc)
     * @param specs the specs to use for rules
     * @param stories any other stories to add (tests, engine settings etc)
     * @param settings engine settings
     * @return
-    */
-
-  /** execute message to given reactor
     *
     * this is only used from the CQRS, internally - notice no request
     */
@@ -136,8 +134,6 @@ object DomEngineUtils {
       if (oattrs.isEmpty) {
         errors append s"Can't find the spec for $msg"
       }
-
-      import razie.diesel.ext.stripQuotes
 
       // collect values
       val values = root.collect {

@@ -6,8 +6,8 @@
  */
 package razie.diesel.dom
 
-import java.net.{HttpURLConnection, URI}
 import com.razie.pub.comms.{CommRtException, Comms}
+import java.net.{HttpURLConnection, URI}
 import org.json.JSONObject
 import razie.Snakk._
 import razie.diesel.dom.RDOM._

@@ -1,5 +1,4 @@
-/**
-  *  ____    __    ____  ____  ____,,___     ____  __  __  ____
+/*   ____    __    ____  ____  ____,,___     ____  __  __  ____
   * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
   *  )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
   * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
@@ -7,11 +6,8 @@
 package razie.diesel.engine
 
 import org.bson.types.ObjectId
-import razie.diesel.engine.RDExt.TestResult
-import razie.diesel.ext._
-import razie.diesel.ext.EnginePrep.StoryNode
+import razie.diesel.engine.nodes.{CanHtml, EMsg}
 import scala.collection.mutable.ListBuffer
-import razie.diesel.utils.DomHtml.quickBadge
 
 /** mix this in if you want to control display/traversal */
 trait DomAstInfo {
@@ -40,9 +36,14 @@ trait DomAstInfo {
 case class DomAst(
   var value: Any,
   var kind: String = AstKinds.GENERATED,
-  children: ListBuffer[DomAst] = new ListBuffer[DomAst](),
+  childrenCol: ListBuffer[DomAst] = new ListBuffer[DomAst](),
   id : String = new ObjectId().toString
   ) extends CanHtml {
+
+  /** children should be read-only. If you need to modify them, use append* - do not modify the children directly */
+  def children: List[DomAst] = children.toList
+
+  //=========== runtime data
 
   private var istatus:String = DomState.INIT
   def status:String = istatus
@@ -55,11 +56,13 @@ case class DomAst(
   /** execution sequence number - an engine is a single sequence */
   var seqNo:Long = -1
 
-  def appendAll(other:List[DomAst])(implicit engine: DomEngine) = {
+  /** will force updates to go through a DES */
+  def appendAll(other:List[DomAst])(implicit engine: DomEngineState) = {
     engine.evAppChildren(this, other)
   }
 
-  def append(other:DomAst)(implicit engine: DomEngine) = {
+  /** will force updates to go through a DES */
+  def append(other:DomAst)(implicit engine: DomEngineState) = {
     engine.evAppChildren(this, other)
   }
 
@@ -71,6 +74,8 @@ case class DomAst(
   def end = {
     tend = System.currentTimeMillis()
   }
+
+  //============ domain details
 
   var moreDetails = " "
   var specs: List[Any] = Nil
@@ -98,6 +103,8 @@ case class DomAst(
     this
   }
 
+  //============== traversal
+
   private def shouldPrune (k:DomAst) =
     AstKinds.shouldPrune(k.kind) ||
       k.value.isInstanceOf[DomAstInfo] && k.value.asInstanceOf[DomAstInfo].shouldPrune
@@ -113,6 +120,34 @@ case class DomAst(
   private def shouldRollup (k:DomAst) =
     AstKinds.shouldRollup(k.kind) ||
       k.value.isInstanceOf[DomAstInfo] && k.value.asInstanceOf[DomAstInfo].shouldRollup
+
+  // visit/recurse with filter
+  def collect[T](f: PartialFunction[DomAst, T]) : List[T] = {
+    val res = new ListBuffer[T]()
+
+    def inspect(d: DomAst, level: Int): Unit = {
+      if (f.isDefinedAt(d)) res append f(d)
+      d.children.map(inspect(_, level + 1))
+    }
+
+    inspect(this, 0)
+    res.toList
+  }
+
+  // visit/recurse with filter AND level
+  def collect2[T](f: PartialFunction[(DomAst, Int), T]) : List[T] = {
+    val res = new ListBuffer[T]()
+
+    def inspect(d: DomAst, level: Int): Unit = {
+      if (f.isDefinedAt((d, level))) res append f((d, level))
+      d.children.map(inspect(_, level + 1))
+    }
+
+    inspect(this, 0)
+    res.toList
+  }
+
+  //================= view
 
   /** non-recursive tostring */
   def meTos(level: Int, html:Boolean): String = {
@@ -193,32 +228,6 @@ case class DomAst(
       }
 
   def toJson = toj
-
-  // visit/recurse with filter
-  def collect[T](f: PartialFunction[DomAst, T]) : List[T] = {
-    val res = new ListBuffer[T]()
-
-    def inspect(d: DomAst, level: Int): Unit = {
-      if (f.isDefinedAt(d)) res append f(d)
-      d.children.map(inspect(_, level + 1))
-    }
-
-    inspect(this, 0)
-    res.toList
-  }
-
-  // visit/recurse with filter AND level
-  def collect2[T](f: PartialFunction[(DomAst, Int), T]) : List[T] = {
-    val res = new ListBuffer[T]()
-
-    def inspect(d: DomAst, level: Int): Unit = {
-      if (f.isDefinedAt((d, level))) res append f((d, level))
-      d.children.map(inspect(_, level + 1))
-    }
-
-    inspect(this, 0)
-    res.toList
-  }
 
   /** GUI needs position info for surfing */
   def posInfo = collect{

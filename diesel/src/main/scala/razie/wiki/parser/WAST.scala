@@ -6,9 +6,8 @@
  */
 package razie.wiki.parser
 
-import razie.tconf.parser.JMapFoldingContext
+import razie.tconf.parser.{JMapFoldingContext, _}
 import razie.wiki.model.{WikiEntry, WikiUser}
-import razie.tconf.parser._
 
 /**
   * wiki AST - abstract syntax tree.

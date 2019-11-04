@@ -6,13 +6,13 @@
   **/
 package razie.wiki.parser
 
-import mod.diesel.model.exec.EESnakk
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
-import razie.diesel.engine.DomEngine
-import razie.diesel.expr.{AExprIdent, BoolExpr, CExpr, ExprParser, PAS}
-import razie.diesel.ext._
-import razie.tconf.parser.{FoldingContext, LazyAstNode, StrAstNode, TriAstNode}
+import razie.diesel.engine.exec.EESnakk
+import razie.diesel.engine.nodes._
+import razie.diesel.engine.{DomEngine, nodes}
+import razie.diesel.expr._
+import razie.tconf.parser.{FoldingContext, LazyAstNode, StrAstNode}
 import razie.tconf.{DSpec, DUser, EPos}
 import razie.wiki.Enc
 import scala.Option.option2Iterable
@@ -265,7 +265,7 @@ trait DomParser extends ParserBase with ExprParser {
   def pgenStep: Parser[EMap] =
     ows ~> keyw("-") ~ ows ~ opt(pif) ~ ows ~ "[^\n\r;]+".r <~ opt(";") <~ optComment ^^ {
       case arrow ~ _ ~ cond ~ _ ~ desc => {
-        EMapCls("diesel", "step", List(P("desc", desc)), arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
+        nodes.EMapCls("diesel", "step", List(P("desc", desc)), arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
       }
     }
 
@@ -276,7 +276,7 @@ trait DomParser extends ParserBase with ExprParser {
   def pgenText: Parser[EMap] =
     ows ~> keyw("[^\n\r=\\-;]".r) ~ ows ~ opt(pif) ~ ows ~ "[^\n\r;]+".r <~ opt(";") ^^ {
       case arrow ~ _ ~ cond ~ _ ~ desc => {
-        EMapCls("diesel", "step", List(P("desc", arrow.s+desc)), "-", cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
+        nodes.EMapCls("diesel", "step", List(P("desc", arrow.s+desc)), "-", cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
       }
     }
 
@@ -302,7 +302,7 @@ trait DomParser extends ParserBase with ExprParser {
   def linemock(wpath: String) =
     keyw("""[.$]mock""".r) ~ ws ~ optArch ~ clsMatch ~ ws ~ opt(pif) ~ rep(pgen | pgenStep) ^^ {
       case k ~ _ ~ oarch ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ gen => {
-        val x = EMatch(ac, am, aa, cond)
+        val x = nodes.EMatch(ac, am, aa, cond)
         val f = EMock(ERule(x, "mock", gen))
         f.pos = Some(EPos(wpath, k.pos.line, k.pos.column))
         f.rule.pos = Some(EPos(wpath, k.pos.line, k.pos.column))
@@ -325,7 +325,7 @@ trait DomParser extends ParserBase with ExprParser {
         rep(pgen | pgenStep ) ^^ {
       case k ~ _ ~ oarch ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ _ ~ gens => {
         lazys { (current, ctx) =>
-          val x = EMatch(ac, am, aa, cond)
+          val x = nodes.EMatch(ac, am, aa, cond)
           val wpath = ctx.we.map(_.specPath.wpath).mkString
           val arch = oarch.filter(_.length > 0).getOrElse(k.s) // archetype
           val r = ERule(x, arch, gens.map(m=>m.withPosition(m.pos.get.copy(wpath=wpath))))
@@ -343,7 +343,7 @@ trait DomParser extends ParserBase with ExprParser {
     keyw("""[.$]flow""".r) ~ ws ~ clsMatch ~ ws ~ opt(pif) ~ " *=>".r ~ ows ~ flowexpr ^^ {
       case k ~ _ ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ _ ~ _ ~ ex => {
         lazys { (current, ctx) =>
-          val x = EMatch(ac, am, aa, cond)
+          val x = nodes.EMatch(ac, am, aa, cond)
           val f = EFlow(x, ex)
           f.pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
           addToDom(f).ifold(current, ctx)
@@ -580,7 +580,7 @@ trait DomParser extends ParserBase with ExprParser {
       lazys { (current, ctx) =>
         val pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
         val f = qcm.map(qcm =>
-          ExpectM(not.isDefined, EMatch(qcm._1, qcm._2, attrs, cond.orElse(pif)))
+          ExpectM(not.isDefined, nodes.EMatch(qcm._1, qcm._2, attrs, cond.orElse(pif)))
               .withPos(pos)
               .withGuard(lastMsg(ctx.we).map(_.asMatch))
         ).getOrElse(

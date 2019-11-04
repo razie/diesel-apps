@@ -7,7 +7,6 @@ package razie.diesel.dom
 
 import razie.diesel.dom.RDOM._
 import razie.tconf.DSpecInventory
-
 import scala.collection.mutable
 
 /**

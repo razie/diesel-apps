@@ -98,16 +98,16 @@ object WTypes {
   /** find the simple type of value, by type */
   def typeOf (x:Any) = {
     val t = x match {
-      case m: Map[_, _] => JSON
-      case s: String => STRING
-      case i: Int => NUMBER
-      case f: Double => NUMBER
-      case f: Float => NUMBER
-      case l: List[_] => ARRAY
-      case l: JSONArray => ARRAY
-      case l: JSONObject => JSON
+      case m: Map[_, _] => wt.JSON
+      case s: String => wt.STRING
+      case i: Int => wt.NUMBER
+      case f: Double => wt.NUMBER
+      case f: Float => wt.NUMBER
+      case l: List[_] => wt.ARRAY
+      case l: JSONArray => wt.ARRAY
+      case l: JSONObject => wt.JSON
 //      case l: EMsg => MSG
-      case h @ _ => UNKNOWN
+      case h @ _ => wt.UNKNOWN
     }
     t
   }

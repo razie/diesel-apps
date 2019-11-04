@@ -283,7 +283,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
       case _ => PValue("[ERR unknown operator " + op + "]")
     }
 
-    P("", res.asString, res.contentType).copy(value = Some(res))
+    P("", res.asString, res.cType).copy(value = Some(res))
   }
 
   /** process a js operation like obja + objb */

@@ -1,5 +1,4 @@
-/**
-  *  ____    __    ____  ____  ____,,___     ____  __  __  ____
+/*   ____    __    ____  ____  ____,,___     ____  __  __  ____
   * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
   *  )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
   * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
@@ -7,21 +6,16 @@
 package razie.diesel.engine
 
 import akka.actor.{ActorRef, ActorSystem, Props}
-import mod.diesel.model.exec.{EECtx, EESnakk}
 import razie.Logging
 import razie.audit.Audit
 import razie.diesel.dom.RDomain
-import razie.diesel.exec.{EEFormatter, EEFunc, EETest, Executors}
+import razie.diesel.engine.exec._
 import razie.tconf.DSpec
 import scala.collection.concurrent.TrieMap
 import scala.concurrent.ExecutionContext
 
-/** a diesel application context - setup actor infrastructure etc
-  *
-  * todo properly injecting these
-  * todo eventually supporting more contexts per JVM
-  */
-class DieselAppContext(node: String, app: String) {
+/** engine factory*/
+class DieselEngineFactory(node: String, app: String) {
 
   /** make an engine instance for the given AST root */
   def mkEngine(dom: RDomain,
@@ -29,16 +23,20 @@ class DieselAppContext(node: String, app: String) {
                settings: DomEngineSettings,
                pages: List[DSpec],
                description: String) =
-    new DomEngine(dom, root, settings, pages, description)
+    new DomEngineV1(dom, root, settings, pages, description)
 }
 
-/** an application static - engine factory, manager and cache */
+/** a diesel application context - actor infrastructure, engine management, cache etc
+  *
+  * todo properly injecting these
+  * todo eventually supporting more contexts per JVM, maybe?
+  */
 object DieselAppContext extends Logging {
   val DIESEL_DISPATCHER = "diesel-dispatcher"
 
   private var _simpleMode = false
 
-  @volatile private var appCtx: Option[DieselAppContext] = None
+  @volatile private var engineFactory: Option[DieselEngineFactory] = None
 
   implicit def executionContext =
     if(simpleMode) ExecutionContext.Implicits.global
@@ -123,9 +121,9 @@ object DieselAppContext extends Logging {
   def init(node: String = "", app: String = "") = {
     log("DieselAppContext.init")
 
-    if (appCtx.isEmpty) {
-      appCtx = Some(
-        new DieselAppContext(
+    if (engineFactory.isEmpty) {
+      engineFactory = Some(
+        new DieselEngineFactory(
           if (node.length > 0) node else localNode,
           if (app.length > 0) app else "default"
         )
@@ -137,7 +135,7 @@ object DieselAppContext extends Logging {
     router = Some(a)
     a ! DEInit
 
-    appCtx.get
+    engineFactory.get
   }
 
   /** initialize the engine cache and actor infrastructure */
@@ -192,7 +190,7 @@ object DieselAppContext extends Logging {
 
   def stop = {}
 
-  def ctx = appCtx.getOrElse(init())
+  def ctx = engineFactory.getOrElse(init())
 
   def report =
     s"Engines: ${ activeEngines.size} - running: ${ activeEngines.values.filter(_.status == DomState.DONE).size}"

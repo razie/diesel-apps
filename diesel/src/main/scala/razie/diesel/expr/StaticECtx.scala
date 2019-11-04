@@ -7,7 +7,7 @@ package razie.diesel.expr
 
 import razie.diesel.dom.RDOM.P
 import razie.diesel.engine.DomAst
-import razie.diesel.ext.EWarning
+import razie.diesel.engine.nodes.EWarning
 
 /** static context will delegate updates to parent - good as temporary override when evaluating a message */
 class StaticECtx(cur: List[P] = Nil, base: Option[ECtx] = None, curNode:Option[DomAst]=None) extends SimpleECtx(cur, base, curNode) {

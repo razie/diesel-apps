@@ -1,18 +1,23 @@
-/**
- *  ____    __    ____  ____  ____,,___     ____  __  __  ____
+/*  ____    __    ____  ____  ____,,___     ____  __  __  ____
  * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
  *  )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
  */
-package razie.diesel.ext
+package razie.diesel.engine.nodes
 
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.AstKinds
-import razie.diesel.expr.{ECtx, PAS, StaticECtx}
+import razie.diesel.expr.{AExprIdent, ECtx, Expr, StaticECtx}
 import razie.tconf.EPos
 import scala.Option.option2Iterable
 import scala.util.Try
+
+/** assignment - needed because the left side is more than just a val */
+case class PAS (left:AExprIdent, right:Expr) extends CanHtml {
+  override def toHtml = left.toHtml + "=" + right.toHtml
+  override def toString = left.toString + "=" + right.toString
+}
 
 object EMap {
 

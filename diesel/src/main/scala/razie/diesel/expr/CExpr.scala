@@ -15,7 +15,7 @@ case class CExprNull() extends Expr {
 
   override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).calculatedValue
 
-  override def applyTyped(v: Any)(implicit ctx: ECtx): P = P("", "", WTypes.UNDEFINED)
+  override def applyTyped(v: Any)(implicit ctx: ECtx): P = P("", "", WTypes.wt.UNDEFINED)
 
   override def toDsl = expr
   override def toHtml = expr

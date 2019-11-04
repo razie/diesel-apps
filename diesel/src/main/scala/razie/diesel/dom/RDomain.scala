@@ -6,9 +6,8 @@
 package razie.diesel.dom
 
 import razie.diesel.dom.RDOM._
-import razie.diesel.ext.EVal
+import razie.diesel.engine.nodes.EVal
 import razie.tconf.DSpec
-
 import scala.collection.mutable.ListBuffer
 
 /** a domain or sub-domain specification. Think UML.

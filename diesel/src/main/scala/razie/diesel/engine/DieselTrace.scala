@@ -5,7 +5,7 @@
  */
 package razie.diesel.engine
 
-import razie.diesel.ext._
+import razie.diesel.engine.nodes.CanHtml
 import scala.Option.option2Iterable
 
 /** a trace. traces can be communicated between engines. Also, this is what you get when setting the
@@ -42,7 +42,7 @@ case class DieselTrace (
 
   def toAst  = {
     val me = new DomAst (this, AstKinds.SUBTRACE)
-    me.children.append(root)
+    me.childrenCol.append(root)
     me
   }
 }

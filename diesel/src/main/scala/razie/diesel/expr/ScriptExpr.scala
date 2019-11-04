@@ -7,7 +7,7 @@ package razie.diesel.expr
 
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
-import razie.diesel.exec.EEFunc
+import razie.diesel.engine.exec.EEFunc
 
 /** a js expression
   * js:a.b

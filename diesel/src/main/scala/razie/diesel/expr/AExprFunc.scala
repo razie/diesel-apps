@@ -5,11 +5,11 @@
  */
 package razie.diesel.expr
 
-import razie.diesel.dom.RDOM.{P, PValue}
+import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
-import razie.diesel.engine.{AstKinds, DomAst, DomEngine}
-import razie.diesel.exec.EEFunc
-import razie.diesel.ext.EMsg
+import razie.diesel.engine.exec.EEFunc
+import razie.diesel.engine.nodes.EMsg
+import razie.diesel.engine.{AstKinds, DieselAppContext, DomAst}
 
 /** a "function-like" call:
   * - built-in functions,
@@ -120,7 +120,7 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
 
         spec.flatMap { msgSpec =>
           ctx.root.engine.flatMap{engine=>
-            val newe = new DomEngine(
+            val newe = DieselAppContext.mkEngine(
               engine.dom,
               ast,
               engine.settings,
@@ -144,7 +144,7 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
 
             // save the trace in the main tree
             if(ctx.isInstanceOf[StaticECtx])
-              ctx.asInstanceOf[StaticECtx].curNode.foreach(_.children.append(
+              ctx.asInstanceOf[StaticECtx].curNode.foreach(_.childrenCol.append(
                 ast
               ))
 

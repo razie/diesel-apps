@@ -7,7 +7,7 @@ package razie.diesel.expr
 
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
-import razie.diesel.ext.CanHtml
+import razie.diesel.engine.nodes.CanHtml
 
 /** marker exception class for expr - understood by AST engine and treated nicer than a random exception */
 class DieselExprException (msg:String) extends RuntimeException (msg)

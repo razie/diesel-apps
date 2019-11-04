@@ -8,7 +8,6 @@ package razie.diesel.expr
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom.{RDomain, WTypes}
 import razie.diesel.engine.{DomAst, DomEngECtx}
-import razie.diesel.ext.{EVal, EWarning}
 import razie.tconf.{DSpec, DTemplate}
 import scala.util.Try
 

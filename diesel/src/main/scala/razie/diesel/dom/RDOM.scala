@@ -7,9 +7,9 @@
 package razie.diesel.dom
 
 import org.json.{JSONArray, JSONObject}
+import razie.diesel.engine.nodes.CanHtml
 import razie.diesel.engine.{DomEngine, EContent}
-import razie.diesel.expr.{AExprIdent, BCMP2, BoolExpr, CExpr, DieselExprException, ECtx, Expr}
-import razie.diesel.ext.CanHtml
+import razie.diesel.expr._
 import razie.js
 import razie.wiki.Enc
 import scala.concurrent.Future
@@ -117,7 +117,7 @@ object RDOM {
   /** a basic typed value
     *
     * @param value - the actual value. Use the "asXXX" methods instead of typecasting yourself
-    * @param contentType - the type of content
+    * @param cType - the type of content
     * @tparam T
     *
     * the asXXX methods assume it is of the right type
@@ -175,7 +175,9 @@ object RDOM {
     }
   }
 
-  /** parm-related helpers */
+  /** parm-related helpers
+    * @deprecated a b
+    */
   object P {
     def fromTypedValue(name:String, v:Any, expectedType:String):P =
       fromTypedValue(name, v, WType(expectedType))
@@ -272,18 +274,18 @@ object RDOM {
     */
   case class P (name:String, dflt:String, ttype:WType = WTypes.wt.EMPTY, expr:Option[Expr]=None,
                 var value:Option[PValue[_]] = None
-               ) extends CM with razie.diesel.ext.CanHtml {
+               ) extends CM with CanHtml {
 
-    @deprecated
-    def withValue[T](va:T, ctype:String="", domClassName:String=WTypes.UNKNOWN) = {
+    @deprecated()
+    def withValue[T](va:T, ctype:String, domClassName:String) = {
       this.copy(ttype=WType(ctype), value=Some(PValue[T](va, WType(ctype, domClassName))))
     }
 
-    def withValue[T](va:T, ctype:WType) = {
+    def withValue[T](va:T, ctype:WType = WTypes.wt.UNKNOWN) = {
       this.copy(ttype=ctype, value=Some(PValue[T](va, ctype)))
     }
 
-    def withCachedValue[T](va:T, ctype:WType=WTypes.wt.EMPTY, cached:String) = {
+    def withCachedValue[T](va:T, ctype:WType, cached:String) = {
       this.copy(ttype=ctype, value=Some(PValue[T](va, ctype).withStringCache(cached)))
     }
 
@@ -403,13 +405,11 @@ object RDOM {
 
   /** represents a parameter match expression
     *
-    * @param name   name to match
+    * @param ident  name to match
     * @param ttype  optional type to match
-    * @param ref
-    * @param multi
-    * @param op
-    * @param dflt
-    * @param expr
+    * @param op     operation to amtch with
+    * @param dflt   value to match
+    * @param expr   expression to match
     */
   case class PM (ident:AExprIdent, ttype:WType, op:String,
                  dflt:String, expr:Option[Expr] = None) extends CM with CanHtml {

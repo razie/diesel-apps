@@ -10,7 +10,7 @@ import com.mongodb.DBObject
 import com.mongodb.casbah.Imports._
 import razie.db.RazMongo
 import razie.diesel.dom.{RDOM, RDomain, WikiDomain}
-import razie.diesel.ext.{EMsg, ExpectM}
+import razie.diesel.engine.nodes.{EMsg, ExpectM}
 import razie.hosting.Website
 import razie.tconf.TagQuery
 import razie.tconf.Visibility.PUBLIC

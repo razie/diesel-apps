@@ -7,8 +7,8 @@ package razie.diesel.expr
 
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom.RDomain
+import razie.diesel.engine.nodes.EVal
 import razie.diesel.engine.{DomAst, DomEngECtx}
-import razie.diesel.ext.EVal
 import razie.tconf.{DSpec, DTemplate}
 
 /** a context - LIST, use to see speed of list

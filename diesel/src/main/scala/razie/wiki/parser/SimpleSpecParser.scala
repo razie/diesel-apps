@@ -6,8 +6,7 @@
  */
 package razie.wiki.parser
 
-import razie.tconf.parser.{TriAstNode, StrAstNode}
-
+import razie.tconf.parser.{StrAstNode, TriAstNode}
 import scala.util.parsing.combinator.token.Tokens
 
 /**

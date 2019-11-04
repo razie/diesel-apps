@@ -7,9 +7,8 @@
 package razie.wiki.parser
 
 import java.net.URI
-import razie.hosting.Website
 import razie.tconf.parser.{LazyAstNode, SpecParserSettings, StrAstNode, TriAstNode}
-import razie.wiki.{Config, Services}
+import razie.wiki.Services
 import razie.wiki.model._
 import razie.wiki.mods.WikiMods
 import scala.Option.option2Iterable
@@ -20,8 +19,6 @@ import scala.util.parsing.combinator.token.Tokens
   * i.e. you jsut want to parse the DomParser rules
   */
 trait WikiParserMini extends ParserBase with CsvParser with Tokens {
-
-  import WAST._
 
   def apply(input: String) = {
     //    clog << ("PARSE: --------------------------")

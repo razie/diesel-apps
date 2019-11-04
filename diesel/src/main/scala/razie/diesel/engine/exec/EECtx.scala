@@ -1,19 +1,18 @@
-/**  ____    __    ____  ____  ____,,___     ____  __  __  ____
-  * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
-  * )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
-  * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
-  **/
-package mod.diesel.model.exec
+/*  ____    __    ____  ____  ____,,___     ____  __  __  ____
+ * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+ *  )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+ * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+ */
+package razie.diesel.engine.exec
 
 import razie.clog
+import razie.diesel.Diesel
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom.{RDOM, _}
 import razie.diesel.engine.DomEngineSettings.DIESEL_USER_ID
 import razie.diesel.engine._
-import razie.diesel.exec.EExecutor
+import razie.diesel.engine.nodes._
 import razie.diesel.expr.{AExprFunc, ECtx, StaticECtx}
-import razie.diesel.ext.{MatchCollector, _}
-import razie.diesel.{Diesel, ext}
 import razie.tconf.DUsers
 import razie.tconf.hosting.Reactors
 import razie.wiki.Base64
@@ -96,7 +95,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
           } else if(l.isOfType(WTypes.STRING)) {
             ctx.getRequiredp(l.currentStringValue)
           } else {
-            P("", "", WTypes.UNDEFINED) //throw new IllegalArgumentException(s"Can't source input list: $ctxList")
+            P("", "", WTypes.wt.UNDEFINED) //throw new IllegalArgumentException(s"Can't source input list: $ctxList")
           }
         }
 
@@ -140,7 +139,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
             ctx.getRequiredp(l.currentStringValue)
           } else {
             info = EWarning(s"Can't source input list - what type is it? ${l}") :: info
-            P("", "", WTypes.UNDEFINED) //throw new IllegalArgumentException(s"Can't source input list: $ctxList")
+            P("", "", WTypes.wt.UNDEFINED) //throw new IllegalArgumentException(s"Can't source input list: $ctxList")
           }
         }
 
@@ -265,7 +264,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         val res = in.attrs.map(a => (a.name, a.calculatedTypedValue.value)).toMap
 
         new EVal(
-          RDOM.P.fromTypedValue(Diesel.PAYLOAD, res, WTypes.JSON)
+          RDOM.P.fromTypedValue(Diesel.PAYLOAD, res, WTypes.wt.JSON)
         ) :: Nil
       }
 
@@ -315,7 +314,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
 
         val d = in.attrs.find(_.name == "duration").map(_.currentStringValue.toInt).getOrElse(1000)
         EInfo("ctx.sleep - slept " + d) ::
-            ext.EEngSuspend("ctx.sleep", "", Some((e, a, l) => {
+            EEngSuspend("ctx.sleep", "", Some((e, a, l) => {
               DieselAppContext.router.map(_ ! DELater(e.id, d, DEComplete(e.id, a, true, l, Nil)))
             })) ::
             Nil

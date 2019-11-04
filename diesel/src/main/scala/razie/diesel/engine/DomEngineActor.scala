@@ -1,4 +1,4 @@
-/** ____    __    ____  ____  ____,,___     ____  __  __  ____
+/*  ____    __    ____  ____  ____,,___     ____  __  __  ____
  * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
  *  )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
  * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
@@ -7,7 +7,6 @@ package razie.diesel.engine
 
 import akka.actor.{Actor, Stash}
 import java.util.concurrent.TimeUnit
-import play.libs.Akka
 import razie.audit.Audit
 import razie.clog
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -73,13 +72,11 @@ class DomEngineRouter () extends Actor {
       )
     }
 
-//    case req @ DEReq(id, a, r, l) => route(id, req)
-//    case rep @ DERep(id, a, r, l, results) => route(id, rep)
-//    case rep @ DEComplete(id, a, r, l, results) => route(id, rep)
-
+    // stop all engines
     case DEStop => {
-//      DieselAppContext.refMap.values.map(_ ! DEStop)
-    }
+      Audit.logdb("DEBUG", "DomEngineRouter STOP All")
+      DieselAppContext.activeActors.values.map(_ ! DEStop)
+   }
 
     case "startAll" => {
       Audit.logdb("DEBUG", "DomEngineRouter startAll")
@@ -89,6 +86,7 @@ class DomEngineRouter () extends Actor {
       }
     }
 
+    // all DE messages share routing
     case m : DEMsg => route(m.engineId, m)
 
   }
@@ -103,14 +101,17 @@ class DomEngineRouter () extends Actor {
 
 }
 
-/** exec context for engine - each engine has its own.
+/** each engine has its own actor
   *
   * it will serialize status udpates and execution
+  *
+  * an engine will parallelize as much as async is built-into their activities
   */
 class DomEngineActor (eng:DomEngine) extends Actor with Stash {
 
   def checkInit : Boolean = {
     if(!DieselAppContext.serviceStarted) {
+      // if not started, stash the message for now
       stash()
       false
     } else
@@ -121,6 +122,7 @@ class DomEngineActor (eng:DomEngine) extends Actor with Stash {
 
     case DEInit => {
       //save refs for active engines
+      // started, take all stashed messages
       unstashAll()
     }
 
@@ -155,6 +157,7 @@ class DomEngineActor (eng:DomEngine) extends Actor with Stash {
     }
 
     case timer @ DELater(id,d,m) => {
+      // used when engines schedule stuff
       if(eng.id == id) {
         DieselAppContext.getActorSystem.scheduler.scheduleOnce(
           Duration.create(d, TimeUnit.MILLISECONDS),
@@ -166,6 +169,7 @@ class DomEngineActor (eng:DomEngine) extends Actor with Stash {
     }
 
     case timer @ DEStartTimer(id,d,m) => {
+      // used when engines schedule stuff
       if(eng.id == id) {
         DieselAppContext.getActorSystem.scheduler.scheduleOnce(
           Duration.create(d, TimeUnit.MILLISECONDS),
@@ -177,6 +181,7 @@ class DomEngineActor (eng:DomEngine) extends Actor with Stash {
     }
 
     case timer @ DETimer(id,m) => {
+      // used when engines schedule stuff
       if(eng.id == id) {
       }
       else DieselAppContext.router.map(_ ! timer)

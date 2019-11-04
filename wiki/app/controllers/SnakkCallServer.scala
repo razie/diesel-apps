@@ -10,16 +10,14 @@ import akka.actor.ActorSystem
 import akka.pattern.after
 import javax.inject.{Inject, Singleton}
 import play.api.mvc.Action
-import razie.diesel.exec.{SnakkCallAsyncList, SnakkCall}
+import razie.diesel.engine.exec.{SnakkCall, SnakkCallAsyncList}
 import razie.{Logging, Snakk}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent._
 import scala.concurrent.duration._
 
 /** a proxy server, based on polling
-  *
-  * @param protocol http, telnet
-  * */
+  */
 @Singleton
 class SnakkCallServer @Inject() (actorSystem: ActorSystem)(implicit exec: ExecutionContext) extends RazController with Logging {
 

@@ -11,7 +11,6 @@ import razie.tconf.parser.{BaseAstNode, StrAstNode}
 /** Created by raz on 2014-11-20.
  */
 trait WikiParserNotes extends ParserBase {
-  import WAST._
   
   def notesDotProps = dotPropAct | dotPropShare | dotPropEmail
 

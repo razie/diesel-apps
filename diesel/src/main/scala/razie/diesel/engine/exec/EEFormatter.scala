@@ -1,19 +1,17 @@
-/**  ____    __    ____  ____  ____,,___     ____  __  __  ____
-  * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
-  * )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
-  * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
-  **/
-package razie.diesel.exec
+/*  ____    __    ____  ____  ____,,___     ____  __  __  ____
+ * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+ *  )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+ * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+ */
+package razie.diesel.engine.exec
 
-import mod.diesel.model.exec.EESnakk
 import razie.clog
 import razie.diesel.Diesel
 import razie.diesel.dom.RDOM._
-import razie.diesel.dom._
 import razie.diesel.engine.InfoAccumulator
 import razie.diesel.engine.RDExt.spec
+import razie.diesel.engine.nodes._
 import razie.diesel.expr.ECtx
-import razie.diesel.ext.{MatchCollector, _}
 import razie.wiki.Enc
 
 /** format template results: if the current message has a template for a "result" then apply it.

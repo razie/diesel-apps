@@ -5,8 +5,6 @@
  */
 package razie.diesel.expr
 
-import razie.diesel.ext._
-
 /** A simple parser for our simple specs
   *
   * DomParser is the actual Diesel/Dom parser.
@@ -40,8 +38,3 @@ class SimpleExprParser extends ExprParser {
 
 }
 
-/** assignment - needed because the left side is more than just a val */
-case class PAS (left:AExprIdent, right:Expr) extends CanHtml {
-  override def toHtml = left.toHtml + "=" + right.toHtml
-  override def toString = left.toString + "=" + right.toString
-}

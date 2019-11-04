@@ -6,7 +6,7 @@
 package razie.diesel.dom
 
 import razie.hosting.WikiReactors
-import razie.tconf.{DTemplate, EPos, SpecPath, TagQuery}
+import razie.tconf.TagQuery
 import razie.wiki.model._
 
 /**

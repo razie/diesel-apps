@@ -37,7 +37,7 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
   override def applyTyped(v: Any)(implicit ctx: ECtx): P =
     getp(start).flatMap { startP =>
       rest.foldLeft(Option(startP))((a, b) => access(a, b, true))
-    }.getOrElse(P(start, "", WTypes.UNDEFINED))
+    }.getOrElse(P(start, "", WTypes.wt.UNDEFINED))
   // todo why do i make up a parm?
 
   def access(p: Option[P], accessor: P, blowUp: Boolean)(implicit ctx: ECtx): Option[P] = {

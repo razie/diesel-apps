@@ -1,10 +1,9 @@
-/**
-  *  ____    __    ____  ____  ____,,___     ____  __  __  ____
-  * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
-  *  )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
-  * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
-  */
-package razie.diesel.ext
+/*  ____    __    ____  ____  ____,,___     ____  __  __  ____
+ * (  _ \  /__\  (_   )(_  _)( ___)/ __)   (  _ \(  )(  )(  _ \           Read
+ *  )   / /(__)\  / /_  _)(_  )__) \__ \    )___/ )(__)(  ) _ <     README.txt
+ * (_)\_)(__)(__)(____)(____)(____)(___/   (__)  (______)(____/    LICENSE.txt
+ */
+package razie.diesel.engine.nodes
 
 import org.bson.types.ObjectId
 import razie.Logging
@@ -107,7 +106,7 @@ object EnginePrep extends Logging {
                  startStory:Option[WikiEntry]=None,
                  useTheseStories: List[WikiEntry] = Nil,
                  endStory:Option[WikiEntry]=None,
-                 addFiddles: Boolean = false) = {
+                 addFiddles: Boolean = false) : DomEngine = {
     val uid = au.map(_._id).getOrElse(new ObjectId())
 
     // is there a current fiddle in this reactor/user?
@@ -248,7 +247,7 @@ object EnginePrep extends Logging {
 
   /* add a message */
   def addMsgToAst(root: DomAst, v : EMsg) = {
-    root.children append DomAst(v, AstKinds.RECEIVED)
+    root.childrenCol append DomAst(v, AstKinds.RECEIVED)
   }
 
   /**
@@ -285,12 +284,12 @@ object EnginePrep extends Logging {
 
       // add a node to represent the story, if multiple stories or fiddles
       if(stories.size > 1 || addFiddles)
-        root.children appendAll {
+        root.childrenCol appendAll {
           lastAst = List(DomAst(StoryNode(story.specPath), AstKinds.STORY).withPrereq(lastAst.map(_.id)).withStatus(DomState.SKIPPED))
           lastAst
         }
 
-      if(stories.size > 1) root.children appendAll addMsg(EMsg("diesel.scope", "push"))
+      if(stories.size > 1) root.childrenCol appendAll addMsg(EMsg("diesel.scope", "push"))
 
       // markup all constructs - make sure there are no unparsed elements:
       if(
@@ -312,7 +311,7 @@ object EnginePrep extends Logging {
         }
 
         // we could do all, but don't care much about other elements, just the tests...
-        root.children appendAll story.contentPreProcessed.lines.map(_.trim).zipWithIndex.filter(
+        root.childrenCol appendAll story.contentPreProcessed.lines.map(_.trim).zipWithIndex.filter(
           _._1.startsWith("$expect")).collect {
 
           case (line, row) if !findElemLine(row+1) =>
@@ -322,7 +321,7 @@ object EnginePrep extends Logging {
       }
 
       // add the actual elements
-      root.children appendAll RDomain.domFilter(story) {
+      root.childrenCol appendAll RDomain.domFilter(story) {
         case o: O if o.name != "context" => List(DomAst(o, AstKinds.RECEIVED))
 
         case v: EMsg if v.entity == "ctx" && v.met == "storySync" => {
@@ -382,7 +381,7 @@ object EnginePrep extends Logging {
 
 
       // final scope pop if multiple stories added
-      if(stories.size > 1) root.children appendAll addMsg(EMsg("diesel.scope", "pop"))
+      if(stories.size > 1) root.childrenCol appendAll addMsg(EMsg("diesel.scope", "pop"))
 
       inSequence = savedInSequence
     }

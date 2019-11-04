@@ -6,12 +6,10 @@
  */
 package razie.wiki.parser
 
-import razie.tconf.parser.{FoldingContext, ListAstNode, LazyAstNode, TriAstNode, StrAstNode}
-import razie.wiki.model.WikiSearch
+import razie.tconf.parser.{FoldingContext, LazyAstNode, ListAstNode, StrAstNode, TriAstNode}
 import razie.wiki.Enc
-import razie.wiki.model._
+import razie.wiki.model.{WikiSearch, _}
 import razie.wiki.model.features._
-
 import scala.Option.option2Iterable
 
 /** basic wiki parser - this is a trait so you can mix it in, together with other parser extensions, into your own parser
@@ -37,7 +35,6 @@ import scala.Option.option2Iterable
   * String representation of it - so you can be lazy in the SState.
   */
 trait WikiParserT extends WikiParserMini with CsvParser {
-  import WAST._
 
   def lazyt(f:(StrAstNode, FoldingContext[WikiEntry,WikiUser]) => StrAstNode) =
     LazyAstNode[WikiEntry, WikiUser] (f)

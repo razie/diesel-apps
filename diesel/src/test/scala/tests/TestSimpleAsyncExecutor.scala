@@ -9,10 +9,11 @@ package tests
 import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
 import org.scalatest.{MustMatchers, OptionValues, WordSpecLike}
+import razie.diesel.engine.exec.EExecutor
+import razie.diesel.engine.nodes.{EInfo, EMsg}
 import razie.diesel.engine.{DEMsg, DieselAppContext, DomAst, DomEngineSettings}
-import razie.diesel.exec.EExecutor
 import razie.diesel.expr.ECtx
-import razie.diesel.ext.{EInfo, EMsg, MatchCollector}
+import razie.diesel.ext.MatchCollector
 import razie.diesel.samples.DomEngineUtils
 import razie.wiki.parser.DieselTextSpec
 

@@ -9,7 +9,7 @@ package razie.diesel.samples
 import razie.cout
 import razie.diesel.dom._
 import razie.diesel.engine._
-import razie.diesel.ext.EnginePrep
+import razie.diesel.engine.nodes.EnginePrep
 import razie.tconf.TextSpec
 import scala.concurrent.ExecutionContext.Implicits.global
 

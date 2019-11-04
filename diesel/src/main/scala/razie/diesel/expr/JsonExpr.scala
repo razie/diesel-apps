@@ -5,10 +5,10 @@
  */
 package razie.diesel.expr
 
-import mod.diesel.model.exec.EESnakk
 import org.json.JSONObject
 import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.dom._
+import razie.diesel.engine.exec.EESnakk
 
 /** a json document block:
   * - you may or may not use quotes for names
