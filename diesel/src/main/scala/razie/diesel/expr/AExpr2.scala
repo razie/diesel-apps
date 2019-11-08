@@ -33,6 +33,32 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
     val av = a.applyTyped(v)
 
     val res: PValue[_] = op match {
+      case "/" => {
+        val bv = b.applyTyped(v)
+        (a, b) match {
+          case _ if isNum(av) && isNum(bv) => {
+            val as = av.calculatedValue
+            if (as.contains(".")) {
+              val ai = as.toFloat
+              val bi = bv.calculatedValue.toFloat
+              PValue(ai / bi, WTypes.wt.NUMBER)
+            } else {
+              val ai = as.toLong
+              val bi = bv.calculatedValue.toLong
+              PValue(ai / bi, WTypes.wt.NUMBER)
+            }
+            // todo float and type safe numb
+          }
+
+          case _ => {
+            PValue("ERR:operator / on non numbers")
+            throw new DieselExprException(
+              s"ERR: multiply needs both numbers but got: ${a.getType} and ${b.getType} "
+            )
+          }
+        }
+      }
+
       case "*" => {
         val bv = b.applyTyped(v)
         (a, b) match {
@@ -43,15 +69,15 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
               val bi = bv.calculatedValue.toFloat
               PValue(ai * bi, WTypes.wt.NUMBER)
             } else {
-              val ai = as.toInt
-              val bi = bv.calculatedValue.toInt
+              val ai = as.toLong
+              val bi = bv.calculatedValue.toLong
               PValue(ai * bi, WTypes.wt.NUMBER)
             }
             // todo float and type safe numb
           }
 
           case _ => {
-            PValue("ERR:* on non numbers")
+            PValue("ERR:operator * on non numbers")
             throw new DieselExprException(
               s"ERR: multiply needs both numbers but got: ${a.getType} and ${b.getType} "
             )
@@ -81,8 +107,8 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
               val bi = b(v).toString.toFloat
               PValue(ai + bi, WTypes.wt.NUMBER)
             } else {
-              val ai = as.toInt
-              val bi = b(v).toString.toInt
+              val ai = as.toLong
+              val bi = b(v).toString.toLong
               PValue(ai + bi, WTypes.wt.NUMBER)
             }
           }
@@ -117,8 +143,8 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
               val bi = bv.calculatedValue.toFloat
               PValue(ai - bi, WTypes.wt.NUMBER)
             } else {
-              val ai = as.toInt
-              val bi = bv.calculatedValue.toInt
+              val ai = as.toLong
+              val bi = bv.calculatedValue.toLong
               PValue(ai - bi, WTypes.wt.NUMBER)
             }
           }

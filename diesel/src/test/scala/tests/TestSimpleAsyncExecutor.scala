@@ -13,7 +13,7 @@ import razie.diesel.engine.exec.EExecutor
 import razie.diesel.engine.nodes.{EInfo, EMsg}
 import razie.diesel.engine.{DEMsg, DieselAppContext, DomAst, DomEngineSettings}
 import razie.diesel.expr.ECtx
-import razie.diesel.ext.MatchCollector
+import razie.diesel.engine.nodes.MatchCollector
 import razie.diesel.samples.DomEngineUtils
 import razie.wiki.parser.DieselTextSpec
 

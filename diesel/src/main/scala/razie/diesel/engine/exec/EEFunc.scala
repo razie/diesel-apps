@@ -85,9 +85,16 @@ object EEFunc {
       // typed result
       r._3 match {
 
-       case i:Integer => P("", i.toString, WTypes.wt.NUMBER).withValue(i, WTypes.wt.NUMBER)
+        case i:Integer => P("", i.toString, WTypes.wt.NUMBER).withValue(i.toLong, WTypes.wt.NUMBER)
+        case i:Long => P("", i.toString, WTypes.wt.NUMBER).withValue(i, WTypes.wt.NUMBER)
 
-        case i:Double => P("", i.toString, WTypes.wt.NUMBER).withValue(i, WTypes.wt.NUMBER)
+          // js numbers may be ints
+       case i:Double if Math.round(i) == i => {
+         val x = i.toLong
+         P("", x.toString, WTypes.wt.NUMBER).withValue(x, WTypes.wt.NUMBER)
+       }
+
+       case i:Double => P("", i.toString, WTypes.wt.NUMBER).withValue(i, WTypes.wt.NUMBER)
 
         case o : ScriptObjectMirror => {
           val str = r._2.toString

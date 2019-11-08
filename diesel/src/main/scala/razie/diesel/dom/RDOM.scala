@@ -126,7 +126,7 @@ object RDOM {
 //    case class PValue[+T] (value:T, contentType:String = WTypes.UNKNOWN, domClassName:String = WTypes.UNKNOWN) {
     var cacheString : Option[String] = None
 
-    // todo deprecate
+    /** @deprecated */
     def contentType = cType.name
 
     def asObject : Map[String,Any] = asJson
@@ -192,7 +192,7 @@ object RDOM {
         case d: Double =>      P(name, asString(d), WTypes.wt.NUMBER).withValue(d, WTypes.wt.NUMBER)
 
         case i: java.lang.Integer =>
-          P(name, asString(i), WTypes.wt.NUMBER).withValue(i.intValue, WTypes.wt.NUMBER)
+          P(name, asString(i), WTypes.wt.NUMBER).withValue(i.longValue, WTypes.wt.NUMBER)
         case i: java.lang.Boolean =>
           P(name, asString(i), WTypes.wt.BOOLEAN).withValue(i.booleanValue, WTypes.wt.BOOLEAN)
         case i: java.lang.Float =>

@@ -101,6 +101,7 @@ object WTypes {
       case m: Map[_, _] => wt.JSON
       case s: String => wt.STRING
       case i: Int => wt.NUMBER
+      case i: Long => wt.NUMBER
       case f: Double => wt.NUMBER
       case f: Float => wt.NUMBER
       case l: List[_] => wt.ARRAY

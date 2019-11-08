@@ -35,7 +35,12 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
     this
   }
 
-  override def apply(name: String): String = overwritten.map(_.apply(name)).orElse(ps(name)).orElse(pu(name).map(_.currentStringValue)).getOrElse(super.apply(name))
+  override def apply(name: String): String =
+    overwritten
+        .map(_.apply(name))
+        .orElse(ps(name))
+        .orElse(pu(name).map(_.currentStringValue))
+        .getOrElse(super.apply(name))
 
   override def getp(name: String): Option[P] =
     if(name.length > 0)

@@ -37,7 +37,7 @@ case class CExpr[T](ee: T, ttype: WType = WTypes.wt.EMPTY) extends Expr {
       if (es.contains("."))
         P("", es, ttype).withValue(es.toDouble, WTypes.wt.NUMBER)
       else
-        P("", es, ttype).withValue(es.toInt, WTypes.wt.NUMBER)
+        P("", es, ttype).withValue(es.toLong, WTypes.wt.NUMBER)
     } else if (ttype == WTypes.BOOLEAN) {
       P("", es, ttype).withValue(es.toBoolean, WTypes.wt.BOOLEAN)
     } else {

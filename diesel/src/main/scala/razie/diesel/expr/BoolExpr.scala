@@ -114,7 +114,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
                 .toLowerCase
 
           def isNum(p: P) = {
-            p.ttype.name == WTypes.NUMBER || p.value.exists(_.contentType == WTypes.NUMBER)
+            p.ttype.name == WTypes.NUMBER || p.value.exists(_.cType.name == WTypes.NUMBER)
           }
 
           val cmpop = op match {
