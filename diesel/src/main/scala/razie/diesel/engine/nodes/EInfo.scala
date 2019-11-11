@@ -8,10 +8,12 @@ package razie.diesel.engine.nodes
 import razie.diesel.engine._
 import razie.tconf.EPos
 import razie.wiki.Enc
+import scala.collection.mutable.ListBuffer
 
 
 object EErrorUtils {
   val MAX_STACKTRACE_LINES = 30
+  val MAX_STACKTRACE_LINES_PER = 10 // per exception
 
   /** throwable to string */
   def ttos (t:Throwable) = {
@@ -20,8 +22,22 @@ object EErrorUtils {
     t.printStackTrace(pw)
 
     // why always big stack traces? they're kind'a pointless
-    val s = sw.toString.lines.take(MAX_STACKTRACE_LINES).mkString("\n")
-    s
+    val f = new ListBuffer[ListBuffer[String]]()
+    sw.toString.lines.toList.zipWithIndex.collect {
+      case t@(l,i) if i == 0 => {
+        f.append(new ListBuffer[String]())
+        f.last.append(l)
+      }
+      case t@(l,i) if l.contains("Caused by:") => {
+        f.last.append("...")
+        f.append(new ListBuffer[String]())
+        f.last.append(l)
+      }
+      case t@(l,i) => {
+        if(f.last.size < MAX_STACKTRACE_LINES_PER) f.last.append(l)
+      }
+    }
+    f.flatten.mkString("\n")
   }
 }
 
