@@ -19,6 +19,109 @@ case class PAS (left:AExprIdent, right:Expr) extends CanHtml {
   override def toString = left.toString + "=" + right.toString
 }
 
+/** a mapping, the right side of '=>' */
+abstract class EMap extends CanHtml with HasPosition {
+  var pos: Option[EPos] = None
+  def withPosition (p:EPos) : EMap
+
+  def apply(in: EMsg, destSpec: Option[EMsg], apos:Option[EPos], deferEvaluation:Boolean=false, arch:String = "")(implicit ctx: ECtx): List[Any]
+
+  // todo this is rather stupid - need better accounting
+  /** count the number of applications of this rule */
+  var count = 0;
+
+  def cls:String
+  def met:String
+}
+
+/** special case of map, just assigning exprs, no message decomp
+  *
+  * @param attrs
+  * @param arrow
+  * @param cond
+  */
+case class EMapPas(attrs: List[PAS], arrow:String="=>", cond: Option[EIf] = None, indentLevel:Int=0) extends EMap {
+  override def cls:String = ""
+  override def met:String = ""
+
+  override def withPosition (p:EPos) = { this.pos=Some(p); this}
+
+  override def apply(in: EMsg, destSpec: Option[EMsg], apos:Option[EPos], deferEvaluation:Boolean=false, arch:String = "")(implicit ctx: ECtx): List[Any] = {
+
+    var e = Try {
+      val m = EMsgPas(
+        EMap.sourcePasAttrs(attrs, deferEvaluation)
+      )
+          .withPos(this.pos.orElse(apos))
+
+      // these evaluate right away, so no need for deferred
+      ENextPas(m, arrow, cond, deferEvaluation, indentLevel)
+          .withParent(in)
+          .withSpec(destSpec)
+    }.recover {
+      case t:Throwable => {
+        razie.Log.log("trying to source message", t)
+        new EError("Exception trying to source message", t)
+      }
+    }.get
+    count += 1
+
+    List(e)
+  }
+
+  //  override def toHtml = "<b>=&gt;</b> " + ea(cls, met) + " " + attrs.map(_.toHtml).mkString("(", ",", ")")
+  override def toHtml = """<span class="glyphicon glyphicon-arrow-right"></span> """ + cond.map(_.toHtml+" ").mkString + ea("", "") + " " + toHtmlPAttrs(attrs)
+
+  override def toString = "=> " + cond.map(_.toHtml+" ").mkString + ". " + attrs.mkString("(", ",", ")")
+}
+
+/** mapping a message - a decomposition rule (right hand side of =>)
+  *
+  * @param cls
+  * @param met
+  * @param attrs name = expr
+  */
+case class EMapCls(cls: String, met: String, attrs: Attrs, arrow:String="=>", cond: Option[EIf] = None, indentLevel:Int = 0) extends EMap {
+  override def withPosition (p:EPos) = { this.pos=Some(p); this}
+
+  override def apply(in: EMsg, destSpec: Option[EMsg], apos:Option[EPos], deferEvaluation:Boolean=false, arch:String = "")(implicit ctx: ECtx): List[Any] = {
+
+    val kind = AstKinds.kindOf(arch)
+
+    var e = Try {
+      val m = EMsg(
+        cls, met,
+        EMap.sourceAttrs(in, attrs, destSpec.map(_.attrs), deferEvaluation),
+        kind)
+          .withPos(this.pos.orElse(apos))
+          .withSpec(destSpec)
+
+      if(arrow == "==>" || cond.isDefined || deferEvaluation)
+        ENext(m, arrow, cond, deferEvaluation, indentLevel)
+            .withParent(in)
+            .withSpec(destSpec)
+      else m
+    }.recover {
+      case t:Throwable => {
+        razie.Log.log("trying to source message", t)
+        new EError("Exception trying to source message", t)
+      }
+    }.get
+    count += 1
+
+    List(e)
+  }
+
+  def asMsg = EMsg(cls, met, attrs.map{p=>
+    P (p.name, p.currentStringValue, p.ttype)
+  })
+
+  //  override def toHtml = "<b>=&gt;</b> " + ea(cls, met) + " " + attrs.map(_.toHtml).mkString("(", ",", ")")
+  override def toHtml = """<span class="glyphicon glyphicon-arrow-right"></span> """ + cond.map(_.toHtml+" ").mkString + ea(cls, met) + " " + toHtmlAttrs(attrs)
+
+  override def toString = "=> " + cond.map(_.toHtml+" ").mkString + cls + "." + met + " " + attrs.mkString("(", ",", ")")
+}
+
 object EMap {
 
   /** soure the attributes for a message
@@ -48,13 +151,13 @@ object EMap {
       else { // do evaluation now
         // sourcing has expr, overrules
         val v =
-        if(p.hasCurrentValue || p.expr.nonEmpty) Some(expr(p)) // a=x
+          if(p.hasCurrentValue || p.expr.nonEmpty) Some(expr(p)) // a=x
 
-        else
-        // this is why we can't override values in a message decomp
+          else
+          // this is why we can't override values in a message decomp
 //        parent.attrs.find(_.name == p.name).orElse( // just by name: no dflt, no expr
-        // ctx contains in.attrs but with overwrite
-          ctx.getp(p.name)
+          // ctx contains in.attrs but with overwrite
+            ctx.getp(p.name)
 //        )
 
         val tt =
@@ -69,11 +172,11 @@ object EMap {
     } else if (destSpec.exists(_.nonEmpty)) destSpec.get.map { p =>
       // when defaulting to spec, order changes
       val v = /*in.attrs.find(_.name == p.name).map(_.dflt).orElse( */
-          // ctx contains in.attrs but with overwrite
+      // ctx contains in.attrs but with overwrite
         ctx.getp(p.name)
-      .getOrElse(
-        expr(p)
-      )
+            .getOrElse(
+              expr(p)
+            )
 //      val tt = if(p.ttype.isEmpty && v.isInstanceOf[Int]) WTypes.NUMBER else ""
 //      p.copy(dflt = v.toString, expr=None, ttype=tt)
       v.copy(name = p.name)
@@ -110,104 +213,6 @@ object EMap {
     out1
   }
 
-}
-
-abstract class EMap extends CanHtml with HasPosition {
-  var pos: Option[EPos] = None
-  def withPosition (p:EPos) : EMap
-
-  def apply(in: EMsg, destSpec: Option[EMsg], apos:Option[EPos], deferEvaluation:Boolean=false, arch:String = "")(implicit ctx: ECtx): List[Any]
-
-  // todo this is rather stupid - need better accounting
-  /** count the number of applications of this rule */
-  var count = 0;
-
-  def cls:String
-  def met:String
-}
-
-/** special case of map, just assigning exprs
-  *
-  * @param attrs
-  * @param arrow
-  * @param cond
-  */
-case class EMapPas(attrs: List[PAS], arrow:String="=>", cond: Option[EIf] = None) extends EMap {
-  override def cls:String = ""
-  override def met:String = ""
-
-  override def withPosition (p:EPos) = { this.pos=Some(p); this}
-
-  override def apply(in: EMsg, destSpec: Option[EMsg], apos:Option[EPos], deferEvaluation:Boolean=false, arch:String = "")(implicit ctx: ECtx): List[Any] = {
-
-    var e = Try {
-      val m = EMsgPas(
-        EMap.sourcePasAttrs(attrs, deferEvaluation)
-      )
-          .withPos(this.pos.orElse(apos))
-
-      // these evaluate right away, so no need for deferred
-      ENextPas(m, arrow, cond, deferEvaluation).withParent(in).withSpec(destSpec)
-    }.recover {
-      case t:Throwable => {
-        razie.Log.log("trying to source message", t)
-        new EError("Exception trying to source message", t)
-      }
-    }.get
-    count += 1
-
-    List(e)
-  }
-
-  //  override def toHtml = "<b>=&gt;</b> " + ea(cls, met) + " " + attrs.map(_.toHtml).mkString("(", ",", ")")
-  override def toHtml = """<span class="glyphicon glyphicon-arrow-right"></span> """ + cond.map(_.toHtml+" ").mkString + ea("", "") + " " + toHtmlPAttrs(attrs)
-
-  override def toString = "=> " + cond.map(_.toHtml+" ").mkString + ". " + attrs.mkString("(", ",", ")")
-}
-
-/** mapping a message - a decomposition rule (right hand side of =>)
-  *
-  * @param cls
-  * @param met
-  * @param attrs name = expr
-  */
-case class EMapCls(cls: String, met: String, attrs: Attrs, arrow:String="=>", cond: Option[EIf] = None) extends EMap {
-  override def withPosition (p:EPos) = { this.pos=Some(p); this}
-
-  override def apply(in: EMsg, destSpec: Option[EMsg], apos:Option[EPos], deferEvaluation:Boolean=false, arch:String = "")(implicit ctx: ECtx): List[Any] = {
-
-    val kind = AstKinds.kindOf(arch)
-
-    var e = Try {
-      val m = EMsg(
-        cls, met,
-        EMap.sourceAttrs(in, attrs, destSpec.map(_.attrs), deferEvaluation),
-        kind)
-          .withPos(this.pos.orElse(apos))
-          .withSpec(destSpec)
-
-      if(arrow == "==>" || cond.isDefined || deferEvaluation)
-        ENext(m, arrow, cond, deferEvaluation).withParent(in).withSpec(destSpec)
-      else m
-    }.recover {
-      case t:Throwable => {
-        razie.Log.log("trying to source message", t)
-        new EError("Exception trying to source message", t)
-      }
-    }.get
-    count += 1
-
-    List(e)
-  }
-
-  def asMsg = EMsg(cls, met, attrs.map{p=>
-    P (p.name, p.currentStringValue, p.ttype)
-  })
-
-  //  override def toHtml = "<b>=&gt;</b> " + ea(cls, met) + " " + attrs.map(_.toHtml).mkString("(", ",", ")")
-  override def toHtml = """<span class="glyphicon glyphicon-arrow-right"></span> """ + cond.map(_.toHtml+" ").mkString + ea(cls, met) + " " + toHtmlAttrs(attrs)
-
-  override def toString = "=> " + cond.map(_.toHtml+" ").mkString + cls + "." + met + " " + attrs.mkString("(", ",", ")")
 }
 
 

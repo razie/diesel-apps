@@ -195,7 +195,7 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
   * @param cond optional condition for this step
   * @param deferred
   */
-case class ENextPas(msg: EMsgPas, arrow: String, cond: Option[EIf] = None, deferred:Boolean=false) extends CanHtml {
+case class ENextPas(msg: EMsgPas, arrow: String, cond: Option[EIf] = None, deferred:Boolean=false, indentLevel:Int=0) extends CanHtml {
   var parent:Option[EMsg] = None
   var spec:Option[EMsg] = None
 
@@ -221,17 +221,18 @@ case class ENextPas(msg: EMsgPas, arrow: String, cond: Option[EIf] = None, defer
   override def toString = (if (arrow != "-") arrow + " " else "") + msg.toString
 }
 
-/** just a call to next.
+/** something that needs to decompose later, in another decomp cycle - the basis for async execution
   *
-  * This is used to wrap async spawns ==> and
-  * normal => when there's more than one (they start one at a time)
+  * This is used to wrap async spawns ==>
+  * and normal => when there's more than one (they start one at a time) so then decomp is async
   *
   * @param msg the message wrapped / to be executed next
   * @param arrow - how to call next: wait => or no wait ==>
   * @param cond optional condition for this step
   * @param deferred
+  * @param indentLevel if > 0 then this is part of a subtree
   */
-case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred:Boolean=false) extends CanHtml {
+case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred:Boolean=false, indentLevel:Int=0) extends CanHtml {
   var parent:Option[EMsg] = None
   var spec:Option[EMsg] = None
 
@@ -274,6 +275,7 @@ case class ERule(e: EMatch, arch:String, i: List[EMap]) extends CanHtml with EAp
   override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
     e.test(m, cole)
 
+  /** after testing, apply this rule and decomp the message */
   override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = {
     in.withRulePos(pos) // set my pos on decomposed msg - I must have matched it
     i.flatMap(_.apply(in, destSpec, pos, false, arch))

@@ -18,6 +18,7 @@ import razie.js
 import razie.tconf.DSpec
 import scala.Option.option2Iterable
 import scala.collection.mutable.HashMap
+import scala.collection.parallel.mutable
 import scala.util.Try
 
 /** the actual engine implementation
@@ -82,7 +83,7 @@ class DomEngineV1(
         stop.onSuspend.foreach(_.apply(this, a, level))
       }
 
-      case next@ENext(m, "==>", cond, _) => {
+      case next@ENext(m, "==>", cond, _, _) => {
         // forking new engine / async branch
         implicit val ctx = new StaticECtx(next.parent.map(_.attrs).getOrElse(Nil), Some(this.ctx), Some(a))
         // start new engine/process
@@ -93,7 +94,7 @@ class DomEngineV1(
         // no need to return anything - children have been decomposed
       }
 
-      case n1@ENext(m, ar, cond, _) if "-" == ar || "=>" == ar => {
+      case n1@ENext(m, ar, cond, _, _) if "-" == ar || "=>" == ar => {
         // message executed later
         // todo bubu: static parent parms overwrite side effects updated in this.ctx
         implicit val ctx = new StaticECtx(n1.parent.map(_.attrs).getOrElse(Nil), Some(this.ctx), Some(a))
@@ -101,12 +102,17 @@ class DomEngineV1(
         if(n1.test()) {
           val newmsg = n1.evaluateMsg
           val newnode = DomAst(newmsg, AstKinds.kindOf(newmsg.arch))
+
+          // old node may have had children already
+          newnode.childrenCol.appendAll(a.children)
+          a.childrenCol.clear() // need to remove them from parent, or they will be duplos and create problems
+
           msgs = rep(a, recurse, level, List(newnode))
         }
         // message will be evaluate() later
       }
 
-      case n1@ENextPas(m, ar, cond, _) if "-" == ar || "=>" == ar => {
+      case n1@ENextPas(m, ar, cond, _, _) if "-" == ar || "=>" == ar => {
         implicit val ctx = new StaticECtx(n1.parent.map(_.attrs).getOrElse(Nil), Some(this.ctx), Some(a))
 
         if(n1.test()) {
@@ -177,6 +183,10 @@ class DomEngineV1(
 
     ctx = new StaticECtx(n.attrs, Some(parentCtx), Some(a))
 
+    // PRE - did it already have some children, decomposed by someone else?
+    newNodes = a.children
+    a.childrenCol.clear() // remove them so we don't have duplicates in tree - they will be processed later
+
     // 1. engine message?
     var mocked = expandEngineEMsg(a, n)
 
@@ -192,7 +202,7 @@ class DomEngineV1(
           mocked = true
 
           // run the mock
-          newNodes = newNodes ::: runRule(a, n, m.rule, ctx)
+          newNodes = newNodes ::: ruleDecomp(a, n, m.rule, ctx)
         }
       }
     }
@@ -221,7 +231,7 @@ class DomEngineV1(
             exclusives.put (r.e.cls + "." + r.e.met, r) // we do exclusive per pattern
           }
 
-          newNodes = newNodes ::: runRule(a, n, r, ctx)
+          newNodes = newNodes ::: ruleDecomp(a, n, r, ctx)
         }
       }
     }
@@ -373,9 +383,30 @@ class DomEngineV1(
   }
 
   /** reused - execute a rule */
-  private def runRule (a:DomAst, in:EMsg, r:ERule, parentCtx:ECtx) = {
+  private def ruleDecomp (a:DomAst, in:EMsg, r:ERule, parentCtx:ECtx) = {
     var result : List[DomAst] = Nil
     implicit val ctx : ECtx = new StaticECtx(in.attrs, Some(parentCtx), Some(a))
+
+    val parents = new collection.mutable.HashMap[Int, DomAst]()
+
+    def findParent(level:Int) : DomAst = {
+      if(level >= 0) parents.get(level).getOrElse(findParent(level - 1))
+      else throw new DieselExprException("can't find parent in ruleDecomp")
+    }
+
+    // used to build trees from flat list with levels
+    def addChild(x:Any, level:Int) = {
+      val ast = DomAst(x, AstKinds.NEXT).withSpec(r)
+      parents.put(level, ast)
+      if(level == 0) Some(ast)
+      else if(level > 0) {
+        val parent = findParent(level - 1)
+        parent.childrenCol.append(ast) // todo I'm not creating events for persist for this
+        None//child was consumed
+      } else {
+        throw new DieselExprException("child level negative in ruleDecomp")
+      }
+    }
 
     // generate each gen/map
     r.i.map { ri =>
@@ -394,7 +425,7 @@ class DomEngineV1(
         // may depend on previous messages and can't be evaluated now
         //
         case x: EMsg if x.entity == "" && x.met == "" && r.i.size == 1 => {
-          // todo should these go into the ctx or this.ctx
+          // these go into the ctx as well
           appendVals(a, x, x.attrs, ctx, KIND)
           None
         }
@@ -413,14 +444,15 @@ class DomEngineV1(
         }
 
         case x: ENext => {
-          Some(DomAst(x, AstKinds.NEXT).withSpec(r))
+          addChild(x, x.indentLevel)
         }
 
         case x: ENextPas => {
-          Some(DomAst(x, AstKinds.NEXT).withSpec(r))
+          addChild(x, x.indentLevel)
         }
 
         case x @ _ => {
+          // vals and whatever other things
           Some(DomAst(x, KIND).withSpec(r))
         }
       }.filter(_.isDefined)

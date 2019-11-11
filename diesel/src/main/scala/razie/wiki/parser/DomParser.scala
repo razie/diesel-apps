@@ -241,18 +241,20 @@ trait DomParser extends ParserBase with ExprParser {
     * => z.role (attrs)
     */
   def pgen: Parser[EMap] =
-    ows ~> keyw(pArrow) ~ ows ~
+    ows ~> opt("[|.]*".r) ~ keyw(pArrow) ~ ows ~
         opt(pif) ~ ows ~
         (clsMet | justAttrs) <~ opt(";") <~ optComment ^^ {
-      case arrow ~ _ ~ cond ~ _ ~ cp => {
+      case level ~ arrow ~ _ ~ cond ~ _ ~ cp => {
         cp match {
             // class with message
           case Tuple3(zc, zm, za) =>
-            EMapCls(zc.toString, zm.toString, za.asInstanceOf[List[RDOM.P]], arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
+            EMapCls(zc.toString, zm.toString, za.asInstanceOf[List[RDOM.P]], arrow.s, cond, level.mkString.length)
+                .withPosition(EPos("", arrow.pos.line, arrow.pos.column))
 
             // just parm assignments
           case pas:List[_] =>
-            EMapPas(pas.asInstanceOf[List[PAS]], arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
+            EMapPas(pas.asInstanceOf[List[PAS]], arrow.s, cond, level.map(_.count(_ == '|')).getOrElse(0))
+                .withPosition(EPos("", arrow.pos.line, arrow.pos.column))
         }
 
         // EPos wpath set later
@@ -263,9 +265,11 @@ trait DomParser extends ParserBase with ExprParser {
     * - text - i.e. step description
     */
   def pgenStep: Parser[EMap] =
-    ows ~> keyw("-") ~ ows ~ opt(pif) ~ ows ~ "[^\n\r;]+".r <~ opt(";") <~ optComment ^^ {
-      case arrow ~ _ ~ cond ~ _ ~ desc => {
-        nodes.EMapCls("diesel", "step", List(P("desc", desc)), arrow.s, cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
+    ows ~> opt("[|.]*".r) ~ keyw("-") ~ ows ~ opt(pif) ~ ows ~ "[^\n\r;]+".r <~ opt(";") <~ optComment ^^ {
+      case level ~ arrow ~ _ ~ cond ~ _ ~ desc => {
+        nodes
+            .EMapCls("diesel", "step", List(P("desc", desc)), arrow.s, cond, level.mkString.length)
+            .withPosition(EPos("", arrow.pos.line, arrow.pos.column))
       }
     }
 
