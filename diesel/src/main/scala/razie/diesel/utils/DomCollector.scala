@@ -7,7 +7,7 @@
 package razie.diesel.utils
 
 import org.joda.time.DateTime
-import razie.diesel.engine.DomEngine
+import razie.diesel.engine.{DieselSLASettings, DomEngine, DomState}
 import razie.diesel.model.DieselMsg
 
 // todo make instance in Reactor instead of a static
@@ -20,19 +20,26 @@ object DomCollector {
   case class CollectedAst(stream:String, realm:String, id:String, userId:Option[String], engine:DomEngine, details:String, dtm:DateTime=DateTime.now) {
     def isLowerPriority = {
       val desc = engine.description
-//      val first = engine.root.children.headOption.map(_.value).collect { case e:EMsg => e}
-//      first.exists{m=>
-//        val ea = m.ea
-//        ea.DieselMsg.GPOLL ||
-//        ea == DieselMsg.RLOADED
-//      } ||
-      desc.startsWith(DieselMsg.fiddleStoryUpdated) ||
-          desc.startsWith(DieselMsg.runDom+ DieselMsg.REALM.REALM_LOADED_MSG) ||
-          desc.startsWith(DieselMsg.runDom+"$msg " + DieselMsg.GPOLL)
+      desc.contains(DieselMsg.fiddleStoryUpdated) ||
+          desc.contains(DieselMsg.REALM.REALM_LOADED_MSG) ||
+          desc.contains("$msg " + DieselMsg.GPOLL)
+    }
+
+    def getMaxCount = {
+      engine.settings.collectCount.filter(_ != 0).getOrElse {
+        val desc = engine.description
+        if(
+          desc.contains(DieselMsg.fiddleStoryUpdated) ||
+          desc.contains(DieselMsg.GPOLL)
+        ) 6 else {
+          if(engine.settings.slaSet.contains(DieselSLASettings.NOKEEP)) -1 else 0
+          // 0  means no self-imposed limit, default
+        }
+      }
     }
   }
 
-  // statically collecting the last 100 results sets
+// statically collecting the last 100 results sets
   private var asts: List[CollectedAst] = Nil
 
   def withAsts[T] (f: List[CollectedAst] =>T) : T = asts.synchronized {
@@ -41,18 +48,22 @@ object DomCollector {
 
   /** statically collect more asts */
   def collectAst (stream:String, realm:String, xid:String, userId:Option[String], eng:DomEngine, details:String="") = synchronized {
-    var newAsts = CollectedAst(stream, realm, xid, userId, eng, details) :: asts.filter(_.id != xid)
+    var newOne = CollectedAst(stream, realm, xid, userId, eng, details)
+    var newAsts = newOne :: asts.filter(_.id != xid)
+    val count = newOne.getMaxCount
 
-    if(! eng.settings.collect.exists(_ <= 0)) { // no collect
+    if(count >= 0) { // no collect
 
       // does it have collect settings?
-      if (eng.settings.collect.exists(_ > 0)) {
-        val lesser = newAsts.filter(_.engine.description == eng.description)
+      if (count > 0) {
+        var lesser = newAsts.filter(_.engine.description == eng.description)
 
-        if(lesser.size > eng.settings.collect.get) {
+        while(lesser.size > count) {
           // remove one of this kind
-          val lastId = lesser.last.id
-          newAsts = newAsts.filter(_.id != lastId).take(MAX_SIZE - 1)
+          lesser.reverse.find(e=>DomState.isDone(e.engine.status)).map(_.id).foreach{lastId=>
+            newAsts = newAsts.filter(_.id != lastId).take(MAX_SIZE - 1)
+            lesser = newAsts.filter(_.engine.description == eng.description)
+          }
         }
       }
 
@@ -60,9 +71,10 @@ object DomCollector {
       val lower = asts.filter(_.isLowerPriority)
 
       if (lower.size > MAX_SIZE_LOWER) {
-        val lastId = lower.last.id
-        // try to remove first a lower priority one
-        asts = newAsts.filter(_.id != lastId).take(MAX_SIZE - 1)
+        lower.reverse.find(e=>DomState.isDone(e.engine.status)).map(_.id).foreach { lastId =>
+          // try to remove first a lower priority one
+          asts = newAsts.filter(_.id != lastId).take(MAX_SIZE - 1)
+        }
       } else {
         asts = newAsts.take(MAX_SIZE - 1)
       }

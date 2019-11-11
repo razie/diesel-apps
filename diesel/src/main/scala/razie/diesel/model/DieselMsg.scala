@@ -194,6 +194,7 @@ object DieselMsg {
   final val CRON_TICK = "$msg diesel.cron.tick"
   final val GUARDIAN_POLL = "$msg diesel.guardian.poll"
   final val GUARDIAN_RUN = "$msg diesel.guardian.run"
+  final val GUARDIAN_ENDS = "$msg diesel.guardian.ends"
   final val WIKI_UPDATED = "$msg diesel.wiki.updated"
   final val USER_JOINED = "$msg diesel.user.joined"
 
