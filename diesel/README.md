@@ -1,13 +1,14 @@
-# Di:eS:eL Apps 
+# Di:eS:eL Apps
 
 Rules, flows, actors and microservices. See:
+- [Reactive programming fabric](http://www.dieselapps.com/wiki/Cool_Scala/Reactive_programming_fabric_-_streams,_actors_and_more)
 - [Language reference](http://specs.dieselapps.com/Topic/DSL_Reference)
 - [Expressions and pattern matching](http://specs.dieselapps.com/Topic/Expressions_and_pattern_matching)
 - Towers of Hanoi example: [spec](http://specs.dieselapps.com/wiki/Spec:hanoi-spec) and [story](http://specs.dieselapps.com/wiki/Story:hanoi-story)
 
 ## Rules and workflows
 
-A simple reactive, message-oriented workflow framework, driven by rules and layered on top of akka actors. Messages are 
+A simple reactive, message-oriented workflow framework, driven by rules and layered on top of akka actors. Messages are
 defined by example, using pattern matching:
 
 ```js
@@ -19,8 +20,8 @@ $when math.fact (n > 0)
 => (payload=payload * n)
 ```
 
-This is a generic rules-based engine which can be used in a variety of scenarios, such as just workflow processing, 
-"message broker", "decomposition" or other. Relies on a simple DSL to define rules and an engine to 
+This is a generic rules-based engine which can be used in a variety of scenarios, such as just workflow processing,
+"message broker", "decomposition" or other. Relies on a simple DSL to define rules and an engine to
 interpret them. The rules DSL has only a few constructs:
  - `$msg` to specify the signature of a message, optional
  - `$when` to create a *production* rule
@@ -36,7 +37,7 @@ $mock chimes.welcome(name) => (greeting = "Greetings, "+name)
 
 ## Microservices
 
-These messages are bound natively and automatically to REST, resulting in a microservices mocking, prototyping and 
+These messages are bound natively and automatically to REST, resulting in a microservices mocking, prototyping and
 testing framework, built with simple play framework bindings.
 
 The diesel workflow framework: automatically turns any workflow into a microservice and/or orchestrate any microservices with the workflow rules.
@@ -69,7 +70,7 @@ The engine uses a tree-like model, which is the "execution trace". This will rep
 
 The engine uses an "intuitive" sync/async model for processing the "nodes": simple transformation nodes are executed synchronously, while all messages are executed asynchronously.
 
-The intuitive part comes in when executing sequences of nodes - these are also executed sync/async **but in sequence**, 
+The intuitive part comes in when executing sequences of nodes - these are also executed sync/async **but in sequence**,
 implicitly using the ask pattern and Futures, very much like a sequence of messages processed by the same actor. In fact,
  each workflow has an associated akka actor which will execute the messages in sequence, but without blocking threads etc.
 
