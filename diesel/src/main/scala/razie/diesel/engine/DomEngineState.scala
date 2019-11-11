@@ -32,7 +32,7 @@ case class DADepy (prereq:DomAst, depy:DomAst)
 case class DADepyEv (prereq:String, depy:String, dtm:DateTime=DateTime.now) extends DEvent
 
 
-/** the state changes of an engine, including tree changes etc, go through here */
+/** the state changes of an engine, including all events, tree changes etc, go through here */
 trait DomEngineState {
 
   final val maxLevels = 45
@@ -47,6 +47,9 @@ trait DomEngineState {
     seqNo = seqNo +1
     t
   }
+
+  // we need settings
+  def settings : DomEngineSettings
 
   // setup the context for this eval
   implicit def ctx : ECtx
@@ -73,8 +76,12 @@ trait DomEngineState {
   val events : ListBuffer[DEvent] = new ListBuffer[DEvent]()
 
   def addEvent(e:DEvent*) : Unit = {
-    events.append(e:_*)
+    // collect events if needed
+    if(!settings.slaSet.contains(DieselSLASettings.NOPERSIST)) {
+      events.append(e: _*)
+    }
 
+    //
     e collect {
 
       case DEventExpNode(parentId, children, _) => {
@@ -116,13 +123,12 @@ trait DomEngineState {
 /** use this when building ASTs */
 object NoEngineState extends DomEngineState {
 
-  // setup the context for this eval
+//   setup the context for this eval
   implicit def ctx : ECtx = null
 
   def n(id:String):DomAst = ???
 
-  override def addEvent(e:DEvent*) : Unit = {
-  }
+  override def addEvent(e:DEvent*) : Unit = {}
 
   override def evAppChildren (parent:DomAst, children:DomAst) : Unit = {}
 
@@ -132,5 +138,6 @@ object NoEngineState extends DomEngineState {
 
   private[engine] override def evAddDepy (p:DomAst, d:DomAst) : Unit = {}
 
+  override def settings = ???
 }
 
