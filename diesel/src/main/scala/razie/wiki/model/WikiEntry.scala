@@ -449,9 +449,9 @@ case class WikiSection(original:String, parent: WikiEntry, stype: String, name: 
 
   def checkSignature(au:Option[WikiUser]) =
     if(signature startsWith "SIG")
-      Services.auth.checkSignature(sign, signature.substring(3), au)
+      Services.auth.checkSignature(parent.realm, sign, signature.substring(3), au)
     else
-      Services.auth.checkSignature(sign, signature, au)
+      Services.auth.checkSignature(parent.realm, sign, signature, au)
 
   def wid = parent.wid.copy(section=Some(name))
 

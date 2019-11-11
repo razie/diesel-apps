@@ -35,7 +35,8 @@ trait AuthService[+U <: WikiUser] {
   def sign(content: String): String
 
   /** check that the signatures match - there's a trick here, heh */
-  def checkSignature(sign: String, signature: String, user:Option[WikiUser]): Boolean
+  def checkSignature(realm:String, sign: String, signature: String, user:Option[WikiUser]): Boolean =
+    sign == signature
 }
 
 /** sample user implementation */
@@ -73,9 +74,6 @@ object NoAuthService extends AuthService[MyUser] with Logging {
 
   /** sign this content */
   def sign(content: String): String = "EVERYTHING_GOES" // you MUST IMPLEMENT THIS, heh
-
-  /** check that the signatures match - there's a trick here, heh */
-  def checkSignature(sign: String, signature: String, au:Option[WikiUser]): Boolean = sign == signature
 }
 
 
