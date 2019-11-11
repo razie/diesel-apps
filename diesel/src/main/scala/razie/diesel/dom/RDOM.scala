@@ -237,10 +237,10 @@ object RDOM {
     /** nicer type-aware toString */
     def asString (value:Any) = {
       val res = value match {
-        case s: Map[_, _] => js.tojsons(s, 2).trim
+        case s: Map[_, _] => if(s.isEmpty) "{}" else js.tojsons(s, 2).trim
         case s: List[_] => js.tojsons(s, 0).trim
-        case s: JSONObject => s.toString(2).trim
-        case s: JSONArray => s.toString.trim
+        case s: JSONObject => if(s.length() == 0) "{}" else s.toString(2).trim
+        case s: JSONArray => if(s.length() == 0) "[]" else s.toString.trim
         case r: Range => {
           "" +
               (if(r.start == scala.Int.MinValue) "" else r.start.toString) +
