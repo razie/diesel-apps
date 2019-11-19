@@ -32,6 +32,8 @@ abstract class EMap extends CanHtml with HasPosition {
 
   def cls:String
   def met:String
+
+  def indent(indentLevel:Int, s:String = "&nbsp;&nbsp;") = Range(0, indentLevel+1).map(x=> s).mkString
 }
 
 /** special case of map, just assigning exprs, no message decomp
@@ -70,9 +72,9 @@ case class EMapPas(attrs: List[PAS], arrow:String="=>", cond: Option[EIf] = None
   }
 
   //  override def toHtml = "<b>=&gt;</b> " + ea(cls, met) + " " + attrs.map(_.toHtml).mkString("(", ",", ")")
-  override def toHtml = """<span class="glyphicon glyphicon-arrow-right"></span> """ + cond.map(_.toHtml+" ").mkString + ea("", "") + " " + toHtmlPAttrs(attrs)
+  override def toHtml = indent(indentLevel) + """<span class="glyphicon glyphicon-arrow-right"></span> """ + cond.map(_.toHtml+" ").mkString + ea("", "") + " " + toHtmlPAttrs(attrs)
 
-  override def toString = "=> " + cond.map(_.toHtml+" ").mkString + ". " + attrs.mkString("(", ",", ")")
+  override def toString = indent(indentLevel, " ") + "=> " + cond.map(_.toHtml+" ").mkString + ". " + attrs.mkString("(", ",", ")")
 }
 
 /** mapping a message - a decomposition rule (right hand side of =>)
@@ -117,9 +119,9 @@ case class EMapCls(cls: String, met: String, attrs: Attrs, arrow:String="=>", co
   })
 
   //  override def toHtml = "<b>=&gt;</b> " + ea(cls, met) + " " + attrs.map(_.toHtml).mkString("(", ",", ")")
-  override def toHtml = """<span class="glyphicon glyphicon-arrow-right"></span> """ + cond.map(_.toHtml+" ").mkString + ea(cls, met) + " " + toHtmlAttrs(attrs)
+  override def toHtml = indent(indentLevel) + """<span class="glyphicon glyphicon-arrow-right"></span> """ + cond.map(_.toHtml+" ").mkString + ea(cls, met) + " " + toHtmlAttrs(attrs)
 
-  override def toString = "=> " + cond.map(_.toHtml+" ").mkString + cls + "." + met + " " + attrs.mkString("(", ",", ")")
+  override def toString = indent(indentLevel, " ") + "=> " + cond.map(_.toHtml+" ").mkString + cls + "." + met + " " + attrs.mkString("(", ",", ")")
 }
 
 object EMap {
