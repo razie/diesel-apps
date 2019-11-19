@@ -282,6 +282,40 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
             val arr = av.asArray
 
             val resArr = arr.filter {x=>
+              val res = if(b.isInstanceOf[LambdaFuncExpr]) {
+                val res = b.applyTyped(x)
+                res
+              } else {
+                // we populate an "x" or should it be "elem" ?
+                val sctx = new StaticECtx(List(P.fromTypedValue("x", x)), Some(ctx))
+                val res = b.applyTyped(x)(sctx)
+                res
+              }
+              Try {
+                res.calculatedTypedValue.asBoolean
+              }.getOrElse {
+                throw new DieselExprException("Not a boolean expression: " + res.calculatedTypedValue)
+              }
+            }
+
+            val finalArr = resArr
+            PValue(finalArr, WTypes.wt.ARRAY)
+          }
+
+          case _ => PValue(new DieselExprException("Can't do filter on: " + av), WTypes.wt.EXCEPTION)
+        }
+      }
+
+      case "exists" => {
+        val av = a.applyTyped(v).calculatedTypedValue
+
+        av.cType.name match {
+          case WTypes.ARRAY => {
+            val elementType = av.cType.subType
+
+            val arr = av.asArray
+
+            val resArr = arr.exists {x=>
                 val res = if(b.isInstanceOf[LambdaFuncExpr]) {
                   val res = b.applyTyped(x)
                   res
@@ -298,15 +332,15 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
               }
             }
 
-            val finalArr = resArr
-            PValue(finalArr, WTypes.wt.ARRAY)
+            PValue(resArr, WTypes.wt.BOOLEAN)
           }
 
-          case _ => throw new DieselExprException("Can't do filter on: " + av)
+//          case _ => throw new DieselExprException("Can't do exists on: " + av)
+          case _ => PValue(new DieselExprException("Can't do exists on: " + av), WTypes.wt.EXCEPTION)
         }
       }
 
-      case _ => PValue("[ERR unknown operator " + op + "]")
+      case _ => PValue("[ERR unknown operator " + op + "]", WTypes.wt.ERROR)
     }
 
     P("", res.asString, res.cType).copy(value = Some(res))

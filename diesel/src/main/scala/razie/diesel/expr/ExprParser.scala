@@ -24,6 +24,26 @@ trait ExprParser extends RegexParsers {
   // optional whiteSpace
   def ows = opt(whiteSpace)
 
+//  override val whiteSpace = """(\s|//.*|(?m)/\*(\*(?!/)|[^*])*\*/)+""".r
+
+//  def pComment: Parser[String] = "//.*".r  | "(?m)/\\*(\\*(?!/)|[^*])*\\*/)".r ^^ {
+//def pComment: Parser[String] = """(\s|//.*|(?m)/\*(\*(?!/)|[^*])*\*/)+""".r ^^ {
+  def pComment: Parser[String] = """(//.*|(?m)/\*(\*(?!/)|[^*])*\*/)+""".r ^^ {
+    case s => s
+  }
+
+  def optComment: Parser[String] = opt(whiteSpace ~> pComment) ^^ {
+    case s => s.mkString
+  }
+
+  def optComment2: Parser[String] = opt(pComment) ^^ {
+    case s => s.mkString
+  }
+
+  def optComment3: Parser[String] = opt(" *//.*".r) ^^ {
+    case s => s.mkString
+  }
+
   //
   //======================= MAIN: operator expressions and conditions ========================
   //
@@ -35,7 +55,7 @@ trait ExprParser extends RegexParsers {
   def expr2: Parser[Expr] = exprOR | pterm1
 
   private def opsAS: Parser[String] = "as"
-  private def opsMAP: Parser[String] = "map" | "flatMap" | "flatten" | "filter"
+  private def opsMAP: Parser[String] = "map" | "flatMap" | "flatten" | "filter" | "exists"
   private def opsOR: Parser[String] = "or" | "xor"
   private def opsAND: Parser[String] = "and"
   private def opsCMP: Parser[String] = ">" | "<" | ">=" | "<=" | "==" | "!=" | "~=" | "?=" | "is" | "not" | "contains"
@@ -124,15 +144,15 @@ trait ExprParser extends RegexParsers {
     case i ~ l => (i :: l).mkString(".")
   }
 
-  def qlident: Parser[List[String]] = qlidentDiesel | realmqlident
+  def qlident: Parser[List[String]] = qidentDiesel | qualifiedIdent
 
   // fix this somehow - these need to be accessed as this - they should be part of a "diesel" object with callbacks
-  def qlidentDiesel: Parser[List[String]] = "diesel." ~ ident ^^ {
-    case d ~ i => List(d+i)
+  def qidentDiesel: Parser[List[String]] = "diesel." ~ qualifiedIdent ^^ {
+    case d ~ i => d :: i
   }
 
   /** qualified idents, . notation, parsed as a list */
-  def realmqlident: Parser[List[String]] = ident ~ rep("." ~> ident) ^^ {
+  def qualifiedIdent: Parser[List[String]] = ident ~ rep("." ~> ident) ^^ {
     case i ~ l => i :: l
   }
 
@@ -273,7 +293,7 @@ trait ExprParser extends RegexParsers {
     * <> means it's a ref, not ownership
     * * means it's a list
     */
-  def pattr: Parser[RDOM.P] = " *".r ~> qident ~ optType ~ opt(" *~?= *".r ~> expr) ^^ {
+  def pattr: Parser[RDOM.P] = " *".r ~> qident ~ optType ~ opt(" *~?= *".r ~> expr) <~ optComment ^^ {
 
     case name ~ t ~ e => {
       val (dflt, ex) = e match {
@@ -303,7 +323,7 @@ trait ExprParser extends RegexParsers {
   /**
     * optional attributes
     */
-  def attrs: Parser[List[RDOM.P]] = " *\\(".r ~> ows ~> repsep(pattr, ows ~ "," ~ ows) <~ ows <~ ")"
+  def attrs: Parser[List[RDOM.P]] = " *\\(".r ~> ows ~> repsep(pattr, "\\s*,\\s*".r ~ optComment) <~ ows <~ ")"
 
 
   //
