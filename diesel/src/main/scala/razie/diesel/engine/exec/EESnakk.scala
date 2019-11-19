@@ -190,8 +190,15 @@ class EESnakk extends EExecutor("snakk") with Logging {
 
       // add the resulting values
       eres += strs.map { x =>
-        ctx.put(x)
-        EVal(x).withPos(pos)
+        if(x.isOfType(WTypes.wt.EXCEPTION)) {
+          if(x.value.isDefined)
+            EError(x.dflt).withPos(pos)
+          else
+            new EError(x.dflt, x.value.get.asInstanceOf[Throwable]).withPos(pos)
+        } else {
+          ctx.put(x)
+          EVal(x).withPos(pos)
+        }
       }
 
       // 3. look for stiching dieselTrace

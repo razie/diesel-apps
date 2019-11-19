@@ -7,9 +7,11 @@ package razie.diesel.engine
 
 import java.util.regex.Pattern
 import razie.Snakk
+import razie.diesel.Diesel
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.expr.{AExprIdent, Expr}
+import razie.diesel.model.DieselMsg
 import razie.xp.JsonOWrapper
 import scala.Option.option2Iterable
 import scala.util.Try
@@ -30,9 +32,12 @@ class EContent(
   def asJsonPayload = {
     // sometimes you get empty
     val b = if (body.length > 0) body else "{}"
-    if(b.trim.startsWith("{")) P.fromTypedValue("payload", b, WTypes.JSON)
-    else if(b.trim.startsWith("[")) P.fromTypedValue("payload", b, WTypes.ARRAY)
-    else throw new IllegalArgumentException("JSON object should start with { or [ but it starts with: " + body.take(5))
+    if(b.trim.startsWith("{")) P.fromTypedValue(Diesel.PAYLOAD, b, WTypes.JSON)
+    else if(b.trim.startsWith("[")) P.fromTypedValue(Diesel.PAYLOAD, b, WTypes.ARRAY)
+    else {
+      val ex = new IllegalArgumentException("JSON object should start with { or [ but it starts with: " + body.take(5))
+      P.fromTypedValue(Diesel.PAYLOAD, ex, WTypes.wt.EXCEPTION)
+    }
   }
 
   import razie.Snakk._

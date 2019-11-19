@@ -190,6 +190,7 @@ object RDOM {
         case i: Long =>        P(name, asString(i), WTypes.wt.NUMBER).withValue(i, WTypes.wt.NUMBER)
         case f: Float =>       P(name, asString(f), WTypes.wt.NUMBER).withValue(f, WTypes.wt.NUMBER)
         case d: Double =>      P(name, asString(d), WTypes.wt.NUMBER).withValue(d, WTypes.wt.NUMBER)
+        case d: Throwable =>   P(name, d.getMessage, WTypes.wt.EXCEPTION).withValue(d, WTypes.wt.EXCEPTION)
 
         case i: java.lang.Integer =>
           P(name, asString(i), WTypes.wt.NUMBER).withValue(i.longValue, WTypes.wt.NUMBER)
@@ -215,11 +216,14 @@ object RDOM {
             case WType(WTypes.ARRAY,_,_,_, _) => P(name, s, expectedType).withCachedValue(js.fromArray(new JSONArray(s)), expectedType, s)
             case WType(WTypes.BOOLEAN,_,_,_, _) => P(name, s, expectedType).withCachedValue(s.toBoolean, expectedType, s)
             case WType(WTypes.NUMBER,_,_,_, _) => P(name, s, expectedType).withCachedValue(s.toFloat, expectedType, s)
+            case WType(WTypes.STRING,_,_,_, _) => P(name, s, expectedType).withCachedValue(s, expectedType, s)
+            case WType(WTypes.EXCEPTION,_,_,_, _) => P(name, s, expectedType)
             case _ if expectedType.trim.length > 0 =>
               throw new DieselExprException(s"$expectedType is an unknown type")
-            case _ => P(name, asString(s), WTypes.wt.STRING)
+            case _ => P(name, s, WTypes.wt.STRING)
           }
         }
+
 
         // java object - it's better to create this yourself
         case x@_ if expectedType == WTypes.OBJECT => P(name, "", expectedType).withValue(v, expectedType)
@@ -292,8 +296,8 @@ object RDOM {
     def isRef = ttype.isRef
 
     /** check if this value or def is of type t */
-    def isOfType(t:String) = {
-      value.map(_.contentType == t).getOrElse(ttype == t)
+    def isOfType(t:WType) = {
+      value.map(_.cType == t).getOrElse(ttype == t)
     }
 
     /** proper way to get the value */

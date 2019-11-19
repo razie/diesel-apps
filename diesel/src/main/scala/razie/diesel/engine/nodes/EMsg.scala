@@ -319,4 +319,9 @@ object EMsg {
     EMsg(ee, aa)
   }
 
+  def apply(ea:String, attrs:Attrs) : EMsg = {
+    val REGEX(ee, aa) = ea
+    EMsg(ee, aa, attrs)
+  }
+
 }

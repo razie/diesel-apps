@@ -90,9 +90,9 @@ class EECtx extends EExecutor(EECtx.CTX) {
         // l can be a constant with another parm name OR the actual array
         val list = {
           val l = ctx.getRequiredp("list").calculatedP
-          if(l.isOfType(WTypes.ARRAY)) {
+          if(l.isOfType(WTypes.wt.ARRAY)) {
             l
-          } else if(l.isOfType(WTypes.STRING)) {
+          } else if(l.isOfType(WTypes.wt.STRING)) {
             ctx.getRequiredp(l.currentStringValue)
           } else {
             P("", "", WTypes.wt.UNDEFINED) //throw new IllegalArgumentException(s"Can't source input list: $ctxList")
@@ -133,9 +133,9 @@ class EECtx extends EExecutor(EECtx.CTX) {
         // l can be a constant with another parm name OR the actual array
         val list = {
           val l = ctx.getRequiredp("list").calculatedP
-          if(l.isOfType(WTypes.ARRAY)) {
+          if(l.isOfType(WTypes.wt.ARRAY)) {
             l
-          } else if(l.isOfType(WTypes.STRING)) {
+          } else if(l.isOfType(WTypes.wt.STRING)) {
             ctx.getRequiredp(l.currentStringValue)
           } else {
             info = EWarning(s"Can't source input list - what type is it? ${l}") :: info
