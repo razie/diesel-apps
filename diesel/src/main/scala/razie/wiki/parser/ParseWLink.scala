@@ -16,11 +16,12 @@ import razie.wiki.model._
 object ParseWLink {
   val SEARCH = """search:?([^]]*)""".r
   val SEARCH2 = """q:?([^]]*)""".r
+  val MSG = """msg:([^]]*)""".r
   val LIST = """list:?([^.]*\.)?([^]]*)""".r
   val ALIAS = """alias:([^\]]*)""".r
   val NORMAL = """(rk:)?([^|\]]*)([ ]*[|][ ]*)?([^]]*)?""".r       // [[rk.Topic:name]]
-  val ROLE = """([^:]*::)?([^|\]]*)([ ]*[|][ ]*)?([^]]*)?""".r     // [[enabler::rk.Topic:name]]
   val BROWSE = """browse:([^|\]]*)([ ]*[|][ ]*)?([^]]*)?""".r      // [[browse:rk.Topic:name]]
+  val ROLE = """([^:]*::)?([^|\]]*)([ ]*[|][ ]*)?([^]]*)?""".r     // [[enabler::rk.Topic:name]]
 
   def apply(realm:String, repf: (String => String), input: String): Option[(String, Option[ILink])] = {
     var i: Option[ILink] = None
@@ -32,6 +33,9 @@ object ParseWLink {
 
       case SEARCH2(nm) =>
         Some("""<a href="http://google.com/search?q=""" + Enc.toUrl(nm) + "\">" + nm + "</a>", None)
+
+      case MSG(ea) =>
+        Some(s"""<a href="/diesel/msg/$ea">$ea</a>""", None)
 
       case LIST(newr, cat) => Some({
         val newRealm =
