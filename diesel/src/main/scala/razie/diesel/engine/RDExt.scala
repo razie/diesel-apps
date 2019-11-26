@@ -14,7 +14,7 @@ import razie.diesel.expr.ECtx
 import razie.tconf.EPos
 import razie.wiki.Enc
 import scala.collection.mutable
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.{HashMap, ListBuffer}
 
 /** accumulate results and infos and errors */
 class InfoAccumulator (var eres : List[Any] = Nil) {
@@ -37,19 +37,19 @@ object RDExt extends Logging {
 
   /** parse from/to json utils */
   object DieselJsonFactory {
-    private def sm(x:String, m:Map[String, Any]) : String =
+    private def sm(x:String, m:collection.Map[String, Any]) : String =
       if(m.contains(x)) m(x).asInstanceOf[String] else ""
 
-    def fromj (o:Map[String, Any]) : Any = {
+    def fromj (o:scala.collection.Map[String, Any]) : Any = {
       def s(x:String)  : String = sm(x, o)
-      def l(x:String) = if(o.contains(x)) o(x).asInstanceOf[List[_]] else Nil
+      def l(x:String) = if(o.contains(x)) o(x).asInstanceOf[collection.Seq[_]] else Nil
 
       def parms (name:String) = l(name).collect {
-        case m:Map[_, _] => P(
-          sm("name",m.asInstanceOf[Map[String, Any]]),
-          sm("value",m.asInstanceOf[Map[String, Any]])
+        case m:collection.Map[_, _] => P(
+          sm("name",  m.asInstanceOf[collection.Map[String, Any]]),
+          sm("value", m.asInstanceOf[collection.Map[String, Any]])
         )
-      }
+      }.toList
 
       if(o.contains("class")) s("class") match {
         case "EMsg" => EMsg(
@@ -59,20 +59,20 @@ object RDExt extends Logging {
           s("arch"),
           parms("ret"),
           s("stype")
-        ).withPos(if(o.contains("pos")) Some(new EPos(o("pos").asInstanceOf[Map[String, Any]])) else None)
+        ).withPos(if(o.contains("pos")) Some(new EPos(o("pos").asInstanceOf[collection.Map[String, Any]])) else None)
 
         case "EVal" => EVal (P(
           s("name"), s("value")
-        )).withPos(if(o.contains("pos")) Some(new EPos(o("pos").asInstanceOf[Map[String, Any]])) else None)
+        )).withPos(if(o.contains("pos")) Some(new EPos(o("pos").asInstanceOf[collection.Map[String, Any]])) else None)
 
         case "DomAst" => {
           val c = l("children").collect {
-            case m:Map[_, _] => fromj(m.asInstanceOf[Map[String, Any]]).asInstanceOf[DomAst]
+            case m:collection.Map[_, _] => fromj(m.asInstanceOf[collection.Map[String, Any]]).asInstanceOf[DomAst]
           }
 
           val v = o("value") match {
             case s:String => s
-            case m : Map[_,_] => DieselJsonFactory.fromj(m.asInstanceOf[Map[String, Any]])
+            case m : collection.Map[_,_] => DieselJsonFactory.fromj(m.asInstanceOf[collection.Map[String, Any]])
             case x@_ => x.toString
           }
 
@@ -89,9 +89,9 @@ object RDExt extends Logging {
     }
 
     // parse a DieselTrace
-    def trace (o:Map[String, Any]) : DieselTrace = {
+    def trace (o:collection.Map[String, Any]) : DieselTrace = {
       DieselTrace (
-        fromj (o("root").asInstanceOf[Map[String,Any]]).asInstanceOf[DomAst],
+        fromj (o("root").asInstanceOf[collection.Map[String,Any]]).asInstanceOf[DomAst],
         o.getOrElse("node", "").toString,
         o.getOrElse("engineId", "").toString,
         o.getOrElse("app", "").toString,

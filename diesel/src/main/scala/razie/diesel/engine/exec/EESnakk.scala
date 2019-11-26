@@ -21,7 +21,7 @@ import razie.wiki.Enc
 import razie.{Logging, js}
 import scala.Option.option2Iterable
 import scala.collection.mutable
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.{HashMap, ListBuffer}
 
 /** executor for snakking REST APIs */
 class EESnakk extends EExecutor("snakk") with Logging {
@@ -205,7 +205,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
       if (reply.isJson && reply.body.contains("dieselTrace")) {
         val mres = js.parse(response)
         if (mres.contains("dieselTrace")) {
-          val trace = DieselJsonFactory.trace(mres("dieselTrace").asInstanceOf[Map[String, Any]])
+          val trace = DieselJsonFactory.trace(mres("dieselTrace").asInstanceOf[collection.Map[String, Any]])
           eres += trace
         }
       }
@@ -392,7 +392,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
 /** snakk REST and formatting/parsing utilities */
 object EESnakk {
 
-  private def trimmed(s:String, len:Int = 2000) = (if(s.length > len) s"(>$len):\n" else "\n") + s.take(len)
+  private def trimmed(s:String, len:Int = 2000) = (if(s != null && s.length > len) s"(>$len):\n" else "\n") + s.take(len)
   def html(s:String, len:Int = 2000) = Enc.escapeHtml(trimmed(s, len))
 
   /** parse a template into a SNakkCall
@@ -516,11 +516,11 @@ object EESnakk {
   }
 
   def httpOptions (attrs:Attrs)(implicit ctx: ECtx) =
-    attrs.find(_.name == "snakkHttpOptions").map(_.calculatedP).flatMap(_.value).map(_.asJson).getOrElse(Map.empty)
+    attrs.find(_.name == "snakkHttpOptions").map(_.calculatedP).flatMap(_.value).map(_.asJson.toMap).getOrElse(Map.empty)
 
   // flatten the options and add to filteredAttrs/headers - that's convention with Comms
   def snakkHttpOptions (attrs:Attrs)(implicit ctx: ECtx) = {
-    val httpOptions = attrs.find(_.name == "snakkHttpOptions").map(_.calculatedP).flatMap(_.value).map(_.asJson).getOrElse(Map.empty)
+    val httpOptions = attrs.find(_.name == "snakkHttpOptions").map(_.calculatedP).flatMap(_.value).map(_.asJson.toMap).getOrElse(Map.empty)
     var filteredAttrs = attrs.filter(_.name != "snakkHttpOptions")
 
     httpOptions.map {t=>

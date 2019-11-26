@@ -20,9 +20,8 @@ object SimplestFlow {
   val specs = List(
     TextSpec ( "spec1",
       """
-$when home.guest_arrived(name) => lights.on
-
-$when home.guest_arrived(name=="Jane") => chimes.welcome(name="Jane")
+when home.guest_arrived(name) => lights.on
+when home.guest_arrived(name=="Jane") => chimes.welcome(name="Jane")
       """.stripMargin
     ),
 

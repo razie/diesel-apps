@@ -55,7 +55,7 @@ class JMapFoldingContext[T <: DSpec, U <: DUser](val we: Option[T],
   /** resolve a name a.b.c in a given context, for simple expressions */
   private def ex(m: Map[String, Any], terms: Array[String]): Option[String] =
     if (terms.size > 0 && m.contains(terms(0))) m(terms(0)) match {
-      case m: Map[_, _] if terms.size > 1 =>
+      case m: collection.Map[_, _] if terms.size > 1 =>
         ex(m.asInstanceOf[Map[String, Any]], terms.drop(1))
       case s: String  => Some(s)
       case l: List[_] => Some(l.mkString)

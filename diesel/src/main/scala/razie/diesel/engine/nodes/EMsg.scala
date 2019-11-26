@@ -137,7 +137,7 @@ case class EMsg(
       }
 
   /** find the spec and get its pos */
-  private def specPos: Option[EPos] = {
+  def specPos: Option[EPos] = {
     // here is where you decide what to show: $msg (spec) or $when (rulePos)
     rulePos orElse spec.flatMap(_.pos)
   }

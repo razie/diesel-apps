@@ -5,9 +5,11 @@
   **/
 package razie.tconf
 
+import scala.collection.mutable.HashMap
+
 /** position of an element - reference where the item was defined, so we can scroll back to it */
 case class EPos(wpath: String, line: Int, col: Int) {
-  def this(o: Map[String, Any]) =
+  def this(o: scala.collection.Map[String, Any]) =
     this(
       o.getOrElse("wpath", "").toString,
       o.getOrElse("line", "0").toString.toInt,

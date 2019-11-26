@@ -98,7 +98,7 @@ object WTypes {
   /** find the simple type of value, by type */
   def typeOf (x:Any) = {
     val t = x match {
-      case m: Map[_, _] => wt.JSON
+      case m: collection.Map[_, _] => wt.JSON
       case s: String => wt.STRING
       case i: Int => wt.NUMBER
       case i: Long => wt.NUMBER
@@ -154,6 +154,18 @@ object WTypes {
 
   // todo deprecate when typecast not needed
 //  def apply(wt:WType):WType = wt
+
+  def mkString (t:WType, classLink:String=>String):String = {
+    val col = (if (t.name.isEmpty) "" else ":" + (if (t.isRef) "<>" else ""))
+    var res = if (t.schema == WTypes.UNKNOWN) col + classLink(t.name)
+    else if (t.name == WTypes.OBJECT || t.name == WTypes.JSON) col + classLink(t.schema) + "(" + t.name + ")"
+    else col + classLink(t.name) + (if (t.schema == WTypes.UNKNOWN) "" else "(" + t.schema + ")")
+
+    res = res + t.wrappedType.map("[" + classLink(_) + "]").mkString
+    res = res + t.mime.map("[" + _ + "]").mkString
+    res
+  }
+
 }
 
 /** an actual type, with a schema and a contained type
@@ -162,10 +174,10 @@ object WTypes {
   *
   * @param name is the WType
   * @param schema is either a DOMType or some indication of a schema in context
-  * @param subType is T in A[T]
+  * @param wrappedType is T in A[T]
   * @param mime is an optional precise mime to be represented in
   */
-case class WType (name:String, schema:String = WTypes.UNKNOWN, subType:Option[String]=None, mime:Option[String]=None, isRef:Boolean=false) {
+case class WType (name:String, schema:String = WTypes.UNKNOWN, wrappedType:Option[String]=None, mime:Option[String]=None, isRef:Boolean=false) {
 
   override def equals(obj: Any) = {
     obj match {
@@ -180,17 +192,7 @@ case class WType (name:String, schema:String = WTypes.UNKNOWN, subType:Option[St
   def withMime (s:Option[String]) = copy(mime=s)
   def withRef (b:Boolean) = copy(isRef=b)
 
-  override def toString = {
-    val col = if (name.isEmpty) "" else ":" + (if(isRef) "<>" else "")
-
-    var res = if(schema == WTypes.UNKNOWN) col+name
-    else if(name == WTypes.OBJECT && schema != WTypes.UNKNOWN) schema
-    else name + (if(schema == WTypes.UNKNOWN) "" else "("+schema+")")
-
-    res = res + subType.map("["+ _ +"]").mkString
-    res = res + mime.map("["+ _ +"]").mkString
-    res
-  }
+  override def toString = WTypes.mkString(this, identity)
 
   def isEmpty = name.isEmpty
   def nonEmpty = name.nonEmpty

@@ -171,7 +171,7 @@ class REntity[T <: { def _id: ObjectId }](implicit m: Manifest[T]) { this: T =>
   // had to copy this
   implicit def toroa(id: ObjectId) = new RMongo.as(id)
 
-  def toJsonNice = razie.js.tojsons(razie.js.parse(toJson))
+  def toJsonNice = razie.js.tojsons(razie.js.parse(toJson), 1)
   def toJson = grater[T].asDBObject(this).toString
   def grated = grater[T].asDBObject(this)
 

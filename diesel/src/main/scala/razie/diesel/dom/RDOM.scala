@@ -12,6 +12,7 @@ import razie.diesel.engine.{DomEngine, EContent}
 import razie.diesel.expr._
 import razie.js
 import razie.wiki.Enc
+import scala.collection.mutable.HashMap
 import scala.concurrent.Future
 
 /**
@@ -26,17 +27,6 @@ object RDOM {
   class CM // abstract Class Member
 
   private def classLink (s:String):String = s"""<b><a href="/wikie/show/Category:$s">$s</a></b>"""
-
-  private def classLink (t:WType):String = {
-      val col = if (t.name.isEmpty) "" else ":" + (if(t.isRef) "<>" else "")
-      var res = if(t.schema == WTypes.UNKNOWN) col+classLink(t.name)
-      else if(t.name == WTypes.OBJECT && t.schema != WTypes.UNKNOWN) t.schema
-      else classLink(t.name) + (if(t.schema == WTypes.UNKNOWN) "" else "("+t.schema+")")
-
-      res = res + t.subType.map("["+ classLink(_) +"]").mkString
-      res = res + t.mime.map("["+ _ +"]").mkString
-      res
-  }
 
   /** represents a Class
     *
@@ -129,14 +119,14 @@ object RDOM {
     /** @deprecated */
     def contentType = cType.name
 
-    def asObject : Map[String,Any] = asJson
+    def asObject : collection.Map[String,Any] = asJson
 
-    def asJson : Map[String,Any] = {
+    def asJson : collection.Map[String,Any] = {
       if (value.isInstanceOf[String]) razie.js.parse(value.toString)
-      else value.asInstanceOf[Map[String, Any]]
+      else value.asInstanceOf[collection.Map[String, Any]]
     }
 
-    def asArray : List[Any] = value.asInstanceOf[List[Any]]
+    def asArray : collection.Seq[Any] = value.asInstanceOf[collection.Seq[Any]]
 
     def asRange : Range = value.asInstanceOf[Range]
 
@@ -184,6 +174,15 @@ object RDOM {
 
     /** construct proper typed values */
     def fromTypedValue(name:String, v:Any, expectedType:WType=WTypes.wt.UNKNOWN):P = {
+
+      // like an orElse - important to preserve higher types info from expected
+      def expOrElse(wt:WType) = if (expectedType == WTypes.wt.UNKNOWN) wt else {
+        if(expectedType.name != wt.name)
+          throw new DieselExprException(s"Expected types don't match: $expectedType vs $wt")
+
+        expectedType
+      }
+
       val res = v match {
         case i: Boolean =>     P(name, asString(i), WTypes.wt.BOOLEAN).withValue(i, WTypes.wt.BOOLEAN)
         case i: Int =>         P(name, asString(i), WTypes.wt.NUMBER).withValue(i, WTypes.wt.NUMBER)
@@ -203,13 +202,14 @@ object RDOM {
         case i: java.lang.Long =>
           P(name, asString(i), WTypes.wt.NUMBER).withValue(i.longValue, WTypes.wt.NUMBER)
 
-          // the "" dflt will force usage of value
-        case s: Map[_, _] =>   P(name, "", WTypes.wt.JSON).withValue(s, WTypes.wt.JSON)
-        case s: List[_] =>     P(name, "", WTypes.wt.ARRAY).withValue(s, WTypes.wt.ARRAY)
-        case s: JSONObject =>  P(name, "", WTypes.wt.JSON).withValue(js.fromObject(s), WTypes.wt.JSON)
-        case s: JSONArray =>   P(name, "", WTypes.wt.ARRAY).withValue(js.fromArray(s), WTypes.wt.ARRAY)
-
+          // must be before Seq
         case r: Range =>       P(name, asString(r), WTypes.wt.RANGE).withValue(r, WTypes.wt.RANGE)
+        // the "" dflt will force usage of value
+        case s: collection.Map[_, _] =>   P(name, "", expOrElse(WTypes.wt.JSON)).withValue(s, expOrElse(WTypes.wt.JSON))
+        case s: collection.Seq[_] =>     P(name, "", expOrElse(WTypes.wt.ARRAY)).withValue(s, expOrElse(WTypes.wt.ARRAY))
+        case s: JSONObject =>  P(name, "", expOrElse(WTypes.wt.JSON)).withValue(js.fromObject(s), expOrElse(WTypes.wt.JSON))
+        case s: JSONArray =>   P(name, "", expOrElse(WTypes.wt.ARRAY)).withValue(js.fromArray(s), expOrElse(WTypes.wt.ARRAY))
+
         case s: String =>      {
           expectedType match {
             case WType(WTypes.JSON,_,_,_, _)  => P(name, s, expectedType).withCachedValue(js.fromObject(new JSONObject(s)), expectedType, s)
@@ -241,16 +241,18 @@ object RDOM {
     /** nicer type-aware toString */
     def asString (value:Any) = {
       val res = value match {
-        case s: Map[_, _] => if(s.isEmpty) "{}" else js.tojsons(s, 2).trim
-        case s: List[_] => js.tojsons(s, 0).trim
-        case s: JSONObject => if(s.length() == 0) "{}" else s.toString(2).trim
-        case s: JSONArray => if(s.length() == 0) "[]" else s.toString.trim
+        case s: HashMap[_, _] => if(s.isEmpty) "{}" else js.tojsons(s, 2).trim
+          // this must be before Seq
         case r: Range => {
           "" +
               (if(r.start == scala.Int.MinValue) "" else r.start.toString) +
               ".." +
               (if(r.end == scala.Int.MaxValue) "" else r.end.toString)
         }
+        case s: collection.Map[_, _] => if(s.isEmpty) "{}" else js.tojsons(s, 2).trim
+        case s: collection.Seq[_] => js.tojsons(s, 0).trim
+        case s: JSONObject => if(s.length() == 0) "{}" else s.toString(2).trim
+        case s: JSONArray => if(s.length() == 0) "[]" else s.toString.trim
         case x@_ => x.toString
       }
 
@@ -402,7 +404,7 @@ object RDOM {
     private def typeHtml(s:WType) = {
       s.name.toLowerCase match {
         case "string" | "number" | "date" => s"<b>$s</b>"
-        case _ => classLink(s)
+        case _ => WTypes.mkString(s, classLink)
       }
     }
   }
@@ -433,13 +435,20 @@ object RDOM {
         val r = new BCMP2(in.valExpr, pm.op, pm.valExpr).bapply("").value
 
         // for regex matches, use each capture group and set as parm in context
-        if (pm.op == "~=") {
+        if (r && pm.op == "~=") {
           // extract parms
           val a = in.valExpr.apply("")
           val b = pm.valExpr.apply("")
           val groups = EContent.extractRegexParms(b.toString, a.toString)
 
           groups.foreach(t => ctx.put(P(t._1, t._2)))
+        } else if (r && pm.op == "~path") {
+          // extract parms
+          val a = in.valExpr.apply("")
+          val b = pm.valExpr.apply("")
+          val (is, groups) = EContent.extractPathParms(a.toString, b.toString)
+
+          if(is) groups.foreach(t => ctx.put(P(t._1, t._2)))
         }
 
         if (!r) {

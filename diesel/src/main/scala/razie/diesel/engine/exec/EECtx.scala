@@ -111,7 +111,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
             razie.js.parse(s"{ list : ${list.calculatedValue} }").apply("list")
 
         x match {
-          case l: List[Any] => {
+          case l: collection.Seq[Any] => {
             val nat = in.attrs.filter(e => !Array("list", "item", "msg").contains(e.name))
             val res = l.map { item: Any =>
               val itemP = P.fromTypedValue(parm("item").get.currentStringValue, item)
@@ -147,7 +147,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         val itemName = parm("item").get.currentStringValue
 
         razie.js.parse(s"{ list : ${list.currentStringValue} }").apply("list") match {
-          case l: List[Any] => {
+          case l: collection.Seq[Any] => {
             // passing any other parameters that were given to foreach
             val nat = in.attrs.filter(e => !Array("list", "item", "msg").contains(e.name))
 
@@ -155,10 +155,10 @@ class EECtx extends EExecutor(EECtx.CTX) {
               // for each item in list, create message
               val itemP = P.fromTypedValue(itemName, item)
               EMsg(e, m, itemP :: nat)
-            } ::: info
+            }.toList ::: info
           }
           case x@_ => {
-            List(EError("list was not a list", x.getClass.getName) :: info)
+            List(EError("value to iterate on was not a list", x.getClass.getName) :: info)
           }
         }
       }

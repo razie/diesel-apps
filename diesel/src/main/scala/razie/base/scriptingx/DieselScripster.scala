@@ -73,23 +73,23 @@ object DieselScripster extends Logging {
             val m = v.asInstanceOf[Map[_, _]]
 
             // if we have complex values, this won't work... so default back to string
-            if(m.values.exists(_.isInstanceOf[List[_]]) ||
-               m.values.exists(_.isInstanceOf[Map[_,_]])) {
+            if(m.values.exists(_.isInstanceOf[collection.Seq[_]]) ||
+               m.values.exists(_.isInstanceOf[collection.Map[_,_]])) {
               val ms = js.tojsons(m)
               expressions = expressions + s"${t._1} = $ms ;\n"
             } else
               bindings.put(t._1, js.toJava(v.asInstanceOf[Map[_, _]]))
           }
-          else if(v.isInstanceOf[List[_]]) {
-            val m = v.asInstanceOf[List[_]]
+          else if(v.isInstanceOf[collection.Seq[_]]) {
+            val m = v.asInstanceOf[collection.Seq[_]].toList
 
             // if we have complex values, this won't work... so default back to string
-            if (m.exists(_.isInstanceOf[List[_]]) ||
-                m.exists(_.isInstanceOf[Map[_, _]])) {
+            if (m.exists(_.isInstanceOf[collection.Seq[_]]) ||
+                m.exists(_.isInstanceOf[collection.Map[_, _]])) {
               val ms = js.tojsons(m, 0)
               expressions = expressions + s"${t._1} = $ms ;\n"
             } else
-              bindings.put(t._1, js.toJava(v.asInstanceOf[List[_]]))
+              bindings.put(t._1, js.toJava(m))
           }
           else
             bindings.put(t._1, v)

@@ -14,7 +14,7 @@ import razie.diesel.engine.exec.EESnakk
   * - you may or may not use quotes for names
   * -
   */
-case class JBlockExpr(ex: List[(String, Expr)]) extends Expr {
+case class JBlockExpr(ex: List[(String, Expr)], schema:Option[String]=None) extends Expr {
   val expr = "{" + ex.map(t=>t._1 + ":" + t._2.toString).mkString(",") + "}"
 
   override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).currentStringValue
@@ -43,10 +43,10 @@ case class JBlockExpr(ex: List[(String, Expr)]) extends Expr {
 
     // parse and clean it up so it blows up right here if invalid
     val j = new JSONObject(s"{$orig}")
-    P.fromTypedValue("", j, WTypes.JSON)
+    P.fromTypedValue("", j, getType)
   }
 
-  override def getType: WType = WTypes.wt.JSON
+  override val getType: WType = schema.map(WTypes.wt.JSON.withSchema).getOrElse(WTypes.wt.JSON)
 
   // replace ${e} with value
   def template(s: String)(implicit ctx: ECtx) = {

@@ -99,7 +99,7 @@ package object dom {
 //      }
 //    )
     else if (p.ttype == WTypes.JSON)
-      (t._1, t._2.calculatedTypedValue.asJson)
+      (t._1, t._2.calculatedTypedValue.asJson.toMap) // toMap is important to move from collections.Map to immutable.Map, otherwise this won't work
     else if (p.ttype == WTypes.ARRAY)
       (t._1, t._2.calculatedTypedValue.asArray)
     else

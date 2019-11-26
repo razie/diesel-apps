@@ -201,9 +201,9 @@ case class DomAst(
   /** as opposed to toHtml, this will produce an html that can be displayed in any page, not just the fiddle */
   def toHtmlInPage = toHtml.replaceAllLiterally("weref", "wefiddle")
 
-  type HasJ = {def toj : Map[String,Any]}
+  type HasJ = {def toj : collection.Map[String,Any]}
 
-  def toj : Map[String,Any] = {
+  def toj : collection.Map[String,Any] = {
     Map (
       "class" -> "DomAst",
       "kind" -> kind,
