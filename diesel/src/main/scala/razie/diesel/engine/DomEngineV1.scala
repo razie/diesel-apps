@@ -190,7 +190,9 @@ class DomEngineV1(
     // 1. engine message?
     var mocked = expandEngineEMsg(a, n)
 
-    // 1. if not, look for mocks
+    var mocksApplied = HashMap[String, EMock]()
+
+    // 2. if not, look for mocks
     if (settings.mockMode) {
       (root.collect {
         // mocks from story AST
@@ -210,19 +212,32 @@ class DomEngineV1(
     // 2. rules
     var ruled = false
     // no engine messages fit, so let's find rules
-    // I run rules even if mocks fit - mocking mocks only going out, not decomposing
     // todo - WHY? only some systems may be mocked ???
     if ((true || !mocked) && !settings.simMode) {
-      val matchingRules = rules.filter(_.e.test(n))
+      var matchingRules = rules.filter(_.e.test(n))
       val exclusives = HashMap[String, ERule]()
 
-      matchingRules.map { r =>
+      // use fallbacks?
+      if (matchingRules.isEmpty)
+        matchingRules =
+            rules
+                .filter(_.arch contains "fallback")
+                .filter(_.e.test(n, None, true))
+
+      matchingRules
+          .filter {r=>
+            // only apply the rules when mocks did not apply for the same key
+              // todo use the mock tag query on the origin of the rules
+            val exKey = r.e.cls + "." + r.e.met
+            !mocksApplied.contains(exKey)
+          }.map { r =>
         // each matching rule
         ruled = true
 
-        //filter out exclusives
+        //filter out exclusives - if other rules with the same name applied, the exclusive will kick out the others
         val exKey = r.e.cls + "." + r.e.met
-        if(exclusives.contains(exKey)) {
+
+        if(exclusives.contains(exKey)) { // there's an exclusive for this - ignore it
           newNodes = newNodes :::
               DomAst(EInfo("rule excluded", exKey).withPos(r.pos), AstKinds.TRACE) ::
               Nil
