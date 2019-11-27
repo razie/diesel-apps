@@ -236,6 +236,12 @@ class DomEngineV1(
       }
     }
 
+    // any generated sub-messages go in sequence - important as many mocks and rules may apply
+    // side-effecting
+    if(newNodes.size > 1) newNodes.drop(1).foldLeft(newNodes.head)((a,b)=> {
+      b.withPrereq(List(a.id))
+    })
+
     // 3. executors
 
     // no mocks, let's try executing it

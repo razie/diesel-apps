@@ -83,7 +83,8 @@ case class DomAst(
 
   /** depends on other nodes by IDs */
   def withPrereq (s:List[String]) = {
-    prereq = s ::: prereq
+    if(!prereq.contains(s))
+      prereq = s ::: prereq
     this
   }
 
