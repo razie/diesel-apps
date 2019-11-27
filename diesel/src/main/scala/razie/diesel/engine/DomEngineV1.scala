@@ -194,14 +194,34 @@ class DomEngineV1(
 
     // 2. if not, look for mocks
     if (settings.mockMode) {
-      (root.collect {
+      val exclusives = HashMap[String, ERule]()
+      var matchingRules = (root.collect {
         // mocks from story AST
         case d@DomAst(m: EMock, _, _, _) if m.rule.e.test(n) && a.children.isEmpty => m
       } ::: dom.moreElements.toList).collect {
         // todo perf optimize moreelements.toList above
         // plus mocks from spec dom
-        case m: EMock if m.rule.e.test(n) && a.children.isEmpty => {
+        case m: EMock if m.rule.e.test(n) && a.children.isEmpty => m
+      }
+
+      // todo do fallbacks for mocks, like in the rules?
+
+      matchingRules
+          .sortBy(0 - _.rule.arch.indexOf("exclusive")) // put excl first, so they execute and kick out others
+          .map {m=>
           mocked = true
+          val exKey = m.rule.e.cls + "." + m.rule.e.met
+          mocksApplied.put (exKey, m)
+
+          //filter out exclusives - if other rules with the same name applied, the exclusive will kick out the others
+          if(exclusives.contains(exKey)) { // there's an exclusive for this - ignore it
+            newNodes = newNodes :::
+              DomAst(EInfo("mock excluded", exKey).withPos(m.pos), AstKinds.TRACE) ::
+              Nil
+        } else {
+          if(m.rule.arch.contains("exclusive")) {
+            exclusives.put (m.rule.e.cls + "." + m.rule.e.met, m.rule) // we do exclusive per pattern
+          }
 
           // run the mock
           newNodes = newNodes ::: ruleDecomp(a, n, m.rule, ctx)
@@ -225,6 +245,7 @@ class DomEngineV1(
                 .filter(_.e.test(n, None, true))
 
       matchingRules
+          .sortBy(0 - _.arch.indexOf("exclusive")) // put excl first, so they execute and kick out others
           .filter {r=>
             // only apply the rules when mocks did not apply for the same key
               // todo use the mock tag query on the origin of the rules
