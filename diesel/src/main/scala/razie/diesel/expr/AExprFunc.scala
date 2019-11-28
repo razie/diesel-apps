@@ -77,7 +77,7 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
             val av = p.calculatedP
             p.calculatedTypedValue.cType.name match {
               case WTypes.ARRAY => {
-                val elementType = av.calculatedTypedValue.cType.subType
+                val elementType = av.calculatedTypedValue.cType.wrappedType
 
                 val arr = av.calculatedTypedValue.asArray.asInstanceOf[List[List[_]]]
                 val resArr = arr.flatMap { x =>

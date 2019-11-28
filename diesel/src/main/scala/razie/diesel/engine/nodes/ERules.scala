@@ -160,12 +160,15 @@ case class ExpectAssert(not: Boolean, exprs: List[BoolExpr]) extends CanHtml wit
 // a match case
 case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf] = None) extends CanHtml {
   // todo match also the object parms if any and method parms if any
-  def test(e: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
+  /** test if this rule should apply
+    * @param fallback if this is looking for fallbacks or not
+    */
+  def test(e: EMsg, cole: Option[MatchCollector] = None, fallback:Boolean = false)(implicit ctx: ECtx) = {
     if ("*" == cls || e.entity == cls || regexm(cls, e.entity)) {
       cole.map(_.plus(e.entity))
       if ("*" == met || e.met == met || regexm(met, e.met)) {
         cole.map(_.plus(e.met))
-        testA(e.attrs, attrs, cole) && cond.fold(true)(_.test(e.attrs, cole))
+        fallback || testA(e.attrs, attrs, cole) && cond.fold(true)(_.test(e.attrs, cole))
       } else false
     } else false
   }

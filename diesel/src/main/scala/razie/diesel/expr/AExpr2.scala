@@ -9,6 +9,7 @@ import org.json.JSONObject
 import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.dom._
 import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 import scala.util.Try
 import scala.util.parsing.json.JSONArray
 
@@ -89,7 +90,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
         val bv = b.applyTyped(v)
         (a, b) match {
           // json exprs are different, like cart + { item:...}
-          case (aei:AExprIdent, JBlockExpr(jb))
+          case (aei:AExprIdent, JBlockExpr(jb, _))
             if aei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) =>
             PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.wt.JSON)
 
@@ -119,7 +120,9 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
                av.ttype == WTypes.ARRAY) {
               val al = if(av.ttype == WTypes.ARRAY) av.calculatedTypedValue.asArray else List(av.calculatedTypedValue.value)
               val bl = if(bv.ttype == WTypes.ARRAY) bv.calculatedTypedValue.asArray else List(bv.calculatedTypedValue.value)
-              val res = al ::: bl
+              val res = new ListBuffer[Any]()
+              res.appendAll(al)
+              res.appendAll(bl)
               PValue(res, WTypes.wt.ARRAY)
            } else  if(bv.ttype == WTypes.JSON ||
                   av.ttype == WTypes.JSON) {
@@ -205,7 +208,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
       case "map" => {
         av.calculatedTypedValue.cType.name match {
           case WTypes.ARRAY => {
-            val elementType = av.calculatedTypedValue.cType.subType
+            val elementType = av.calculatedTypedValue.cType.wrappedType
 
             val arr = av.calculatedTypedValue.asArray
 
@@ -237,7 +240,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
       case "flatMap" => {
         av.calculatedTypedValue.cType.name match {
           case WTypes.ARRAY => {
-            val elementType = av.calculatedTypedValue.cType.subType
+            val elementType = av.calculatedTypedValue.cType.wrappedType
 
             val arr = av.calculatedTypedValue.asArray
 
@@ -277,7 +280,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
 
         av.cType.name match {
           case WTypes.ARRAY => {
-            val elementType = av.cType.subType
+            val elementType = av.cType.wrappedType
 
             val arr = av.asArray
 
@@ -311,7 +314,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
 
         av.cType.name match {
           case WTypes.ARRAY => {
-            val elementType = av.cType.subType
+            val elementType = av.cType.wrappedType
 
             val arr = av.asArray
 
@@ -404,15 +407,25 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
         val ax = res(k)
         ax match {
 
-          case al: List[_] => {
+          case al: collection.Seq[_] => {
             bv match {
                 // add lists
-              case bll: List[_] => res.put(k, al ::: bll)
-              case _            => res.put(k, al ::: bv :: Nil)
+              case bll: collection.Seq[_] => {
+                val l = new ListBuffer[Any]
+                l.appendAll(al)
+                l.appendAll(bll)
+                res.put(k, l)
+              }
+              case _ => {
+                val l = new ListBuffer[Any]
+                l.appendAll(al)
+                l.append(bv)
+                res.put(k, l)
+              }
             }
           }
 
-          case m: Map[_, _] => {
+          case m: collection.Map[_, _] => {
             // merge maps
             val mres = new mutable.HashMap[String, Any]()
             m.foreach { t =>
