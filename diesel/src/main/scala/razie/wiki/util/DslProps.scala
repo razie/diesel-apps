@@ -46,5 +46,12 @@ class DslProps (val we:Option[WikiPage], section:String, extra:Seq[(String,Strin
 
   def :: (other:DslProps) : DslProps =
     new DslProps (we, section, other.ipropSeq)
+
+  /** put and overwrite a property */
+  def put(name:String, value:String): Unit = {
+    ipropSeq = ipropSeq ++ Seq(name -> value)
+    iprops = ipropSeq.toMap[String,String]
+  }
+
 }
 
