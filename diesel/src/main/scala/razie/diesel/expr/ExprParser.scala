@@ -58,7 +58,7 @@ trait ExprParser extends RegexParsers {
   private def opsMAP: Parser[String] = "map" | "flatMap" | "flatten" | "filter" | "exists"
   private def opsOR: Parser[String] = "or" | "xor"
   private def opsAND: Parser[String] = "and"
-  private def opsCMP: Parser[String] = ">" | "<" | ">=" | "<=" | "==" | "!=" | "~=" | "?=" | "is" | "not" | "contains"
+  private def opsCMP: Parser[String] = ">" | "<" | ">=" | "<=" | "==" | "!=" | "~=" | "~path" | "?=" | "is" | "not" | "contains"
   private def opsPLUS: Parser[String] = "+" | "-" | "||" | "|"
   private def opsMULT: Parser[String] = "*" | "/"
 
@@ -117,9 +117,10 @@ trait ExprParser extends RegexParsers {
     numConst | boolConst | multilineStrConst | strConst | jnull |
     xpident |
     lambda | jsexpr2 | jsexpr1 |
+    exregex | eblock | jarray | jobj |
     scexpr2 | scexpr1 |
-    afunc | aidentaccess | aident | jsexpr4 |
-    exregex | eblock | jarray | jobj
+    afunc | aidentaccess | aident | jsexpr4
+//    exregex | eblock | jarray | jobj
 
   //
   //============================== idents
@@ -355,8 +356,9 @@ trait ExprParser extends RegexParsers {
   }
 
   // json object - sequence of nvp assignemnts separated with commas
-  def jobj: Parser[Expr] = "{" ~ ows ~> repsep(jnvp <~ ows, ",") <~ ows ~ "}" ^^ {
-    case li => JBlockExpr(li)
+  def jobj: Parser[Expr] = opt("new" ~ whiteSpace ~ qident ~ whiteSpace) ~ "{" ~ ows ~ repsep(jnvp <~ ows, ",") <~ ows ~ "}" ^^ {
+    case None ~ _ ~ _ ~ li => JBlockExpr(li)
+    case Some(a ~ _ ~ b ~ _) ~ _ ~ _ ~ li => JBlockExpr(li, Some(b))
   }
 
   // one json block nvp pair

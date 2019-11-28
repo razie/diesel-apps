@@ -415,7 +415,7 @@ trait DomParser extends ParserBase with ExprParser {
     case x => x
   }
 
-  val comOperators = "==|~=|!=|\\?=|>=|<=|>|<|contains|is|not".r
+  val comOperators = "==|~=|~path|!=|\\?=|>=|<=|>|<|contains|is|not".r
 
   def OPS1: Parser[String] = comOperators
 

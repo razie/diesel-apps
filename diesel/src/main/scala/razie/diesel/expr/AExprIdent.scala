@@ -214,6 +214,10 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
     this.copy(start=this.start, rest = this.rest.dropRight(1))
   }
 
+  def last = {
+    this.rest.takeRight(1).headOption
+  }
+
   def toStringCalc (implicit ctx:ECtx) = {
     start + rest.map(_.calculatedValue).mkString("[", "][", "]")
 //    rest.foldLeft(start)((a, b) => a + "." + b.calculatedValue)

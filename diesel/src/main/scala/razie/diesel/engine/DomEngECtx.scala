@@ -37,15 +37,17 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
   override def apply(name: String): String =
     overwritten
         .map(_.apply(name))
-        .orElse(ps(name))
+        .orElse(ps(name).map(_.currentStringValue))
         .orElse(pu(name).map(_.currentStringValue))
         .getOrElse(super.apply(name))
 
   override def getp(name: String): Option[P] =
     if(name.length > 0)
-      overwritten.flatMap(_.getp(name)).orElse(ps(name).map{v=>
-        P(name,v)
-      }).orElse(pu(name)).orElse(super.getp(name))
+      overwritten
+          .flatMap(_.getp(name))
+          .orElse(ps(name))
+          .orElse(pu(name))
+          .orElse(super.getp(name))
     else None
 
   override def put(p: P): Unit = overwritten.map(_.put(p)).getOrElse(super.put(p))
@@ -106,9 +108,8 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
   }
 
   /** source from settings - only if there's some value... otherwise base won't cascade */
-  private def ps(name:String) : Option[String] =
-    settings.postedContent.flatMap(_.get(name)).filter(_.length > 0)
-
+  private def ps(name:String) : Option[P] =
+    settings.postedContent.flatMap(_.getp(name))
 
   /** used for instance when perssisting a context - will overwrite the defautl */
   def overwrite(ctx: ECtx) =

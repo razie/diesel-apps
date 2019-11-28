@@ -14,6 +14,8 @@ import razie.diesel.expr.{AExprIdent, Expr}
 import razie.diesel.model.DieselMsg
 import razie.xp.JsonOWrapper
 import scala.Option.option2Iterable
+import scala.collection.mutable.{HashMap, ListBuffer}
+import scala.collection.parallel.mutable
 import scala.util.Try
 
 /** a REST request or response: content and type and processing thereof */
@@ -81,8 +83,10 @@ class EContent(
   }
 
   // todo don't like this
-  def get(name: String): Option[String] = {
-    (r \@@ name).toOption
+  def getp(name: String): Option[P] = {
+    (r \@@ name).toOption.filter(_.length > 0).map {v=>
+      P.fromSmartTypedValue(name, v)
+    }
   }
 
   /** name, default, expr
@@ -172,15 +176,49 @@ object EContent {
 
     val jrex = Pattern.compile(rex).matcher(body)
     val groups3 = if (jrex.find()) {
-    groupNames.map { n =>
+      groupNames.map { n =>
       {
         Try {
           (n, jrex.group(n))
         }.getOrElse((n, "not found"))
       }
-    }.toList
+      }.toList
     } else Nil
 
     groups3
   }
+
+  /** apply the path expr to body and extract any named groups */
+  def extractPathParms (incoming:String, path:String): (Boolean, List[(String,String)]) = {
+    // ? what's this?
+    val a = path.replaceFirst("\\?.*", "").split("/")
+    val b = incoming.replaceFirst("\\?.*", "").split("/")
+
+    var matched = true
+    var parms = new ListBuffer[(String,String)]()
+    var i = 0
+    val len = a.length min b.length
+    while (i < len && matched) {
+      val ai = a(i)
+      val bi = b(i)
+      if(ai == bi) matched = true
+      else if (ai.startsWith(":")) {
+        parms.append((ai.substring(1), bi))
+      } else if (i == a.length-1 && ai.startsWith("*")) {
+        parms.append((ai.substring(1), b.slice(i, b.length).mkString("/")))
+        // last one is path?
+        return (true, parms.toList)
+      } else {
+        return (false, Nil)
+      }
+      i += 1
+    }
+
+    // if lengths not matched, oops - the only way this works is with path* which was above
+    if(i < a.size || i < b.size)
+      matched = false
+
+    (matched, parms.toList)
+  }
 }
+

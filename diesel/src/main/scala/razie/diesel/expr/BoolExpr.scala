@@ -8,6 +8,7 @@ package razie.diesel.expr
 import razie.clog
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
+import razie.diesel.engine.EContent
 import scala.util.Try
 
 /** details about the result: what values were involved? */
@@ -118,7 +119,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
           }
 
           val cmpop = op match {
-            case "?=" | "==" | "!=" | "~=" | "like" | "<=" | ">=" | "<" | ">" => true
+            case "?=" | "==" | "!=" | "~=" | "~path" | "like" | "<=" | ">=" | "<" | ">" => true
             case _ => false
           }
 
@@ -135,6 +136,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
             case "?=" => a(in).toString.length >= 0 // anything with a default
             case "!=" => a(in) != b(in)
             case "~=" | "matches" => a(in).toString matches b(in).toString
+            case "~path" => EContent.extractPathParms(a(in).toString , b(in).toString)._1
             case "<=" => a(in).toString <= b(in).toString
             case ">=" => a(in).toString >= b(in).toString
             case "<" => a(in).toString < b(in).toString

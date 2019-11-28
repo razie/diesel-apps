@@ -87,7 +87,6 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
       .orElse(cur.find(a=> a.name == name && a.hasCurrentValue)) // or is it the static value?
       .orElse(attrs.find(a=> a.name == name)) // was it overwritten?
       .orElse(base.flatMap(_.getp(name)))
-      .orElse(sourceStruc(name))
       .orElse(getpFromDomain(name))
 
   private def getpFromDomain(name:String) : Option[P] = {

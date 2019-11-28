@@ -6,10 +6,9 @@
 package razie.diesel.expr
 
 import razie.diesel.dom.RDOM.P
-import razie.diesel.dom.{RDomain, WTypes}
+import razie.diesel.dom.RDomain
 import razie.diesel.engine.{DomAst, DomEngECtx}
 import razie.tconf.{DSpec, DTemplate}
-import scala.util.Try
 
 /**
  * A map-like context of attribute values, used by the Diesel engine.
@@ -29,7 +28,7 @@ trait ECtx {
 
   /** root domain - it normally is an instance of DomEngineCtx and you can get more details from it */
   def root: DomEngECtx
-  /** in a hierarchy, this is my failback */
+  /** in a hierarchy, this is my fallback */
   def base: Option[ECtx]
   def hostname:Option[String]
 
@@ -69,56 +68,6 @@ trait ECtx {
   }
 
   def curNode : Option[DomAst]
-
-  /** see if this is a qualified name in a structure
-    * @deprecated - use AExprIdent instead
-    */
-  def sourceStruc (name:String, root:Option[Map[String,Any]] = None) : Option[P] = {
-    val x:Option[_] = if (name contains ".") {
-      try {
-        val R = """([^.]+)\.(.*)""".r
-        val R(n, rest) = name
-        root.flatMap(_.get(n)).orElse {
-          Try {
-            val p = getp(n).filter(_.hasCurrentValue)
-            val m =
-              if (p.flatMap(_.value.map(_.value)).exists(_.isInstanceOf[Map[_, _]]))
-                p.flatMap(_.value.map(_.value)).map(_.asInstanceOf[Map[_, _]])
-              else {
-                // if json try to parse it
-                p.map(_.currentStringValue).map { v =>
-                  if (v.trim.startsWith("{"))
-                    razie.js.parse(v)
-                  else Map.empty
-                }
-              }
-            m
-          }.recover {
-            Map.empty
-          }.get
-        }.collect {
-          case x: Map[_, _] => sourceStruc(rest, Some(x.asInstanceOf[Map[String, Any]]))
-        }.flatten
-      }
-      catch {
-        case t: Throwable => throw new IllegalArgumentException(s"Can't sourceStruc parm with name: ${name.take(100)}", t)
-      }
-    }
-      else
-      {
-        val xxx = root.flatMap(_.get(name))
-        val s = xxx.map(razie.js.anytojsons)
-        s.map { s =>
-          P(name, s, WTypes.typeOf(xxx.get)).withValue(xxx.get, WTypes.typeOf(xxx.get))
-        }
-      }
-
-    if(x.exists(_.isInstanceOf[P]))
-      Some(x.get.asInstanceOf[P])
-    else
-    // todo typed
-      x.map(x=>P(name, x.toString))
-  }
 }
 
 object ECtx {

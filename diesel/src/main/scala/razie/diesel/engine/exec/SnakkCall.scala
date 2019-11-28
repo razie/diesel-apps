@@ -189,7 +189,7 @@ case class SnakkCall(protocol: String, method: String, url: String, headers: Map
         razie.Log.log("snakk.telnet Exception", e)
         info map (_ += new EWarning("telnet Exception:", e))
         ibody = Some(res)
-        pingSocket.close();
+        if(pingSocket != null) pingSocket.close();
         return res;
       }
     }

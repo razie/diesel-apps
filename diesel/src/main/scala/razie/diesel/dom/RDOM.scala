@@ -169,6 +169,12 @@ object RDOM {
     * @deprecated a b
     */
   object P {
+    def fromSmartTypedValue(name:String, v:Any) : P = v match {
+      case s:String if s.trim.startsWith("{") => P.fromTypedValue(name, s, WTypes.JSON)
+      case s:String if s.trim.startsWith("[") => P.fromTypedValue(name, s, WTypes.ARRAY)
+      case _ => P.fromTypedValue(name, v)
+    }
+
     def fromTypedValue(name:String, v:Any, expectedType:String):P =
       fromTypedValue(name, v, WType(expectedType))
 

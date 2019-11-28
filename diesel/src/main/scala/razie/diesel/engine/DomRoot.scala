@@ -9,6 +9,7 @@ import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.dom.{RDOM, WTypes}
 import razie.diesel.engine.nodes._
 import razie.diesel.expr._
+import scala.collection.mutable.HashMap
 
 /** something that has a dom root tree - engines so far */
 trait DomRoot {
@@ -59,11 +60,11 @@ trait DomRoot {
   protected def appendValsPas (a:DomAst, x:EMsgPas, attrs:List[PAS], appendToCtx:ECtx, kind:String=AstKinds.GENERATED) = {
     implicit val ctx = appendToCtx
 
-    /** setting values */
-    def setp (parent:Any, accessor:P, p:P)(implicit ctx:ECtx): P = {
+    /** setting one value */
+    def setp (parent:Any, accessor:P, v:P)(implicit ctx:ECtx): P = {
       // reset - need to recalc accessors every time
       val av = accessor.copy(value=None).calculatedTypedValue
-      val pcalc = p.calculatedP
+      val vcalc = v.calculatedP
 
       parent match {
         case c : ECtx => {
@@ -71,27 +72,32 @@ trait DomRoot {
           // accessor must be string
           if(av.contentType != WTypes.STRING)
             throw new DieselExprException(s"ctx. accessor must be string - we got: ${av.value}")
-          c.put(pcalc.copy(name=av.asString))
+          c.put(vcalc.copy(name=av.asString))
         }
         case None => {
           throw new DieselExprException(s"parent not found")
         }
-          // parent is a map/json object
+
+        // parent is a map/json object
         case Some(pa:RDOM.P) if pa.ttype == WTypes.wt.JSON => {
-          val pv = p.calculatedTypedValue
-          val newv = PValue(
-            pa.calculatedTypedValue.asJson + (av.asString -> p.calculatedTypedValue.value),
+          val paJ = pa.calculatedTypedValue.asJson
+          val newValue = PValue(
+            paJ + (av.asString -> vcalc.value),
             WTypes.wt.JSON
           )
-          pa.value = Some(newv )
 
-          // need to set dflt as well - NO WE DO NOT ANYMORE, use p.currentStringValue
-          val newp = pa//.copy(dflt=newv.asString)
+          pa.value = Some(newValue)
+
+          // todo is this relevant?
+          if(paJ.isInstanceOf[HashMap[String,Any]])
+            paJ.asInstanceOf[HashMap[String, Any]].put(av.asString, vcalc.value)
+
+          // no need to set dflt, use p.currentStringValue
           // todo need to recurse on parent, not just hardcode ctx
-          ctx.put(newp)
+          ctx.put(pa)
         }
       }
-      pcalc
+      vcalc
     }
 
     val calc = attrs.flatMap { pas =>
@@ -107,13 +113,48 @@ trait DomRoot {
         val p = pas.right.applyTyped("")
 
         val res = if (pas.left.rest.size > 1) { // [] accessors
+          val vvalue = p.calculatedTypedValue.value
+          val parentAccessor = pas.left.dropLast
+          val parent = parentAccessor.tryApplyTyped("")
+          val last = pas.left.last.get // I know size > 1
+//          a append DomAst(EInfo("parent: "+parent.mkString).withPos(x.pos), AstKinds.TRACE)
+//          a append DomAst(EInfo("selector: "+pas.left.rest.head.calculatedTypedValue.toString).withPos(x.pos), AstKinds.TRACE)
 
+          parent.collect {
+
+            case pa:RDOM.P if pa.ttype == WTypes.wt.JSON => {
+              val av = last.copy(value=None).calculatedTypedValue.asString
+              val m = pa.calculatedTypedValue.asJson
+
+              if(m.isInstanceOf[HashMap[String,Any]])
+                m.asInstanceOf[HashMap[String, Any]].put(av, vvalue)
+              else {
+                a append DomAst(EError("Not mutable Map: " + parent.mkString).withPos(x.pos), AstKinds.ERROR)
+              }
+
+              val newv = PValue(
+                pa.calculatedTypedValue.asJson + (av -> vvalue),
+                WTypes.wt.JSON
+              )
+              pa.value = Some(newv )
+            }
+
+            case pa:RDOM.P if pa.ttype == WTypes.wt.ARRAY => {
+              val av = last.copy(value=None).calculatedTypedValue
+              val ai = av.asInt
+              val list = pa.calculatedTypedValue.asArray.toArray
+              list(ai) = p.calculatedTypedValue.value
+
+              val newv = PValue(list.toList, WTypes.wt.ARRAY)
+              pa.value = Some(newv)
+            }
+          }
         } else if (pas.left.start == "ctx") {
           setp(ctx, pas.left.rest.head, p)
         } else {
           val parent = pas.left.getp(pas.left.start)
-//          a append DomAst(EInfo("parent: "+parent.mkString).withPos(x.pos), AstKinds.TRACE)
-//          a append DomAst(EInfo("selector: "+pas.left.rest.head.calculatedTypedValue.toString).withPos(x.pos), AstKinds.TRACE)
+          // a append DomAst(EInfo("parent: "+parent.mkString).withPos(x.pos), AstKinds.TRACE)
+          // a append DomAst(EInfo("selector: "+pas.left.rest.head.calculatedTypedValue.toString).withPos(x.pos), AstKinds.TRACE)
           setp(parent, pas.left.rest.head, p)
         }
         a append DomAst(EInfo(pas.left.toStringCalc + " = " + res, p.calculatedTypedValue.asString).withPos(x.pos), AstKinds.DEBUG)
@@ -124,12 +165,7 @@ trait DomRoot {
       a appendAll calc.flatMap{p =>
         if(p.ttype == WTypes.EXCEPTION) {
           p.value.map {v=>
-            val err = if(v.value.isInstanceOf[javax.script.ScriptException]) {
-//             special handling of Script exceptions - no point showing stack trace
-              new EError("ScriptException: " + p.dflt + v.asThrowable.getMessage)
-            } else {
-              new EError(p.dflt, v.asThrowable)
-            }
+            val err = handleError (p, v)
 
             DomAst(err.withPos(x.pos), AstKinds.ERROR).withSpec(x) :: Nil
           } getOrElse {
@@ -145,17 +181,23 @@ trait DomRoot {
       appendToCtx putAll calc
   }
 
+  private def handleError (p:P, v:PValue[_]) = {
+    val err = if(v.value.isInstanceOf[javax.script.ScriptException]) {
+      // special handling of Script exceptions - no point showing stack trace
+      EError("ScriptException: " + p.dflt + v.asThrowable.getMessage)
+    } else {
+      new EError(p.dflt, v.asThrowable)
+    }
+
+    err
+  }
+
   /** an assignment message */
   protected def appendVals (a:DomAst, x:EMsg, attrs:Attrs, appendToCtx:ECtx, kind:String=AstKinds.GENERATED) = {
     a appendAll attrs.map{p =>
       if(p.ttype == WTypes.EXCEPTION) {
         p.value.map {v=>
-          val err = if(v.value.isInstanceOf[javax.script.ScriptException]) {
-            // special handling of Script exceptions - no point showing stack trace
-            EError("ScriptException: " + p.dflt + v.asThrowable.getMessage)
-          } else {
-            new EError(p.dflt, v.asThrowable)
-          }
+          val err = handleError (p, v)
 
           DomAst(err.withPos(x.pos), AstKinds.ERROR).withSpec(x)
         } getOrElse {
