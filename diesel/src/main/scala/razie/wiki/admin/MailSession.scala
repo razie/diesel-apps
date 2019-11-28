@@ -22,6 +22,7 @@ class MailSession extends BaseMailSession {
       .getOrElse("RacerKidz")
 
   def SUPPORT = website.supportEmail
+  def ADMIN = website.adminEmail
 
   /** bottom section on each email */
   def bottom =

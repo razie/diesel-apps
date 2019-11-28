@@ -22,6 +22,7 @@ case class BannedIp (
 
 /** user factory and utils */
 object BannedIps {
+  def findIp(ip:String) = ROne[BannedIp]("ip" -> ip)
   def findId(id:String) = ROne[BannedIp]("_id" -> new ObjectId(id))
   def load = RMany[BannedIp]()
 

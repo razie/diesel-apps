@@ -99,7 +99,8 @@ abstract class WikiConfig {
 
   def isLocalhost = "localhost:9000" == hostport
 
-  def isDebugMode = isLocalhost
+  // not every localhost is dev mode
+  def isDevMode = prop("wiki.devMode", "false").toBoolean
 
   //-------------- special admin/configuration pages
 
