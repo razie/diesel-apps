@@ -214,7 +214,7 @@ class WikiInstImpl (val realm:String, val fallBacks:List[WikiInst], mkDomain : W
         // set the realm, so no key clash across realms
         val tempw = if(wid.realm.isDefined) wid else wid.r(realm)
         // reset section to find the container
-        val key = tempw.copy(section = None).wpath+".db"
+        val key = tempw.copy(section = None).wpathFull+".db"
 
         WikiCache.getDb(key).map{x=>
           x

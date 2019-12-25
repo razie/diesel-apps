@@ -678,6 +678,7 @@ object Wikis extends Logging with Validation {
     }
   }
 
+  /** clearing all possible versions of this WID from the cache */
   def clearCache(wids : WID*) = {
     wids.foreach(wid=>
       Array(
@@ -688,9 +689,10 @@ object Wikis extends Logging with Validation {
       wid.copy(realm = None, parent=None, section=None),
       wid.copy(realm = None, parent=None, section=None, cat="")
     ).foreach {wid=>
-      WikiCache.remove(wid.wpath+".db")
-      WikiCache.remove(wid.wpath+".formatted")
-      WikiCache.remove(wid.wpath+".page")
+      val key = wid.wpathFull
+      WikiCache.remove(key + ".db")
+      WikiCache.remove(key + ".formatted")
+      WikiCache.remove(key + ".page")
     })
   }
 
@@ -714,12 +716,12 @@ object Wikis extends Logging with Validation {
           (icontent == null || icontent == "") &&
           wid.section.isEmpty) {
 
-          WikiCache.getString(we.get.wid.wpath+".formatted").map{x=>
+          WikiCache.getString(we.get.wid.wpathFull+".formatted").map{x=>
             x
           }.getOrElse {
             val n = format1(wid, markup, icontent, we, user)
             if(we.exists(_.cacheable)) // format can change cacheable
-              WikiCache.set(we.get.wid.wpath+".formatted", n, 300) // 10 miuntes
+              WikiCache.set(we.get.wid.wpathFull+".formatted", n, 300) // 10 miuntes
             n
           }
         } else
