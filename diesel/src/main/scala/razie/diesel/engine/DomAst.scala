@@ -83,8 +83,7 @@ case class DomAst(
 
   /** depends on other nodes by IDs */
   def withPrereq (s:List[String]) = {
-    if(!prereq.contains(s))
-      prereq = s ::: prereq
+    prereq = (s ::: prereq).distinct  // distinct is important for some reason - hanoi fails mizerably otherwise
     this
   }
 
