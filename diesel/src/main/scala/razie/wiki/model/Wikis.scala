@@ -581,7 +581,7 @@ object Wikis extends Logging with Validation {
 
 
   def prepUrl (url:String) = {
-    if(Services.config.isLocalhost)
+    if(Services.config.isDevMode && Services.config.isLocalhost)
       url
         .replace("http://cdn.razie.com/", "/admin/img/Users/raz/w/razie.github.io/")
         .replace("https://cdn.razie.com/", "/admin/img/")
