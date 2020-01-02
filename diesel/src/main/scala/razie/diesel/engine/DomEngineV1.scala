@@ -587,6 +587,13 @@ class DomEngineV1(
       evAppChildren(a, DomAst(EInfo("ctx", c), AstKinds.DEBUG))
       evAppChildren(a, DomAst(EInfo("engine", e), AstKinds.DEBUG))
       true
+    } else if(ea == DieselMsg.REALM.REALM_SET) {
+      // todo move this to an executor
+      // todo this may be a security risk - they can set trust and stuff -  limit to only some parms?
+      in.attrs.foreach{ p=>
+        this.settings.realm.flatMap(Website.forRealm).map(_.put(p.name, p.calculatedValue))
+      }
+      true
     } else {
       false
     }

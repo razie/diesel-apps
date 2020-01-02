@@ -255,6 +255,16 @@ object Realm extends RazController with Logging {
     }
   }
 
+  /** simulate this realm as default */
+  def setRealm(realm:String) = FAUR { implicit request =>
+      if(request.au.exists(_.isAdmin)) {
+        // if active and owns target, then sso -
+          Config.isimulateHost = s"$realm.dieselapps.com"
+          Redirect("/", SEE_OTHER)
+      } else
+        Unauthorized("meh")
+  }
+
   /** start wizard to add module to reactor */
   def addMod1(realm:String) = FAUR("add mod") { implicit request =>
       for (
