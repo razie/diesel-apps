@@ -206,6 +206,7 @@ object DieselMsg {
   object REALM {
     final val REALM_LOADED_MSG = "$msg diesel.realm.loaded"
     final val REALM_LOADED = "diesel.realm.loaded"
+    final val REALM_SET = "diesel.realm.set"
     final val ENTITY = "diesel.realm"
     final val LOADED = "loaded"
   }
@@ -225,9 +226,15 @@ object DieselMsg {
     final val DIESEL_AFTER = "diesel.after"
     final val DIESEL_DEBUG = "diesel.debug"
     final val DIESEL_LATER = "diesel.later"
+    final val DIESEL_REST = "diesel.rest"
     final val BEFORE = "before"
     final val AFTER = "after"
     final val DEBUG = "debug"
+
+    final val DIESEL_MSG_ENTITY = "diesel.msg.entity"
+    final val DIESEL_MSG_ACTION = "diesel.msg.action"
+    final val DIESEL_MSG_EA     = "diesel.msg.ea"
+    final val DIESEL_MSG_ATTRS  = "diesel.msg.attrs"
   }
 
   object GUARDIAN {

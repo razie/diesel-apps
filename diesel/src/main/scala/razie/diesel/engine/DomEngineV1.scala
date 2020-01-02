@@ -113,11 +113,25 @@ class DomEngineV1(
       }
 
       case n1@ENextPas(m, ar, cond, _, _) if "-" == ar || "=>" == ar => {
-        implicit val ctx = new StaticECtx(n1.parent.map(_.attrs).getOrElse(Nil), Some(this.ctx), Some(a))
+        implicit val ctx = mkMsgContext(
+          n1.parent,
+          n1.parent.map(_.attrs).getOrElse(Nil),
+          this.ctx,
+          a)
 
         if(n1.test()) {
           appendValsPas (a, m, m.attrs, ctx)
         }
+      }
+
+      case n1@EMsgPas(ar) => {
+        implicit val ctx = mkMsgContext(
+          None,
+          Nil,
+          this.ctx,
+          a)
+
+        appendValsPas (a, n1, n1.attrs, ctx)
       }
 
       case x: EMsg if x.entity == "" && x.met == "" => {
@@ -163,6 +177,19 @@ class DomEngineV1(
       }
     }
     msgs
+  }
+
+  /** make a static context for children */
+  protected def mkMsgContext (in:Option[EMsg], attrs:List[P], parentCtx:ECtx, a:DomAst) = {
+    new StaticECtx(
+      in.map(in=>P(DIESEL_MSG_ENTITY, in.entity)).toList :::
+      in.map(in=>P(DIESEL_MSG_ACTION, in.met)).toList :::
+      in.map(in=>P(DIESEL_MSG_EA, in.ea)).toList :::
+          // todo avoid this every time - lazy parms ?
+      List(P.fromTypedValue(DIESEL_MSG_ATTRS, attrs.map(p=> (p.name, p.calculatedTypedValue(parentCtx).value)).toMap)) :::
+      attrs,
+      Some(parentCtx),
+      Some(a))
   }
 
   /** expand a single message */

@@ -272,6 +272,16 @@ object EnginePrep extends Logging {
       lastAst
     }
 
+    def addMsgPas(v: EMsgPas) = {
+      // withPrereq will cause the story messages to be ran in sequence
+      lastMsgAst = if (!(justTests || justMocks)) Some(DomAst(v, AstKinds.RECEIVED).withPrereq({
+        if (inSequence) lastAst.map(_.id)
+        else Nil
+      })) else None // need to reset it
+      lastAst = lastMsgAst.toList
+      lastAst
+    }
+
     // if the root already had something, we'll continue sequentially
     // this is important for diesel.guardian.starts + diese.setEnv - otherwise tehy run after the tests
     lastAst = root.children.toList
@@ -335,6 +345,8 @@ object EnginePrep extends Logging {
         }
 
         case v: EMsg => addMsg(v)
+
+        case v: EMsgPas => addMsgPas(v)
 
         case v: EVal => {
           // vals are also in sequence... because they use values in context

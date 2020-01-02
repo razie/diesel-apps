@@ -82,7 +82,7 @@ trait DomRoot {
         case Some(pa:RDOM.P) if pa.ttype == WTypes.wt.JSON => {
           val paJ = pa.calculatedTypedValue.asJson
           val newValue = PValue(
-            paJ + (av.asString -> vcalc.value),
+            paJ + (av.asString -> vcalc.calculatedTypedValue.value),
             WTypes.wt.JSON
           )
 
@@ -90,7 +90,7 @@ trait DomRoot {
 
           // todo is this relevant?
           if(paJ.isInstanceOf[HashMap[String,Any]])
-            paJ.asInstanceOf[HashMap[String, Any]].put(av.asString, vcalc.value)
+            paJ.asInstanceOf[HashMap[String, Any]].put(av.asString, vcalc.calculatedTypedValue.value)
 
           // no need to set dflt, use p.currentStringValue
           // todo need to recurse on parent, not just hardcode ctx

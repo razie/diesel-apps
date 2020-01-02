@@ -10,7 +10,7 @@ import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.exec.EESnakk
 import razie.diesel.engine.nodes._
-import razie.diesel.engine.{DomEngine, nodes}
+import razie.diesel.engine.{DomAstInfo, DomEngine, nodes}
 import razie.diesel.expr._
 import razie.tconf.parser.{FoldingContext, LazyAstNode, StrAstNode}
 import razie.tconf.{DSpec, DUser, EPos}
@@ -514,13 +514,32 @@ trait DomParser extends ParserBase with ExprParser {
     *
     * An NVP is either the spec or an instance of a function call, a message, a data object... whatever...
     */
-  def psend: PS = keyw("[.$]send *".r) ~ opt("<" ~> "[^>]+".r <~ "> *".r) ~ qclsMet ~ optAttrs ~ opt(" *: *".r ~> optAttrs) <~ " *".r <~ optComment3 ^^ {
-    case k ~ stype ~ qcm ~ attrs ~ ret => {
+  def psend: PS = keyw("[.$]send *".r) ~
+      opt("<" ~> "[^>]+".r <~ "> *".r) ~
+      (clsMet | justAttrs) ~
+      opt(" *: *".r ~> optAttrs) <~ " *".r <~ optComment3 ^^ {
+    case k ~ stype ~ cp ~ ret => {
       lazys { (current, ctx) =>
-        val f = EMsg(qcm._1, qcm._2, attrs, "send", ret.toList.flatten(identity), stype.mkString.trim)
-        f.pos = pos(k, ctx)
+        val f = cp match {
+          // class with message
+          case Tuple3(zc, zm, za) =>
+            EMsg(zc.toString, zm.toString, za.asInstanceOf[List[RDOM.P]], "send", ret.toList.flatten(identity), stype.mkString.trim)
+                .withPos(pos(k, ctx))
+
+          // just parm assignments
+          case pas:List[_] =>
+            EMsgPas(pas.asInstanceOf[List[PAS]])
+                .withPos(pos(k, ctx))
+        }
+
         collectDom(f, ctx.we)
-        StrAstNode(f.kspan("send::") + f.toHtmlInPage + "<br>")
+
+        val html = f match {
+          case m:EMsg => m.toHtmlInPage
+          case m:EMsgPas => m.toHtml
+        }
+
+        StrAstNode(f.kspan("send::") + html + "<br>")
       }
     }
   }

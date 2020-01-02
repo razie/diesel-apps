@@ -188,9 +188,10 @@ object RDExt extends Logging {
           }
           case n: ERule => {
             collectMsg(n.e.asMsg.withPos(n.pos))
-            n.i.map {x=>
+            n.i.foreach {x=>
                 x match {
                   case e:EMapCls => collectMsg(e.asMsg.withPos(n.pos))
+                  case e:EMapPas => ;
                 }
             }
           }
