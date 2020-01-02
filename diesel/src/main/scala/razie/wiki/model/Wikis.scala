@@ -579,6 +579,17 @@ object Wikis extends Logging with Validation {
     res
   }
 
+
+  def prepUrl (url:String) = {
+    if(Services.config.isLocalhost)
+      url
+        .replace("http://cdn.razie.com/", "/admin/img/Users/raz/w/razie.github.io/")
+        .replace("https://cdn.razie.com/", "/admin/img/")
+//        .replace("https://cdn.razie.com/", "http://localhost:9000/asset/../../")
+//        .replace("https://cdn.razie.com/", "file://Users/raz/w/razie.github.io/")
+    else url
+  }
+
   def irunXp(what: String, w: WikiEntry, path: String) = {
     var root = new razie.Snakk.Wrapper(new WikiWrapper(w.wid), WikiXpSolver)
     var xpath = path // TODO why am I doing this?

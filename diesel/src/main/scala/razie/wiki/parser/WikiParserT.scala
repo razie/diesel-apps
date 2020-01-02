@@ -470,13 +470,14 @@ trait WikiParserT extends WikiParserMini with CsvParser {
         case _ => ""
       }
 
+      val url = Wikis.prepUrl(name)
       val args = iargs.filter(_._1 != "caption")
       val alt = iargs.toMap.get("caption").filter(_.contains("\"") == false).map(x=>"alt=\""+x+"\"").mkString
       val caption = getCaption(iargs)
       // no alt when contains links
       skind match {
-        case "img" =>   StrAstNode(s"""<img src="$name" $width $alt ${htmlArgs(args)} /><br>$caption<br>""")
-        case "photo" => StrAstNode(s"""<div style="text-align:center"><a href="$name"><img src="$name" $width $alt ${htmlArgs(args)} ></a></div>$caption\n<br>""")
+        case "img" =>   StrAstNode(s"""<img src="$url" $width $alt ${htmlArgs(args)} /><br>$caption<br>""")
+        case "photo" => StrAstNode(s"""<div style="text-align:center"><a href="$url"><img src="$url" $width $alt ${htmlArgs(args)} ></a></div>$caption\n<br>""")
       }
     }
   }
