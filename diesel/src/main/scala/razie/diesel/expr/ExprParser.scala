@@ -99,8 +99,8 @@ trait ExprParser extends RegexParsers {
     case a ~ l => foldAssocAexpr2(a, l, AExpr2)
   }
 
-  // foldLeft associative expressions
-  private def foldAssocAexpr2(a:Expr, l:List[String ~ Option[String] ~ Expr], f:(Expr, String, Expr) => Expr) = {
+  //   foldLeft associative expressions
+  private def foldAssocAexpr2[EXP](a:EXP, l:List[String ~ Option[String] ~ EXP], f:(EXP, String, EXP) => EXP) : EXP = {
     l.foldLeft(a)((x, y) =>
       y match {
         case op ~ _ ~ p => f(x, op, p)
@@ -384,26 +384,20 @@ trait ExprParser extends RegexParsers {
   def cond: Parser[BoolExpr] = orexpr
 
   def orexpr: Parser[BoolExpr] = bterm1 ~ rep(ows ~> ("or") ~ ows ~ bterm1 ) ^^ {
-    case a ~ l => l.foldLeft(a)((a, b) =>
-      b match {
-        case op ~ _ ~ p => bcmp (a, op, p)
-      }
-    )
+    case a ~ l => foldAssocAexpr2(a, l, bcmp)
   }
 
   def bterm1: Parser[BoolExpr] = bfactor1 ~ rep(ows ~> ("and") ~ ows ~ bfactor1 ) ^^ {
-    case a ~ l => l.foldLeft(a)((a, b) =>
-      b match {
-        case op ~ _ ~ p => bcmp (a, op, p)
-      }
-    )
+    case a ~ l => foldAssocAexpr2(a, l, bcmp)
   }
 
   def bfactor1: Parser[BoolExpr] = notbfactor1 | bfactor2
 
   def notbfactor1: Parser[BoolExpr] = ows ~> ("not" | "NOT") ~> ows ~> bfactor2 ^^ { BCMPNot }
 
-  def bfactor2: Parser[BoolExpr] = bConst | eq | neq | lte | gte | lt | gt | like | bvalue | condBlock
+  def bfactor2: Parser[BoolExpr] = bConst | ibex(opsBool) | bvalue | condBlock
+
+  private def opsBool: Parser[String] = "==" | "is" | "!=" | "not" | "~=" | "matches" | "<=" | ">=" | "<" | ">"
 
   private def condBlock: Parser[BoolExpr] = ows ~> "(" ~> ows ~> cond <~ ows <~ ")" ^^ { BExprBlock }
 
@@ -416,16 +410,6 @@ trait ExprParser extends RegexParsers {
   /** true or false constants */
   def bConst: Parser[BoolExpr] = ("true" | "false") ^^ { BCMPConst }
 
-  def eq: Parser[BoolExpr]   = ibex("==" | "is")
-  def neq: Parser[BoolExpr]  = ibex("!=" | "not")
-  def like: Parser[BoolExpr] = ibex("~=" | "matches")
-  def lte: Parser[BoolExpr]  = ibex("<=")
-  def gte: Parser[BoolExpr]  = ibex(">=")
-  def lt: Parser[BoolExpr]   = ibex("<")
-  def gt: Parser[BoolExpr]   = ibex(">")
-
-  // default - only used in PM, not conditions
-  def df: Parser[BoolExpr]   = ibex("?=")
 
   /** single value expressions, where != 0 is true and != null is true */
   def bvalue : Parser[BoolExpr] = expr ^^ {
