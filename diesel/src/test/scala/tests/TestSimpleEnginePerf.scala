@@ -14,6 +14,8 @@ import razie.clog
 import razie.diesel.engine.{DieselAppContext, DomEngineSettings, RDExt}
 import razie.diesel.samples.DomEngineUtils
 import razie.wiki.parser.{DieselTextSpec, DieselUrlTextSpec}
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.{Success, Failure}
 
 /**
   * Created by raz on 2017-07-06.
@@ -21,18 +23,27 @@ import razie.wiki.parser.{DieselTextSpec, DieselUrlTextSpec}
 class TestSimpleEnginePerf extends WordSpecLike with MustMatchers with OptionValues {
 
   val THREADS = 20
-  val CYCLES  = 5000
+  val CYCLES  = 1000
   val SLEEP = false
 
   implicit val system = ActorSystem("testsystem", ConfigFactory.parseString(""" """))
   DieselAppContext
       .withSimpleMode()
       .withActorSystem(system)
-      .initExecutors
 
+  // COMMENT THE REMOTE stories to get just a perf test measure
+  val rspecs  =
+    DieselUrlTextSpec("http://specs.dieselapps.com/wikie/content/Spec:expr_spec", "expr_spec") ::
+    DieselUrlTextSpec("http://specs.dieselapps.com/wikie/content/Spec:expr-json-spec", "expr-json-spec") ::
+//    DieselUrlTextSpec("http://specs.dieselapps.com/wikie/content/Spec:rest_spec", "rest-spec") ::
+    Nil
 
-  val rspec = DieselTextSpec("r", "") //DieselUrlTextSpec("http://specs.dieselapps.com/wikie/content/Spec:expr_spec", "expr_spec")
-  val rstory = DieselTextSpec("r", "") //DieselUrlTextSpec("http://specs.dieselapps.com/wikie/content/Story:expr_story", "expr_story")
+  // COMMENT THE REMOTE stories to get just a perf test measure
+  val rstories =
+    DieselUrlTextSpec("http://specs.dieselapps.com/wikie/content/Story:expr_story", "expr_story") ::
+    DieselUrlTextSpec("http://specs.dieselapps.com/wikie/content/Story:expr-json-story", "expr-json-story") ::
+//      DieselUrlTextSpec("http://specs.dieselapps.com/wikie/content/Story:rest_story", "rest_story") ::
+      Nil
 
   val flowCount = new AtomicInteger(0)
   val testCount = new AtomicInteger(0)
@@ -44,17 +55,17 @@ class TestSimpleEnginePerf extends WordSpecLike with MustMatchers with OptionVal
         "sleep_spec",
         s"""
            |
-           |$$when home.guest_arrived => ctx.sleep(duration=10)
+           |$$when perftest.guest_arrived => ctx.sleep(duration=10)
            |
            |""".stripMargin
       )
 
   // make a story
-  val story = rstory +
+  val story =
       DieselTextSpec(
         "story_name",
         s"""
-           |$$send home.guest_arrived(name="Jane")
+           |$$send perftest.guest_arrived(name="Jane")
            |""".stripMargin
       )
 
@@ -67,13 +78,32 @@ class TestSimpleEnginePerf extends WordSpecLike with MustMatchers with OptionVal
       DomEngineUtils.execAndWait(
         DomEngineUtils.mkEngine(
           new DomEngineSettings().copy(realm = Some("rk")),
-          List(story),
-          List(story)
+          List(sleepspec) ::: rspecs, // IMPORTANT: rspecs need warmup, see below
+          List(story) ::: rstories    // IMPORTANT: rstories need warmup, see below
         )
       )
+
+      // todo WE mt-safe
+      // rspecs and rstories need warmup = they are not multithread-safe. If a WE instance is parsed in parallel,
+      // it will have issues
     }
 
+    // make a spec
+    def spec(i:Long, j:Long) =
+      DieselTextSpec(
+        "spec_name",
+        s"""
+           |
+           |$$when perftest.guest_arrived(name=="Jane") => perftest.welcome(name)
+           |
+           |$$when perftest.welcome => (greeting = "Greetings, "+name+$i+"-"+$j)
+           |
+           |""".stripMargin
+      )
+
     var start = System.currentTimeMillis()
+
+    clog << s"-------------- starting $CYCLES cycles with $THREADS threads"
 
     "run well in many threads " in {
 
@@ -81,32 +111,18 @@ class TestSimpleEnginePerf extends WordSpecLike with MustMatchers with OptionVal
       razie.Threads.forkjoin(Range(0, THREADS)) { i =>
         Range(0, CYCLES).foreach { j =>
 
-          // make a spec
-          val spec =
-            rspec +
-//            sleepspec +
-            DieselTextSpec(
-                "spec_name",
-                s"""
-                   |
-                   |$$when home.guest_arrived(name=="Jane") => chimes.welcome(name)
-                   |
-                   |$$when chimes.welcome => (greeting = "Greetings, "+name+$i+"-"+$j)
-                   |
-                   |""".stripMargin
-              )
-
           // run it: create engine, run story and wait for result
           val engine = DomEngineUtils.execAndWait(
             DomEngineUtils.mkEngine(
               new DomEngineSettings().copy(realm = Some("rk")),
-              List(spec),
-              List(story)
-            )
+              (if(SLEEP) List(sleepspec) else Nil) ::: spec(i,j) :: rspecs,
+              rstories ::: story :: Nil // i,j story at end, so it's the resultingValue
+            ),
+            1000 // a lot as some engines may take a while to complete
           )
 
 //          println(engine.root.toString)    // debug trace of engine's execution
-//          println(engine.resultingValue)   // resulting value, if any
+          println("------------- " + engine.resultingValue)   // resulting value, if any
 
           flowCount.incrementAndGet()
           testCount.addAndGet(engine.totalTestCount)
@@ -128,14 +144,19 @@ class TestSimpleEnginePerf extends WordSpecLike with MustMatchers with OptionVal
     "cleanup well" in {
       val end = System.currentTimeMillis()
       val dur = (end-start)/1000
+      clog << s"DURATION: $end - $start = $dur"
 
       clog << "==========================================="
       clog << DieselAppContext.activeEngines.values.toList.mkString("\n")
+      DieselAppContext.activeEngines.values.toList.map { e=>
+        clog << s"xxxxxxxxxxxxxx engine ${e.id}"
+        clog << e.root.toString
+      }
 
       assert(DieselAppContext.activeEngines.size == 0)
       assert(DieselAppContext.activeActors.size == 0)
 
-      val perf = if(dur > 0) flowCount.get() / dur else -1
+      val perf = if(dur > 0) flowCount.get() / (dur * 1.0) else -1
       clog << s"T O T A L  $testCount tests"
       clog << s"T O T A L  $flowCount flows in $dur seconds meaning $perf per sec"
     }
