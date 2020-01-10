@@ -108,7 +108,7 @@ object DieselAppContext extends Logging {
   /** when in a cluster, you need to set this on startup... */
   var localNode = "localhost"
 
-  def initExecutors = {
+  private def initExecutors = {
     new EECtx ::
         new EESnakk ::
         new EETest ::
@@ -177,6 +177,7 @@ object DieselAppContext extends Logging {
     if (!serviceStarted) {
       serviceStarted = true
 
+      initExecutors
       init() // make sure it was init
 
       activeActors.values.foreach(_ ! DEInit)
