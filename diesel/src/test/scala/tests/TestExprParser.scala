@@ -58,7 +58,7 @@ class TestExprParser extends WordSpecLike with MustMatchers with OptionValues {
           .withSimpleMode()
           .withActorSystem(system)
 
-      val spec  = DieselUrlTextSpec ("http://specs.razie.com/wiki/Story:expr_spec/included", "expr_spec")
+      val spec  = DieselUrlTextSpec ("http://specs.razie.com/wiki/Spec:expr_spec/included", "expr_spec")
       val story = DieselUrlTextSpec ("http://specs.razie.com/wiki/Story:expr_story/included", "expr_story")
 
       // run it: create engine, run story and wait for result
