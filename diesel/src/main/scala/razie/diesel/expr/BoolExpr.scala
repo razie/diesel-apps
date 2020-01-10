@@ -192,8 +192,16 @@ case class BCMP2(a: Expr, op: String, b: Expr)
             case "is" | "==" if bp.ttype == WTypes.wt.ARRAY || ap.ttype == WTypes.wt.ARRAY => {
               val av = ap.calculatedTypedValue
               val bv = bp.calculatedTypedValue
-              val al = av.asArray
-              val bl = bv.asArray
+              val al = try {
+                av.asArray
+              } catch {
+                case t:Throwable => throw new DieselExprException(s"Parm ${ap} can't be typecast to Array: " + t.toString).initCause(t)
+              }
+              val bl = try {
+                bv.asArray
+              } catch {
+                case t:Throwable => throw new DieselExprException(s"Parm ${bp} can't be typecast to Array: " + t.toString).initCause(t)
+              }
 
               if (al.size != bl.size) {
                 false
