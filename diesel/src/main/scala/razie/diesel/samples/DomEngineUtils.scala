@@ -24,17 +24,17 @@ import scala.concurrent.{Await, Future}
 object DomEngineUtils {
 
   // todo maybe not have this sync option at all?
-  def execAndWait (engine:DomEngine) = {
+  def execAndWait (engine:DomEngine, timeoutSec:Int = 50) = {
     val future = engine.process
 
-    Await.result(future, Duration.create(25, "seconds"))
+    Await.result(future, Duration.create(timeoutSec, "seconds"))
   }
 
   // todo maybe not have this sync option at all?
-  def execTestsAndWait (engine:DomEngine) = {
+  def execTestsAndWait (engine:DomEngine, timeoutSec:Int = 50) = {
     val future = engine.processTests
 
-    Await.result(future, Duration.create(5, "seconds"))
+    Await.result(future, Duration.create(timeoutSec, "seconds"))
   }
 
   // todo reuse DomFiddle.runDom
