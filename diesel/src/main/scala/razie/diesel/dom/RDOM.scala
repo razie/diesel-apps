@@ -126,7 +126,12 @@ object RDOM {
       else value.asInstanceOf[collection.Map[String, Any]]
     }
 
-    def asArray : collection.Seq[Any] = value.asInstanceOf[collection.Seq[Any]]
+    def asArray : collection.Seq[Any] = {
+      if(! value.isInstanceOf[collection.Seq[Any]]) {
+        razie.Log.error("Value is not array - will throw ClassCast asap - value is: " + this)
+      }
+      value.asInstanceOf[collection.Seq[Any]]
+    }
 
     def asRange : Range = value.asInstanceOf[Range]
 
@@ -424,7 +429,7 @@ object RDOM {
     * @param expr   expression to match
     */
   case class PM (ident:AExprIdent, ttype:WType, op:String,
-                 dflt:String, expr:Option[Expr] = None) extends CM with CanHtml {
+                 dflt:String, expr:Option[Expr] = None, optional:String = "") extends CM with CanHtml {
 
     def name : String = ident.start
 
@@ -432,6 +437,7 @@ object RDOM {
     def valExpr = if(dflt.nonEmpty || expr.isEmpty) CExpr(dflt, ttype) else expr.get
 
     def isMatch = ident.start.nonEmpty
+    def isOptional = "?" == optional
 
     def check (in:P)(implicit ctx: ECtx) = {
       val pm = this
@@ -440,8 +446,10 @@ object RDOM {
       in.name == pm.name && pm.ident.rest.isEmpty && {
         val r = new BCMP2(in.valExpr, pm.op, pm.valExpr).bapply("").value
 
-        // for regex matches, use each capture group and set as parm in context
+        // no need to look for ?= - it's handled  above
+
         if (r && pm.op == "~=") {
+          // for regex matches, use each capture group and set as parm in context
           // extract parms
           val a = in.valExpr.apply("")
           val b = pm.valExpr.apply("")
@@ -475,12 +483,14 @@ object RDOM {
     override def toString =
       s"$ident" +
         ttype +
+        optional +
         smap(dflt) (s=> op + (if("Number" == ttype) s else quot(s))) +
         (if(dflt=="") expr.map(x=>smap(x.toString) (" " + op +" "+ _)).mkString else "")
 
     override def toHtml =
       s"<b>$ident</b>" +
       classLink(ttype) +
+      optional +
       smap(dflt) (s=> op + tokenValue(if("Number" == ttype) s else quot(s))) +
         (if(dflt=="") expr.map(x=>smap(x.toHtml) (" <b>"+op +"</b> "+ _)).mkString else "")
   }

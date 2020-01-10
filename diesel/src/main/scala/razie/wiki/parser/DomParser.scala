@@ -419,6 +419,9 @@ trait DomParser extends ParserBase with ExprParser {
 
   def OPS1: Parser[String] = comOperators
 
+  /**
+    * either a match or an expression (conditional)
+    */
   def pmatchattr: Parser[RDOM.PM] = pmatchattrM | pmatchattrE
 
   /**
@@ -428,27 +431,34 @@ trait DomParser extends ParserBase with ExprParser {
     * pmatch is more than just a simple conditional expression
     */
   def pmatchattrM: Parser[RDOM.PM] = ows ~>
-      ( (aidentaccess | aident ) <~ not( ows ~ ("(" | not(comOperators | ")" | ":" | ","))) ) ~
+      ( (aidentaccess | aident ) <~ not( ows ~ ("(" | not(comOperators | ")" | ":" | "\\?".r | ","))) ) ~
       // don't match ident if func call and only if followed by known symbols for valid matches
       // ident) ident,PM ident:Type etc
       // important beause otherwise we want to match pmatchattrE
       optType ~
+      opt(" *\\?(?!=) *".r) ~  // negative lookahead to not match optional with value
       opt(ows ~> OPS1 ~ ows ~ expr) ^^ {
 
     // not(x) is neg lookahead
     // not(not(x)) is pos lookahead
 
-    case ident ~ t ~ e => {
+    case ident ~ t ~ o ~ e => {
+      var optional = o.mkString.trim
       var ttype = ""
       var dflt = ""
       val exp = e match {
+        case Some("?=" ~ _ ~ v) => {
+          optional = "?"
+          if(v.isInstanceOf[CExpr[_]]) ttype = v.asInstanceOf[CExpr[_]].ttype
+          ("?=", Some(v))
+        }
         case Some(op ~ _ ~ v) => {
           if(v.isInstanceOf[CExpr[_]]) ttype = v.asInstanceOf[CExpr[_]].ttype
           (op, Some(v))
         }
         case None => ("", None)
       }
-      PM(ident, t, exp._1, dflt, exp._2)
+      PM(ident, t, exp._1, dflt, exp._2, optional)
     }
   }
 

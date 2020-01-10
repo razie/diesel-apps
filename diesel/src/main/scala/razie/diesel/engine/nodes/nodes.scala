@@ -9,6 +9,7 @@ import razie.diesel.dom.RDOM.P
 import razie.diesel.dom.{RDOM, WTypes}
 import razie.diesel.expr.{BCMP2, ECtx}
 import razie.wiki.Enc
+import scala.collection.mutable.ListBuffer
 
 /** utilities for nodes */
 package object nodes {
@@ -66,13 +67,23 @@ package object nodes {
             positive:Boolean = true)(implicit ctx: ECtx): Boolean = {
     // for each match
 
-      val result = cond.zipWithIndex.foldLeft(true)((a, b) => a && {
+    val calculated = new ListBuffer[P]()
+
+      var result = cond.zipWithIndex.foldLeft(true)((a, b) => a && {
         var res = false
 
         val pm = b._1
 
-        // testing for name and value
-        if (pm.isMatch && (pm.dflt.size > 0 || pm.expr.isDefined)) {
+        if (pm.isMatch && pm.op == "?=") {
+          // optionals with default
+          res = in.exists(x => pm.name == x.name) || ctx.exists(x => pm.name == x.name)
+          if(!res) {
+            // if not there, make it up!
+            res = true
+            calculated.append(P(pm.name, pm.dflt, pm.ttype, pm.expr).calculatedP)
+          }
+        } else if (pm.isMatch && (pm.dflt.size > 0 || pm.expr.isDefined)) {
+          // testing for name and value
           if (b._1.name.size > 0) {
             res = in.exists(x => pm.check(x)) || ctx.exists(x => pm.check(x))
 
@@ -109,7 +120,7 @@ package object nodes {
           // test just the name (presence): check and record the name failure
           if (pm.name.size > 0) {
             // I don't include the context - this leads to side-effects, just use an IF after the match...
-            res = in.exists(_.name == pm.name) // || ctx.exists(_.name == b._1.name)
+            res = in.exists(_.name == pm.name) || pm.isOptional // || ctx.exists(_.name == b._1.name)
 
             if (res && positive) cole.map(_.plus(pm.name))
             else cole.map(_.minus(pm.name, pm.name, pm))
@@ -125,7 +136,14 @@ package object nodes {
         res
       })
 
-      if (positive) result else !result
+    if (!positive) result = !result
+
+    if(result) {
+      // populated the calculated only if all else matched and this rule will be used then...
+      calculated.foreach(ctx.put)
+    }
+
+    result
   }
 
   def toHtmlAttrs(attrs: Attrs)      = if(attrs.nonEmpty) s"""${attrs.map(_.toHtml).mkString("(", ", ", ")")}""" else ""
