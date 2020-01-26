@@ -20,6 +20,8 @@ import scala.Option.option2Iterable
 import scala.collection.mutable.HashMap
 import scala.collection.parallel.mutable
 import scala.util.Try
+import DieselMsg.ENGINE._
+import razie.hosting.Website
 
 /** the actual engine implementation
   *
@@ -537,7 +539,6 @@ class DomEngineV1(
     if(result.size > 1) result.drop(1).foldLeft(result.head)((a,b)=> {
       b.withPrereq(List(a.id))
     })
-    else result
 
     result
   }
@@ -617,7 +618,7 @@ class DomEngineV1(
         } else {
           List(p.calculatedP) // only calculate if not already calculated =likely in a different context=
         }
-      }
+      }.filter (_.ttype != WTypes.UNDEFINED) // an undefined parm is the same as not passed in !!
     ).copiedFrom(in)
   }
 
@@ -687,7 +688,7 @@ class DomEngineV1(
   }.recover {
     case t:Throwable => {
 
-      razie.Log.log("while decompose em()", t)
+      razie.Log.error("while decompose em()", t)
 
       // oops - add test failure
       evAppChildren(a, DomAst(
@@ -816,7 +817,7 @@ class DomEngineV1(
     }.recover {
       case t:Throwable => {
 
-        razie.Log.log("while decompose ev()", t)
+        razie.Log.log(s"while decompose ExpectV: $e", t)
 
         // oops - add test failure
         a append DomAst(
