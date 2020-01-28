@@ -84,7 +84,7 @@ package object dom {
 
     if (p.ttype == "Int" || p.ttype == WTypes.NUMBER) (t._1+"",
       try {
-        t._2.dflt.toDouble
+        t._2.calculatedValue.toDouble
       } catch {
         case _:Throwable => throw new IllegalArgumentException("Type error: expected Int, parm "+t._1+" found "+t._2)
       }
