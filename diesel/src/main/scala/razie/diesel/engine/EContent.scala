@@ -27,6 +27,8 @@ class EContent(
                  val iroot: Option[Snakk.Wrapper[_]] = None,
                  val raw: Option[Array[Byte]] = None) {
 
+  var warnings:List[Any] = Nil
+
   def isXml = contentType != null && (contentType startsWith "application/xml") || (contentType startsWith "text/xml")
 
   def isJson = contentType != null && (contentType startsWith "application/json")

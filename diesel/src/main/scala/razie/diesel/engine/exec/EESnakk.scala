@@ -22,6 +22,7 @@ import razie.{Logging, js}
 import scala.Option.option2Iterable
 import scala.collection.mutable
 import scala.collection.mutable.{HashMap, ListBuffer}
+import scala.util.Try
 
 /** executor for snakking REST APIs */
 class EESnakk extends EExecutor("snakk") with Logging {
@@ -153,7 +154,17 @@ class EESnakk extends EExecutor("snakk") with Logging {
 
           trace("Snakk RESPONSE: " + trimmed(response))
 
-          val content = new EContent(response, sc.iContentType.getOrElse(""), sc.icode.getOrElse(-1), sc.iHeaders.getOrElse(Map.empty), sc.root)
+          val content = Try {
+            new EContent(response, sc.iContentType.getOrElse(""), sc.icode.getOrElse(-1), sc.iHeaders.getOrElse(Map.empty), sc.root)
+          }.recover {
+            case e:Throwable => {
+              val c = new EContent(response, sc.iContentType.getOrElse(""), sc.icode.getOrElse(-1), sc.iHeaders.getOrElse(Map.empty), None)
+              c.warnings = List(EWarning("Parsing", html(e.getLocalizedMessage)))
+              c
+            }
+          }.get
+
+          content.warnings.foreach(eres.append)
           eres += EInfo("Response", html(content.toString))
           content
         }
