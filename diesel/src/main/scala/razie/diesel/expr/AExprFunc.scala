@@ -5,11 +5,13 @@
  */
 package razie.diesel.expr
 
+import java.net.URLEncoder
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
 import razie.diesel.engine.exec.EEFunc
 import razie.diesel.engine.nodes.EMsg
 import razie.diesel.engine.{AstKinds, DieselAppContext, DomAst}
+import razie.wiki.{Enc, EncUrl}
 
 /** a "function-like" call:
   * - built-in functions,
@@ -70,6 +72,16 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
             }.getOrElse(
               throw new DieselExprException(s"No arguments for $expr")
             )
+        }
+
+        case "urlencode" => {
+          firstParm.map { p =>
+            val p1 = p.calculatedValue
+            val pv = URLEncoder.encode(p1, "UTF8")
+            P("", pv, WTypes.wt.STRING).withValue(pv, WTypes.wt.STRING)
+          }.getOrElse(
+            throw new DieselExprException(s"No arguments for $expr")
+          )
         }
 
         case "flatten" => {
