@@ -167,13 +167,19 @@ object EMap {
 //        )
 
         val tt =
-          v.map(_.ttype).getOrElse {
-            if (p.ttype.isEmpty && !p.expr.exists(_.getType.nonEmpty) && (v.isInstanceOf[Int] || v.isInstanceOf[Float] || v.isInstanceOf[Long] || v.isInstanceOf[Double])) WTypes.wt.NUMBER
-            else if (p.ttype.isEmpty) WType(p.expr.map(_.getType).mkString)
-            else p.ttype
+          v.map{pv=>
+            if(pv.ttype.nonEmpty) pv.ttype
+            else {
+//              if (p.ttype.isEmpty && !p.expr.exists(_.getType.nonEmpty) && (v.isInstanceOf[Int] || v.isInstanceOf[Float] || v.isInstanceOf[Long] || v.isInstanceOf[Double])) WTypes.wt.NUMBER
+//              else
+              if (p.ttype.isEmpty) WType(p.expr.map(_.getType).mkString)
+              else p.ttype
+            }
+          }.getOrElse {
+            WTypes.wt.UNDEFINED
           }
 
-        p.copy(dflt = v.map(_.currentStringValue).mkString, ttype=tt, value = v.flatMap(_.value))
+        List(p.copy(dflt = v.map(_.currentStringValue).mkString, ttype=tt, value = v.flatMap(_.value)))
       }
     } else if (destSpec.exists(_.nonEmpty)) destSpec.get.map { p =>
       // when defaulting to spec, order changes
