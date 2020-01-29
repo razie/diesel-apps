@@ -394,7 +394,7 @@ trait DomParser extends ParserBase with ExprParser {
     }
 
   /**
-    * optional attributes
+    * optional MATCH attributes
     */
   private def optMatchAttrs: Parser[List[RDOM.PM]] = opt(" *\\(".r ~> ows ~> repsep(pmatchattr, ows ~> "," ~ ows) <~ ows <~ ")") ^^ {
     case Some(a) => a
@@ -402,7 +402,7 @@ trait DomParser extends ParserBase with ExprParser {
   }
 
   /**
-    * attributes
+    * non-optional MATCH attributes
     */
   private def notoptMatchAttrs: Parser[List[RDOM.PM]] = " *\\(".r ~> ows ~> repsep(pmatchattr, ows ~> "," ~ ows <~ ows <~ ")") ^^ {
     case a => a
@@ -465,9 +465,7 @@ trait DomParser extends ParserBase with ExprParser {
   /**
     * condition - bool expr
     */
-  def pmatchattrE: Parser[RDOM.PM] = ows ~>
-      cond ^^ {
-
+  def pmatchattrE: Parser[RDOM.PM] = ows ~> cond ^^ {
     case cond => {
       PM(AExprIdent(""), WTypes.wt.UNKNOWN, "", "", Some(cond))
     }

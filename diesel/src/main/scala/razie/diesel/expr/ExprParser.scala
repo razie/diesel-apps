@@ -28,7 +28,7 @@ trait ExprParser extends RegexParsers {
 
 //  def pComment: Parser[String] = "//.*".r  | "(?m)/\\*(\\*(?!/)|[^*])*\\*/)".r ^^ {
 //def pComment: Parser[String] = """(\s|//.*|(?m)/\*(\*(?!/)|[^*])*\*/)+""".r ^^ {
-  def pComment: Parser[String] = """(//.*|(?m)/\*(\*(?!/)|[^*])*\*/)+""".r ^^ {
+  def pComment: Parser[String] = """(//[^\n]*|(?m)/\*(\*(?!/)|[^*])*\*/)+""".r ^^ {
     case s => s
   }
 
@@ -55,12 +55,12 @@ trait ExprParser extends RegexParsers {
   def expr2: Parser[Expr] = exprOR | pterm1
 
   private def opsAS: Parser[String] = "as"
-  private def opsMAP: Parser[String] = "map" | "flatMap" | "flatten" | "filter" | "exists"
+  private def opsMAP: Parser[String] = "map" <~ ws | "flatMap" <~ ws | "flatten" <~ ws | "filter" <~ ws | "exists" <~ ws | ">>"
   private def opsOR: Parser[String] = "or" | "xor"
   private def opsAND: Parser[String] = "and"
-  private def opsCMP: Parser[String] = ">" | "<" | ">=" | "<=" | "==" | "!=" | "~=" | "~path" | "?=" | "is" | "not" | "contains"
+  private def opsCMP: Parser[String] = ">" | "<" | ">=" | "<=" | "==" | "!=" | "~=" | "~path" <~ ws | "?=" | "is" <~ ws | "not" <~ ws | "contains" <~ ws
   private def opsPLUS: Parser[String] = "+" | "-" | "||" | "|"
-  private def opsMULT: Parser[String] = "*" | "/"
+  private def opsMULT: Parser[String] = "*" | "/(?!/)".r // negative lookahead to not match comment - it acts funny with multiple lines of comment
 
   // "1" as number
   def exprAS: Parser[Expr] = exprMAP ~ opt(ows ~> opsAS ~ ows ~ pterm1) ^^ {
@@ -74,12 +74,12 @@ trait ExprParser extends RegexParsers {
   }
 
   // x > y
-  def exprOR: Parser[Expr] = exprAND ~ rep(ows ~> opsOR ~ ows ~ exprAND) ^^ {
+  def exprOR: Parser[Expr] = exprAND ~ rep(ows ~> (opsOR <~ ws) ~ ows ~ exprAND) ^^ {
     case a ~ l => foldAssocAexpr2(a, l, ebcmp)
   }
 
   // x > y
-  def exprAND: Parser[Expr] = exprCMP ~ rep(ows ~> opsAND ~ ows ~ exprCMP) ^^ {
+  def exprAND: Parser[Expr] = exprCMP ~ rep(ows ~> (opsAND <~ ws) ~ ows ~ exprCMP) ^^ {
     case a ~ l => foldAssocAexpr2(a, l, ebcmp)
   }
 
@@ -198,7 +198,7 @@ trait ExprParser extends RegexParsers {
   def xpident: Parser[Expr] = "xp:" ~> xpath ^^ { case i => new XPathIdent(i) }
 
   // regular expression, JS style
-  def exregex: Parser[Expr] = """/[^/]*/""".r ^^ { case x => new CExpr(x, WTypes.wt.REGEX) }
+  def exregex: Parser[Expr] = """/[^/]+/""".r ^^ { case x => new CExpr(x, WTypes.wt.REGEX) }
 
 
   //
@@ -383,21 +383,21 @@ trait ExprParser extends RegexParsers {
 
   def cond: Parser[BoolExpr] = orexpr
 
-  def orexpr: Parser[BoolExpr] = bterm1 ~ rep(ows ~> ("or") ~ ows ~ bterm1 ) ^^ {
+  def orexpr: Parser[BoolExpr] = bterm1 ~ rep(ows ~> ("or" <~ ws) ~ ows ~ bterm1 ) ^^ {
     case a ~ l => foldAssocAexpr2(a, l, bcmp)
   }
 
-  def bterm1: Parser[BoolExpr] = bfactor1 ~ rep(ows ~> ("and") ~ ows ~ bfactor1 ) ^^ {
+  def bterm1: Parser[BoolExpr] = bfactor1 ~ rep(ows ~> ("and" <~ ws) ~ ows ~ bfactor1 ) ^^ {
     case a ~ l => foldAssocAexpr2(a, l, bcmp)
   }
 
   def bfactor1: Parser[BoolExpr] = notbfactor1 | bfactor2
 
-  def notbfactor1: Parser[BoolExpr] = ows ~> ("not" | "NOT") ~> ows ~> bfactor2 ^^ { BCMPNot }
+  def notbfactor1: Parser[BoolExpr] = ows ~> (("not" | "NOT") <~ ws) ~> ows ~> bfactor2 ^^ { BCMPNot }
 
   def bfactor2: Parser[BoolExpr] = bConst | ibex(opsBool) | bvalue | condBlock
 
-  private def opsBool: Parser[String] = "==" | "is" | "!=" | "not" | "~=" | "matches" | "<=" | ">=" | "<" | ">"
+  private def opsBool: Parser[String] = "==" | "is" | "!=" | "not" <~ ws | "~=" | "matches" <~ ws | "<=" | ">=" | "<" | ">"
 
   private def condBlock: Parser[BoolExpr] = ows ~> "(" ~> ows ~> cond <~ ows <~ ")" ^^ { BExprBlock }
 
