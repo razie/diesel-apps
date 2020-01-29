@@ -263,7 +263,14 @@ class DomEngineV1(
     // no engine messages fit, so let's find rules
     // todo - WHY? only some systems may be mocked ???
     if ((true || !mocked) && !settings.simMode) {
-      var matchingRules = rules.filter(_.e.test(n))
+      var matchingRules = rules
+          .filter(_.e.testEA(n))
+          .filter(x => x.e.testAttrCond(n) || {
+            // add debug
+            newNodes = newNodes ::: DomAst(EInfo("rule skipped", x.e.toString).withPos(x.pos), AstKinds.TRACE) :: Nil
+            false
+          })
+
       val exclusives = HashMap[String, ERule]()
 
       // use fallbacks?
@@ -271,7 +278,12 @@ class DomEngineV1(
         matchingRules =
             rules
                 .filter(_.arch contains "fallback")
-                .filter(_.e.test(n, None, true))
+                .filter(_.e.testEA(n, None, true))
+                .filter(x => x.e.testAttrCond(n, None, true) || {
+                  // add debug
+                  newNodes = newNodes ::: DomAst(EInfo("rule skipped", x.e.toString).withPos(x.pos), AstKinds.TRACE) :: Nil
+                  false
+                })
 
       matchingRules
           .sortBy(0 - _.arch.indexOf("exclusive")) // put excl first, so they execute and kick out others
@@ -394,11 +406,12 @@ class DomEngineV1(
         // not for internal diesel messages
         val ms = n.entity + "." + n.met
         if(!ms.startsWith("diesel.")) {
+          val cfg = this.pages.map(_.specPath.wpath).mkString("\n")
           evAppChildren(a, DomAst(
             EWarning(
               "No rules, mocks or executors match for " + in.toString,
               s"Review your engine configuration (blender=${settings.blenderMode}, mocks=${settings.blenderMode}, drafts=${settings.blenderMode}, tags), " +
-                  "spelling of messages or rule clauses / pattern matches"),
+                  s"spelling of messages or rule clauses / pattern matches\n$cfg"),
             AstKinds.DEBUG
           ))
         }

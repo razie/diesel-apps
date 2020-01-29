@@ -5,6 +5,7 @@
  */
 package razie.diesel.engine.nodes
 
+import razie.{cdebug, clog, ctrace}
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.exec.EApplicable
@@ -164,13 +165,35 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
     * @param fallback if this is looking for fallbacks or not
     */
   def test(e: EMsg, cole: Option[MatchCollector] = None, fallback:Boolean = false)(implicit ctx: ECtx) = {
+    if(testEA(e, cole, fallback))
+      testAttrCond(e, cole, fallback)
+    else false
+  }
+
+  /** test that the EA matches */
+  def testEA(e: EMsg, cole: Option[MatchCollector] = None, fallback:Boolean = false)(implicit ctx: ECtx) = {
+//    cdebug << s"Rule tested: $this"
     if ("*" == cls || e.entity == cls || regexm(cls, e.entity)) {
       cole.map(_.plus(e.entity))
       if ("*" == met || e.met == met || regexm(met, e.met)) {
         cole.map(_.plus(e.met))
-        fallback || testA(e.attrs, attrs, cole) && cond.fold(true)(_.test(e.attrs, cole))
-      } else false
+        true
+      } else {
+//        ctrace << s"...rule skipped EA: $this"
+        false
+      }
     } else false
+  }
+
+  /** test that the attrs and cond match */
+  def testAttrCond(e: EMsg, cole: Option[MatchCollector] = None, fallback:Boolean = false)(implicit ctx: ECtx) = {
+        cole.map(_.plus(e.met))
+        val testedok = testA(e.attrs, attrs, cole)
+        val condok = if(testedok) true else cond.fold(true)(_.test(e.attrs, cole)) // respect bool shortcut
+        fallback || {
+          if(! (testedok && condok)) ctrace << s"...rule skipped attr/cond: $this"
+          testedok && condok
+        }
   }
 
   /** extract a message signature from the match */
@@ -252,7 +275,9 @@ case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred:Bo
       // if evaluation was deferred, do it
       val m = if (deferred) {
         parent.map { parent =>
-          msg.copy(attrs = EMap.sourceAttrs(parent, msg.attrs, spec.map(_.attrs))).copiedFrom(msg)
+          msg
+              .copy(attrs = EMap.sourceAttrs(parent, msg.attrs, spec.map(_.attrs)))
+              .copiedFrom(msg)
         } getOrElse {
           msg // todo evaluate something here as well...
         }
@@ -303,7 +328,6 @@ case class EIfm(attrs: MatchAttrs) extends CanHtml with EIf {
     testA(e, attrs, cole)
 
   override def toHtml = span("$ifm::") + attrs.mkString("<small>(", ", ", ")</small>")
-
   override def toString = "$ifm " + attrs.mkString
 }
 
@@ -314,7 +338,6 @@ case class EIfc(cond: BoolExpr) extends CanHtml with EIf {
     cond.bapply("").value
 
   override def toHtml = span("$ifc::") + cond.toDsl
-
   override def toString = "$ifc " + cond.toDsl
 }
 
@@ -323,7 +346,6 @@ case class EMock(rule: ERule) extends CanHtml with HasPosition {
   var pos: Option[EPos] = rule.pos
 
   override def toHtml = span(count.toString) + " " + rule.toHtml//.replaceFirst("when", "mock")
-
   override def toString = count.toString + " " + rule.toString//.replaceFirst("when", "mock")
 
   def count = rule.i.map(_.count).sum // todo is slow
