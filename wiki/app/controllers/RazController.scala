@@ -377,10 +377,11 @@ ${errCollector.mkString}
   def RAction = new RazAction (BodyParsers.parse.default)
   def RAction[A] (bodyParser: BodyParser[A])() = new RazAction (bodyParser)
 
-  /** action builder that decomposes the request, extracting user and creating a simple error buffer */
+  /** for active user */
   def FAUR(f: RazRequest => Result) : Action[AnyContent] =
     FAUR("")(r=> Some(f(r)))
 
+  /** for active user */
   def FAUR(msg:String, isApi:Boolean=false)(f: RazRequest => Option[Result]) : Action[AnyContent] = Action { implicit request =>
     val req = razRequest
     (for (
@@ -400,10 +401,11 @@ ${errCollector.mkString}
     }
   }
 
-  /** action builder that decomposes the request, extracting user and creating a simple error buffer */
+  /** for active user */
   def FAU(f: User => VErrors => Request[AnyContent] => Result) : Action[AnyContent] =
     FAU(""){u:User => e:VErrors => r:Request[AnyContent] => Option(f(u)(e)(r))}
 
+  /** for active user */
   def FAU(msg:String, isApi:Boolean=false)(f: User => VErrors => Request[AnyContent] => Option[Result]) : Action[AnyContent] = Action { implicit request =>
     implicit val errCollector = new VErrors()
     (for (
