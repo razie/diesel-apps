@@ -127,7 +127,11 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
            } else  if(bv.ttype == WTypes.JSON ||
                   av.ttype == WTypes.JSON) {
               // json exprs are different, like cart + { item:...}
-              PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.wt.JSON)
+              try {
+                PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.wt.JSON)
+              } catch {
+                case t:Throwable => throw new DieselExprException(s"Parm ${av} or ${bv} can't be parse to JSON: " + t.toString).initCause(t)
+              }
             } else {
               PValue(av.calculatedValue + bv.calculatedValue)
             }
@@ -392,8 +396,16 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
 
   /** process a js operation like obja + objb */
   def jsonExpr(op: String, aa: String, bb: String) = {
-    val ai = razie.js.parse(aa)
-    val bi = razie.js.parse(bb)
+    val ai = try {
+      razie.js.parse(aa)
+    } catch {
+      case t:Throwable => throw new DieselExprException(s"Parm ${aa} can't be parsed to JSON: " + t.toString).initCause(t)
+    }
+    val bi = try {
+      razie.js.parse(bb)
+    } catch {
+      case t:Throwable => throw new DieselExprException(s"Parm ${bb} can't be parsed to JSON: " + t.toString).initCause(t)
+    }
     val res = new mutable.HashMap[String, Any]()
 
     ai.foreach { t =>
