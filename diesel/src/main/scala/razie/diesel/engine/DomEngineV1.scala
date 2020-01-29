@@ -145,7 +145,7 @@ class DomEngineV1(
         // todo should collect all parent contexts from root to here...
         // todo problem right now: parent parms are not in context, so can't use in child messages
 //        implicit val parentCtx = new StaticECtx(in.attrs, Some(this.ctx), Some(a))
-        msgs = expandEMsgX(a, in, recurse, level, this.ctx) ::: msgs
+        msgs = expandEMsgAndRep(a, in, recurse, level, this.ctx) ::: msgs
       }
 
       case n: EVal if !AstKinds.isGenerated(a.kind) => {
@@ -184,9 +184,9 @@ class DomEngineV1(
   /** make a static context for children */
   protected def mkMsgContext (in:Option[EMsg], attrs:List[P], parentCtx:ECtx, a:DomAst) = {
     new StaticECtx(
-      in.map(in=>P(DIESEL_MSG_ENTITY, in.entity)).toList :::
-      in.map(in=>P(DIESEL_MSG_ACTION, in.met)).toList :::
-      in.map(in=>P(DIESEL_MSG_EA, in.ea)).toList :::
+      in.map(in=>P.fromTypedValue(DIESEL_MSG_ENTITY, in.entity)).toList :::
+      in.map(in=>P.fromTypedValue(DIESEL_MSG_ACTION, in.met)).toList :::
+      in.map(in=>P.fromTypedValue(DIESEL_MSG_EA, in.ea)).toList :::
           // todo avoid this every time - lazy parms ?
       List(P.fromTypedValue(DIESEL_MSG_ATTRS, attrs.map(p=> (p.name, p.calculatedTypedValue(parentCtx).value)).toMap)) :::
       attrs,
@@ -622,8 +622,8 @@ class DomEngineV1(
     ).copiedFrom(in)
   }
 
-  /** expand a single message - called by engine, results in engine processing */
-  private def expandEMsgX(a: DomAst, in: EMsg, recurse: Boolean, level: Int, parentCtx:ECtx) : List[DEMsg] = {
+  /** expand a single message and rep - called by engine, results in engine processing */
+  private def expandEMsgAndRep(a: DomAst, in: EMsg, recurse: Boolean, level: Int, parentCtx:ECtx) : List[DEMsg] = {
     val newNodes = expandEMsg(a, in, recurse, level, parentCtx)
 
     // analyze the new messages and return
