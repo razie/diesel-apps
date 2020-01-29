@@ -231,10 +231,9 @@ object RDOM {
             case WType(WTypes.EXCEPTION,_,_,_, _) => P(name, s, expectedType)
             case _ if expectedType.trim.length > 0 =>
               throw new DieselExprException(s"$expectedType is an unknown type")
-            case _ => P(name, s, WTypes.wt.STRING)
+            case _ => P(name, s, WTypes.wt.STRING).withCachedValue(s, WTypes.wt.STRING, s)
           }
         }
-
 
         // java object - it's better to create this yourself
         case x@_ if expectedType == WTypes.OBJECT => P(name, "", expectedType).withValue(v, expectedType)
@@ -271,7 +270,7 @@ object RDOM {
     }
 
     @deprecated
-    def apply (name:String, dflt:String, ttype:String):P = P(name, dflt, WType(ttype))
+    def apply (name:String, dflt:String, ttype:String):P = P(name, dflt, WType(ttype)).withValue(dflt, WType(ttype))
   }
 
   //  implicit def toWtype2(s:String) : WType = WType(s)
@@ -292,11 +291,6 @@ object RDOM {
   case class P (name:String, dflt:String, ttype:WType = WTypes.wt.EMPTY, expr:Option[Expr]=None,
                 var value:Option[PValue[_]] = None
                ) extends CM with CanHtml {
-
-    @deprecated()
-    def withValue[T](va:T, ctype:String, domClassName:String) = {
-      this.copy(ttype=WType(ctype), value=Some(PValue[T](va, WType(ctype, domClassName))))
-    }
 
     def withValue[T](va:T, ctype:WType = WTypes.wt.UNKNOWN) = {
       this.copy(ttype=ctype, value=Some(PValue[T](va, ctype)))
@@ -457,7 +451,7 @@ object RDOM {
 
           groups.foreach(t => ctx.put(P(t._1, t._2)))
         } else if (r && pm.op == "~path") {
-          // extract parms
+          // extract parms - special path mapping
           val a = in.valExpr.apply("")
           val b = pm.valExpr.apply("")
           val (is, groups) = EContent.extractPathParms(a.toString, b.toString)
