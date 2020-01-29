@@ -144,10 +144,18 @@ object DieselTarget {
   /** the environment settings - most common target */
   def ENV (realm:String, env:String=DEFAULT) =
     new DieselTarget(realm, env) {
-      override def specs = List(ENV_SETTINGS(realm))
+      override def specs = {
+        val tq = new TagQuery("")
+        val irdom = WikiSearch.getList(realm, "", "", tq.and("spec").tags)
+
+        ENV_SETTINGS(realm) :: irdom.map(_.wid.toSpecPath)
+      }
+
+      // all specs, not just envset
+//      override def specs = List(ENV_SETTINGS(realm))
     }
 
-  /** the environment settings - most common target */
+  /** the diesel section from the reactor topic */
   def REALMDIESEL (realm:String, env:String=DEFAULT) =
     DieselTarget.from(
       realm,
@@ -206,9 +214,11 @@ object DieselMsg {
   object REALM {
     final val REALM_LOADED_MSG = "$msg diesel.realm.loaded"
     final val REALM_LOADED = "diesel.realm.loaded"
+    final val REALM_CONFIGURE = "diesel.realm.configure"
     final val REALM_SET = "diesel.realm.set"
     final val ENTITY = "diesel.realm"
     final val LOADED = "loaded"
+    final val CONFIGURE = "configure"
   }
 
   object SCOPE {

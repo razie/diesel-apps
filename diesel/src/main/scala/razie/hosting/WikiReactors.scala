@@ -223,15 +223,28 @@ object WikiReactors extends Logging with Reactors {
             reactors.put(we.name, re)
             lowerCase.put(we.name.toLowerCase, we.name)
 
-            // send realm.loaded message if anyone used it
-            if(re.wiki.find("Spec", "EnvironmentSettings").exists(_.content.contains(DieselMsg.REALM.REALM_LOADED))) {
-            Services ! ScheduledDieselMsg("10 seconds", DieselMsg(
-              DieselMsg.REALM.ENTITY,
-              DieselMsg.REALM.LOADED,
-              Map("realm" -> realm),
-              DieselTarget.ENV(realm)
-            ))
+            val envSettings = re.wiki.find("Spec", "EnvironmentSettings")
+
+            // send realm.config message if anyone used it
+            if(envSettings.exists(_.content.contains(DieselMsg.REALM.REALM_CONFIGURE))) {
+              Services ! ScheduledDieselMsg("5 seconds", DieselMsg(
+                DieselMsg.REALM.ENTITY,
+                DieselMsg.REALM.CONFIGURE,
+                Map("realm" -> realm),
+                DieselTarget.ENV(realm)
+              ))
             }
+
+            // send realm.loaded message if anyone used it
+            if(envSettings.exists(_.content.contains(DieselMsg.REALM.REALM_LOADED))) {
+              Services ! ScheduledDieselMsg("10 seconds", DieselMsg(
+                DieselMsg.REALM.ENTITY,
+                DieselMsg.REALM.LOADED,
+                Map("realm" -> realm),
+                DieselTarget.ENV(realm)
+              ))
+            }
+
           } else {
             clog << s"NEED TO LOAD LATER REACTOR ${we.wid.name} depends on ${mixins.mkString(",")}"
             toLoad appendAll mixins.filterNot(x => lowerCase.contains(x.toLowerCase)).map(allReactors.apply)
@@ -279,6 +292,24 @@ object WikiReactors extends Logging with Reactors {
         //        WikiReactors.reload(we.name);
         Website.clean(we.name + ".dieselapps.com")
         new Website(we).prop("domain").map(Website.clean)
+      }
+
+      // reload EnvironmentSettings when changes
+      if (x.isInstanceOf[WikiEntry]
+          && x.asInstanceOf[WikiEntry].category == "Spec"
+          && x.asInstanceOf[WikiEntry].name == "EnvironmentSettings") {
+        val we = x.asInstanceOf[WikiEntry]
+        razie.audit.Audit.logdb("DEBUG", "event.realm.configure", we.wid.wpath)
+
+        // send realm.config message if anyone used it
+        if(we.content.contains(DieselMsg.REALM.REALM_CONFIGURE)) {
+          Services ! ScheduledDieselMsg("1 milliseconds", DieselMsg(
+            DieselMsg.REALM.ENTITY,
+            DieselMsg.REALM.CONFIGURE,
+            Map("realm" -> we.realm),
+            DieselTarget.ENV(we.realm)
+          ))
+        }
       }
     }
   }
