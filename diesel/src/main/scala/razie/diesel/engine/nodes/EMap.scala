@@ -153,8 +153,12 @@ object EMap {
       else { // do evaluation now
         // sourcing has expr, overrules
         val v =
-          if(p.hasCurrentValue || p.expr.nonEmpty) Some(expr(p)) // a=x
-
+          if(p.hasCurrentValue)
+            Some(p)
+            // do not recalculate expressions like diesel.msg.ea - these will produce a different value
+            // important: if a parm is inherited with expression and expression is diesel.msg.ea, it would produce a
+            // different value for the child
+          else if(p.expr.nonEmpty) Some(expr(p)) // a=x
           else
           // this is why we can't override values in a message decomp
 //        parent.attrs.find(_.name == p.name).orElse( // just by name: no dflt, no expr
