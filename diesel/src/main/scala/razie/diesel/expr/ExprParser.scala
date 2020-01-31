@@ -58,7 +58,7 @@ trait ExprParser extends RegexParsers {
   private def opsMAP: Parser[String] = "map" <~ ws | "flatMap" <~ ws | "flatten" <~ ws | "filter" <~ ws | "exists" <~ ws | ">>"
   private def opsOR: Parser[String] = "or" | "xor"
   private def opsAND: Parser[String] = "and"
-  private def opsCMP: Parser[String] = ">" | "<" | ">=" | "<=" | "==" | "!=" | "~=" | "~path" <~ ws | "?=" | "is" <~ ws | "not" <~ ws | "contains" <~ ws
+  private def opsCMP: Parser[String] = ">" | "<" | ">=" | "<=" | "==" | "!=" | "~=" | "~path" <~ ws | "?=" | "is" <~ ws | "not" <~ ws | "contains" <~ ws | "containsNot" <~ ws
   private def opsPLUS: Parser[String] = "+" | "-" | "||" | "|"
   private def opsMULT: Parser[String] = "*" | "/(?!/)".r // negative lookahead to not match comment - it acts funny with multiple lines of comment
 
@@ -397,7 +397,7 @@ trait ExprParser extends RegexParsers {
 
   def bfactor2: Parser[BoolExpr] = bConst | ibex(opsBool) | bvalue | condBlock
 
-  private def opsBool: Parser[String] = "==" | "is" | "!=" | "not" <~ ws | "~=" | "matches" <~ ws | "<=" | ">=" | "<" | ">"
+  private def opsBool: Parser[String] = "==" | "is" | "!=" | "not" <~ ws | "~=" | "matches" <~ ws | "<=" | ">=" | "<" | ">" | "containsNot" <~ ws | "contains" <~ ws
 
   private def condBlock: Parser[BoolExpr] = ows ~> "(" ~> ows ~> cond <~ ows <~ ")" ^^ { BExprBlock }
 
