@@ -89,11 +89,21 @@ object RMany {
   def raw[A <: AnyRef](t: (String, Any)*)(implicit m: Manifest[A]) =
     RazMongo(tbl(m)).find(t.toMap)
 
-  def sortLimit[A <: AnyRef](query: Map[String, Any], sortby:Map[String,Any], limit:Int = -1)(implicit m: Manifest[A]) =
+  /** sort and limit number of results
+    *
+    * @param query
+    * @param sortby
+    * @param limit
+    * @param skip skip this many elements
+    * @param m
+    * @tparam A
+    * @return
+    */
+  def sortLimit[A <: AnyRef](query: Map[String, Any], sortby:Map[String,Any], limit:Int = -1, skip:Int = 0)(implicit m: Manifest[A]) =
     (if(limit < 0)
-      RazMongo(tbl(m)).find(query)
+      RazMongo(tbl(m)).find(query).skip(skip)
     else
-      RazMongo(tbl(m)).find(query).sort(sortby).limit(limit)
+      RazMongo(tbl(m)).find(query).sort(sortby).skip(skip).limit(limit)
     ).toList.map(grater[A].asObject(_))
 }
 
