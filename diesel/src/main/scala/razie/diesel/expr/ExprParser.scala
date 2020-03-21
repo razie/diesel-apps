@@ -136,7 +136,8 @@ trait ExprParser extends RegexParsers {
   }
 
   /** allow JSON ids with double quotes, single quotes or no quotes */
-  def jsonIdent: Parser[String] = """[a-zA-Z_][\w]*""".r | """'[\w@. -]+'""".r | """"[\w@. -]+"""".r ^^ {
+//  def jsonIdent: Parser[String] = """[a-zA-Z_][\w]*""".r | """'[\w@. -]+'""".r | """"[\w@. -]+"""".r ^^ {
+  def jsonIdent: Parser[String] = """[a-zA-Z_][\w]*""".r | """'[^']+'""".r | """"[^"]+"""".r ^^ {
     case s => unquote(s)
   }
 
