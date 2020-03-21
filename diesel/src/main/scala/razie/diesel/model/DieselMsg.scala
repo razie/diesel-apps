@@ -231,6 +231,8 @@ object DieselMsg {
     final val ENTITY = "diesel"
     final val VALS = "vals"
     final val DIESEL_RETURN = "diesel.return"
+    final val DIESEL_THROW = "diesel.throw"
+    final val DIESEL_CATCH = "diesel.catch"
     final val DIESEL_VALS = "diesel.vals"
     final val DIESEL_BEFORE = "diesel.before"
     final val DIESEL_AFTER = "diesel.after"
@@ -245,6 +247,10 @@ object DieselMsg {
     final val DIESEL_MSG_ACTION = "diesel.msg.action"
     final val DIESEL_MSG_EA     = "diesel.msg.ea"
     final val DIESEL_MSG_ATTRS  = "diesel.msg.attrs"
+  }
+
+  object HTTP {
+    final val STATUS = "diesel.response.http.status"
   }
 
   object GUARDIAN {
@@ -263,6 +269,13 @@ object DieselMsg {
     final val LIST = "list"
     final val TICK = "tick"
     final val STOP = "stop"
+  }
+
+  object PROPS {
+    final val ENTITY = "diesel.props"
+
+    final val SET = "system"
+    final val LIST = "file"
   }
 
   final val fiddleStoryUpdated = "fiddleStoryUpdated"

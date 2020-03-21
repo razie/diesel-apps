@@ -13,6 +13,7 @@ import razie.diesel.engine.DomEngineSettings.DIESEL_USER_ID
 import razie.diesel.engine._
 import razie.diesel.engine.nodes._
 import razie.diesel.expr.{AExprFunc, ECtx, StaticECtx}
+import razie.diesel.model.DieselMsg
 import razie.tconf.DUsers
 import razie.tconf.hosting.Reactors
 import razie.wiki.Base64
@@ -331,7 +332,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         if (uid.isDefined)
           new EInfo("User is auth ") :: Nil
         else
-          new EVal("diesel.response.http.code", "401") ::
+          new EVal(DieselMsg.HTTP.STATUS, "401") ::
           new EVal(Diesel.PAYLOAD, "Error: User not auth") :: // payload will be shown, needs reset
               new EError(s"ctx.authUser - User not auth") ::
               new EEngStop(s"User not auth") :: Nil

@@ -36,7 +36,7 @@ class FFDPayload (input:String, schema:String, emptyValues:Boolean = false) {
           val s = input.substring(f.offset, f.length + f.offset)
 
           if(emptyValues || s.trim.length > 0)
-            P(f.name, s, (if (f.ttype.toLowerCase != "string") f.ttype else ""))
+            P.fromTypedValue(f.name, s, (if (f.ttype.toLowerCase != "string") f.ttype else ""))
           else
             P("","")
         }.recover {
