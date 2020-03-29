@@ -8,7 +8,7 @@ package razie.diesel.engine.nodes
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.AstKinds
-import razie.diesel.expr.{AExprIdent, ECtx, Expr, StaticECtx}
+import razie.diesel.expr.{AExprIdent, ECtx, Expr, SimpleExprParser, StaticECtx}
 import razie.tconf.EPos
 import scala.Option.option2Iterable
 import scala.util.Try
@@ -147,10 +147,23 @@ object EMap {
       }
     }
 
-    val out1 = if (spec.nonEmpty) spec.map { p =>
+    val out1 = if (spec.nonEmpty) spec.flatMap { p =>
       if(deferEvaluation)
-        p
-      else { // do evaluation now
+        List(p)
+      // flattening objects first
+      else if(p.expr.exists{e=>
+        e.isInstanceOf[AExprIdent] &&
+            e.asInstanceOf[AExprIdent].rest.size > 0 &&
+            e.asInstanceOf[AExprIdent].rest.last.name.equals("asAttrs")
+      }) {
+        p :: flattenJson(p)
+      } else if(p.name.endsWith(".asAttrs")) {
+        // we have to resolve the expression here
+        val ap = new SimpleExprParser().parseIdent(p.name).map(_.dropLast) // without .asAttrs
+        // and flatten it
+        p :: flattenJson(p.copy(expr = ap).calculatedP)
+      } else {
+          // do evaluation now
         // sourcing has expr, overrules
         val v =
           if(p.hasCurrentValue)
@@ -199,7 +212,7 @@ object EMap {
       }
     }
 
-    out1
+    out1.filter(_.ttype != WTypes.UNDEFINED) // undefined behave like they didn't come...
   }
 
   def sourcePasAttrs(in: List[PAS], deferEvaluation:Boolean=false)(implicit ctx: ECtx) = {

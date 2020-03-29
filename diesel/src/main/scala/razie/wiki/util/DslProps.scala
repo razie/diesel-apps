@@ -15,8 +15,17 @@ import razie.wiki.model._
  */
 class DslProps (val we:Option[WikiPage], section:String, extra:Seq[(String,String)] = Seq()) {
   // can be reloaded in reload()
+  // using seq so the order from the wiki is preserved in menus etc
   private var ipropSeq = extra
   private var iprops = ipropSeq.toMap[String,String]
+
+  // todo at some point realmProps from Website to act as overrides here?
+//  private var over:Map[String,String] = Map.empty
+
+//  def withOverride (m:Map[String,String]) = {
+//    this.over = m
+//    this
+//  }
 
   //todo stupid init pattern
   lazy val init = {

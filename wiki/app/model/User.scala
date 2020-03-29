@@ -105,12 +105,23 @@ case class User(
   /** Harry is a default suspended account you can use for demos */
   def isHarry = id == "4fdb5d410cf247dd26c2a784"
 
-  // TODO optimize
+  // TODO optimize - cache conditions, they are used a lot
+
   def allPerms: Set[String] = perms ++ groups.flatMap(_.can)
-  def hasPerm(p: Perm) = allPerms.contains("+" + p.s) && !allPerms.contains("-" + p.s)
+  def hasPerm(p: Perm) =
+    allPerms.contains("+" + p.s) &&
+        !allPerms.contains("-" + p.s) &&
+        !allPerms.contains("+" + Perm.Expired.s)
+
+  def isExpired = allPerms.contains("+" + Perm.Expired.s)
 
   override def membershipLevel : String =
-      if(this.hasPerm(Perm.Moderator) || this.isAdmin) Perm.Moderator.s
+    if   (this.hasPerm(Perm.Expired)) Perm.Expired.s
+    else nonExpiredMembershipLevel
+
+  /** last membership before expired */
+  def nonExpiredMembershipLevel : String =
+      if (this.hasPerm(Perm.Moderator) || this.isAdmin) Perm.Moderator.s
       else if (this.hasPerm(Perm.Unobtanium)) Perm.Unobtanium.s
       else if (this.hasPerm(Perm.Platinum)) Perm.Platinum.s
       else if (this.hasPerm(Perm.Gold)) Perm.Gold.s
@@ -119,11 +130,12 @@ case class User(
 
   override def hasMembershipLevel(s:String) =
     (s == Perm.Member.s) ||
-    (s == Perm.Moderator.s && (this.hasPerm(Perm.Moderator) || this.isAdmin)) ||
-    (s == Perm.Unobtanium.s && (this.hasPerm(Perm.Moderator) || this.hasPerm(Perm.Unobtanium))) ||
-    (s == Perm.Platinum.s && (this.hasPerm(Perm.Moderator) || this.hasPerm(Perm.Unobtanium) || this.hasPerm(Perm.Platinum))) ||
-    (s == Perm.Gold.s && (this.hasPerm(Perm.Moderator) || this.hasPerm(Perm.Unobtanium) || this.hasPerm(Perm.Platinum) || this.hasPerm(Perm.Gold))) ||
-    (s == Perm.Basic.s && (this.hasPerm(Perm.Moderator) || this.hasPerm(Perm.Unobtanium) || this.hasPerm(Perm.Platinum) || this.hasPerm(Perm.Gold) || this.hasPerm(Perm.Basic)))
+    (this.isExpired && s == Perm.Expired.s) ||
+    (!this.isExpired && s == Perm.Moderator.s && (this.hasPerm(Perm.Moderator) || this.isAdmin)) ||
+    (!this.isExpired && s == Perm.Unobtanium.s && (this.hasPerm(Perm.Moderator) || this.hasPerm(Perm.Unobtanium))) ||
+    (!this.isExpired && s == Perm.Platinum.s && (this.hasPerm(Perm.Moderator) || this.hasPerm(Perm.Unobtanium) || this.hasPerm(Perm.Platinum))) ||
+    (!this.isExpired && s == Perm.Gold.s && (this.hasPerm(Perm.Moderator) || this.hasPerm(Perm.Unobtanium) || this.hasPerm(Perm.Platinum) || this.hasPerm(Perm.Gold))) ||
+    (!this.isExpired && s == Perm.Basic.s && (this.hasPerm(Perm.Moderator) || this.hasPerm(Perm.Unobtanium) || this.hasPerm(Perm.Platinum) || this.hasPerm(Perm.Gold) || this.hasPerm(Perm.Basic)))
 
   // centered on Toronto by default
   lazy val ll = addr.flatMap(Maps.latlong _).getOrElse(("43.664395", "-79.376907"))
@@ -254,7 +266,8 @@ case class User(
   }
 
   def removePerm(realm:String, t: String) = mapRS(realm) {rs=>
-    rs.copy(perms = rs.perms - t)
+    rs.copy(perms = rs.perms - (if(t.startsWith("+")) t else "+"+t))
+//    rs.copy(perms = rs.perms - t)
   }
 
   def forRealm(realm:String) = {

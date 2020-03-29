@@ -617,11 +617,12 @@ class DomEngineV1(
   private def calcMsg (in:EMsg)(implicit ctx: ECtx) : EMsg = {
     in.copy(
       attrs = in.attrs.flatMap { p =>
+          // this flattening is a duplicate of EMap.sourceAttrs but required for $send which is not calculated...
         // flattening objects first
         if(p.expr.exists{e=>
-            e.isInstanceOf[AExprIdent] &&
-                e.asInstanceOf[AExprIdent].rest.size > 0 &&
-                e.asInstanceOf[AExprIdent].rest.last.name.equals("asAttrs")
+          e.isInstanceOf[AExprIdent] &&
+              e.asInstanceOf[AExprIdent].rest.size > 0 &&
+              e.asInstanceOf[AExprIdent].rest.last.name.equals("asAttrs")
         }) {
           p :: flattenJson(p)
         } else if(p.name.endsWith(".asAttrs")) {

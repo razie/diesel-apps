@@ -13,6 +13,7 @@ import razie.diesel.expr._
 import razie.js
 import razie.wiki.Enc
 import scala.collection.mutable.HashMap
+import scala.collection.parallel.mutable
 import scala.concurrent.Future
 
 /**
@@ -216,8 +217,9 @@ object RDOM {
           // must be before Seq
         case r: Range =>       P(name, asString(r), WTypes.wt.RANGE).withValue(r, WTypes.wt.RANGE)
         // the "" dflt will force usage of value
-        case s: collection.Map[_, _] =>   P(name, "", expOrElse(WTypes.wt.JSON)).withValue(s, expOrElse(WTypes.wt.JSON))
-        case s: collection.Seq[_] =>     P(name, "", expOrElse(WTypes.wt.ARRAY)).withValue(s, expOrElse(WTypes.wt.ARRAY))
+        case s: collection.Map[_, _] =>         P(name, "", expOrElse(WTypes.wt.JSON)).withValue(s, expOrElse(WTypes.wt.JSON))
+        case s: collection.mutable.Map[_, _] => P(name, "", expOrElse(WTypes.wt.JSON)).withValue(s, expOrElse(WTypes.wt.JSON))
+        case s: collection.Seq[_] =>      P(name, "", expOrElse(WTypes.wt.ARRAY)).withValue(s, expOrElse(WTypes.wt.ARRAY))
         case s: JSONObject =>  P(name, "", expOrElse(WTypes.wt.JSON)).withValue(js.fromObject(s), expOrElse(WTypes.wt.JSON))
         case s: JSONArray =>   P(name, "", expOrElse(WTypes.wt.ARRAY)).withValue(js.fromArray(s), expOrElse(WTypes.wt.ARRAY))
 
@@ -430,7 +432,7 @@ object RDOM {
     /** current calculated value if any or the expression */
     def valExpr = if(dflt.nonEmpty || expr.isEmpty) CExpr(dflt, ttype) else expr.get
 
-    def isMatch = ident.start.nonEmpty
+    def isMatch = ident.start.nonEmpty //&& ident.rest.isEmpty - a.b.c is fine
     def isOptional = "?" == optional
 
     def check (in:P)(implicit ctx: ECtx) = {

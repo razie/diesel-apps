@@ -10,7 +10,8 @@ import razie.Snakk
 import razie.diesel.Diesel
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
-import razie.diesel.expr.{AExprIdent, Expr}
+import razie.diesel.engine.nodes.flattenJson
+import razie.diesel.expr.{AExprIdent, ECtx, Expr, SimpleECtx}
 import razie.diesel.model.DieselMsg
 import razie.xp.JsonOWrapper
 import scala.Option.option2Iterable
@@ -32,6 +33,7 @@ class EContent(
   def isXml = contentType != null && (contentType startsWith "application/xml") || (contentType startsWith "text/xml")
 
   def isJson = contentType != null && (contentType startsWith "application/json")
+  //|| contentType == null && b.trim.startsWith("{")
 
   def asJsonPayload = {
     // sometimes you get empty
@@ -41,6 +43,21 @@ class EContent(
     else {
       val ex = new IllegalArgumentException("JSON object should start with { or [ but it starts with: " + body.take(5))
       P.fromTypedValue(Diesel.PAYLOAD, ex, WTypes.wt.EXCEPTION)
+    }
+  }
+
+  /** parse incoming POST for a diesel request */
+  def asDieselParams (implicit ctx: ECtx): List[P] = {
+    if(body.trim.startsWith("{")) {
+      // flatten the incoming json
+      flattenJson(asJsonPayload)(ctx)
+    }
+    else if(body.trim.startsWith("[")) {
+      // one array as payload
+      List(asJsonPayload)
+    } else {
+      // POST content as string
+      List(P.fromTypedValue(Diesel.PAYLOAD, body, WTypes.wt.STRING))
     }
   }
 

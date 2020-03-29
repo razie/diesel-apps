@@ -79,6 +79,14 @@ class RazController extends RazControllerBase with Logging {
     au
   }
 
+  def realmOf(implicit request: Request[_]): String = {
+    val au = request match {
+      case rr : RazRequest => rr.realm
+      case r:RequestHeader => Website.getRealm(request)
+    }
+    au
+  }
+
   /** authentication - find the user currently logged in AND active */
   def activeUser(implicit request: Request[_], errCollector: VErrors = IgnoreErrors): Option[User] = {
     val au = auth(request) orCorr cNoAuth
@@ -108,7 +116,11 @@ class RazController extends RazControllerBase with Logging {
 
     if (errCollector.hasCorrections) {
       val uname = auth.map(_.userName).getOrElse(if(isFromRobot) "ROBOT" else "")
-      val msg = Website.get.prop("msg.err.noPerm").getOrElse("Sorry, you don't have enough karma!")
+      val r = realmOf
+      val uperm = auth.map(_.forRealm(r)).map(_.membershipLevel).getOrElse("none")
+      val member = if(uperm == "none") "" else auth.filter(_.asInstanceOf[User].realms.contains(r)).map(x=> "and you are member").getOrElse("but you are NOT a member of " + r)
+      val exp = if(uperm == "none") "" else auth.filter(_.hasMembershipLevel(Perm.Expired.s)).map(x=> "but it is expired").getOrElse("and it is in good standing")
+      val msg = Website.get.prop("msg.err.noPerm").getOrElse(s"Sorry, you don't have enough karma! (your membership level is $uperm $member $exp)")
 
       if (shouldAudit)
         Audit.auth("BY %s - Permission fail Page: %s Info: %s HEADERS: %s".format(uname, wid.toString, more + " " + errCollector.mkString, request.headers))
@@ -151,7 +163,11 @@ class RazController extends RazControllerBase with Logging {
   private def noPermOLD(wid: WID, more: String = "")(implicit request: Request[_]) = {
 //    implicit val stok = razRequest
     Audit.auth("BY %s - Permission fail Page: %s Info: %s HEADERS: %s".format((auth.map(_.userName).getOrElse("")), wid.toString, more, request.headers))
-    val msg = Website.get.prop("msg.err.noPerm").getOrElse("Sorry, you don't have enough karma!")
+    val r = realmOf
+    val uperm = auth.map(_.forRealm(r)).map(_.membershipLevel).getOrElse("none")
+    val member = if(uperm == "none") "" else auth.filter(_.asInstanceOf[User].realms.contains(r)).map(x=> "and you are member").getOrElse("but you are NOT a member of " + r)
+    val exp = if(uperm == "none") "" else auth.filter(_.hasMembershipLevel(Perm.Expired.s)).map(x=> "but it is expired").getOrElse("and it is in good standing")
+    val msg = Website.get.prop("msg.err.noPerm").getOrElse(s"Sorry, you don't have enough karma! (your membership level is $uperm $member $exp)")
     Unauthorized(
       views.html.util.reactorLayout12(
       views.html.util.utilMsg(

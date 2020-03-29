@@ -97,7 +97,8 @@ abstract class WikiConfig {
   /** admin email */
   final val adminEmail = prop("wiki.adminEmail", "razie@razie.com")
 
-  def isLocalhost = "localhost:9000" == hostport
+  // when running on localhost, some functionality is enabled as opposed to running in cloud hosting mode
+  def isLocalhost = hostport startsWith "localhost:"
 
   // not every localhost is dev mode
   def isDevMode = prop("wiki.devMode", "false").toBoolean

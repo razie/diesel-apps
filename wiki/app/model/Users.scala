@@ -238,9 +238,9 @@ object Users {
 
   def updRealm(au:User, realm:String): User = {
     var u = au.copy(realms = (au.realms + realm))
-    if (u.realmSet.exists(_._2.perms.contains(Perm.uProfile))) u = u.addPerm(realm, Perm.uProfile.s)
-    if (u.realmSet.exists(_._2.perms.contains(Perm.eVerified))) u = u.addPerm(realm, Perm.eVerified.s)
-    if (u.realmSet.exists(_._2.perms.contains(Perm.uWiki))) u = u.addPerm(realm, Perm.uWiki.s)
+    if (u.realmSet.exists(_._2.perms.contains("+" + Perm.uProfile.s))) u = u.addPerm(realm, Perm.uProfile.s)
+    if (u.realmSet.exists(_._2.perms.contains("+" + Perm.eVerified.s))) u = u.addPerm(realm, Perm.eVerified.s)
+    if (u.realmSet.exists(_._2.perms.contains("+" + Perm.uWiki.s))) u = u.addPerm(realm, Perm.uWiki.s)
     u
   }
 

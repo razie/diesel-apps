@@ -32,6 +32,7 @@ object Perm {
   val Basic = Perm("Basic") // paid account
   val Gold = Perm("Gold") // paid account
   val Platinum = Perm("Platinum") // paid account
+  val Expired = Perm("Expired") // expired
   val Unobtanium = Perm("Unobtanium") // paid account
   val Moderator = Perm("Moderator") // paid account
 
@@ -39,7 +40,7 @@ object Perm {
 
   val all: Seq[String] = Seq(adminDb, adminWiki, uWiki, uProfile, eVerified, apiCall, codeMaster,
     "cCategory", "uCategory", "uReserved",
-    Basic, Gold, Platinum, Unobtanium, Moderator, domFiddle
+    Basic, Gold, Platinum, Unobtanium, Moderator, domFiddle, Expired
   )
 
 }
