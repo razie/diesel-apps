@@ -251,10 +251,25 @@ class EECtx extends EExecutor(EECtx.CTX) {
             ctrace(ctx)
       }
 
+        // url safe version
+      case "urlbase64encode" => {
+        val res = in.attrs.filter(_.name != "result").map { a =>
+          import org.apache.commons.codec.binary.Base64
+          def enc(s: String) = new Base64(true).encode(s.getBytes)
+          val res = enc(a.calculatedValue)
+          new EVal(a.name, new String(res).replaceAll("\n", "").replaceAll("\r", ""))
+        }
+
+        res ::: res.headOption.map(x=> x.copy(p=x.p.copy(name=Diesel.PAYLOAD))).toList
+      }
+
+        // normal base64 encoder
       case "base64encode" => {
         val res = in.attrs.filter(_.name != "result").map { a =>
-          val res = Base64.enc(a.calculatedValue)
-          new EVal(a.name, new String(res).replaceAll("\n", ""))
+          import org.apache.commons.codec.binary.Base64
+          def enc(s: String) = new Base64(false).encode(s.getBytes)
+          val res = enc(a.calculatedValue)
+          new EVal(a.name, new String(res).replaceAll("\n", "").replaceAll("\r", ""))
         }
 
         res ::: res.headOption.map(x=> x.copy(p=x.p.copy(name=Diesel.PAYLOAD))).toList
