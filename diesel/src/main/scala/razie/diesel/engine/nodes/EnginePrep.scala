@@ -75,7 +75,7 @@ object EnginePrep extends Logging {
   def catPages (cat:String, realm:String): List[WikiEntry] = {
     if("Spec" == cat) {
       val w = Wikis(realm)
-      val l = (w.pages(cat).toList ::: w.mixins.flatten.flatMap(_.pages(cat).toList))
+      val l = (w.pages(cat).toList ::: w.mixins.flattened.flatMap(_.pages(cat).toList))
       // distinct in order - so I overwrite mixins
       val b = ListBuffer[WikiEntry]()
       val seen = mutable.HashSet[WikiEntry]()

@@ -268,7 +268,9 @@ object WikiIndex {
 
 /** generic instance mixin - wiki domains and indexes accept mixins */
 class Mixins[A <: {def mixins:Mixins[A]}] (val l:List[A]) {
-  val flatten : List[A] = {
+
+  /** flattened or linearized, includes mixins of mixins, once */
+  val flattened : List[A] = {
     var seen = new ListBuffer[A]()
     def see (a:A): Unit = {
       if(! (seen contains a)) {
@@ -289,7 +291,7 @@ class Mixins[A <: {def mixins:Mixins[A]}] (val l:List[A]) {
   }
 
   def firstFlat[B] (f:A=>Option[B]) : Option[B] = {
-    flatten.map(f).collectFirst {case x if !x.isEmpty => x }.flatten
+    flattened.map(f).collectFirst {case x if !x.isEmpty => x }.flatten
   }
 
   def firstThat[B] (f:A=>B)(cond:B=>Boolean)(unit: =>B) : B = {

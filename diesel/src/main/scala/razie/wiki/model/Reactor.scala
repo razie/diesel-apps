@@ -68,7 +68,7 @@ abstract class ReactorImpl (val realm:String, val fallBacks:List[Reactor] = Nil,
   // list of super reactors linearized
   val supers : Array[String] = {
     if(realm == WikiReactors.RK) Array(WikiReactors.RK)
-    else mixins.flatten.map(_.realm).toArray
+    else mixins.flattened.map(_.realm).toArray
   }
 
   /** Admin:UserHome if user or Admin:Home or Reactor:realm if nothing else is defined */
