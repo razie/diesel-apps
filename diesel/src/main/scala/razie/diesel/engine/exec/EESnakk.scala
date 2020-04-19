@@ -28,7 +28,6 @@ import scala.util.Try
 class EESnakk extends EExecutor("snakk") with Logging {
   import EESnakk._
 
-
   /** can I execute this task? */
   override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
     def known (s:String) =
@@ -39,12 +38,12 @@ class EESnakk extends EExecutor("snakk") with Logging {
       (s contains "HTTP")
 
     // snakk messages
-    m.entity == "snakk" && m.met == "json"      ||
-    m.entity == "snakk" && m.met == "xml"       ||
-    m.entity == "snakk" && m.met == "text"      ||
-    m.entity == "snakk" && m.met == "telnet"    ||
-    m.entity == "snakk" && m.met == "ffd"       ||
-    m.entity == "snakk" && m.met == "ffdFormat" ||
+    m.ea == "snakk.json"      ||
+    m.ea == "snakk.xml"       ||
+    m.ea == "snakk.text"      ||
+    m.ea == "snakk.telnet"    ||
+    m.ea == "snakk.ffd"       ||
+    m.ea == "snakk.fdFormat" ||
     // and also if the stypes are known and there are templates for them
     known(m.stype) ||
       spec(m).exists(m => known(m.stype) ||
@@ -60,12 +59,12 @@ class EESnakk extends EExecutor("snakk") with Logging {
   override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = {
 
     // FFD is separate
-    if(in.entity == "snakk" && in.met == "ffd")
+    if(in.ea == "snakk.ffd")
       return snakkFfd(in, destSpec)
-    else if(in.entity == "snakk" && in.met == "ffdFormat")
+    else if(in.ea == "snakk.ffdFormat")
       return formatFfd(in, destSpec)
 
-    var filteredAttrs = in.attrs.filter(_.name != "snakkHttpOptions")
+    var filteredAttrs = in.attrs.filter(_.name != SNAKK_HTTP_OPTIONS)
 
     // flatten the options and add to filteredAttrs - that's convention with Comms
     filteredAttrs = snakkHttpOptions(in.attrs) ::: filteredAttrs
@@ -233,7 +232,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
         case v@EVal(p) if p.name == PAYLOAD => false
         case x@_ => true
       } :::
-        new EInfo("snakk.response", reply.body) ::
+        new EInfo(SNAKK_RESPONSE, reply.body) ::
         new EVal(reply.httpCodep).withKind(AstKinds.DEBUG) ::
         new EVal(reply.headersp).withKind(AstKinds.DEBUG) ::
       eres.eres.collect {
@@ -301,7 +300,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
           ctx.put(x)
           EVal(x).withPos(pos)
         } :::
-            new EVal("snakk.response", content.body).withKind(AstKinds.DEBUG) ::
+            new EVal(SNAKK_RESPONSE, content.body).withKind(AstKinds.DEBUG) ::
             new EVal(content.httpCodep).withKind(AstKinds.DEBUG) ::
             new EVal(content.headersp).withKind(AstKinds.DEBUG) ::
             // todo here's where i would add the response headers - make the snakk.response an object?
@@ -379,8 +378,8 @@ class EESnakk extends EExecutor("snakk") with Logging {
 
         eres += EInfo("Response: ", html(response)) :: Nil
 
-        if(code > 0) eres += EVal(P.fromTypedValue("snakkHttpCode", code)) :: Nil
-        if(errContent.length > 0) eres += EVal(P.fromTypedValue("snakkHttpResponse", errContent)) :: Nil
+        if(code > 0) eres += EVal(P.fromTypedValue(EESnakk.SNAKK_HTTP_CODE, code)) :: Nil
+        if(errContent.length > 0) eres += EVal(P.fromTypedValue(EESnakk.SNAKK_HTTP_RESPONSE, errContent)) :: Nil
 
         eres +=
                 // need to create a val - otherwise DomApi.rest returns the last Val
@@ -402,6 +401,12 @@ class EESnakk extends EExecutor("snakk") with Logging {
 
 /** snakk REST and formatting/parsing utilities */
 object EESnakk {
+
+  final val SNAKK_RESPONSE = "snakk.response"
+  final val SNAKK_HTTP_OPTIONS = "snakkHttpOptions"
+  final val SNAKK_HTTP_CODE = "snakkHttpCode"
+  final val SNAKK_HTTP_HEADERS = "snakkHttpHeaders"
+  final val SNAKK_HTTP_RESPONSE = "snakkHttpResponse"
 
   private def trimmed(s:String, len:Int = 2000) = (if(s != null && s.length > len) s"(>$len):\n" else "\n") + s.take(len)
   def html(s:String, len:Int = 2000) = Enc.escapeHtml(trimmed(s, len))
@@ -527,12 +532,12 @@ object EESnakk {
   }
 
   def httpOptions (attrs:Attrs)(implicit ctx: ECtx) =
-    attrs.find(_.name == "snakkHttpOptions").map(_.calculatedP).flatMap(_.value).map(_.asJson.toMap).getOrElse(Map.empty)
+    attrs.find(_.name == EESnakk.SNAKK_HTTP_OPTIONS).map(_.calculatedP).flatMap(_.value).map(_.asJson.toMap).getOrElse(Map.empty)
 
   // flatten the options and add to filteredAttrs/headers - that's convention with Comms
   def snakkHttpOptions (attrs:Attrs)(implicit ctx: ECtx) = {
-    val httpOptions = attrs.find(_.name == "snakkHttpOptions").map(_.calculatedP).flatMap(_.value).map(_.asJson.toMap).getOrElse(Map.empty)
-    var filteredAttrs = attrs.filter(_.name != "snakkHttpOptions")
+    val httpOptions = attrs.find(_.name == EESnakk.SNAKK_HTTP_OPTIONS).map(_.calculatedP).flatMap(_.value).map(_.asJson.toMap).getOrElse(Map.empty)
+    var filteredAttrs = attrs.filter(_.name != EESnakk.SNAKK_HTTP_OPTIONS)
 
     httpOptions.map {t=>
       val s = t._2.toString
@@ -793,8 +798,8 @@ object EESnakk {
 
     eres += EInfo("Response: ", html(response)) :: Nil
 
-    if(code > 0) eres += EVal(P.fromTypedValue("snakkHttpCode", code)) :: Nil
-    if(errContent.length > 0) eres += EVal(P.fromTypedValue("snakkHttpResponse", errContent)) :: Nil
+    if(code > 0) eres += EVal(P.fromTypedValue(EESnakk.SNAKK_HTTP_CODE, code)) :: Nil
+    if(errContent.length > 0) eres += EVal(P.fromTypedValue(EESnakk.SNAKK_HTTP_RESPONSE, errContent)) :: Nil
 
     eres +=
         // need to create a val - otherwise DomApi.rest returns the last Val

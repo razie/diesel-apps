@@ -7,6 +7,7 @@ package razie.diesel.engine
 
 import org.bson.types.ObjectId
 import razie.Logging
+import razie.diesel.Diesel
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom.RDomain
 import razie.diesel.engine.nodes._
@@ -462,7 +463,7 @@ abstract class DomEngine(
     // 3. payload
     val resp = oattrs.headOption.flatMap(oa=> valuesp.find(_.name == oa.name))
       .orElse(valuesp.lastOption)
-      .orElse(valuesp.find(_.name == "payload"))
+      .orElse(valuesp.find(_.name == Diesel.PAYLOAD))
 
     resp
   }

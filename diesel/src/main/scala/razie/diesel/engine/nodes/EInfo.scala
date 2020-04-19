@@ -42,7 +42,7 @@ object EErrorUtils {
 }
 
 /** some error, with a message and details */
-case class EError(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {
+case class EError(msg: String, details: String = "", code:String = "ERROR") extends CanHtml with HasPosition with InfoNode {
   def this(msg:String, t:Throwable) =
     this(
       Enc.escapeHtml(msg + t.toString),
@@ -53,6 +53,10 @@ case class EError(msg: String, details: String = "") extends CanHtml with HasPos
 
   def withPos(p: Option[EPos]) = {
     this.pos = p; this
+  }
+
+  def withCode(code: String) = {
+    this.copy(code = code)
   }
 
   override def toHtml =
@@ -68,7 +72,7 @@ case class EError(msg: String, details: String = "") extends CanHtml with HasPos
 }
 
 /** some error, with a message and details */
-case class EWarning(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {
+case class EWarning(msg: String, details: String = "", code:String = "WARNING") extends CanHtml with HasPosition with InfoNode {
   def this(msg:String, t:Throwable) =
     this(
       Enc.escapeHtml(msg + t.toString),
@@ -79,6 +83,10 @@ case class EWarning(msg: String, details: String = "") extends CanHtml with HasP
 
   def withPos(p: Option[EPos]) = {
     this.pos = p; this
+  }
+
+  def withCode(code: String) = {
+    this.copy(code = code)
   }
 
   override def toHtml =

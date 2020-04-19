@@ -247,10 +247,17 @@ object DieselMsg {
     final val DIESEL_MSG_ACTION = "diesel.msg.action"
     final val DIESEL_MSG_EA     = "diesel.msg.ea"
     final val DIESEL_MSG_ATTRS  = "diesel.msg.attrs"
+
+    final val DIESEL_ENG_SET = "diesel.engine.set"
+
+    final val ERR_NORULESMATCH = "ERR_DIESEL_NORULESMATCH"
   }
 
   object HTTP {
-    final val STATUS = "diesel.response.http.status"
+    final val PREFIX        = "diesel.http."
+    final val RESPONSE      = "diesel.http.response"
+    final val STATUS        = "diesel.http.response.status"
+    final val HEADER_PREFIX = "diesel.http.response.header."
   }
 
   object GUARDIAN {

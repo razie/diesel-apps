@@ -26,6 +26,6 @@ class SecControl extends RazControllerBase {
         ds.done
         Redirect(ds.link).flashing(SecLink.HEADER -> ds.id)
       }) getOrElse
-      Msg2("Link has expired. Please try again. <br><small>" + errCollector.mkString + "</small>", Some("/"))
+      Msg2("The link has expired. Please try again. <br><small>" + errCollector.mkString + "</small>", Some("/"))
   }
 }

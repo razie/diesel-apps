@@ -145,7 +145,7 @@ case class EMsg(
   /** if has executor */
   def hasExecutor:Boolean = Executors.withAll(_.exists(t=> t._2.test(this)(ECtx.empty)))
 
-  def ea:String = entity + "." + met
+  val ea:String = entity + "." + met
 
   def isResolved:Boolean =
     if(spec.filter(x=> !x.equals(this)).exists(_.isResolved)) true

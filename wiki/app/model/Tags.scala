@@ -1,6 +1,6 @@
 package model
 
-/** simple model for tags */
+/** simple model for tags as a comma-separated sequence of strings */
 object Tags {
   type Tags = Seq[(String, Int)]
   def empty = Seq.empty[(String, Int)]

@@ -411,7 +411,8 @@ class DomEngineV1(
             EWarning(
               "No rules, mocks or executors match for " + in.toString,
               s"Review your engine configuration (blender=${settings.blenderMode}, mocks=${settings.blenderMode}, drafts=${settings.blenderMode}, tags), " +
-                  s"spelling of messages or rule clauses / pattern matches\n$cfg"),
+                  s"spelling of messages or rule clauses / pattern matches\n$cfg",
+            DieselMsg.ENGINE.ERR_NORULESMATCH),
             AstKinds.DEBUG
           ))
         }

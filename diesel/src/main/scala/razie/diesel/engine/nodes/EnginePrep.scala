@@ -43,7 +43,7 @@ object EnginePrep extends Logging {
             x.filter(w => tq.matches(w.tags))
           } getOrElse {
             // todo optimize
-            //            Wikis(reactor).pages("Story").toList
+            // Wikis(reactor).pages("Story").toList
             Wikis(reactor).pages("*").filter(w => w.tags.contains("story")).toList
           }
 
@@ -223,7 +223,7 @@ object EnginePrep extends Logging {
     story.findSection(s => s.stype == "dfiddle" && (Array("story") contains s.tags)).isDefined
 
   /* extract more nodes to run from the story - add them to root */
-  def addStoryWithFiddlesToAst(root: DomAst, stories: List[WikiEntry], justTests: Boolean = false, justMocks: Boolean = false, addFiddles: Boolean = false) = {
+  def listStoriesWithFiddles(stories: List[WikiEntry], addFiddles: Boolean = false) = {
 
     val allStories = if (!addFiddles) {
       stories
@@ -234,6 +234,14 @@ object EnginePrep extends Logging {
         story :: sectionsToPages(story, story.sections.filter(s => s.stype == "dfiddle" && (Array("story") contains s.signature)))
       }
     }
+
+    allStories
+  }
+
+  /* extract more nodes to run from the story - add them to root */
+  def addStoryWithFiddlesToAst(root: DomAst, stories: List[WikiEntry], justTests: Boolean = false, justMocks: Boolean = false, addFiddles: Boolean = false) = {
+
+    val allStories = listStoriesWithFiddles(stories, addFiddles)
 
     addStoriesToAst(root, allStories, justTests, justMocks, addFiddles)
   }
@@ -247,7 +255,9 @@ object EnginePrep extends Logging {
 
   /* add a message */
   def addMsgToAst(root: DomAst, v : EMsg) = {
-    root.childrenCol append DomAst(v, AstKinds.RECEIVED)
+    val ast = DomAst(v, AstKinds.RECEIVED)
+    root.childrenCol append ast
+    ast
   }
 
   /**

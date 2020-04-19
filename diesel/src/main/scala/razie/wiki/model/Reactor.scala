@@ -26,14 +26,16 @@ trait Reactor {
   def wiki   : WikiInst
   def domain : WikiDomain
 
+  /** list of supers - all mixins reactors linearized */
+  val supers : Array[String]
+
+  /** all mixed in reactors, linearized */
   val mixins : Mixins[Reactor]
+
   def club :Option[WikiEntry]
 
   def userRoles :List[String]
   def adminEmails :List[String]
-
-  // list of super reactors linearized
-  val supers : Array[String]
 
   /** Admin:UserHome if user or Admin:Home or Reactor:realm if nothing else is defined */
   def mainPage(au:Option[WikiUser]) : WID

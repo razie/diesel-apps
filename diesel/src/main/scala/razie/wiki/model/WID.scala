@@ -205,6 +205,7 @@ case class WID(
         WikiReactors(realm.get).websiteProps.prop("domain").get
       else
         //todo current realm
+        // todo in localhost, it may run wiht a different IP/port to don't use the hostport, just relative
         Services.config.hostport
     } + "/" + {
       if(realm.isDefined) DieselAssets.mkLink(this, wpath)

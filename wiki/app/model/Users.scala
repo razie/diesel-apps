@@ -152,7 +152,11 @@ object Users {
 
   def fromJson(j: String) = Option(grater[User].asObject(JSON.parse(j).asInstanceOf[DBObject]))
 
-  /** find user by lowercase email - at loging */
+  /** find user by lowercase email - at loging
+    *
+    * @param uncEmail unencoded email
+    * @return user if found
+    */
   def findUserNoCase(uncEmail: String) = {
     // todo optimize somwhow
     val tl = uncEmail.toLowerCase()

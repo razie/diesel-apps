@@ -211,6 +211,7 @@ object RDomain {
   /** crawl all domain pieces and build a domain */
   def domFilter[T] (we:DSpec)(p:PartialFunction[Any,T]) : List[T] = {
     //    if(!we.cache.contains(DOM_LIST) && we.preprocessed.s.contains("CANNOT PARSE"))
+    // todo this can keep adding errors - check that there isn't one already
     if(we.parsed.contains("CANNOT PARSE"))
       we.collector.put(
         DOM_LIST,

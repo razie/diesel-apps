@@ -10,6 +10,7 @@ import razie.Snakk
 import razie.diesel.Diesel
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
+import razie.diesel.engine.exec.EESnakk
 import razie.diesel.engine.nodes.flattenJson
 import razie.diesel.expr.{AExprIdent, ECtx, Expr, SimpleECtx}
 import razie.diesel.model.DieselMsg
@@ -46,11 +47,11 @@ class EContent(
     }
   }
 
-  /** parse incoming POST for a diesel request */
+  /** parse incoming POST for a diesel request. it will incliude a typed PAYLOAD with the entire body */
   def asDieselParams (implicit ctx: ECtx): List[P] = {
     if(body.trim.startsWith("{")) {
       // flatten the incoming json
-      flattenJson(asJsonPayload)(ctx)
+      asJsonPayload :: flattenJson(asJsonPayload)(ctx)
     }
     else if(body.trim.startsWith("[")) {
       // one array as payload
@@ -76,13 +77,13 @@ class EContent(
   /** headers as a nice lowercase P */
   def headersp = {
     P.fromTypedValue(
-      "snakkHttpHeaders",
+      EESnakk.SNAKK_HTTP_HEADERS,
       headers.map{t=> (t._1.toLowerCase, t._2)}.toMap,
       WTypes.JSON)
   }
 
   /** headers as a nice lowercase P */
-  def httpCodep = P.fromTypedValue( "snakkHttpCode", code)
+  def httpCodep = P.fromTypedValue( EESnakk.SNAKK_HTTP_CODE, code)
 
   lazy val hasValues = if (isXml || isJson) root \ "values" else Snakk.empty
 

@@ -415,7 +415,7 @@ trait DomParser extends ParserBase with ExprParser {
     case x => x
   }
 
-  val comOperators = "==|~=|~path|!=|\\?=|>=|<=|>|<|contains|is|not".r
+  val comOperators = "==|~=|~path|!=|\\?=|>=|<=|>|<|containsNot|contains|is|not".r
 
   def OPS1: Parser[String] = comOperators
 
@@ -431,7 +431,8 @@ trait DomParser extends ParserBase with ExprParser {
     * pmatch is more than just a simple conditional expression
     */
   def pmatchattrM: Parser[RDOM.PM] = ows ~>
-      ( (aidentaccess | aident ) <~ not( ows ~ ("(" | not(comOperators | ")" | ":" | "\\?".r | ","))) ) ~
+      ( (aidentaccess | aident ) <~
+      not( ows ~ ("(" | not(comOperators | ")" | ":" | "\\?".r | ","))) ) ~
       // don't match ident if func call and only if followed by known symbols for valid matches
       // ident) ident,PM ident:Type etc
       // important beause otherwise we want to match pmatchattrE
