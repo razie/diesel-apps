@@ -246,6 +246,13 @@ case class DomAst(
     else
       children.foldLeft(None:Option[DomAst])((a,b)=>a orElse b.find(id))
 
+  /** find in subtree, by predicate */
+  def find(pred: DomAst => Boolean) : Option[DomAst] =
+    if(pred(this))
+      Some(this)
+    else
+      children.foldLeft(None:Option[DomAst])((a,b)=>a orElse b.find(pred))
+
   def setKinds (kkk:String) : DomAst = {
     this.kind=kkk
     this.children.map(_.setKinds(kkk))

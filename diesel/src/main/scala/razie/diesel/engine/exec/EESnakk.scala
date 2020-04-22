@@ -15,6 +15,7 @@ import razie.diesel.engine.RDExt.{DieselJsonFactory, spec}
 import razie.diesel.engine.nodes._
 import razie.diesel.engine.{AstKinds, DomEngECtx, EContent, InfoAccumulator}
 import razie.diesel.expr.{ECtx, SimpleExprParser}
+import razie.diesel.model.DieselMsg
 import razie.diesel.snakk.FFDPayload
 import razie.tconf.{DTemplate, EPos}
 import razie.wiki.Enc
@@ -154,10 +155,20 @@ class EESnakk extends EExecutor("snakk") with Logging {
           trace("Snakk RESPONSE: " + trimmed(response))
 
           val content = Try {
-            new EContent(response, sc.iContentType.getOrElse(""), sc.icode.getOrElse(-1), sc.iHeaders.getOrElse(Map.empty), sc.root)
+            new EContent(
+              response,
+              sc.iContentType.getOrElse(""),
+              sc.icode.getOrElse(-1),
+              sc.iHeaders.getOrElse(Map.empty),
+              sc.root)
           }.recover {
             case e:Throwable => {
-              val c = new EContent(response, sc.iContentType.getOrElse(""), sc.icode.getOrElse(-1), sc.iHeaders.getOrElse(Map.empty), None)
+              val c = new EContent(
+                response,
+                sc.iContentType.getOrElse(""),
+                sc.icode.getOrElse(-1),
+                sc.iHeaders.getOrElse(Map.empty),
+                None)
               c.warnings = List(EWarning("Parsing", html(e.getLocalizedMessage)))
               c
             }
@@ -336,55 +347,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
       }
     } catch {
       case t: Throwable => {
-        var code = -1
-        var errContent = ""
-
-        val cause =
-        if(t.getCause != null &&
-          (t.getCause.isInstanceOf[java.net.SocketTimeoutException] ||
-           t.getCause.isInstanceOf[java.net.ConnectException] ||
-          t.getCause.getClass.getCanonicalName.startsWith("java.net.") // why not all java.net ex - no point remembering the stack traces
-              )
-        ) {
-          razie.Log.log("error snakking: " + t.getClass.getName + " : " + t.getMessage + " cause: " + t.getCause.getMessage)
-          eres += new EError("Exception: ", t.getMessage) :: Nil
-          t.getCause
-        } else if( t.isInstanceOf[CommRtException] && t.asInstanceOf[CommRtException].httpCode > 0 ) {
-          razie.Log.log("error snakking: " + t.getClass.getName + " : " + t.getMessage);
-          code = t.asInstanceOf[CommRtException].httpCode
-          errContent = t.asInstanceOf[CommRtException].details
-
-          val respCode = httpOptions(in.attrs).get("responseCode").map(_.toString)
-
-          if(respCode.exists(x=> x == "*" || x.toInt == code)) {
-            eres += new EInfo(
-              "Warn - accepted code: " + Enc.escapeHtml(t.getMessage),
-              Enc.escapeHtml(t.asInstanceOf[CommRtException].details)
-            ) :: Nil
-          } else {
-            eres += new EError("Exception: " + Enc.escapeHtml(t.getMessage),
-              Enc.escapeHtml(t.asInstanceOf[CommRtException].details)
-            ) :: Nil
-          }
-          t
-        } else {
-          razie.Log.log("error snakking", t)
-          eres += new EError("Exception: ", t) :: Nil
-          t
-        }
-
-        durationMillis = System.currentTimeMillis() - startMillis
-        eres += EDuration(durationMillis)
-
-        eres += EInfo("Response: ", html(response)) :: Nil
-
-        if(code > 0) eres += EVal(P.fromTypedValue(EESnakk.SNAKK_HTTP_CODE, code)) :: Nil
-        if(errContent.length > 0) eres += EVal(P.fromTypedValue(EESnakk.SNAKK_HTTP_RESPONSE, errContent)) :: Nil
-
-        eres +=
-                // need to create a val - otherwise DomApi.rest returns the last Val
-                EVal(P("snakkError", html(cause.getMessage, 10000))) ::
-                Nil
+        caughtSnakkException(t,  httpOptions(in.attrs), response, startMillis, eres)
       }
     }
   }
@@ -531,15 +494,17 @@ object EESnakk {
     )
   }
 
-  def httpOptions (attrs:Attrs)(implicit ctx: ECtx) =
-    attrs.find(_.name == EESnakk.SNAKK_HTTP_OPTIONS).map(_.calculatedP).flatMap(_.value).map(_.asJson.toMap).getOrElse(Map.empty)
+  def httpOptions (attrs:Attrs)(implicit ctx: ECtx) : Map[String,Any] =
+    attrs
+        .find(_.name == EESnakk.SNAKK_HTTP_OPTIONS)
+        .map(_.calculatedP)
+        .flatMap(_.value)
+        .map(_.asJson.toMap)
+        .getOrElse(Map.empty)
 
   // flatten the options and add to filteredAttrs/headers - that's convention with Comms
   def snakkHttpOptions (attrs:Attrs)(implicit ctx: ECtx) = {
-    val httpOptions = attrs.find(_.name == EESnakk.SNAKK_HTTP_OPTIONS).map(_.calculatedP).flatMap(_.value).map(_.asJson.toMap).getOrElse(Map.empty)
-    var filteredAttrs = attrs.filter(_.name != EESnakk.SNAKK_HTTP_OPTIONS)
-
-    httpOptions.map {t=>
+    httpOptions(attrs).map {t=>
       val s = t._2.toString
       P("snakkHttpOptions." + t._1, s)
     }.toList
@@ -754,17 +719,17 @@ object EESnakk {
 
   override def toString = "$executor::snakk "
 
-  def caughtSnakkException (t:Throwable, httpOptions:Map[String, Any], response:String) = {
-    var eres = new InfoAccumulator()
+  def caughtSnakkException (t:Throwable, httpOptions:Map[String, Any], response:String, startMillis:Long, eres:InfoAccumulator) = {
     var code = -1
     var errContent = ""
 
     val cause =
       if(t.getCause != null &&
           (t.getCause.isInstanceOf[java.net.SocketTimeoutException] ||
-              t.getCause.isInstanceOf[java.net.ConnectException] ||
-              t.getCause.getClass.getCanonicalName.startsWith("java.net.") // why not all java.net ex - no point remembering the stack traces
-              )
+           t.getCause.isInstanceOf[java.net.ConnectException] ||
+           t.getCause.getClass.getCanonicalName.startsWith("java.net.")
+              // why not all java.net ex - no point remembering the stack traces
+           )
       ) {
         razie.Log.log("error snakking: " + t.getClass.getName + " : " + t.getMessage + " cause: " + t.getCause.getMessage)
         eres += new EError("Exception: ", t.getMessage) :: Nil
@@ -793,20 +758,24 @@ object EESnakk {
         t
       }
 
-//      durationMillis = System.currentTimeMillis() - startMillis
-//      eres += EDuration(durationMillis)
+    val durationMillis = System.currentTimeMillis() - startMillis
+    eres += EDuration(durationMillis)
 
     eres += EInfo("Response: ", html(response)) :: Nil
 
     if(code > 0) eres += EVal(P.fromTypedValue(EESnakk.SNAKK_HTTP_CODE, code)) :: Nil
     if(errContent.length > 0) eres += EVal(P.fromTypedValue(EESnakk.SNAKK_HTTP_RESPONSE, errContent)) :: Nil
 
+    val uc = t.asInstanceOf[CommRtException].uc
+    val x = uc.getHeaderFields.keySet().toArray.toList
+    val headers = x.filter(_ != null).map(x => (x.toString, uc.getHeaderField(x.toString))).toMap
+    eres += EVal(EContent.headersp(headers)).withKind(AstKinds.DEBUG)
+    eres += new EVal(PAYLOAD, "")
+
     eres +=
         // need to create a val - otherwise DomApi.rest returns the last Val
         EVal(P("snakkError", html(cause.getMessage, 10000))) ::
             Nil
-
-    eres
   }
 
 }

@@ -10,6 +10,7 @@ import razie.diesel.dom._
 import razie.diesel.engine.DomAstInfo
 import razie.diesel.engine.exec.Executors
 import razie.diesel.expr.{AExprIdent, ECtx, StaticECtx}
+import razie.diesel.model.DieselMsg
 import razie.tconf.EPos
 import razie.wiki.Enc
 import scala.Option.option2Iterable
@@ -212,7 +213,7 @@ case class EMsg(
 
   // reactor invocation url
   private def url2 (section:String="", resultMode:String="value") = {
-    var x = if ("diesel.rest" == ea) {
+    var x = if (DieselMsg.ENGINE.DIESEL_REST == ea) {
       s"""/diesel/rest""" + attrs.find(_.name == "path").map(_.currentStringValue).mkString
     } else {
       s"""/diesel/react/$entity/$met?${attrsToUrl(attrs)}"""

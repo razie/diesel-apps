@@ -75,12 +75,7 @@ class EContent(
   }
 
   /** headers as a nice lowercase P */
-  def headersp = {
-    P.fromTypedValue(
-      EESnakk.SNAKK_HTTP_HEADERS,
-      headers.map{t=> (t._1.toLowerCase, t._2)}.toMap,
-      WTypes.JSON)
-  }
+  def headersp = EContent.headersp(headers)
 
   /** headers as a nice lowercase P */
   def httpCodep = P.fromTypedValue( EESnakk.SNAKK_HTTP_CODE, code)
@@ -240,5 +235,14 @@ object EContent {
 
     (matched, parms.toList)
   }
+
+  /** headers as a nice lowercase P */
+  def headersp (headers:Map[String,String]) = {
+    P.fromTypedValue(
+      EESnakk.SNAKK_HTTP_HEADERS,
+      headers.map{t=> (t._1.toLowerCase, t._2)}.toMap,
+      WTypes.JSON)
+  }
+
 }
 

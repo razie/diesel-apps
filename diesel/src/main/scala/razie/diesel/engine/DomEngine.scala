@@ -432,6 +432,13 @@ abstract class DomEngine(
     valuesp
   }
 
+  /** this was resulted in an html response - add it as a trace */
+  def addResponseInfo (code: Int, body:String, headers:Map[String, String]) = {
+    val h = headers.mkString("\n")
+    val ast = new DomAst(EInfo(s"Response: ${code} BODY: ${body.take(500)}", s"HEADERS:\n$h"), AstKinds.TRACE)
+    this.root.childrenCol.append(ast)
+  }
+
   /** extract the resulting value from this engine
     * extract one value - try:
     * 1. defined response oattrs
