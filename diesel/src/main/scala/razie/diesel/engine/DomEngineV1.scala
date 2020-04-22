@@ -389,36 +389,6 @@ class DomEngineV1(
         newNodes = newNodes ::: news
       })
 
-      // nothing matched ?
-      if(!mocked && newNodes.isEmpty) {
-        // change the nodes' color to warning and add an ignorable warning
-        import EMsg._
-        // todo this is bad because I change the message - is there impact to persistence of events and DomAsts ?
-        a.value match {
-          case m: EMsg => //findParent(a).foreach { parent =>
-            a.value = m.copy(
-              stype = s"${m.stype},$WARNING"
-            ).copiedFrom(m)
-//            parent.children.update(parent.children.indexWhere(_ eq initialA), a)
-          //}
-        }
-
-        // not for internal diesel messages
-        val ms = n.entity + "." + n.met
-        if(!ms.startsWith("diesel.")) {
-          val cfg = this.pages.map(_.specPath.wpath).mkString("\n")
-          evAppChildren(a, DomAst(
-            EWarning(
-              "No rules, mocks or executors match for " + in.toString,
-              s"Review your engine configuration (blender=${settings.blenderMode}, mocks=${settings.blenderMode}, drafts=${settings.blenderMode}, tags), " +
-                  s"spelling of messages or rule clauses / pattern matches\n$cfg",
-            DieselMsg.ENGINE.ERR_NORULESMATCH),
-            AstKinds.DEBUG
-          ))
-        }
-      }
-    }
-
     // 4. sketch
 
     // last ditch attempt, in sketch mode: if no mocks or rules, run the expects
@@ -460,6 +430,36 @@ class DomEngineV1(
 
         news.foreach { n =>
           evAppChildren(a, n)
+        }
+      }
+    }
+
+      // nothing matched ?
+      if(!mocked && newNodes.isEmpty) {
+        // change the nodes' color to warning and add an ignorable warning
+        import EMsg._
+        // todo this is bad because I change the message - is there impact to persistence of events and DomAsts ?
+        a.value match {
+          case m: EMsg => //findParent(a).foreach { parent =>
+            a.value = m.copy(
+              stype = s"${m.stype},$WARNING"
+            ).copiedFrom(m)
+//            parent.children.update(parent.children.indexWhere(_ eq initialA), a)
+          //}
+        }
+
+        // not for internal diesel messages
+        val ms = n.entity + "." + n.met
+        if(!ms.startsWith("diesel.")) {
+          val cfg = this.pages.map(_.specPath.wpath).mkString("\n")
+          evAppChildren(a, DomAst(
+            EWarning(
+              "No rules, mocks or executors match for " + in.toString,
+              s"Review your engine configuration (blender=${settings.blenderMode}, mocks=${settings.blenderMode}, drafts=${settings.blenderMode}, tags), " +
+                  s"spelling of messages or rule clauses / pattern matches\n$cfg",
+              DieselMsg.ENGINE.ERR_NORULESMATCH),
+            AstKinds.DEBUG
+          ))
         }
       }
     }
