@@ -237,7 +237,7 @@ case class User(
       this.copy(
         realmSet =
           this.realmSet ++
-          Seq((realm -> UserRealm( status, roles, perms, prefs - "dieselEnv", modNotes, consent )))
+          Seq((realm -> UserRealm( status, roles, perms, prefs - "dieselEnv", modNotes, consent, Some(DateTime.now) )))
         // don't copy the dieselEnv
       )
     }
@@ -377,6 +377,7 @@ case class UserRealm (
 
   prefs: Map[String, String] = Map(), // user preferences
   modNotes: Seq[String] = Seq.empty,
-  consent:Option[String] = None
+  consent:Option[String] = None,
+  crDtm: Option[DateTime] = None
   ) {
   }
