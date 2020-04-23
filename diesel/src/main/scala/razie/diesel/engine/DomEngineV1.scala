@@ -587,6 +587,17 @@ class DomEngineV1(
         }
       }
       true
+      // stop other children
+      findParent(a).collect {
+        // first parent may be a ENext, see through
+        case ast if ast.value.isInstanceOf[ENext] => findParent(ast)
+        case ast@_ => Some(ast)
+      }.flatten.toList.flatMap(_.children).foreach {ast=>
+        if(! DomState.isDone(ast.status)) {
+          evChangeStatus(ast, DomState.SKIPPED)
+        }
+      }
+      true
     } else if(ea == DieselMsg.ENGINE.DIESEL_VALS) {
       // expand all spec vals
       dom.moreElements.collect {
