@@ -87,7 +87,12 @@ class DomEngineV1(
 
       case next@ENext(m, "==>", cond, _, _) => {
         // forking new engine / async branch
-        implicit val ctx = new StaticECtx(next.parent.map(_.attrs).getOrElse(Nil), Some(this.ctx), Some(a))
+        implicit val ctx = mkMsgContext(
+          next.parent,
+          next.parent.map(_.attrs).getOrElse(Nil),
+          this.ctx,
+          a)
+
         // start new engine/process
         // todo should find settings for target service  ?
         val eng = spawn(List(DomAst(next.evaluateMsg)))
@@ -99,7 +104,11 @@ class DomEngineV1(
       case n1@ENext(m, ar, cond, _, _) if "-" == ar || "=>" == ar => {
         // message executed later
         // todo bubu: static parent parms overwrite side effects updated in this.ctx
-        implicit val ctx = new StaticECtx(n1.parent.map(_.attrs).getOrElse(Nil), Some(this.ctx), Some(a))
+        implicit val ctx = mkMsgContext(
+          n1.parent,
+          n1.parent.map(_.attrs).getOrElse(Nil),
+          this.ctx,
+          a)
 
         if(n1.test()) {
           val newmsg = n1.evaluateMsg
@@ -210,7 +219,7 @@ class DomEngineV1(
 //     a.children.append(DomAst(in, AstKinds.TRACE).withStatus(DomState.SKIPPED))
 //    a.children.append(DomAst(EInfoWrapper(in), AstKinds.TRACE).withStatus(DomState.SKIPPED))
 
-    ctx = new StaticECtx(n.attrs, Some(parentCtx), Some(a))
+    ctx = mkMsgContext(Some(in), n.attrs, parentCtx, a)
 
     // PRE - did it already have some children, decomposed by someone else?
     newNodes = a.children
@@ -409,7 +418,7 @@ class DomEngineV1(
           case x: EMsg if x.entity == e.m.cls && x.met == e.m.met => x
         }.headOption
 
-        val newctx = new StaticECtx(n.attrs, Some(ctx), Some(a))
+        val newctx = mkMsgContext(Some(n), n.attrs, ctx, a)
         val news = e.sketch(None)(newctx).map(x => DomAst(x, AstKinds.SKETCHED).withSpec(e))
         newNodes = newNodes ::: news
       }
