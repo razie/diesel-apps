@@ -569,6 +569,7 @@ class DomEngineV1(
   /** if it's an internal engine message, execute it */
   private def expandEngineEMsg(a: DomAst, in: EMsg) : Boolean = {
     val ea = in.ea
+
     if(ea == DieselMsg.ENGINE.DIESEL_RETURN) {
       // expand all spec vals
       in.attrs.map(_.calculatedP).foreach {p=>
@@ -598,7 +599,9 @@ class DomEngineV1(
         }
       }
       true
+
     } else if(ea == DieselMsg.ENGINE.DIESEL_VALS) {
+
       // expand all spec vals
       dom.moreElements.collect {
         case v:EVal => {
@@ -608,13 +611,19 @@ class DomEngineV1(
       }
 
       true
+
     } else if(ea == DieselMsg.SCOPE.DIESEL_PUSH) {
+
       this.ctx = new ScopeECtx(Nil, Some(this.ctx), Some(a))
       true
+
     } else if(ea == DieselMsg.SCOPE.DIESEL_POP && this.ctx.isInstanceOf[ScopeECtx]) {
+
       this.ctx = this.ctx.base.get
       true
+
     } else if(ea == "diesel.engine.debug") {
+
       val s = this.settings.toJson
       val c = this.ctx.toString
       val e = this.toString
@@ -622,14 +631,42 @@ class DomEngineV1(
       evAppChildren(a, DomAst(EInfo("ctx", c), AstKinds.DEBUG))
       evAppChildren(a, DomAst(EInfo("engine", e), AstKinds.DEBUG))
       true
+
+    } else if(ea == DieselMsg.ENGINE.DIESEL_ENG_SET) {
+
+      // todo move this to an executor
+
+      // NOTE: this may be a security risk - they can set trust and stuff -  limit to only some parms
+      in.attrs.foreach{ p=>
+        val v = p.currentStringValue
+        p.name match {
+
+          case "diesel.engine.settings.collectCount" => {
+            this.settings.collectCount = Option(v.toInt)
+            evAppChildren(a, DomAst(EInfo("updated..."), AstKinds.DEBUG))
+          }
+
+        }
+      }
+      true
+
     } else if(ea == DieselMsg.REALM.REALM_SET) {
+
       // todo move this to an executor
       // todo this may be a security risk - they can set trust and stuff -  limit to only some parms?
       in.attrs.foreach{ p=>
-        this.settings.realm.flatMap(Website.forRealm).map(_.put(p.name, p.calculatedValue))
+        val r = this.settings.realm
+        if(r.isEmpty) evAppChildren(a, DomAst(EError("realm not defined...???"), AstKinds.ERROR))
+        else {
+          r.foreach(Website.putRealmProps(_, p.name, p.calculatedValue))
+          r.flatMap(Website.forRealm).map(_.put(p.name, p.calculatedValue))
+          evAppChildren(a, DomAst(EInfo("updated..."), AstKinds.DEBUG))
+        }
       }
       true
+
     } else {
+
       false
     }
   }
