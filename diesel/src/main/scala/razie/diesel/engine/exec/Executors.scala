@@ -12,7 +12,13 @@ import scala.collection.concurrent.TrieMap
 /** an applicable or message executor - can execute a message */
 trait EApplicable {
 
-  /** is this applicable... applicable? */
+  /** is this applicable to the given message?
+    *
+    * @param m the message to test applicability on
+    * @param cole collect match/no-match info
+    * @param ctx context
+    * @return true/false if this executor can execute this message. it's up to the engine's strategy to use this info
+    */
   def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) : Boolean
 
   /** is this async? note that this flag is just for info, not needed, but do read this comment on async execs
@@ -56,7 +62,11 @@ trait EApplicable {
   * @param name - the name of this executor
   */
 abstract class EExecutor (val name:String) extends EApplicable {
-  /** the list of message specs for this executor - overwrite and return them for content assist */
+  /** the list of message specs for this executor - overwrite and return them for content assist. this is not neccessary
+    * for the functioning of the executor - it's just for content assist
+    *
+    * it is preferable and easier to have them defined in one of the specs included in your flows
+    */
   def messages : List[EMsg] = Nil
 }
 

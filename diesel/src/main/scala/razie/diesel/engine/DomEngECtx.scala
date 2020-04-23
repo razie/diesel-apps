@@ -82,7 +82,7 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
     case "diesel.user" => Some(P("diesel.user", dieselUser(this)))
     case "diesel.isLocalhost" => Some(P.fromTypedValue("diesel.isLocalhost", razie.wiki.Services.config.isLocalhost))
     case "diesel.db.newId" => Some(P("diesel.db.newId", new ObjectId().toString))
-    case DIESEL_ENG_DESC => Some(P(DIESEL_ENG_DESC, engine.map(_.description).mkString))
+    case DieselMsg.ENGINE.DIESEL_ENG_DESC => Some(P(DieselMsg.ENGINE.DIESEL_ENG_DESC, engine.map(_.description).mkString))
     case _ => None
   }
 

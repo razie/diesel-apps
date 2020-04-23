@@ -182,7 +182,7 @@ abstract class DomEngine(
 
     // add explicit depys for results/children
     results.filter(_.prereq.nonEmpty).map{res=>
-      crdep(res.prereq.flatMap(root.find), List(res))
+      crdep(res.prereq.flatMap(x=> root.find(x)), List(res))
     }
 
     res
