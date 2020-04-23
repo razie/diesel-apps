@@ -10,6 +10,9 @@ import razie.OR._
 import razie.wiki.Services
 import razie.wiki.model._
 import razie.wiki.util.{DslProps, PlayTools}
+import scala.collection.concurrent.TrieMap
+import scala.collection.mutable.HashMap
+import scala.collection.parallel.mutable
 
 /**
  * Multihosting - website settings - will collect website properties from the topic if it has a 'website' section
@@ -108,8 +111,9 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
 object Website {
   private case class CacheEntry (w:Website, millis:Long)
 
-  private val cache = new collection.mutable.HashMap[String, CacheEntry]()
-  // todo mt-safe use collection.concurrent.TrieMap ?
+  // cleaned on reload
+  private val cache = new TrieMap[String, CacheEntry]()
+
 
   val EXP = 100000
 
