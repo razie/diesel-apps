@@ -110,16 +110,20 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
 /** multihosting utilities */
 object Website {
   private case class CacheEntry (w:Website, millis:Long)
+  private case class CacheEntry2 (m:collection.mutable.HashMap[String,String])
 
   // cleaned on reload
   private val cache = new TrieMap[String, CacheEntry]()
 
+  // static
+  private val realmProps = new TrieMap[String, CacheEntry2]()
 
   val EXP = 100000
 
   // s is the host
   def forHost (s:String):Option[Website] = {
     val ce = cache.get(s)
+
     if (ce.isEmpty) {// || System.currentTimeMillis > ce.get.millis) {
       var w : Option[Website] = None
 
@@ -149,6 +153,20 @@ object Website {
 
   def clean (host:String):Unit = {
     cache.remove(host)
+  }
+
+  /** static properties per realm, as set during say diesel.realm.started */
+  def putRealmProps (realm:String, prop:String, value:String):Unit = {
+    // important to sync here, conflicts are not harmless
+    realmProps.synchronized {
+      val p = realmProps.getOrElseUpdate(realm, new CacheEntry2(new HashMap[String, String]()))
+      p.m.put(prop, value)
+    }
+  }
+
+  /** static properties per realm, as set during say diesel.realm.started */
+  def getRealmProp (realm:String, prop:String, dfltValue:Option[String] = None) = {
+   realmProps.get(realm).flatMap(_.m.get(prop)).orElse(dfltValue)
   }
 
   def all = cache.values.map(_.w).toList

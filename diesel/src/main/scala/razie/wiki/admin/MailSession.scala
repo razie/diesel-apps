@@ -23,6 +23,7 @@ class MailSession extends BaseMailSession {
 
   def SUPPORT = website.supportEmail
   def ADMIN = website.adminEmail
+  def REPLYTO = website prop "mail.replyTo"
 
   /** bottom section on each email */
   def bottom =
