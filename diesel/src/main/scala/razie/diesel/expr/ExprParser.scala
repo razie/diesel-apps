@@ -254,7 +254,7 @@ trait ExprParser extends RegexParsers {
   /**
     * simple ident = expr assignemtn when calling
     */
-  def pcallattrs: Parser[List[RDOM.P]] = " *\\(".r ~> ows ~> repsep(pcallattr, ows ~ "," ~ ows) <~ ows <~ ")"
+  def pcallattrs: Parser[List[RDOM.P]] = " *\\(".r ~> ows ~> repsep(pcallattr, ows ~ "," ~ ows) <~ opt(",") ~ ows <~ ")"
 
   def pcallattr: Parser[P] = " *".r ~> qident ~ opt(" *= *".r ~> expr) ^^ {
     case ident ~ ex => {
@@ -263,7 +263,8 @@ trait ExprParser extends RegexParsers {
   }
 
   // param assignment (x = expr, ...)
-  def pasattrs: Parser[List[PAS]] = " *\\(".r ~> ows ~> repsep(pasattr, ows ~ "," ~ ows) <~ ows <~ ")"
+  // allows comma after last
+  def pasattrs: Parser[List[PAS]] = " *\\(".r ~> ows ~> repsep(pasattr, ows ~ "," ~ ows) <~ opt(",") ~ ows <~ ")"
 
   /**
     * parm assignment, left side can be a[5].name, useful in a $val
