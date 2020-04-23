@@ -146,6 +146,7 @@ trait ExprParser extends RegexParsers {
     case i ~ l => (i :: l).mkString(".")
   }
 
+  /** generic qualified ident including diesel exprs */
   def qlident: Parser[List[String]] = qidentDiesel | qualifiedIdent
 
   // fix this somehow - these need to be accessed as this - they should be part of a "diesel" object with callbacks
@@ -189,6 +190,11 @@ trait ExprParser extends RegexParsers {
     e => new CExpr(e.replaceAll("\\\\(.)", "$1"), WTypes.wt.STRING)
   }
 
+  // string const with escaped chars
+  def strConstSingleQuote: Parser[Expr] = "\'" ~> """(\\.|[^\'])*""".r <~ "\'" ^^ {
+    e => new CExpr(e.replaceAll("\\\\(.)", "$1"), WTypes.wt.STRING)
+  }
+
   // escaped multiline string const with escaped chars
   // we're removing the first \n
   def multilineStrConst: Parser[Expr] = "\"\"\"" ~ opt("\n") ~> """(?s)((?!\"\"\").)*""".r <~ "\"\"\"" ^^ {
@@ -225,7 +231,8 @@ trait ExprParser extends RegexParsers {
 
   private def accessorNum: Parser[RDOM.P] = "." ~> "[0-9]+".r ^^ {case id => P("", id, WTypes.wt.NUMBER)}
 
-  private def sqbraccess: Parser[RDOM.P] = "\\[".r ~> ows ~> expr <~ ows <~ "]" ^^ {
+  // need to check single quotes first to force them strings - otherwise they end up IDs
+  private def sqbraccess: Parser[RDOM.P] = "\\[".r ~> ows ~> (strConstSingleQuote | expr) <~ ows <~ "]" ^^ {
     case e => P("", "").copy(expr=Some(e))
   }
   // for now the range is only numeric
