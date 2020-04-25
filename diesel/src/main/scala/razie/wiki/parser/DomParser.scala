@@ -166,13 +166,26 @@ trait DomParser extends ParserBase with ExprParser {
 
   /** pattern match for ent.met */
   def clsMatch: Parser[(String, String, List[RDOM.PM])] =
-    (ident | "*" | jsregex) ~
-        " *. *".r ~
-        (ident | "*" | jsregex) ~
-        rep("." ~> (ident | "*" | jsregex)) ~
+    clsMatch1 | clsMatch2
+
+  /** simple jsexp */
+  def clsMatch1: Parser[(String, String, List[RDOM.PM])] =
+    jsregex ~
         optMatchAttrs ^^ {
-    case i ~ _ ~ j ~ l ~ a => {
-      val qcm = qualified(i :: j :: l)
+      case m1 ~ a => {
+        (m1, "", a)
+      }
+    }
+
+  /** pattern match for ent.met */
+  def clsMatch2: Parser[(String, String, List[RDOM.PM])] =
+    (ident | "*" ) ~
+        " *. *".r ~
+        (ident | "*" ) ~
+        rep("." ~> (ident | "*" )) ~
+        optMatchAttrs ^^ {
+    case m1 ~ _ ~ m2 ~ l ~ a => {
+      val qcm = qualified(m1 :: m2 :: l)
       (qcm._1, qcm._2, a)
     }
   }

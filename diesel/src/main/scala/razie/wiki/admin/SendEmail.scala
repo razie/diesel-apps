@@ -464,9 +464,13 @@ object SendEmail extends razie.Logging {
       }
     }
 
+    /**
+      * build the actual Mime Message to be sent
+      */
     private def mkMsg(e: EmailMsg, mailSession: MailSession): MimeMessage = {
       val message = new MimeMessage(mailSession.session);
       message.setFrom(new InternetAddress(e.from));
+      mailSession.REPLYTO.map(x=>message.setReplyTo(Array(new InternetAddress(x))))
       message.addRecipient(Message.RecipientType.TO, new InternetAddress(e.to));
       e.bcc.foreach { b =>
         message.addRecipient(Message.RecipientType.BCC, new InternetAddress(b));

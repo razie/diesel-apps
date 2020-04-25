@@ -173,7 +173,9 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
   /** test that the EA matches */
   def testEA(e: EMsg, cole: Option[MatchCollector] = None, fallback:Boolean = false)(implicit ctx: ECtx) = {
 //    cdebug << s"Rule tested: $this"
-    if ("*" == cls || e.entity == cls || regexm(cls, e.entity)) {
+    if(cls.length == 0 || met.length == 0) {
+      regexm(cls+met, e.ea) // full match
+    } else if ("*" == cls || e.entity == cls || regexm(cls, e.entity)) {
       cole.map(_.plus(e.entity))
       if ("*" == met || e.met == met || regexm(met, e.met)) {
         cole.map(_.plus(e.met))
