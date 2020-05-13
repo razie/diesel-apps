@@ -44,6 +44,20 @@ class EECtx extends EExecutor(EECtx.CTX) {
 
     in.met match {
 
+      case "regex" => {
+        val payload = in.attrs.find(_.name == Diesel.PAYLOAD).getOrElse(ctx.getRequiredp(Diesel.PAYLOAD))
+        val re = ctx.getp("regex").orElse(in.attrs.headOption)
+        if(re.isEmpty) {
+          List(EError("Need at least a regex parameter"))
+        } else {
+          // for regex matches, use each capture group and set as parm in context
+          // extract parms
+          val groups = EContent.extractRegexParms(re.get.calculatedValue, payload.calculatedValue)
+
+          groups.map(t => EVal(P(t._1, t._2)))
+        }
+      }
+
       case "persisted" => {
         contexts.get(ctx("kind") + ctx("id")).map(x =>
           if (ctx != x)
