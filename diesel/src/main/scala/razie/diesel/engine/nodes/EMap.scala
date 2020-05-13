@@ -141,7 +141,13 @@ object EMap {
 
     // solve an expression
     def expr(p: P) = {
-      p.expr.map(_.applyTyped("")(myCtx)).getOrElse{
+      // todo if after appliedTyped we get a p with no current value but an expression, should we re-evaluate that?
+      p.expr.map{x =>
+        val res = x.applyTyped("")(myCtx).calculatedP
+        // some exprs will return non-calculated parms (AExprIdent) - so I'm evaluating it again
+        // todo should I keep calculating until I get a value?
+        res
+      }.getOrElse{
         // need to preserve types and stuff
         p
       }
@@ -170,7 +176,7 @@ object EMap {
             Some(p)
             // do not recalculate expressions like diesel.msg.ea - these will produce a different value
             // important: if a parm is inherited with expression and expression is diesel.msg.ea, it would produce a
-            // different value for the child
+            // different value if evaluated AGAIN for the child
           else if(p.expr.nonEmpty) Some(expr(p)) // a=x
           else
           // this is why we can't override values in a message decomp
