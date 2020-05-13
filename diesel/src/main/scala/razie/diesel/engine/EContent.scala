@@ -187,7 +187,8 @@ object EContent {
   /** apply the regex to body and extract any named groups */
   def extractRegexParms (rex:String, body:String): List[(String,String)] = {
     // stupid java can't give me the group names - let's find them
-    val groupNames = "\\<([^<>]+)\\>".r.findAllIn(rex).map(_.replaceAll("[<>]", "")).toList
+    val groupNames = "\\(\\?\\<([^<>]+)\\>".r.findAllIn(rex).map(_.replaceAll("[(?<>]", "")).toList
+//    val groupNames = "\\<([^<>]+)\\>".r.findAllIn(rex).map(_.replaceAll("[<>]", "")).toList
 
     val jrex = Pattern.compile(rex).matcher(body)
     val groups3 = if (jrex.find()) {
