@@ -766,10 +766,13 @@ object EESnakk {
     if(code > 0) eres += EVal(P.fromTypedValue(EESnakk.SNAKK_HTTP_CODE, code)) :: Nil
     if(errContent.length > 0) eres += EVal(P.fromTypedValue(EESnakk.SNAKK_HTTP_RESPONSE, errContent)) :: Nil
 
-    val uc = t.asInstanceOf[CommRtException].uc
-    val x = uc.getHeaderFields.keySet().toArray.toList
-    val headers = x.filter(_ != null).map(x => (x.toString, uc.getHeaderField(x.toString))).toMap
-    eres += EVal(EContent.headersp(headers)).withKind(AstKinds.DEBUG)
+    if(t.isInstanceOf[CommRtException]) {
+      val uc = t.asInstanceOf[CommRtException].uc
+      val x = uc.getHeaderFields.keySet().toArray.toList
+      val headers = x.filter(_ != null).map(x => (x.toString, uc.getHeaderField(x.toString))).toMap
+      eres += EVal(EContent.headersp(headers)).withKind(AstKinds.DEBUG)
+    }
+
     eres += new EVal(PAYLOAD, "")
 
     eres +=
