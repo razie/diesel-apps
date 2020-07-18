@@ -110,7 +110,7 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
 /** multihosting utilities */
 object Website {
   private case class CacheEntry (w:Website, millis:Long)
-  private case class CacheEntry2 (m:collection.mutable.HashMap[String,String])
+  private case class CacheEntry2 (m:collection.mutable.HashMap[String,P])
 
   // cleaned on reload
   private val cache = new TrieMap[String, CacheEntry]()
@@ -155,23 +155,28 @@ object Website {
     cache.remove(host)
   }
 
-  /** static properties per realm, as set during say diesel.realm.started */
-  def putRealmProps (realm:String, prop:String, value:String):Unit = {
+  /** static properties per realm, as set during say diesel.realm.started
+    * make sure P is calculated to a value - no context from here on
+    */
+  def putRealmProps (realm:String, prop:String, value:P):Unit = {
+    if(!value.hasCurrentValue) {
+      throw new IllegalArgumentException("P needs a calculatedValue")
+    }
     // important to sync here, conflicts are not harmless
     realmProps.synchronized {
-      val p = realmProps.getOrElseUpdate(realm, new CacheEntry2(new HashMap[String, String]()))
+      val p = realmProps.getOrElseUpdate(realm, new CacheEntry2(new HashMap[String, P]()))
       p.m.put(prop, value)
     }
   }
 
   /** static properties per realm, as set during say diesel.realm.started */
   def getRealmProp (realm:String, prop:String, dfltValue:Option[String] = None) = {
-    realmProps.get(realm).flatMap(_.m.get(prop)).orElse(dfltValue)
+    realmProps.get(realm).flatMap(_.m.get(prop).map(_.currentStringValue)).orElse(dfltValue)
   }
 
   /** static properties per realm, as set during say diesel.realm.started */
-  def getRealmProps (realm:String) = {
-   realmProps.get(realm).map(_.m).getOrElse(Map.empty)
+  def getRealmProps (realm:String):Map[String,P] = {
+   realmProps.get(realm).map(_.m.toMap).getOrElse(Map.empty)
   }
 
   def all = cache.values.map(_.w).toList

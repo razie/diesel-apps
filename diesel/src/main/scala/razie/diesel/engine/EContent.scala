@@ -185,7 +185,12 @@ class EContent(
 object EContent {
 
   /** apply the regex to body and extract any named groups */
-  def extractRegexParms (rex:String, body:String): List[(String,String)] = {
+  def extractRegexParms (regex:String, body:String): List[(String,String)] = {
+    val rex =
+      if (regex.startsWith("/") && regex.endsWith("/"))
+        regex.substring(1, regex.length - 1)
+      else regex
+
     // stupid java can't give me the group names - let's find them
     val groupNames = "\\(\\?\\<([^<>]+)\\>".r.findAllIn(rex).map(_.replaceAll("[(?<>]", "")).toList
 //    val groupNames = "\\<([^<>]+)\\>".r.findAllIn(rex).map(_.replaceAll("[<>]", "")).toList
@@ -219,8 +224,10 @@ object EContent {
       val bi = b(i)
       if(ai == bi) matched = true
       else if (ai.startsWith(":")) {
+        // match one value to segment .../:id/...
         parms.append((ai.substring(1), bi))
       } else if (i == a.length-1 && ai.startsWith("*")) {
+        // match rest of path .../*path
         parms.append((ai.substring(1), b.slice(i, b.length).mkString("/")))
         // last one is path?
         return (true, parms.toList)

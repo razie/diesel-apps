@@ -196,6 +196,8 @@ object RDOM {
       }
 
       val res = v match {
+        case i: P           => i.copy(name=name)
+        case i: PValue[_] =>   P(name, asString(i.value), i.cType).withValue(i.value, i.cType)
         case i: Boolean =>     P(name, asString(i), WTypes.wt.BOOLEAN).withValue(i, WTypes.wt.BOOLEAN)
         case i: Int =>         P(name, asString(i), WTypes.wt.NUMBER).withValue(i, WTypes.wt.NUMBER)
         case i: Long =>        P(name, asString(i), WTypes.wt.NUMBER).withValue(i, WTypes.wt.NUMBER)

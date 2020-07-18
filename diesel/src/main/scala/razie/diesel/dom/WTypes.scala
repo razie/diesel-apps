@@ -116,10 +116,13 @@ object WTypes {
   /** get corresponding mime content-type */
   def getContentType (ttype:WType):String = {
     val t = ttype.name match {
-      case JSON | ARRAY => Mime.appJson
+      case JSON | ARRAY | OBJECT => Mime.appJson
       case XML => Mime.appXml
       case HTML => Mime.textHtml
-      case h @ _ if h.trim.length > 0 => h.trim // whatever came in - maybe it's valid :)
+
+      case NUMBER | STRING | DATE | REGEX | INT | FLOAT | BOOLEAN | RANGE => Mime.textPlain
+
+      case h @ _ if h.contains("/") => h.trim // whatever came in - maybe it's valid :)
       case _ => Mime.textPlain
     }
     t

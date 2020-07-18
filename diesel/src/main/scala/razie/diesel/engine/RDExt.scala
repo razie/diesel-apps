@@ -11,7 +11,7 @@ import razie.diesel.dom.{RDomain, _}
 import razie.diesel.engine.exec.Executors
 import razie.diesel.engine.nodes._
 import razie.diesel.expr.ECtx
-import razie.tconf.EPos
+import razie.tconf.{DSpec, EPos}
 import razie.wiki.Enc
 import scala.collection.mutable
 import scala.collection.mutable.{HashMap, ListBuffer}
@@ -136,6 +136,48 @@ object RDExt extends Logging {
          => x
     }.headOption)
 
+  /** find the usages in stories */
+  def usagesStories(entity:String, met:String, stories:List[DSpec])(implicit ctx: ECtx) : List[EMsg] = {
+    stories.flatMap(
+      RDomain.domFilter(_) {
+          case x: EMsg
+            if
+              ("*" == x.entity || x.entity == entity || regexm(x.entity, entity)) &&
+              ("*" == x.met || x.met == met || regexm(x.met, met))
+          => x
+      })
+    }
+
+  /** find where it is decomposed (applicable rules) */
+  def usagesSpecs(entity:String, met:String)(implicit ctx: ECtx) : List[EMsg] =
+    ctx.domain.toList.flatMap(_.moreElements.collect {
+      case x: EMsg
+        if
+        ("*" == x.entity || x.entity == entity || regexm(x.entity, entity)) &&
+            ("*" == x.met || x.met == met || regexm(x.met, met))
+      => x
+    })
+
+  /** find where it is decomposed (applicable rules) */
+  def usagesRules(entity:String, met:String)(implicit ctx: ECtx) : List[EMsg] =
+    ctx.domain.toList.flatMap(_.moreElements.collect {
+      case x: EMsg
+        if
+        ("*" == x.entity || x.entity == entity || regexm(x.entity, entity)) &&
+            ("*" == x.met || x.met == met || regexm(x.met, met))
+      => x
+    }.toList).toList
+
+  /** find where it is used in decomp rules */
+  def usagesDecompositions(entity:String, met:String)(implicit ctx: ECtx) : List[EMsg] =
+    ctx.domain.toList.flatMap(_.moreElements.collect {
+      case x: EMsg
+        if
+        ("*" == x.entity || x.entity == entity || regexm(x.entity, entity)) &&
+            ("*" == x.met || x.met == met || regexm(x.met, met))
+      => x
+    }.toList).toList
+
 
   // to collect msg def
   case class PCol(p:P, pos:Option[EPos])
@@ -217,12 +259,26 @@ object RDExt extends Logging {
 
   /** simple json for content assist */
   def toCAjmap(d: RDomain) = {
-    val visited = new ListBuffer[(String, String, String)]()
+    val visited = new ListBuffer[(String, String, String, String)]()
 
     // todo collapse defs rather than select
-    def collect(e: String, m: String, kind:String="msg") = {
+    def collect(e:String, m:String, kind:String="msg") = {
       if (!visited.exists(_ ==(kind, e, m))) {
-        visited.append((kind, e, m))
+        visited.append((kind, e, m, ""))
+      }
+    }
+
+    // todo collapse defs rather than select
+    def collectMsg(m:EMsg, kind:String="msg") = {
+      if (!visited.exists(_ ==(kind, m.entity, m.met))) {
+        visited.append((kind, m.entity, m.met, m.toCAString))
+      }
+    }
+
+    // todo collapse defs rather than select
+    def collectRule(m:ERule, kind:String="msg") = {
+      if (!visited.exists(_ ==(kind, m.e.cls, m.e.met))) {
+        visited.append((kind, m.e.cls, m.e.met, m.e.toCAString))
       }
     }
 
@@ -234,19 +290,19 @@ object RDExt extends Logging {
     }
 
     // add known executors
-    Executors.withAll(_.values.toList.flatMap(_.messages).map(m=> collect(m.entity, m.met)))
+    Executors.withAll(_.values.toList.flatMap(_.messages).map(m=> collectMsg(m)))
 
     Map(
       "msg" -> {
         d.moreElements.collect({
-          case n: EMsg => collect(n.entity, n.met)
+          case n: EMsg => collectMsg(n)
           case n: ERule => {
-            collect(n.e.cls, n.e.met)
+            collectRule(n)
             n.i.map {x=>
               collect(x.cls, x.met)
             }
           }
-          case n: EMock => collect(n.rule.e.cls, n.rule.e.met)
+          case n: EMock => collectRule(n.rule)
           case n: ExpectM => collect(n.m.cls, n.m.met)
         })
         visited.filter(_._1 == "msg").toList.map(t => t._2 + "." + t._3)
