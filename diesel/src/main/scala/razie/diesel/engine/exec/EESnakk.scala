@@ -8,6 +8,7 @@ package razie.diesel.engine.exec
 import com.razie.pub.comms.{CommRtException, Comms}
 import java.net.{URI, URL}
 import razie.Snakk._
+import razie.diesel.Diesel
 import razie.diesel.Diesel.PAYLOAD
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
@@ -44,7 +45,10 @@ class EESnakk extends EExecutor("snakk") with Logging {
     m.ea == "snakk.text"      ||
     m.ea == "snakk.telnet"    ||
     m.ea == "snakk.ffd"       ||
-    m.ea == "snakk.fdFormat" ||
+    m.ea == "snakk.fdFormat"  ||
+    m.ea == "snakk.parse.xml"   ||
+    m.ea == "snakk.parse.json"  ||
+    m.ea == "snakk.parse.regex" ||
     // and also if the stypes are known and there are templates for them
     known(m.stype) ||
       spec(m).exists(m => known(m.stype) ||
@@ -57,7 +61,41 @@ class EESnakk extends EExecutor("snakk") with Logging {
   }
 
   /** execute the task then */
+  def parseApply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = {
+    val response = ctx.getRequired(Diesel.PAYLOAD)
+    val ct = if (in.ea.contains("xml")) "application/xml" else "application/json"
+
+    val reply = new EContent(response, ct, 200, Map.empty)
+
+    // 2. extract values
+    val strs = if(in.ea == "snakk.parse.regex") {
+      val regex = ctx.getRequired("regex")
+      EContent.extractRegexParms(regex, response).map(t => new P(t._1, t._2))
+    } else if(in.ea == "snakk.parse.json") {
+        reply.asJsonPayload :: Nil
+    } else {
+        P.fromSmartTypedValue("error", new IllegalArgumentException("Can't parse xml yet")) :: Nil //.withPos(pos)
+    }
+
+    // add the resulting values
+    strs.map { x =>
+      if(x.isOfType(WTypes.wt.EXCEPTION)) {
+        if(x.value.isDefined)
+          EError(x.dflt).withPos(in.pos)
+        else
+          new EError(x.dflt, x.value.get.asInstanceOf[Throwable]).withPos(in.pos)
+      } else {
+        ctx.put(x)
+        EVal(x).withPos(in.pos)
+      }
+    }
+  }
+
+    /** execute the task then */
   override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = {
+
+    if(in.ea startsWith  "snakk.parse.")
+      return parseApply(in, destSpec)
 
     // FFD is separate
     if(in.ea == "snakk.ffd")
@@ -358,7 +396,10 @@ class EESnakk extends EExecutor("snakk") with Logging {
     EMsg("snakk", "ffd") ::
     EMsg("snakk", "json") ::
     EMsg("snakk", "text") ::
-    EMsg("snakk", "xml") ::
+        EMsg("snakk", "xml") ::
+        EMsg("snakk", "parse.xml") ::
+        EMsg("snakk", "parse.json") ::
+    EMsg("snakk", "parse.regex") ::
       Nil
 }
 
