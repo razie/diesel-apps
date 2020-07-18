@@ -163,7 +163,7 @@ object DieselTarget {
       WID.fromPath(s"${realm}.Reactor:${realm}#diesel").map(_.toSpecPath).toList,
       Nil)
 
-  /** the environment settings - most common target */
+  /** list of topics by tq */
   def TQSPECS (realm:String, env:String, tq:TagQuery) =
     new DieselTarget(realm, env) {
 
@@ -181,8 +181,7 @@ object DieselTarget {
     }
 
   /** the environment settings - most common target */
-  def RK =
-    new DieselTarget("rk")
+  def RK = new DieselTarget("rk")
 
   /** all the specs */
 //  def SPECS (realm:String) =

@@ -167,10 +167,10 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
         a match {
           case aei:AExprIdent =>
             aei.tryApplyTyped("")
-              .map(_.calculatedTypedValue)
-              .getOrElse(
-                b.applyTyped(v).calculatedTypedValue
-              )
+                .map(_.calculatedTypedValue)
+                .getOrElse(
+                  b.applyTyped(v).calculatedTypedValue
+                )
 
           case _ => {
             PValue("")
