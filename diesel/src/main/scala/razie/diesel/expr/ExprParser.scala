@@ -24,8 +24,6 @@ trait ExprParser extends RegexParsers {
   // optional whiteSpace
   def ows = opt(whiteSpace)
 
-//  override val whiteSpace = """(\s|//.*|(?m)/\*(\*(?!/)|[^*])*\*/)+""".r
-
 //  def pComment: Parser[String] = "//.*".r  | "(?m)/\\*(\\*(?!/)|[^*])*\\*/)".r ^^ {
 //def pComment: Parser[String] = """(\s|//.*|(?m)/\*(\*(?!/)|[^*])*\*/)+""".r ^^ {
   def pComment: Parser[String] = """(//[^\n]*|(?m)/\*(\*(?!/)|[^*])*\*/)+""".r ^^ {
@@ -295,6 +293,10 @@ trait ExprParser extends RegexParsers {
     case None => None
   }
 
+  val msfDefOperators = "~=|\\?=|=".r
+
+  def OPSM1: Parser[String] = msfDefOperators
+
   /**
     * parm definition / assignment
     *
@@ -303,21 +305,31 @@ trait ExprParser extends RegexParsers {
     * <> means it's a ref, not ownership
     * * means it's a list
     */
-  def pattr: Parser[RDOM.P] = " *".r ~> qident ~ optType ~ opt(" *~?= *".r ~> expr) <~ optComment ^^ {
+  def pattr: Parser[RDOM.P] = " *".r ~>
+      qident ~
+      optType ~
+      opt(" *\\?(?!=) *".r) ~  // negative lookahead to not match optional with value
+      opt(ows ~> OPSM1 ~ ows ~ expr) <~
+      optComment ^^ {
+    case name ~ t ~ o ~ e => {
+      var optional = o.mkString.trim
 
-    case name ~ t ~ e => {
       val (dflt, ex) = e match {
         //        case Some(CExpr(ee, "String")) => (ee, None)
         // todo good optimization but I no longer know if some parm is erased like (a="a", a="").
-        case Some(expr) => ("", Some(expr))
+        case Some(op ~ _ ~ expr) => {
+          optional = if(op.contains("?=")) "?" else ""
+          ("", Some(expr))
+        }
         case None => ("", None)
       }
+
       t match {
         // k - kind is [String] etc
         case WTypes.wt.EMPTY => // infer type from expr
-          P(name, dflt, ex.map(_.getType).getOrElse(WTypes.wt.EMPTY), ex)
+          P(name, dflt, ex.map(_.getType).getOrElse(WTypes.wt.EMPTY), ex, optional)
         case tt => // ref or no archetype
-          P(name, dflt, tt, ex)
+          P(name, dflt, tt, ex, optional)
       }
     }
   }

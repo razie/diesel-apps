@@ -287,12 +287,13 @@ object RDOM {
     *
     * The value trumps dflt which trumps expr
     *
-    * @param name   name of parm
-    * @param dflt   current value (for values) or default value (for specs) or a cache for the typed .value
-    * @param ttype  type if known
-    * @param expr   expression - for sourced parms
+    * @param name     name of parm
+    * @param dflt     current value (for values) or default value (for specs) or a cache for the typed .value
+    * @param ttype    type if known
+    * @param expr     expression - for sourced parms
+    * @param optional "?" if the parm is optional
     */
-  case class P (name:String, dflt:String, ttype:WType = WTypes.wt.EMPTY, expr:Option[Expr]=None,
+  case class P (name:String, dflt:String, ttype:WType = WTypes.wt.EMPTY, expr:Option[Expr]=None, optional:String="",
                 var value:Option[PValue[_]] = None
                ) extends CM with CanHtml {
 
@@ -394,6 +395,7 @@ object RDOM {
     override def toString =
       s"$name" +
         ttype +
+        optional +
         smap(strimmedDflt) (s=> "=" + (if("Number" == ttype) s else quot(s))) +
         (if(dflt=="") expr.map(x=>smap(x.toString) ("=" + _)).mkString else "")
 
@@ -403,6 +405,7 @@ object RDOM {
     def toHtml (shorten:Boolean = true)=
       s"<b>$name</b>" +
         (if(ttype.name.toLowerCase != "string") typeHtml(ttype) else "") +
+    optional +
         smap(Enc.escapeHtml(if(shorten) htrimmedDflt else currentStringValue)) {s=>
           "=" + tokenValue(if("Number" == ttype) s else escapeHtml(quot(s)))
         } +

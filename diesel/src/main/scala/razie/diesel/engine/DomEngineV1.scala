@@ -606,10 +606,17 @@ class DomEngineV1(
       dom.moreElements.collect {
         case v:EVal => {
           evAppChildren(a, DomAst(v, AstKinds.TRACE))
+          // do not calculate here - keep them more like exprs .calculatedP)
           this.ctx.put(v.p)
         }
       }
 
+      true
+
+    } else if(ea == DieselMsg.ENGINE.DIESEL_SYNC) {
+
+      // turn the engine sync
+      ctx.root.asInstanceOf[DomEngECtx].engine.map(_.synchronous = true)
       true
 
     } else if(ea == DieselMsg.SCOPE.DIESEL_PUSH) {
@@ -658,7 +665,7 @@ class DomEngineV1(
         val r = this.settings.realm
         if(r.isEmpty) evAppChildren(a, DomAst(EError("realm not defined...???"), AstKinds.ERROR))
         else {
-          r.foreach(Website.putRealmProps(_, p.name, p.calculatedValue))
+          r.foreach(Website.putRealmProps(_, p.name, p.calculatedP))
           r.flatMap(Website.forRealm).map(_.put(p.name, p.calculatedValue))
           evAppChildren(a, DomAst(EInfo("updated..."), AstKinds.DEBUG))
         }

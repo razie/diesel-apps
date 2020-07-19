@@ -238,6 +238,7 @@ object DieselMsg {
     final val DIESEL_DEBUG = "diesel.debug"
     final val DIESEL_LATER = "diesel.later"
     final val DIESEL_REST = "diesel.rest"
+    final val DIESEL_SYNC = "diesel.engineSync"
     final val BEFORE = "before"
     final val AFTER = "after"
     final val DEBUG = "debug"
