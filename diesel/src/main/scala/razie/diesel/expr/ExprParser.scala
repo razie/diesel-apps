@@ -5,7 +5,7 @@
  */
 package razie.diesel.expr
 
-import razie.diesel.dom.RDOM.P
+import razie.diesel.dom.RDOM.{P, PM}
 import razie.diesel.dom.{RDOM, WType, WTypes, XPathIdent}
 import razie.diesel.engine.nodes.PAS
 import scala.util.parsing.combinator.RegexParsers
@@ -283,7 +283,7 @@ trait ExprParser extends RegexParsers {
     */
   def optType: Parser[WType] = opt(" *: *".r ~> opt("<>") ~ ident ~ optKinds ~ opt(" *\\* *".r)) ^^ {
     case Some(ref ~ tt ~ k ~ None) => WType(tt, "", k).withRef(ref.isDefined)
-    case Some(ref ~ tt ~ k ~ Some(_)) => WType(WTypes.ARRAY, "", Some(tt)).withRef(ref.isDefined)
+    case Some(ref ~ tt ~ _ ~ Some(_)) => WType(WTypes.ARRAY, "", Some(tt)).withRef(ref.isDefined)
     case None => WTypes.wt.EMPTY
   }
 
@@ -352,16 +352,16 @@ trait ExprParser extends RegexParsers {
   //=================== js and JSON
   //
 
-  def jsexpr1: Parser[Expr] = "js:" ~> ".*(?=[,)])".r ^^ { case li => JSSExpr(li) }
-  def jsexpr2: Parser[Expr] = "js:{" ~> ".*(?=})".r <~ "}" ^^ { case li => JSSExpr(li) }
+  def jsexpr1: Parser[Expr] = "js:" ~> ".*(?=[,)])".r ^^ (li => JSSExpr(li))
+  def jsexpr2: Parser[Expr] = "js:{" ~> ".*(?=})".r <~ "}" ^^ (li => JSSExpr(li))
   //  def jsexpr3: Parser[Expr] = "js:{{ " ~> ".*(?=})".r <~ "}}" ^^ { case li => JSSExpr(li) }
-  def scexpr1: Parser[Expr] = "sc:" ~> ".*(?=[,)])".r ^^ { case li => SCExpr(li) }
-  def scexpr2: Parser[Expr] = "sc:{" ~> ".*(?=})".r <~ "}" ^^ { case li => SCExpr(li) }
+  def scexpr1: Parser[Expr] = "sc:" ~> ".*(?=[,)])".r ^^ (li => SCExpr(li))
+  def scexpr2: Parser[Expr] = "sc:{" ~> ".*(?=})".r <~ "}" ^^ (li => SCExpr(li))
 
-  def eblock: Parser[Expr] = "(" ~ ows ~> expr <~ ows ~ ")" ^^ { case ex => BlockExpr(ex) }
+  def eblock: Parser[Expr] = "(" ~ ows ~> expr <~ ows ~ ")" ^^ (ex => BlockExpr(ex))
 
   // inline js expr: //1+2//
-  def jsexpr4: Parser[Expr] = "//" ~> ".*(?=//)".r <~ "//" ^^ { case li => JSSExpr(li) }
+  def jsexpr4: Parser[Expr] = "//" ~> ".*(?=//)".r <~ "//" ^^ (li => JSSExpr(li))
 
   // remove single or double quotes if any, from ID matched with them
   def unquote(s:String) =  {
@@ -373,7 +373,7 @@ trait ExprParser extends RegexParsers {
   }
 
   def jnull: Parser[Expr] = "null" ^^ {
-    case b => new CExprNull
+    _ => new CExprNull
   }
 
   // json object - sequence of nvp assignemnts separated with commas
@@ -389,13 +389,13 @@ trait ExprParser extends RegexParsers {
 
   // array [...] - elements are expressions
   def jarray: Parser[Expr] = "[" ~ ows ~> repsep(ows ~> jexpr <~ ows, ",") <~ ows ~ "]" ^^ {
-    case li => JArrExpr(li) //CExpr("[ " + li.mkString(",") + " ]")
+    li => JArrExpr(li) //CExpr("[ " + li.mkString(",") + " ]")
   }
 
-  def jexpr: Parser[Expr] = jobj | jarray | boolConst | jother ^^ { case ex => ex } //ex.toString }
+  def jexpr: Parser[Expr] = jobj | jarray | boolConst | jother ^^ (ex => ex) //ex.toString }
 
   //  def jother: Parser[String] = "[^{}\\[\\],]+".r ^^ { case ex => ex }
-  def jother: Parser[Expr] = expr ^^ { case ex => ex }
+  def jother: Parser[Expr] = expr ^^ (ex => ex)
 
 
   //
@@ -422,7 +422,7 @@ trait ExprParser extends RegexParsers {
 
   private def condBlock: Parser[BoolExpr] = ows ~> "(" ~> ows ~> cond <~ ows <~ ")" ^^ { BExprBlock }
 
-  private def cmp(a: Expr, s: String, b: Expr) = new BCMP2(a, s, b)
+  private def cmp(a: Expr, s: String, b: Expr) = BCMP2(a, s, b)
 
   private def ibex(op: => Parser[String]) : Parser[BoolExpr] = expr ~ (ows ~> op <~ ows) ~ expr ^^ {
     case a ~ s ~ b => cmp(a, s.trim, b)
@@ -434,12 +434,12 @@ trait ExprParser extends RegexParsers {
 
   /** single value expressions, where != 0 is true and != null is true */
   def bvalue : Parser[BoolExpr] = expr ^^ {
-    case a => BCMPSingle(a)
+    a => BCMPSingle(a)
   }
 
-  private def bcmp(a: BoolExpr, s: String, b: BoolExpr) = new BCMP1(a, s, b)
+  private def bcmp(a: BoolExpr, s: String, b: BoolExpr) = BCMP1(a, s, b)
   private def ebcmp(a: Expr, s: String, b: Expr) = (a,b) match {
-    case (a:BoolExpr, b:BoolExpr) => new BCMP1(a, s, b)
+    case (a:BoolExpr, b:BoolExpr) => BCMP1(a, s, b)
     case (a,b) => throw new DieselExprException("ebcmp - can't combine non-logical expressions with or/and")
   }
 

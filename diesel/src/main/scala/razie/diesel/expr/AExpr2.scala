@@ -8,6 +8,7 @@ package razie.diesel.expr
 import org.json.JSONObject
 import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.dom._
+import razie.js
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.util.Try
@@ -92,13 +93,13 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
           // json exprs are different, like cart + { item:...}
           case (aei:AExprIdent, JBlockExpr(jb, _))
             if aei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) =>
-            PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.wt.JSON)
+            jsonExpr(op, a(v).toString, b(v).toString)
 
           // json exprs are different, like cart + { item:...}
           case (aei:AExprIdent, bei:AExprIdent)
             if aei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) &&
                 bei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) =>
-            PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.wt.JSON)
+            jsonExpr(op, a(v).toString, b(v).toString)
 
           case _ if isNum(av) && isNum (bv) => {
             // if a is num, b will be converted to num
@@ -128,7 +129,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
                   av.ttype == WTypes.JSON) {
               // json exprs are different, like cart + { item:...}
               try {
-                PValue(jsonExpr(op, a(v).toString, b(v).toString), WTypes.wt.JSON)
+                jsonExpr(op, a(v).toString, b(v).toString)
               } catch {
                 case t:Throwable => throw new DieselExprException(s"Parm ${av} or ${bv} can't be parse to JSON: " + t.toString).initCause(t)
               }
@@ -185,7 +186,10 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
         val avalue = avv.asString
 
           b match {
-          case _ if bs == "number" =>
+            case _ if bs == "boolean" || bs == "bool" =>
+              P.fromTypedValue("", avalue, WTypes.BOOLEAN).calculatedTypedValue
+
+            case _ if bs == "number" =>
             P.fromTypedValue("", avalue, WTypes.NUMBER).calculatedTypedValue
 
           case _ if bs == "string" =>
@@ -394,7 +398,6 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
     res.toString
   }
 
-  /** process a js operation like obja + objb */
   def jsonExpr(op: String, aa: String, bb: String) = {
     val ai = try {
       razie.js.parse(aa)
@@ -458,7 +461,8 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
         }
       } else res.put(k, bv)
     }
-    razie.js.tojsons(res.toMap)
+    val s = razie.js.tojsons(res.toMap)
+    PValue(res, WTypes.wt.JSON).withStringCache(s)
   }
 
   override def getType = a.getType
