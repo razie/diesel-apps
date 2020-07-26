@@ -184,7 +184,9 @@ case class User(
   def auditCreated(realm:String) { Log.audit("USER_CREATED " + email + " realm: " + realm) }
   def auditLogout(realm:String) { Log.audit("USER_LOGOUT " + email+" realm: "+realm) }
   def auditLogin(realm:String) { Log.audit("USER_LOGIN " + email + " realm: " + realm) }
-  def auditLoginFailed(realm:String) { Log.audit("USER_LOGIN_FAILED " + email + " realm: " + realm) }
+  def auditLoginFailed(realm:String, count:Int = -1) {
+    Log.audit(s"USER_LOGIN_FAILED $email - realm: $realm - count: $count")
+  }
 
   lazy val key = Map("email" -> email)
 
