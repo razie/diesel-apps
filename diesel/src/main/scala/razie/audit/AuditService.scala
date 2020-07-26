@@ -60,8 +60,8 @@ trait AuditService extends Auditor with razie.Logging {
 
   def regdemail(email: String) { audit(logdb(REGD_EMAIL, email)) }
 
-  def wrongLogin(email: String, pwd: String) {
-    audit(logdb(ERR_NO_SUCH_USER, many(email, pwd)))
+  def wrongLogin(email: String, pwd: String, count:Int) {
+    audit(logdb(ERR_NO_SUCH_USER, many(email, pwd, count)))
   }
 
   def wikiFailedEdit(user: String, cat: String, name: String) {
