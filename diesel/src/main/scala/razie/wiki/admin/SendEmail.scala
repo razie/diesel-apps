@@ -447,7 +447,7 @@ object SendEmail extends razie.Logging {
               e.copy(status = STATUS.OOPS, lastDtm = DateTime.now(), lastError = mex.toString).updateNoAudit
               Audit.logdb("ERR_EMAIL_SEND",
                 Seq("to:" + e.to, "from:" + e.from,
-                  "subject:" + e.subject, "html=" + e.html.take(100),
+                  "subject:" + e.subject, "html=" + e.html, //.take(100),
                   "EXCEPTION = " + mex.toString()).mkString("\n"))
               if (mex.toString contains "quota exceeded") {
                 Audit.logdb("ERR_EMAIL_MAXED", mex.toString)
