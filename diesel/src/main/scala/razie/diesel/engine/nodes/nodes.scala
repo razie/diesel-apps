@@ -60,11 +60,11 @@ package object nodes {
    *
    * (a=1) it occurs with value
    */
-  def testA(in: Attrs,
-            cond: MatchAttrs,
-            cole: Option[MatchCollector] = None,
-            foundName:Option[RDOM.P => Unit]=None,
-            positive:Boolean = true)(implicit ctx: ECtx): Boolean = {
+  def testMatchAttrs(in: Attrs,
+                     cond: MatchAttrs,
+                     cole: Option[MatchCollector] = None,
+                     foundName:Option[RDOM.P => Unit]=None,
+                     positive:Boolean = true)(implicit ctx: ECtx): Boolean = {
     // for each match
 
     val calculated = new ListBuffer[P]()

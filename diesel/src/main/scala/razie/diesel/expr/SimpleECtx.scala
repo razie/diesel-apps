@@ -5,7 +5,7 @@
  */
 package razie.diesel.expr
 
-import razie.diesel.dom.RDOM.P
+import razie.diesel.dom.RDOM.{P}
 import razie.diesel.dom.RDomain
 import razie.diesel.engine.nodes.EVal
 import razie.diesel.engine.{DomAst, DomEngECtx}
@@ -73,9 +73,9 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
     } orElse base.flatMap(_.remove(name))
   }
 
-  override def clear = {
+  override def clear: Unit = {
     attrs = Nil
-    base.map(_.clear)
+    base.foreach(_.clear)
   }
 
   /** we delegate on empty values - empty is the same as missing then
@@ -96,18 +96,20 @@ class SimpleECtx(val cur: List[P] = Nil, val base: Option[ECtx] = None, val curN
   }
 
   /** propagates by default up - see the Scope context which will not */
-  def put(p: P): Unit =
-    if(base.isDefined)
+  def put(p: P) {
+    if (base.isDefined)
       base.get.put(p)
     //    else if(p.ttype == WTypes.UNDEFINED)
     //    remove(p)
     else
       attrs = p :: attrs.filter(_.name != p.name)
+  }
 
   /** propagates by default up - see the Scope context which will not */
-  def putAll(p: List[P]): Unit =
-    if(base.isDefined) base.get.putAll(p)
+  def putAll(p: List[P]) {
+    if (base.isDefined) base.get.putAll(p)
     else attrs = p ::: attrs.filter(x => !p.exists(_.name == x.name))
+  }
     // p.map(put)
     // this old ver would not remove null/UNDEF
 

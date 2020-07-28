@@ -190,7 +190,7 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
   /** test that the attrs and cond match */
   def testAttrCond(e: EMsg, cole: Option[MatchCollector] = None, fallback:Boolean = false)(implicit ctx: ECtx) = {
         cole.map(_.plus(e.met))
-        val testedok = testA(e.attrs, attrs, cole)
+        val testedok = testMatchAttrs(e.attrs, attrs, cole)
         val condok = if(testedok) true else cond.fold(true)(_.test(e.attrs, cole)) // respect bool shortcut
         fallback || {
           if(! (testedok && condok)) ctrace << s"...rule skipped attr/cond: $this"
@@ -327,7 +327,7 @@ trait EIf extends CanHtml {
 // a match condition
 case class EIfm(attrs: MatchAttrs) extends CanHtml with EIf {
   def test(e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
-    testA(e, attrs, cole)
+    testMatchAttrs(e, attrs, cole)
 
   override def toHtml = span("$ifm::") + attrs.mkString("<small>(", ", ", ")</small>")
   override def toString = "$ifm " + attrs.mkString

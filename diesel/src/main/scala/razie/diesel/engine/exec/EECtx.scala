@@ -27,7 +27,7 @@ object EECtx {
 /** executor for "ctx." messages - operations on the current context */
 class EECtx extends EExecutor(EECtx.CTX) {
 
-  import EECtx.CTX
+  import razie.diesel.engine.exec.EECtx.CTX
 
   /** map of active contexts per transaction */
   val contexts = new TrieMap[String, ECtx]()
@@ -61,7 +61,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
       case "persisted" => {
         contexts.get(ctx("kind") + ctx("id")).map(x =>
           if (ctx != x)
-            ctx.root.asInstanceOf[DomEngECtx].overwrite(x)
+            ctx.root.overwrite(x)
         ).getOrElse {
           contexts.put(ctx("kind") + ctx("id"), ctx.root) // should I save this one?
         }
@@ -180,7 +180,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
 
         // nice print of either input parms of default payload
       case "echo" => {
-        val toPrint = if (in.attrs.size > 0) in.attrs else ctx.getp(Diesel.PAYLOAD).toList
+        val toPrint = if (in.attrs.nonEmpty) in.attrs else ctx.getp(Diesel.PAYLOAD).toList
 
         toPrint.map { p =>
           EInfo(p.toString, p.calculatedTypedValue.asNiceString)
@@ -197,13 +197,13 @@ class EECtx extends EExecutor(EECtx.CTX) {
             Some(new EVal(name, v.get.currentStringValue))
           else if (v.exists(_.expr.isDefined))
             Some(new EVal(v.get.expr.get.applyTyped("").copy(name = name)))
-          else if (v.exists(_.ttype != WTypes.UNDEFINED))
+          else if (v.exists(_.ttype != WTypes.wt.UNDEFINED))
             Some(new EVal(name, v.get.currentStringValue)) // for set (x="")
           else {
             // clear it
-            def clear(c: ECtx): Unit = {
+            def clear(c: ECtx) {
               c.remove(name)
-              c.base.map(clear)
+              c.base.foreach(clear)
             }
 
             clear(ctx)
@@ -214,8 +214,8 @@ class EECtx extends EExecutor(EECtx.CTX) {
         }.toList
 
         res.collect {
-          case ev:EVal => ctx.put(ev.p)
-        }.toList
+          case ev: EVal => ctx.put(ev.p)
+        }
 
         res
       }
@@ -228,7 +228,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
             Some(new EVal(p))
           else if (p.expr.isDefined) // calculate now
             Some(new EVal(p.expr.get.applyTyped("").copy(name = p.name)))
-          else if (p.ttype != WTypes.UNDEFINED)
+          else if (p.ttype != WTypes.wt.UNDEFINED)
             Some(new EVal(p)) // set(x="") is not undefined...
           else {
             // clear it
@@ -345,7 +345,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         val d = in.attrs.find(_.name == "duration").map(_.currentStringValue.toInt).getOrElse(1000)
         EInfo("ctx.sleep - slept " + d) ::
             EEngSuspend("ctx.sleep", "", Some((e, a, l) => {
-              DieselAppContext.router.map(_ ! DELater(e.id, d, DEComplete(e.id, a, true, l, Nil)))
+              DieselAppContext.router.map(_ ! DELater(e.id, d, DEComplete(e.id, a, recurse = true, l, Nil)))
             })) ::
             Nil
       }

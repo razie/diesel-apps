@@ -5,7 +5,7 @@
  */
 package razie.diesel.expr
 
-import razie.diesel.dom.RDOM.P
+import razie.diesel.dom.RDOM.{P, ParmSource}
 import razie.diesel.dom._
 
 /** resolving qualified identifier, including arrays, ranges, json docs etc
@@ -128,6 +128,24 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
 
       } else if (av.contentType == WTypes.STRING || av.contentType.isEmpty || av.contentType == WTypes.UNKNOWN) {
         pv.contentType match {
+
+          case WTypes.SOURCE =>
+            val as = av.asString
+
+            val res = pv.value.asInstanceOf[ParmSource].getp(as)
+            res match {
+              case Some(v) =>
+                // should we keep the name?
+                Some(v.copy(name=newpname))
+//                Some(v)
+
+              case None =>
+                // if (blowUp) throw new DieselExprException(s"$expr does not have field $accessor")
+                // else
+                None // field not found - undefined
+            }
+
+          // =============== string functions
 
           case WTypes.JSON =>
             val as = av.asString

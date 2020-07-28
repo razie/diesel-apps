@@ -46,7 +46,7 @@ abstract class DomEngine(
   assert(settings.realm.isDefined, "need realm defined for engine settings")
 
   var synchronous = false
-  implicit val engine = this
+  implicit val engine: DomEngineState = this
 
   // setup the context for this eval
   implicit var ctx : ECtx = new DomEngECtx(settings)
@@ -106,12 +106,12 @@ abstract class DomEngine(
   /** completed a node - udpate stat
     *
     * @param a node that completed
-    * @param level
+    * @param level - current level, root is 0
     * @return
     */
   def nodeDone(a: DomAst, level:Int=1): List[DEMsg] = {
     evChangeStatus(a, DomState.DONE)
-    a.end
+    a.end()
 
     trace("DomEng "+id+("  " * level)+" done " + a.value)
 
@@ -126,7 +126,7 @@ abstract class DomEngine(
         prereq.isEmpty && n.status == DomState.DEPENDENT // not started - important!
       }.map { n =>
         evChangeStatus(n, DomState.LATER)
-        DEReq(id, n, true, findLevel(n)) // depys are not even equals - they would have their own level...?
+        DEReq(id, n, recurse = true, findLevel(n)) // depys are not even equals - they would have their own level...?
         // had a problem here, where the level was reseting sometimes - can't depend on parent level, have to re-find it
       }
     x
@@ -137,7 +137,7 @@ abstract class DomEngine(
     *
     * a is already assumed to have been stitched in the main tree
     *
-    * @param a
+    * @param a find front from here down
     * @param results - the results returned from a's executor
     * @return
     */
@@ -165,8 +165,11 @@ abstract class DomEngine(
       }
 
       case MsgExpr(ea) => a.children.collect {
-        case n:DomAst if n.value.isInstanceOf[EMsg] && n.value.asInstanceOf[EMsg].entity+"."+n.value.asInstanceOf[EMsg].met == ea => n
-      }.toList
+        case n: DomAst if
+          n.value.isInstanceOf[EMsg] &&
+          n.value.asInstanceOf[EMsg].entity + "." + n.value.asInstanceOf[EMsg].met == ea
+          => n
+      }
 
         // more seq-par
       case BFlowExpr(ex) => rec(ex)
@@ -174,7 +177,7 @@ abstract class DomEngine(
 
     // any seq/par flows apply to a ?
     if(a.value.isInstanceOf[EMsg]) {
-      implicit val ctx = new StaticECtx(a.value.asInstanceOf[EMsg].attrs, Some(this.ctx), Some(a))
+      implicit val ctx: StaticECtx = new StaticECtx(a.value.asInstanceOf[EMsg].attrs, Some(this.ctx), Some(a))
       flows.filter(_.e.test(a.value.asInstanceOf[EMsg])).map { f =>
         res = rec(f.ex)
       }
@@ -192,10 +195,10 @@ abstract class DomEngine(
   /** a decomp req - starts processing a message. these can be deferred async or recurse synchronously
     *
     * @param a the node to decompose/process
-    * @param recurse
-    * @param level
+    * @param recurse recurse or not
+    * @param level - current level, root is 0
     */
-  protected def req(a: DomAst, recurse: Boolean = true, level: Int): Unit = {
+  protected def req(a: DomAst, recurse: Boolean = true, level: Int) {
     var msgs : List[DEMsg] = Nil
 
     if(!DomState.isDone(a.status)) { // may have been skipped by others
@@ -243,7 +246,7 @@ abstract class DomEngine(
     *
     * @param a the node that got this reply
     * @param recurse do i need to recurse into children? default=true
-    * @param level
+    * @param level - current level, 0 is first
     * @param results - the results
     * @return
     */
@@ -281,7 +284,7 @@ abstract class DomEngine(
 
     if(res.size > 0) {
       evChangeStatus(node, DomState.STARTED)
-      node.end
+      node.end()
     } else {
       if(node.status != DomState.DONE)
         // call only when transitioning to DONE
@@ -306,15 +309,15 @@ abstract class DomEngine(
     val vals = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_VALS), AstKinds.TRACE)
     val before = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_BEFORE), AstKinds.TRACE)
     val after = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_AFTER), AstKinds.TRACE)
-    val desc = (DomAst(EInfo(
+    val desc = DomAst(EInfo(
       description,
       this.pages.map(_.specPath.wpath).mkString("\n") + "\n" + this.settings.toString
-    ), AstKinds.DEBUG).withStatus(DomState.SKIPPED))
+    ), AstKinds.DEBUG).withStatus(DomState.SKIPPED)
 
     // create dependencies and add them to the list
     after.prereq = l.map(_.id).toList
     l.append(after)
-    l.map(x=> x.prereq = before.id :: x.prereq)
+    l.foreach(x=> x.prereq = before.id :: x.prereq)
     l.prepend(before)
     l.prepend(vals)
     l.prepend(desc)
@@ -333,7 +336,7 @@ abstract class DomEngine(
         root
           .childrenCol
           .filter(_.kind == "test")
-      ).foreach(expand(_, true, 1))
+      ).foreach(expand(_, recurse = true, 1))
 
       this
     }
@@ -355,7 +358,7 @@ abstract class DomEngine(
       //    val msgs = root.children.toList.map{x=>
       val msgs = findFront(root, prepRoot(root.childrenCol).toList).map { x =>
         x.status = DomState.LATER
-        DEReq(id, x, true, 0)
+        DEReq(id, x, recurse = true, 0)
       }
 
       if (msgs.isEmpty)
@@ -376,7 +379,7 @@ abstract class DomEngine(
     // inherit all context from parent engine
 //    this.ctx.root.overwrite(newCtx)
 
-    val msgs = expandEMsg(ast, ast.value.asInstanceOf[EMsg], true, level, newCtx)
+    val msgs = expandEMsg(ast, ast.value.asInstanceOf[EMsg], recurse = true, level, newCtx)
 
     evAppChildren(ast, msgs)
 
@@ -388,7 +391,7 @@ abstract class DomEngine(
 //        res = execSync(a, level + 1, newCtx)
     }
     ast.status = DomState.DONE
-    ast.end
+    ast.end()
     res
   }
 
@@ -420,9 +423,9 @@ abstract class DomEngine(
 
     // find the spec and check its result
     // then find the resulting value.. if not, then json
-    val oattrs = dom.moreElements.collect {
+    val oattrs = dom.moreElements.collectFirst {
       case n: EMsg if n.entity == e && n.met == a => n
-    }.headOption.toList.flatMap(_.ret)
+    }.toList.flatMap(_.ret)
 
     // collect values
     val valuesp = root.collect {
@@ -433,7 +436,7 @@ abstract class DomEngine(
   }
 
   /** this was resulted in an html response - add it as a trace */
-  def addResponseInfo (code: Int, body:String, headers:Map[String, String]) = {
+  def addResponseInfo (code: Int, body:String, headers:Map[String, String]): Unit = {
     val h = headers.mkString("\n")
     val ast = new DomAst(EInfo(s"Response: ${code} BODY: ${body.take(500)}", s"HEADERS:\n$h"), AstKinds.TRACE)
     this.root.childrenCol.append(ast)
@@ -450,9 +453,9 @@ abstract class DomEngine(
 
     // find the spec and check its result
     // then find the resulting value.. if not, then json
-    val oattrs = dom.moreElements.collect {
+    val oattrs = dom.moreElements.collectFirst {
       case n: EMsg if n.entity == e && n.met == a => n
-    }.headOption.toList.flatMap(_.ret)
+    }.toList.flatMap(_.ret)
 
     //    if (oattrs.isEmpty) {
     //      errors append s"Can't find the spec for $msg"
@@ -480,13 +483,13 @@ abstract class DomEngine(
 
     // find the spec and check its result
     // then find the resulting value.. if not, then json
-    val oattrs = dom.moreElements.collect {
+    val oattrs = dom.moreElements.collectFirst {
       case n: EMsg if n.entity == e && n.met == a => n
-    }.headOption.toList.flatMap(_.ret)
+    }.toList.flatMap(_.ret)
 
     // collect values
     val values = root.collect {
-      case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined => p
+      case DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined => p
     }
 
     values

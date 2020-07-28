@@ -171,6 +171,14 @@ object RDOM {
     }
   }
 
+  /** a generic parm source - use it to dynamically source parms from a sub-object like "diesel.xxx" or else */
+  trait ParmSource {
+    def remove (name: String): Option[P]
+    def getp   (name: String): Option[P]
+    def put    (p: P): Unit
+    def listAttrs: List[P]
+  }
+
   /** parm-related helpers
     * @deprecated a b
     */
@@ -204,6 +212,8 @@ object RDOM {
         case f: Float =>       P(name, asString(f), WTypes.wt.NUMBER).withValue(f, WTypes.wt.NUMBER)
         case d: Double =>      P(name, asString(d), WTypes.wt.NUMBER).withValue(d, WTypes.wt.NUMBER)
         case d: Throwable =>   P(name, d.getMessage, WTypes.wt.EXCEPTION).withValue(d, WTypes.wt.EXCEPTION)
+
+        case s: ParmSource =>  P(name, "Source", WTypes.wt.SOURCE).withValue(s, WTypes.wt.SOURCE)
 
         case i: java.lang.Integer =>
           P(name, asString(i), WTypes.wt.NUMBER).withValue(i.longValue, WTypes.wt.NUMBER)

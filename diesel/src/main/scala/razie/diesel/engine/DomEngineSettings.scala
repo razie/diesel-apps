@@ -63,7 +63,7 @@ case class DomEngineSettings
   }
 
   def toJson : Map[String,String] = {
-    import DomEngineSettings._
+    import razie.diesel.engine.DomEngineSettings._
     Map(
       MOCK_MODE -> mockMode.toString,
       SKETCH_MODE -> sketchMode.toString,
@@ -78,7 +78,7 @@ case class DomEngineSettings
     ).getOrElse(Map.empty) ++ realm.map(x=> Map(REALM -> x)
     ).getOrElse(Map.empty) ++ env.map(x=> Map(ENV -> x)
     ).getOrElse(Map.empty) ++ collectCount.map(x=> Map(COLLECT -> x.toString)
-    ).getOrElse(Map.empty) ++ sla.map(x=> Map(SLA -> x.toString)
+    ).getOrElse(Map.empty) ++ sla.map(x=> Map(SLA -> x)
     ).getOrElse(Map.empty) ++ hostport.map(x=>
       Map(HOSTPORT -> x)
     ).getOrElse(Map.empty) ++
@@ -120,7 +120,7 @@ object DomEngineSettings {
       j.get(name)
 
     def fqhoParm(name:String, dflt:String) =
-      j.get(name).getOrElse(dflt)
+      j.getOrElse(name, dflt)
 
     new DomEngineSettings(
       mockMode = fqhoParm(MOCK_MODE, "true").toBoolean,

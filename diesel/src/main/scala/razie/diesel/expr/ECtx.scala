@@ -5,7 +5,7 @@
  */
 package razie.diesel.expr
 
-import razie.diesel.dom.RDOM.P
+import razie.diesel.dom.RDOM.{P, ParmSource}
 import razie.diesel.dom.RDomain
 import razie.diesel.engine.{DomAst, DomEngECtx}
 import razie.tconf.{DSpec, DTemplate}
@@ -24,7 +24,7 @@ import razie.tconf.{DSpec, DTemplate}
  *
  * todo keep a ref to the original specs, to get more details, so for the duration of this context, the configuration is the right version
  */
-trait ECtx {
+trait ECtx extends ParmSource {
 
   /** root domain - it normally is an instance of DomEngineCtx and you can get more details from it */
   def root: DomEngECtx

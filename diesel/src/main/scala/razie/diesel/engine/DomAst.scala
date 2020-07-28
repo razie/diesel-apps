@@ -7,6 +7,7 @@ package razie.diesel.engine
 
 import org.bson.types.ObjectId
 import razie.diesel.engine.nodes.{CanHtml, EMsg}
+import razie.diesel.expr.ECtx
 import scala.collection.mutable.ListBuffer
 
 /** mix this in if you want to control display/traversal */
@@ -47,7 +48,7 @@ case class DomAst(
 
   private var istatus:String = DomState.INIT
   def status:String = istatus
-  def status_=(s:String) = istatus = s
+  def status_=(s:String): Unit = istatus = s
 
   /** timestamp started */
   var tstart:Long = System.currentTimeMillis()
@@ -57,21 +58,21 @@ case class DomAst(
   var seqNo:Long = -1
 
   /** will force updates to go through a DES */
-  def appendAll(other:List[DomAst])(implicit engine: DomEngineState) = {
+  def appendAll(other:List[DomAst])(implicit engine: DomEngineState): Unit = {
     engine.evAppChildren(this, other)
   }
 
   /** will force updates to go through a DES */
-  def append(other:DomAst)(implicit engine: DomEngineState) = {
+  def append(other:DomAst)(implicit engine: DomEngineState) {
     engine.evAppChildren(this, other)
   }
 
-  def start(seq:Long) = {
+  def start(seq:Long) {
     tstart = System.currentTimeMillis()
     seqNo = seq
   }
 
-  def end = {
+  def end() = {
     tend = System.currentTimeMillis()
   }
 
@@ -125,9 +126,9 @@ case class DomAst(
   def collect[T](f: PartialFunction[DomAst, T]) : List[T] = {
     val res = new ListBuffer[T]()
 
-    def inspect(d: DomAst, level: Int): Unit = {
+    def inspect(d: DomAst, level: Int) {
       if (f.isDefinedAt(d)) res append f(d)
-      d.children.map(inspect(_, level + 1))
+      d.children.foreach(inspect(_, level + 1))
     }
 
     inspect(this, 0)
@@ -138,9 +139,9 @@ case class DomAst(
   def collect2[T](f: PartialFunction[(DomAst, Int), T]) : List[T] = {
     val res = new ListBuffer[T]()
 
-    def inspect(d: DomAst, level: Int): Unit = {
+    def inspect(d: DomAst, level: Int) {
       if (f.isDefinedAt((d, level))) res append f((d, level))
-      d.children.map(inspect(_, level + 1))
+      d.children.foreach(inspect(_, level + 1))
     }
 
     inspect(this, 0)
@@ -162,7 +163,7 @@ case class DomAst(
     theKind +
     "::" + {
     value match {
-      case c: CanHtml if (html) => c.toHtml
+      case c: CanHtml if html => c.toHtml
       case x => x.toString
     }
     }.lines.map((" " * 1) + _).mkString("\n") + moreDetails
@@ -177,7 +178,7 @@ case class DomAst(
       kids.filter(k=> !shouldIgnore(k)).flatMap{k=>
         if(shouldRollup(k) && k.children.size == 1) {
 //           rollup NEXT nodes and others - just show the children
-          toschildren(level+1, k.children.toList)
+          toschildren(level+1, k.children)
         } else
           List(k.tos(level+1, html))
       }
@@ -185,18 +186,18 @@ case class DomAst(
     if(!shouldSkip(this)) {
         h(s"""<div kind="$kind" level="$level">""") +
         meTos(level, html) + "\n" +
-        toschildren(level, children.toList).mkString +
+        toschildren(level, children).mkString +
         h("</div>")
     } else {
-      toschildren(level, children.toList).mkString
+      toschildren(level, children).mkString
     }
   }
 
-  override def toString = tos(0, false)
+  override def toString = tos(0, html = false)
 
   /** this html works well in a diesel fiddle, use toHtmlInPage elsewhere */
-  override def toHtml = tos(0, true)
-  def toHtml (level : Int) = tos(level, true)
+  override def toHtml = tos(0, html = true)
+  def toHtml (level : Int) = tos(level, html = true)
 
   /** as opposed to toHtml, this will produce an html that can be displayed in any page, not just the fiddle */
   def toHtmlInPage = toHtml.replaceAllLiterally("weref", "wefiddle")
@@ -215,7 +216,7 @@ case class DomAst(
       "details" -> moreDetails,
       "id" -> id,
       "status" -> status,
-      "children" -> tojchildren(children.toList)
+      "children" -> tojchildren(children)
     )
   }
 
@@ -231,7 +232,7 @@ case class DomAst(
 
   /** GUI needs position info for surfing */
   def posInfo = collect{
-    case d@DomAst(m:EMsg, _, _, _) if(m.pos.nonEmpty) =>
+    case d@DomAst(m:EMsg, _, _, _) if m.pos.nonEmpty =>
       Map(
         "kind" -> "msg",
         "id" -> (m.entity+"."+m.met),

@@ -32,6 +32,8 @@ object WTypes {
     final val JSON=WType("JSON")     // see asJson
     final val OBJECT=WType("Object") // java object - serialize via json
 
+    final val SOURCE=WType("Source") // a source of values
+
     final val ARRAY=WType("Array")   // pv.asArray
 
     final val BYTES=WType("Bytes")
@@ -68,6 +70,8 @@ object WTypes {
   final val XML="XML"
   final val JSON="JSON"     // see asJson
   final val OBJECT="Object" // java object - serialize via json. todo: need a serialization framework
+
+  final val SOURCE="Source" // a source of values
 
   final val ARRAY="Array"   // pv.asArray
 
