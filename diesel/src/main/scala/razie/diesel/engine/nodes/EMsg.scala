@@ -185,6 +185,9 @@ case class EMsg(
     s"""<a href="${url1("")}" class="btn btn-xs btn-info"    title="local link in this topic">
        |<span class="glyphicon glyphicon-list-alt"></span></a>""".stripMargin
 
+  /** simple signature */
+  def toCAString = entity + "." + met + " " + attrs.map(_.name).mkString("(", ",", ")")
+
   override def toString =
     s""" $entity.$met (${attrs.mkString(", ")})"""
 

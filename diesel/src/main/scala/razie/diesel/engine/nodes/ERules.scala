@@ -100,7 +100,7 @@ case class ExpectV(not: Boolean, pm: MatchAttrs, cond: Option[EIf] = None) exten
     * @param ctx
     */
   def test(a: Attrs, cole: Option[MatchCollector] = None, nodes: List[DomAst])(implicit ctx: ECtx) = {
-    val res = testA(a, pm, cole, Some({ p =>
+    val res = testMatchAttrs(a, pm, cole, Some({ p =>
       // start a new collector for each value we're looking for, to mark this value
       cole.foreach{c=>
         nodes
@@ -211,6 +211,9 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
   override def toHtml = ea(cls, met) + " " + toHtmlMAttrs(attrs) + cond.map(_.toHtml).mkString
 
   override def toString = cls + "." + met + " " + attrs.mkString("(", ",", ")") + cond.map(_.toString).mkString
+
+  /** simple signature */
+  def toCAString = cls + "." + met + " " + attrs.map(_.name).mkString("(", ",", ")")
 }
 
 /** just a call to next.
