@@ -95,12 +95,6 @@ class EECtx extends EExecutor(EECtx.CTX) {
         Nil
       }
 
-      case "engineSync" => {
-        // turn the engine sync
-        ctx.root.asInstanceOf[DomEngECtx].engine.map(_.synchronous = true)
-        Nil
-      }
-
       case "map" => {
         // l can be a constant with another parm name OR the actual array
         val list = {
@@ -439,7 +433,6 @@ class EECtx extends EExecutor(EECtx.CTX) {
         EMsg(CTX, "log") ::
         EMsg(CTX, "echo") ::
         EMsg(CTX, "test") ::
-        EMsg(CTX, "engineSync") ::
         EMsg(CTX, "storySync") :: // processed by the story teller
         EMsg(CTX, "storyAsync") :: // processed by the story teller
         EMsg(CTX, "clear") ::
