@@ -111,7 +111,14 @@ case class User(
   def hasPerm(p: Perm) =
     allPerms.contains("+" + p.s) &&
         !allPerms.contains("-" + p.s) &&
-        !allPerms.contains("+" + Perm.Expired.s)
+        !allPerms.contains("+" + Perm.Expired.s) ||
+  {
+    // if not found, see about special permission hierarchies
+    if(p.equals(Perm.uWiki)) {
+      hasPerm(Perm.adminWiki) || hasPerm(Perm.adminDb)
+    }
+    else false
+  }
 
   def isExpired = allPerms.contains("+" + Perm.Expired.s)
 
