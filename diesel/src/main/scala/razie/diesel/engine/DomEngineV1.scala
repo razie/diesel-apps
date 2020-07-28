@@ -408,15 +408,15 @@ class DomEngineV1(
         case x: ExpectM if x.when.exists(_.test(n)) => x
       }.headOption
           orElse
-          dom.moreElements.collect {
+          dom.moreElements.collectFirst {
             case x: ExpectM if x.when.exists(_.test(n)) => x
-          }.headOption
+          }
           ).map { e =>
         mocked = true
 
-        val spec = dom.moreElements.collect {
+        val spec = dom.moreElements.collectFirst {
           case x: EMsg if x.entity == e.m.cls && x.met == e.m.met => x
-        }.headOption
+        }
 
         val newctx = mkMsgContext(Some(n), n.attrs, ctx, a)
         val news = e.sketch(None)(newctx).map(x => DomAst(x, AstKinds.SKETCHED).withSpec(e))
@@ -429,10 +429,10 @@ class DomEngineV1(
         case x: ExpectV if x.when.exists(_.test(n)) => x
       }.headOption
           orElse
-          dom.moreElements.collect {
+          dom.moreElements.collectFirst {
             case x: ExpectV if x.when.exists(_.test(n)) => x
-          }.headOption
-          ).map { e =>
+          }
+          ).foreach { e =>
         val newctx = new StaticECtx(n.attrs, Some(ctx), Some(a))
         val news = e.sketch(None)(newctx).map(x => EVal(x)).map(x => DomAst(x, AstKinds.SKETCHED).withSpec(e))
         mocked = true
@@ -492,6 +492,7 @@ class DomEngineV1(
     def addChild(x:Any, level:Int) = {
       val ast = DomAst(x, AstKinds.NEXT).withSpec(r)
       parents.put(level, ast)
+
       if(level == 0) Some(ast)
       else if(level > 0) {
         val parent = findParent(level - 1)
@@ -505,9 +506,9 @@ class DomEngineV1(
     // generate each gen/map
     r.i.map { ri =>
       // find the spec of the generated message, to ref
-      val spec = dom.moreElements.collect {
+      val spec = dom.moreElements.collectFirst {
         case x: EMsg if x.entity == ri.cls && x.met == ri.met => x
-      }.headOption
+      }
       val KIND = AstKinds.kindOf(r.arch)
 
       val generated = ri.apply(in, spec, r.pos, r.i.size > 1, r.arch)
