@@ -78,6 +78,9 @@ case class User(
   consent:Option[String] = None,
   apiKey:Option[String] = Some(new ObjectId().toString),
 
+  crDtm:  Option[DateTime] = None,
+  updDtm: Option[DateTime] = None,
+
   _id: ObjectId = new ObjectId()) extends WikiUser with TPersonInfo {
 
   def emailDec = email.dec
@@ -198,7 +201,7 @@ case class User(
   lazy val key = Map("email" -> email)
 
   def create(p: Profile) {
-    var res = RCreate(this)
+    var res = RCreate(this.copy(crDtm = Some(DateTime.now())))
 
     p.createdDtm = DateTime.now()
     p.lastUpdatedDtm = DateTime.now()
@@ -209,13 +212,7 @@ case class User(
 
   def update(newu: User) = {
     RazMongo("UserOld") += grater[User].asDBObject(Audit.create(this))
-    RazMongo("User").update(key, grater[User].asDBObject(Audit.update(newu)))
-    UserEvent(_id, "UPDATE").create
-  }
-
-  def usedSlot(u: User) = {
-    RazMongo("UserOld") += grater[User].asDBObject(Audit.create(this))
-    RazMongo("User").update(key, grater[User].asDBObject(Audit.update(u)))
+    RazMongo("User").update(key, grater[User].asDBObject(Audit.update(newu.copy(updDtm = Some(DateTime.now())))))
     UserEvent(_id, "UPDATE").create
   }
 
