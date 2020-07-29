@@ -180,7 +180,7 @@ object RDOM {
   }
 
   /** parm-related helpers
-    * @deprecated a b
+    * @deprecated
     */
   object P {
     def fromSmartTypedValue(name:String, v:Any) : P = v match {
