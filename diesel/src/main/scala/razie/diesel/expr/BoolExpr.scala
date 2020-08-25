@@ -98,6 +98,26 @@ case class BCMP2(a: Expr, op: String, b: Expr)
 
     def as = ap.calculatedValue
 
+    def arrayOf(ap:P):Seq[Any] = {
+        val av = ap.calculatedTypedValue
+        val al = try {
+          av.asArray
+        } catch {
+          case t: Throwable => throw new DieselExprException(
+            s"Parm ${ap} can't be typecast to Array: " + t.toString).initCause(t)
+        }
+      al
+      }
+
+    /** ap is in bp, bp is an array */
+    def isin(ap:P, bp:P) = {
+      val av = ap.calculatedTypedValue
+      val bl = arrayOf(bp)
+
+      bl.contains(av.value)
+    }
+
+
     try {
       val resBool = (a, b) match {
         case (CExpr(aa, WTypes.wt.NUMBER), CExpr(bb, WTypes.wt.NUMBER)) => {
@@ -142,6 +162,8 @@ case class BCMP2(a: Expr, op: String, b: Expr)
             case "<" => a(in).toString < b(in).toString
             case ">" => a(in).toString > b(in).toString
 
+            case "contains" if ap.ttype == WTypes.wt.ARRAY => isin (bp, ap)
+            case "containsNot" if ap.ttype == WTypes.wt.ARRAY => !isin (bp, ap)
             case "contains" => a(in).toString contains b(in).toString
             case "containsNot" => !(a(in).toString contains b(in).toString) // todo deprecate
             case "not" if b.toString == "contains" => !(a(in).toString contains b(in).toString)
@@ -190,18 +212,8 @@ case class BCMP2(a: Expr, op: String, b: Expr)
             }
 
             case "is" | "==" if bp.ttype == WTypes.wt.ARRAY || ap.ttype == WTypes.wt.ARRAY => {
-              val av = ap.calculatedTypedValue
-              val bv = bp.calculatedTypedValue
-              val al = try {
-                av.asArray
-              } catch {
-                case t:Throwable => throw new DieselExprException(s"Parm ${ap} can't be typecast to Array: " + t.toString).initCause(t)
-              }
-              val bl = try {
-                bv.asArray
-              } catch {
-                case t:Throwable => throw new DieselExprException(s"Parm ${bp} can't be typecast to Array: " + t.toString).initCause(t)
-              }
+              val al = arrayOf(ap)
+              val bl = arrayOf(bp)
 
               if (al.size != bl.size) {
                 false
@@ -209,6 +221,11 @@ case class BCMP2(a: Expr, op: String, b: Expr)
                 al.zip(bl).foldLeft(true)((a, b) => a && (b._1 == b._2))
               }
             }
+
+            case "in" if bp.ttype == WTypes.wt.ARRAY => isin(ap, bp)
+
+            case "notIn" if bp.ttype == WTypes.wt.ARRAY => ! isin(ap,bp)
+            case "not in" if bp.ttype == WTypes.wt.ARRAY => ! isin(ap,bp)
 
             case "is" => { // is nuber or is date or is string etc
               /* x is TYPE */
@@ -251,8 +268,8 @@ case class BCMP2(a: Expr, op: String, b: Expr)
     }
   }
 
-  private def cmpNums(as: String, bs: String, op: String): Boolean = {
-    Try {
+    private def cmpNums(as: String, bs: String, op: String): Boolean = {
+      Try {
       val ai = {
         if (as.contains(".")) as.toDouble
         else as.toInt

@@ -56,7 +56,7 @@ trait ExprParser extends RegexParsers {
   private def opsMAP: Parser[String] = "map" <~ ws | "flatMap" <~ ws | "flatten" <~ ws | "filter" <~ ws | "exists" <~ ws | ">>"
   private def opsOR: Parser[String] = "or" | "xor"
   private def opsAND: Parser[String] = "and"
-  private def opsCMP: Parser[String] = ">" | "<" | ">=" | "<=" | "==" | "!=" | "~=" | "~path" <~ ws | "?=" | "is" <~ ws | "not" <~ ws | "contains" <~ ws | "containsNot" <~ ws
+  private def opsCMP: Parser[String] = ">" | "<" | ">=" | "<=" | "==" | "!=" | "~=" | "~path" <~ ws | "?=" | "is" <~ ws | "in" <~ ws | "not in" <~ ws | "notIn" <~ ws | "not" <~ ws | "contains" <~ ws | "containsNot" <~ ws
   private def opsPLUS: Parser[String] = "+" | "-" | "||" | "|"
   private def opsMULT: Parser[String] = "*" | "/(?!/)".r // negative lookahead to not match comment - it acts funny with multiple lines of comment
 
@@ -66,9 +66,17 @@ trait ExprParser extends RegexParsers {
     case a ~ Some(op ~ _ ~ p) => AExpr2(a, op, p)
   }
 
+  private def faexpr2 :(Expr, String, Expr) => Expr = { (a,b,c) =>
+    if(b == ">>") AExprFunc(
+      c.asInstanceOf[AExprIdent].start,
+      List(P("", "", WTypes.wt.UNKNOWN, Some(a.asInstanceOf[AExprIdent]))))
+    else AExpr2(a,b,c)
+  }
+
   // x map (x => x+1)
   def exprMAP: Parser[Expr] = exprPLUS ~ rep(ows ~> opsMAP ~ ows ~ exprOR) ^^ {
-    case a ~ l => foldAssocAexpr2(a, l, AExpr2)
+//    case a ~ l => foldAssocAexpr2(a, l, AExpr2)
+    case a ~ l => foldAssocAexpr2(a, l, faexpr2)
   }
 
   // x > y
@@ -418,7 +426,7 @@ trait ExprParser extends RegexParsers {
 
   def bfactor2: Parser[BoolExpr] = bConst | ibex(opsBool) | bvalue | condBlock
 
-  private def opsBool: Parser[String] = "==" | "is" | "!=" | "not" <~ ws | "~=" | "matches" <~ ws | "<=" | ">=" | "<" | ">" | "containsNot" <~ ws | "contains" <~ ws
+  private def opsBool: Parser[String] = "==" | "is" | "in" | "not in" | "notIn" | "!=" | "not" <~ ws | "~=" | "matches" <~ ws | "<=" | ">=" | "<" | ">" | "containsNot" <~ ws | "contains" <~ ws
 
   private def condBlock: Parser[BoolExpr] = ows ~> "(" ~> ows ~> cond <~ ows <~ ")" ^^ { BExprBlock }
 
