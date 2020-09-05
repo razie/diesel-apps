@@ -48,6 +48,13 @@ js:{var d = new Date(); d.setSeconds(d.getSeconds() + 10); d.toISOString();}
 
 See [expr](/diesel/src/main/scala/razie/diesel/expr) for details and info on using them on their own.
 
+
+### Execution traces
+
+The "execution trace", a tree-like model is stored and can be retrieved to see what is going on, or what happened for a past request. This will represent, at all times, the current state of execution (some nodes may be async operations that we're waiting for etc).
+
+![alt diesel tree](http://cdn.razie.com/Public/diesel/lights-chimes-wrong.png)
+
 # Diesel Apps
 
 Around the main Diesel DSL for reactive rules, we created an entire Scala DSL framework for developing domain and rules-driven reactive services and apps. Rapid mocking, prototyping, development, testing and hosting of (micro)services and websites, see [The simplest micro-service you ever created](http://www.dieselapps.com/wiki/Cool_Scala/The_one-liner_microservice)
