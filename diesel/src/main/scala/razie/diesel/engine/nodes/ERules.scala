@@ -198,6 +198,8 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
         }
   }
 
+  def ea:String = cls + "." + met
+
   /** extract a message signature from the match */
   def asMsg = EMsg(cls, met, attrs.map { p =>
     // extract the sample value
@@ -334,6 +336,15 @@ case class EIfm(attrs: MatchAttrs) extends CanHtml with EIf {
 
   override def toHtml = span("$ifm::") + attrs.mkString("<small>(", ", ", ")</small>")
   override def toString = "$ifm " + attrs.mkString
+}
+
+// a match condition
+case class EElse() extends CanHtml with EIf {
+  def test(e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
+    ???
+
+  override def toHtml = span("$else::")
+  override def toString = "$else "
 }
 
 // an expression condition

@@ -421,7 +421,7 @@ object Wikis extends Logging with Validation {
     } catch {
       case t: Throwable =>
         razie.Log.error("EXCEPTION_PARSING " + markup + " - " + wid.wpath, t)
-        razie.audit.Audit.logdb("EXCEPTION_PARSING " + markup + " - " + wid.wpath + " " + t.getLocalizedMessage())
+        razie.audit.Audit.logdb("EXCEPTION_PARSING", markup + " - " + wid.wpath + " " + t.getLocalizedMessage())
         (StrAstNode("EXCEPTION_PARSING " + markup + " - " + t.getLocalizedMessage() + " - " + content), content)
     }
   }

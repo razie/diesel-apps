@@ -35,7 +35,7 @@ trait BaseAstNode {
     } catch {
       case t: Throwable =>
         audit.Audit.logdb(
-          "EXCEPTION_PARSING.folding - " + ctx.wpath + " " + t.getMessage
+          "EXCEPTION_PARSING.folding", ctx.wpath + " " + t.getMessage
         )
         razie.Log.error("EXCEPTION_PARSING.folding - " + ctx.wpath + " ", t)
         StrAstNode("EXCEPTION_PARSING.folding - " + t.getLocalizedMessage())

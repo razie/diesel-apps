@@ -61,7 +61,8 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
             }
           }
               .getOrElse(
-                throw new DieselExprException(s"No arguments for $expr")
+                // more failure resistant
+                P.fromTypedValue("", 0, WTypes.wt.NUMBER)
               )
         }
 
@@ -70,6 +71,7 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
               val pv = p.calculatedTypedValue
               P("", pv.contentType, WTypes.wt.STRING).withValue(pv.contentType, WTypes.wt.STRING)
             }.getOrElse(
+              // todo could be unknown?
               throw new DieselExprException(s"No arguments for $expr")
             )
         }

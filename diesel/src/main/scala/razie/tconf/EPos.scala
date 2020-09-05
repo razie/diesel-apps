@@ -25,6 +25,7 @@ case class EPos(wpath: String, line: Int, col: Int) {
 
   override def toString = s"""{wpath:"$wpath", line:$line, col:$col}"""
   def toRef = s"""weref('$wpath', $line, $col)"""
+  def toFiddle = s"""wefiddle('$wpath', $line, $col)"""
 }
 
 object EPos {

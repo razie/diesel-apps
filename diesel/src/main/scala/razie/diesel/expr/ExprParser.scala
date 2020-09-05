@@ -92,7 +92,7 @@ trait ExprParser extends RegexParsers {
   // x > y
   def exprCMP: Parser[Expr] = exprPLUS ~ opt(ows ~> opsCMP ~ ows ~ exprPLUS) ^^ {
     case a ~ None => a
-    case a ~ Some(op ~ _ ~ b) => cmp(a, op, b)
+    case a ~ Some(op ~ _ ~ b) => BCMP2(a, op, b)
   }
 
   // x + y
@@ -430,10 +430,8 @@ trait ExprParser extends RegexParsers {
 
   private def condBlock: Parser[BoolExpr] = ows ~> "(" ~> ows ~> cond <~ ows <~ ")" ^^ { BExprBlock }
 
-  private def cmp(a: Expr, s: String, b: Expr) = BCMP2(a, s, b)
-
   private def ibex(op: => Parser[String]) : Parser[BoolExpr] = expr ~ (ows ~> op <~ ows) ~ expr ^^ {
-    case a ~ s ~ b => cmp(a, s.trim, b)
+    case a ~ s ~ b => BCMP2(a, s.trim, b)
   }
 
   /** true or false constants */

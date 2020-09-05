@@ -169,6 +169,12 @@ object RDOM {
       x.cacheString = Some(s)
       x
     }
+
+    override def equals(obj: Any) = {
+      obj match {
+        case PValue(v, t) => this.cType.equals(t) && this.value.equals(t)
+      }
+    }
   }
 
   /** a generic parm source - use it to dynamically source parms from a sub-object like "diesel.xxx" or else */

@@ -137,47 +137,37 @@ object RDExt extends Logging {
     }.headOption)
 
   /** find the usages in stories */
-  def usagesStories(entity:String, met:String, stories:List[DSpec])(implicit ctx: ECtx) : List[EMsg] = {
-    stories.flatMap(
+  def usagesStories(entity:String, met:String, stories:List[DSpec])(implicit ctx: ECtx) : List[(String, String, Option[EPos], String)] = {
+    stories
+        .flatMap(
       RDomain.domFilter(_) {
-          case x: EMsg
-            if
-              ("*" == x.entity || x.entity == entity || regexm(x.entity, entity)) &&
-              ("*" == x.met || x.met == met || regexm(x.met, met))
-          => x
+        case x: EMsg if x.entity == entity && x.met == met => ("$send", x.ea, x.pos, x.toCAString)
+        case x: ExpectM if x.m.cls == entity && x.m.met == met => ("$expect", x.m.ea, x.pos, x.m.toCAString)
       })
     }
 
-  /** find where it is decomposed (applicable rules) */
-  def usagesSpecs(entity:String, met:String)(implicit ctx: ECtx) : List[EMsg] =
+  /** find where it is decomposed (applicable rules)
+    *
+    * @param entity
+    * @param met
+    * @param ctx
+    * @return what, ea, ops
+    */
+  def usagesSpecs(entity:String, met:String)(implicit ctx: ECtx) : List[(String, String, Option[EPos], String)] =
     ctx.domain.toList.flatMap(_.moreElements.collect {
-      case x: EMsg
-        if
-        ("*" == x.entity || x.entity == entity || regexm(x.entity, entity)) &&
-            ("*" == x.met || x.met == met || regexm(x.met, met))
-      => x
-    })
+      case u: EMsg if u.entity == entity && u.met == met => List(("$msg", u.ea, u.pos.orElse(u.rulePos), u.toCAString))
+      case u: ERule => usagesInRule(u, entity, met)
+    }).flatten
 
-  /** find where it is decomposed (applicable rules) */
-  def usagesRules(entity:String, met:String)(implicit ctx: ECtx) : List[EMsg] =
-    ctx.domain.toList.flatMap(_.moreElements.collect {
-      case x: EMsg
-        if
-        ("*" == x.entity || x.entity == entity || regexm(x.entity, entity)) &&
-            ("*" == x.met || x.met == met || regexm(x.met, met))
-      => x
-    }.toList).toList
-
-  /** find where it is used in decomp rules */
-  def usagesDecompositions(entity:String, met:String)(implicit ctx: ECtx) : List[EMsg] =
-    ctx.domain.toList.flatMap(_.moreElements.collect {
-      case x: EMsg
-        if
-        ("*" == x.entity || x.entity == entity || regexm(x.entity, entity)) &&
-            ("*" == x.met || x.met == met || regexm(x.met, met))
-      => x
-    }.toList).toList
-
+  def usagesInRule(u:ERule, entity:String, met:String)(implicit ctx: ECtx) : List[(String, String, Option[EPos], String)] =
+    (
+        if (u.e.cls == entity && u.e.met == met)
+          List(("$when", u.e.cls + "." + u.e.met, u.pos, u.e.toCAString))
+        else Nil
+        ) :::
+        u.i.collect {
+          case x: EMap if x.cls == entity && x.met == met => ("=>", x.cls + "." + x.met, x.pos, x.toCAString)
+        }
 
   // to collect msg def
   case class PCol(p:P, pos:Option[EPos])

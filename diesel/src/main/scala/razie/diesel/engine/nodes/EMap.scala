@@ -33,6 +33,8 @@ abstract class EMap extends CanHtml with HasPosition {
   def cls:String
   def met:String
 
+  def toCAString:String
+
   def indent(indentLevel:Int, s:String = "&nbsp;&nbsp;") = Range(0, indentLevel+1).map(x=> s).mkString
 }
 
@@ -75,6 +77,7 @@ case class EMapPas(attrs: List[PAS], arrow:String="=>", cond: Option[EIf] = None
   override def toHtml = indent(indentLevel) + """<span class="glyphicon glyphicon-arrow-right"></span> """ + cond.map(_.toHtml+" ").mkString + ea("", "") + " " + toHtmlPAttrs(attrs)
 
   override def toString = indent(indentLevel, " ") + "=> " + cond.map(_.toHtml+" ").mkString + ". " + attrs.mkString("(", ",", ")")
+  override def toCAString:String = cond.map(_.toString).toString + ". " + attrs.mkString("(", ",", ")")
 }
 
 /** mapping a message - a decomposition rule (right hand side of =>)
@@ -122,6 +125,7 @@ case class EMapCls(cls: String, met: String, attrs: Attrs, arrow:String="=>", co
   override def toHtml = indent(indentLevel) + """<span class="glyphicon glyphicon-arrow-right"></span> """ + cond.map(_.toHtml+" ").mkString + ea(cls, met) + " " + toHtmlAttrs(attrs)
 
   override def toString = indent(indentLevel, " ") + "=> " + cond.map(_.toHtml+" ").mkString + cls + "." + met + " " + attrs.mkString("(", ",", ")")
+  override def toCAString = cond.map(_.toString+" ").mkString + cls + "." + met + " " + attrs.mkString("(", ",", ")")
 }
 
 object EMap {

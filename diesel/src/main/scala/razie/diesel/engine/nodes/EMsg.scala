@@ -316,6 +316,7 @@ object EMsg {
 
   val WARNING = "warn"
 
+  /** regex to match (e,a) */
   val REGEX = """([\w.]+)[./](\w+)""".r
 
   def apply(ea:String) : EMsg = {
