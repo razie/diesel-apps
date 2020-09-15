@@ -83,6 +83,9 @@ abstract class WikiConfig {
   final val cacheFormat = prop("wiki.cacheformat", "false").toBoolean
   final val cacheDb     = prop("wiki.cachedb", "false").toBoolean
 
+  /** when running in localhost, keep quiet with the audit, so DB doesn't grow */
+  final val localQuiet  = prop("wiki.localquiet", "false").toBoolean
+
   final val clusterMode = prop("wiki.cluster", "no")
 
   final val CONNECTED   = prop("wiki.connected", "connected")

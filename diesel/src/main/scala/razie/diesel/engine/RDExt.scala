@@ -141,16 +141,13 @@ object RDExt extends Logging {
     stories
         .flatMap(
       RDomain.domFilter(_) {
-        case x: EMsg if x.entity == entity && x.met == met => ("$send", x.ea, x.pos, x.toCAString)
-        case x: ExpectM if x.m.cls == entity && x.m.met == met => ("$expect", x.m.ea, x.pos, x.m.toCAString)
+        case x: EMsg if x.entity == entity && x.met == met => ("$send", x.ea, x.pos, x.toString)
+        case x: ExpectM if x.m.cls == entity && x.m.met == met => ("$expect", x.m.ea, x.pos, x.m.toString)
       })
     }
 
   /** find where it is decomposed (applicable rules)
     *
-    * @param entity
-    * @param met
-    * @param ctx
     * @return what, ea, ops
     */
   def usagesSpecs(entity:String, met:String)(implicit ctx: ECtx) : List[(String, String, Option[EPos], String)] =
@@ -162,7 +159,7 @@ object RDExt extends Logging {
   def usagesInRule(u:ERule, entity:String, met:String)(implicit ctx: ECtx) : List[(String, String, Option[EPos], String)] =
     (
         if (u.e.cls == entity && u.e.met == met)
-          List(("$when", u.e.cls + "." + u.e.met, u.pos, u.e.toCAString))
+          List(("$when", u.e.cls + "." + u.e.met, u.pos, u.e.toString))
         else Nil
         ) :::
         u.i.collect {
