@@ -260,6 +260,7 @@ object DieselMsg {
     final val PREFIX        = "diesel.http."
     final val RESPONSE      = "diesel.http.response"
     final val STATUS        = "diesel.http.response.status"
+    final val CTYPE         = "diesel.http.response.contentType"
     final val HEADER_PREFIX = "diesel.http.response.header."
   }
 

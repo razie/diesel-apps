@@ -284,6 +284,88 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       // take all args and create a json doc with them
+      case "mkString" => {
+        val pre  = ctx.getp("pre").map(_.calculatedValue).getOrElse("")
+        val sep  = ctx.getp("separator").map(_.calculatedValue).getOrElse(",")
+        val post = ctx.getp("post").map(_.calculatedValue).getOrElse("")
+
+        // l can be a constant with another parm name OR the actual array
+        val list = {
+          val l = ctx.getp("list").getOrElse(ctx.getRequiredp(Diesel.PAYLOAD)).calculatedP
+          if(l.isOfType(WTypes.wt.ARRAY)) {
+            val arr = l.calculatedTypedValue.asArray
+            arr
+          } else {
+//            info = EWarning(s"Can't source input list - what type is it? ${l}") :: info
+            throw new IllegalArgumentException(s"Can't source input list: $l")
+          }
+        }
+
+        val rows = list.map { obj =>
+          PValue(obj).asString
+        }.mkString(pre, sep, post)
+
+        new EVal(
+          RDOM.P.fromTypedValue(Diesel.PAYLOAD, rows, WTypes.wt.STRING)
+        ) :: Nil
+      }
+
+      // take all args and create a json doc with them
+      case "csv" => {
+        val separator = ctx.getRequired("separator")
+
+        // l can be a constant with another parm name OR the actual array
+        val list = {
+          val l = ctx.getRequiredp("list").calculatedP
+          if(l.isOfType(WTypes.wt.ARRAY)) {
+            val arr = l.calculatedTypedValue.asArray
+            arr
+          } else {
+//            info = EWarning(s"Can't source input list - what type is it? ${l}") :: info
+            throw new IllegalArgumentException(s"Can't source input list: $l")
+          }
+        }
+
+        // collecting field names here to avoid empty
+        var inames = new collection.mutable.ListBuffer[String]()
+
+        val objects = list.map { obj =>
+          val m = PValue(obj).asJson
+//          val m = p.calculatedTypedValue.asJson
+          // collect new names
+          inames.appendAll(m.keys.filter(x => !inames.contains(x)))
+          m
+        }.toList
+
+        val names = inames.toList
+
+        // collect new names
+        var rows = objects.map { m =>
+          names.map {n=>
+            m
+                .get(n)
+                .filter(P.isSimpleType)
+                .map(x => "\"" + {
+                  val s = P.asString(x)
+                  s
+                      .replaceAll("\"", "\"\"")
+//                      .replaceAll(separator, "\"" + separator + "\"")
+                } + "\"")
+                .getOrElse("")
+          }.mkString(separator)
+        }
+
+        rows = List(names.mkString(separator)) ++ rows
+
+        new EVal(
+          RDOM.P.fromTypedValue(Diesel.PAYLOAD, rows, WTypes.wt.ARRAY)
+        ) ::
+        new EVal(
+          RDOM.P.fromTypedValue("csvHeaders", names, WTypes.wt.ARRAY)
+        ) :: Nil
+      }
+
+      // take all args and create a json doc with them
       case "json" => {
         val res = in.attrs.map(a => (a.name, a.calculatedTypedValue.value)).toMap
 
@@ -449,5 +531,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         EMsg(CTX, "authUser") ::
         EMsg(CTX, "setAuthUser") ::
         EMsg(CTX, "json") ::
+        EMsg(CTX, "csv") ::
+        EMsg(CTX, "mkString") ::
         Nil
 }

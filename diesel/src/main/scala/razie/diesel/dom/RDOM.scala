@@ -268,6 +268,27 @@ object RDOM {
       res
     }
 
+    /** value recognized as simple type? */
+    def isSimpleType (value:Any):Boolean = {
+      val res = value match {
+        case i: Boolean =>     true
+        case i: Int =>         true
+        case i: Long =>        true
+        case f: Float =>       true
+        case d: Double =>      true
+        case i: java.lang.Integer => true
+        case i: java.lang.Boolean => true
+        case i: java.lang.Float => true
+        case i: java.lang.Double => true
+        case i: java.lang.Long => true
+        case s: String => true
+        case s: PValue[_] => isSimpleType(s.value)
+        case _ => false
+      }
+
+      res
+    }
+
     /** nicer type-aware toString */
     def asString (value:Any) = {
       val res = value match {

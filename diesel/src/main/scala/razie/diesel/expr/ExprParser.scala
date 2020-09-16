@@ -191,20 +191,42 @@ trait ExprParser extends RegexParsers {
   def aint:     Parser[String] = """-?\d+""".r
   def afloat:   Parser[String] = """-?\d+[.]\d+""".r
 
+  /** prepare a parsed string const */
+  private def prepStrConst (e:String) = {
+    // string const with escaped chars
+    var s = e
+
+    // replace standard escapes like java does
+    s = s
+        .replaceAll("(?<!\\\\)\\\\b", "\b")
+        .replaceAll("(?<!\\\\)\\\\n", "\n")
+        .replaceAll("(?<!\\\\)\\\\t", "\t")
+        .replaceAll("(?<!\\\\)\\\\r", "\r")
+        .replaceAll("(?<!\\\\)\\\\f", "\f")
+
+    // kind of like java, now replace anything escaped
+    // note that Java only replaces a few things, others generate errors
+    // we replace anything
+    s = s.replaceAll("\\\\(.)", "$1")
+
+    new CExpr(s, WTypes.wt.STRING)
+  }
+
   // string const with escaped chars
   def strConst: Parser[Expr] = "\"" ~> """(\\.|[^\"])*""".r <~ "\"" ^^ {
-    e => new CExpr(e.replaceAll("\\\\(.)", "$1"), WTypes.wt.STRING)
+    e => prepStrConst(e)
   }
 
   // string const with escaped chars
   def strConstSingleQuote: Parser[Expr] = "\'" ~> """(\\.|[^\'])*""".r <~ "\'" ^^ {
-    e => new CExpr(e.replaceAll("\\\\(.)", "$1"), WTypes.wt.STRING)
+    e => prepStrConst(e)
   }
+
 
   // escaped multiline string const with escaped chars
   // we're removing the first \n
   def multilineStrConst: Parser[Expr] = "\"\"\"" ~ opt("\n") ~> """(?s)((?!\"\"\").)*""".r <~ "\"\"\"" ^^ {
-    e => new CExpr(e.replaceAll("\\\\(.)", "$1"), WTypes.wt.STRING)
+    e => prepStrConst(e)
   }
 
   // XP identifier (either json or xml)

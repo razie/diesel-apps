@@ -168,10 +168,9 @@ trait DomParser extends ParserBase with ExprParser {
   def clsMatch: Parser[(String, String, List[RDOM.PM])] =
     clsMatch1 | clsMatch2
 
-  /** simple jsexp */
+  /** simple js regex */
   def clsMatch1: Parser[(String, String, List[RDOM.PM])] =
-    jsregex ~
-        optMatchAttrs ^^ {
+    jsregex ~ optMatchAttrs ^^ {
       case m1 ~ a => {
         (m1, "", a)
       }
