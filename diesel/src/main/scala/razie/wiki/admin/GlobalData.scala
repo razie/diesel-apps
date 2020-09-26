@@ -16,14 +16,17 @@ object GlobalData {
   //todo use proper JMX istead
 
   // how many requests were served
-  var served = 0L
-  var servedPages = 0L
+  @volatile var served = 0L
+  @volatile var servedRequests = 0L
+  @volatile var maxServing = 0 // how many threads are currently serving - if 0, there's none...
+  @volatile var maxServingApiRequests = 0 // how many threads are currently serving - if 0, there's none...
+  @volatile var serving = 0 // how many threads are currently serving - if 0, there's none...
+  @volatile var servingApiRequests = 0 // how many threads are currently serving - if 0, there's none...
+  @volatile var servedApiRequests = 0L
+  @volatile var limitedApiRequests = 0L // how many were kicked off under load
 
   /** how many wiki options have been requested - simple stats */
   var wikiOptions = 0L
-
-  // how many threads are currently serving - if 0, there's none...
-  var serving = 0
 
   val startedDtm = DateTime.now
 
