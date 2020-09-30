@@ -63,7 +63,7 @@ object WikiReactors extends Logging with Reactors {
         }
 
   def findWikiEntry(name:String, cat:String = "Reactor") =
-    rk.wiki.weTable("WikiEntry")
+    RazMongo(Wikis.TABLE_NAME)
         .findOne(Map("category" -> cat, "name" -> name))
         .map(grater[WikiEntry].asObject(_))
 

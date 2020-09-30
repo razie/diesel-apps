@@ -32,6 +32,9 @@ case class DomEngineSettings
   /** tag query to select for modeBlender */
   var tagQuery : Option[String] = None,
 
+  /** tag query to select for mocks */
+  var mockQuery : Option[String] = None,
+
   var hostport : Option[String] = None,
 
   var realm : Option[String] = None,
@@ -75,6 +78,7 @@ case class DomEngineSettings
     ).getOrElse(Map.empty) ++ configTag.map(x=> Map(DIESEL_CONFIG_TAG -> x)
     ).getOrElse(Map.empty) ++ userId.map(x=> Map(DIESEL_USER_ID -> x)
     ).getOrElse(Map.empty) ++ tagQuery.map(x=> Map(TAG_QUERY -> x)
+    ).getOrElse(Map.empty) ++ mockQuery.map(x=> Map(MOCK_QUERY -> x)
     ).getOrElse(Map.empty) ++ realm.map(x=> Map(REALM -> x)
     ).getOrElse(Map.empty) ++ env.map(x=> Map(ENV -> x)
     ).getOrElse(Map.empty) ++ collectCount.map(x=> Map(COLLECT -> x.toString)
@@ -98,6 +102,7 @@ object DomEngineSettings {
   final val DIESEL_CONFIG_TAG = "dieselConfigTag"
   final val DIESEL_USER_ID = "dieselUserId"
   final val TAG_QUERY = "tagQuery"
+  final val MOCK_QUERY = "mockQuery"
   final val HOSTPORT = "hostport"
   final val SIM_MODE = "simMode"
   final val REALM = "realm"
@@ -135,6 +140,7 @@ object DomEngineSettings {
       hostport = fqhParm(HOSTPORT),
       realm = fqhParm(REALM),
       tagQuery = fqhParm(TAG_QUERY),
+      mockQuery = fqhParm(MOCK_QUERY),
       env = fqhParm(ENV),
       collectCount = fqhParm(COLLECT).map(_.toInt),
       sla = fqhParm(SLA),

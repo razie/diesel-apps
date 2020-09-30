@@ -32,7 +32,7 @@ object DomEngineView {
         else a.children.slice(s._2+1, a.children.size - 1)
 
       val failed = failedTestCount(nodes.toList)
-      val total = totalTestCount(nodes.toList)
+      val total = totalTestedCount(nodes.toList)
 
       s"""<a href="#${s._1.value.asInstanceOf[StoryNode].path.wpath.replaceAll("^.*:", "")}">[details]</a>""" +
       quickBadge(failed, total, -1, "") +
@@ -54,12 +54,12 @@ object DomEngineView {
 
   def successTestCount(a:DomAst) : Int = successTestCount(List(a))
 
-  def totalTestCount(a:DomAst) : Int = totalTestCount(List(a))
+  def totalTestedCount(a:DomAst) : Int = totalTestedCount(List(a))
 
   def todoTestCount(a:DomAst) : Int = todoTestCount(List(a))
 
   /** count test results */
-  def totalTestCount(nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {
+  def totalTestedCount(nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {
     case d@DomAst(n: TestResult, _, _, _) => n
   })).size
 

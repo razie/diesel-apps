@@ -21,9 +21,9 @@ trait DomRoot {
   def failedTestCount = DomEngineView.failedTestCount(root)
   def errorCount = DomEngineView.errorCount(root)
   def successTestCount = DomEngineView.successTestCount(root)
-  def totalTestCount = DomEngineView.totalTestCount(root)
-  def progress:String = DomEngineView.failedTestCount(root) + "/" + DomEngineView.totalTestCount(root) + "/" + DomEngineView.todoTestCount(root)
-  def totalCount = DomEngineView.totalTestCount(root)
+  def totalTestCount = DomEngineView.totalTestedCount(root)
+  def progress:String = DomEngineView.failedTestCount(root) + "/" + DomEngineView.totalTestedCount(root) + "/" + DomEngineView.todoTestCount(root)
+  def totalCount = DomEngineView.totalTestedCount(root)
 
   /** find a node */
   def n(id:String):DomAst = root.find(id).get

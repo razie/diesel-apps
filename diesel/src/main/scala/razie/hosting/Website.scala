@@ -5,10 +5,11 @@
   */
 package razie.hosting
 
+import org.bson.types.ObjectId
 import play.api.mvc.{Request, RequestHeader}
 import razie.OR._
 import razie.diesel.dom.RDOM.P
-import razie.wiki.Services
+import razie.wiki.{Services, WikiConfig}
 import razie.wiki.model._
 import razie.wiki.util.{DslProps, PlayTools}
 import scala.collection.concurrent.TrieMap
@@ -65,6 +66,7 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
   def needsConsent = this bprop "needsConsent" OR true
 
   def openMembership         = this bprop "users.openMembership" OR true
+  def selfInvites            = this bprop "users.selfInvites" OR true
   def membersCanCreateTopics = this bprop "users.membersCanCreateTopics" OR true
 
   def rightTop:Option[WID] = this wprop "rightTop"
@@ -182,8 +184,8 @@ object Website {
 
   def all = cache.values.map(_.w).toList
 
-  def xrealm   (implicit request:RequestHeader) = (getHost flatMap Website.forHost).map(_.reactor).getOrElse(dflt.reactor)
-  def realm    (implicit request:Request[_]) = apply(request).map(_.reactor).getOrElse(dflt.reactor)
+  def xrealm   (implicit request:RequestHeader) = (getHost flatMap Website.forHost).map(_.reactor).getOrElse(WikiConfig.RK)
+  def realm    (implicit request:Request[_]) = apply(request).map(_.reactor).getOrElse(WikiConfig.RK)
   def getRealm (implicit request:Request[_]) = realm(request)
 
   def apply    (implicit request: Request[_]):Option[Website] = getHost flatMap Website.forHost
@@ -194,7 +196,8 @@ object Website {
   /** find or default */
   def get  (implicit request: Request[_]) : Website = apply getOrElse dflt
 
-  def dflt = new Website(Wikis.rk.categories.head) //todo this is stupid - find better default
+  /** just make up a default - empty as it needs to work in empty localhost */
+  def dflt = new Website(new WikiEntry("Spec", "DfltWebsite", "DfltWebsite", "md", "", new ObjectId(), Seq("dslObject"), "rk"))
 
   /** @deprecated use PlayTools.getHost */
   def getHost (implicit request: RequestHeader) = PlayTools.getHost

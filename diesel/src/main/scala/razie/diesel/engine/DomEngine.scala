@@ -304,7 +304,7 @@ abstract class DomEngine(
     result
   }
 
-  /** add built-in triggers */
+  /** add built-in triggers and rules */
   protected def prepRoot(l:ListBuffer[DomAst]) : ListBuffer[DomAst] = {
     val vals = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_VALS), AstKinds.TRACE)
     val before = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_BEFORE), AstKinds.TRACE)

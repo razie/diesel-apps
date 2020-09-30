@@ -531,7 +531,7 @@ trait DomParser extends ParserBase with ExprParser {
   }
 
   /**
-    * .receive object.func (a,b)
+    * .send object.func (a,b)
     *
     * An NVP is either the spec or an instance of a function call, a message, a data object... whatever...
     */

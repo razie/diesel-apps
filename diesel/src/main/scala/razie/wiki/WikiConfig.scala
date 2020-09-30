@@ -36,6 +36,10 @@ object WikiConfig {
   final val RK = "rk"
   final val NOTES = "notes"
 
+  /** get from play config - needed as in some places I can't load sitecfg before props are needed */
+  def prop(name:String, dflt:String="") =
+    if(playConfig.underlying.hasPath(name)) playConfig.underlying.getString(name) else dflt
+
   // parse a properties looking thing
   def parsep(content: String) =
     (content.split("\r*\n").map(_.trim)) filter (!_.startsWith("#")) map (_.split("=", 2)) filter (_.size == 2) map (x => (x(0).trim, x(1).trim))
