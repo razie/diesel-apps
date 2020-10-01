@@ -17,6 +17,7 @@ object DomCollector {
   final val MAX_SIZE = 200 // how many to keep
   final val MAX_SIZE_LOWER = 50 // how many to keep
 
+  /** a single collected trace */
   case class CollectedAst(stream:String, realm:String, id:String, userId:Option[String], engine:DomEngine, details:String, dtm:DateTime=DateTime.now) {
     def isLowerPriority = {
       val desc = engine.description
@@ -25,6 +26,7 @@ object DomCollector {
           desc.contains("$msg " + DieselMsg.GPOLL)
     }
 
+    /** how many of these to keep in trace collector? */
     def getMaxCount = {
       engine.settings.collectCount.filter(_ != 0).getOrElse {
         val desc = engine.description
@@ -32,37 +34,54 @@ object DomCollector {
           desc.contains(DieselMsg.fiddleStoryUpdated) ||
           desc.contains(DieselMsg.GPOLL)
         ) 6 else {
-          if(engine.settings.slaSet.contains(DieselSLASettings.NOKEEP)) -1 else 0
+          if (engine.settings.slaSet.contains(DieselSLASettings.NOKEEP)) -1 else 0
           // 0  means no self-imposed limit, default
         }
       }
     }
   }
 
-// statically collecting the last 100 results sets
+  /* statically collecting the last MAX_SIZE results sets **/
   private var asts: List[CollectedAst] = Nil
 
-  def withAsts[T] (f: List[CollectedAst] =>T) : T = asts.synchronized {
+  /** encapsulate access to sync and collect resources */
+  def withAsts[T](f: List[CollectedAst] => T): T = synchronized {
     f(asts)
   }
 
   /** statically collect more asts */
-  def collectAst (stream:String, realm:String, xid:String, userId:Option[String], eng:DomEngine, details:String="") = synchronized {
-    var newOne = CollectedAst(stream, realm, xid, userId, eng, details)
+  def collectAst(
+    stream: String, realm: String, xid: String,
+    userId: Option[String], eng: DomEngine, details: String = "") = synchronized {
+
+    val newOne = CollectedAst(stream, realm, xid, userId, eng, details)
     var newAsts = newOne :: asts.filter(_.id != xid)
     val count = newOne.getMaxCount
 
-    if(count >= 0) { // no collect
+    if (count >= 0) { // no collect
 
-      // does it have collect settings?
+      // does it have collect settings? collect settings are per description
       if (count > 0) {
         var lesser = newAsts.filter(_.engine.description == eng.description)
 
-        while(lesser.size > count) {
-          // remove one of this kind
-          lesser.reverse.find(e=>DomState.isDone(e.engine.status)).map(_.id).foreach{lastId=>
+        // if it does and collected more in the same description, remove some
+        var stupidLimit = MAX_SIZE // bug 636 - had a logic issue with 2.1.5.t6, too risky to rethink now, so put a
+        // stupid limit in place
+        while (lesser.size > count && stupidLimit > 0) {
+          stupidLimit = stupidLimit - 1
+          // remove one of this kind, done
+          lesser.reverse.find(e => DomState.isDone(e.engine.status)).map(_.id).foreach { lastId =>
             newAsts = newAsts.filter(_.id != lastId).take(MAX_SIZE - 1)
             lesser = newAsts.filter(_.engine.description == eng.description)
+          }
+
+          // bug 636 - it was spinning if too many flows in progress with same description
+          if (lesser.size > count) {
+            // remove some of the done flows too
+            lesser.lastOption.map(_.id).foreach { lastId =>
+              newAsts = newAsts.filter(_.id != lastId).take(MAX_SIZE - 1)
+              lesser = newAsts.filter(_.engine.description == eng.description)
+            }
           }
         }
       }
