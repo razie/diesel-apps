@@ -10,13 +10,23 @@ import razie.wiki.model.WID
 /* global */
 object DieselAssets {
 
-  def mkLink(w:WID, path:String) = {
+  def mkLink(w: WID, path: String) = {
     w.cat match {
       case "DieselEngine" => {
         val x = s"""diesel/viewAst/${w.name}"""
-       x
+        x
       }
       case _ => s"""wiki/$path"""
+    }
+  }
+
+  def mkEditLink(w: WID, path: String) = {
+    w.cat match {
+      case "DieselEngine" => {
+        val x = s"""diesel/viewAst/${w.name}"""
+        x
+      }
+      case _ => s"""wikie/editold/$path"""
     }
   }
 }

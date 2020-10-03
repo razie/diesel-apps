@@ -37,7 +37,7 @@ object Autosave {
   }
 
   def findAll(what:String, w:WID, userId: ObjectId) =
-    RMany[Autosave]("what" -> what, "realm" -> w.getRealm, "name" -> w.wpath, "userId" -> userId)
+    RMany[Autosave]("what" -> what, /*"realm" -> w.getRealm,*/ "name" -> w.wpath, "userId" -> userId)
 
   /** create or update
     *
@@ -84,16 +84,23 @@ object Autosave {
 
   // use findAll because sometimes crap is left behind...?
   def delete(iwhat: String, w:WID, userId: ObjectId) : Unit = {
-      findAll(iwhat, w, userId).toList.map(_.delete)
+    val x = findAll(iwhat, w, userId).toList
+    x.map(_.delete)
   }
 
   /** filter internal states */
   def activeDrafts(userId: ObjectId) =
-    findForUser(userId).filter(x=> x.what != "DomFidPath" && x.what != "DomFidCapture")
+    findForUser(userId).filter(x => x.what != "DomFidPath" && x.what != "DomFidCapture")
 
   /** each user has its own draft */
-  def allDrafts(w:WID) =
+  def allDrafts(w: WID) =
     RMany[Autosave]("realm" -> w.getRealm, "name" -> w.wpath)
+
+  def deleteDraft(w: WID, userId: ObjectId) =
+    Autosave.delete("wikie", w, userId)
+
+  def recDraft(wid: WID, userId: ObjectId) =
+    Autosave.rec("wikie", wid.getRealm, wid.wpath, userId)
 
 }
 

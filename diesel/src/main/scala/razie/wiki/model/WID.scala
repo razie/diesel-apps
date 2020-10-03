@@ -191,24 +191,30 @@ case class WID(
       //todo current realm
         Services.config.hostport
     } + "/" + {
-      if(realm.isDefined) DieselAssets.mkLink(this, wpath)
+      if (realm.isDefined) DieselAssets.mkLink(this, wpath)
       else canonpath
     }
   }
 
   /** the canonical URL with the proper hostname for reactor */
-  def url: String = {
+  def urlForEdit: String = intUrl(DieselAssets.mkEditLink)
+
+  /** the canonical URL with the proper hostname for reactor */
+  def url: String = intUrl(DieselAssets.mkLink)
+
+  /** the canonical URL with the proper hostname for reactor */
+  private def intUrl(func: (WID, String) => String): String = {
     val hasRealm = realm.isDefined && WikiReactors(realm.get).websiteProps.prop("domain").exists(_.length > 0)
 
-    "http://" + {
-      if (hasRealm && !Services.config.isLocalhost)
-        WikiReactors(realm.get).websiteProps.prop("domain").get
-      else
-        //todo current realm
-        // todo in localhost, it may run wiht a different IP/port to don't use the hostport, just relative
-        Services.config.hostport
-    } + "/" + {
-      if(realm.isDefined) DieselAssets.mkLink(this, wpath)
+    (if (hasRealm && !Services.config.isLocalhost) {
+      "http://" + WikiReactors(realm.get).websiteProps.prop("domain").get
+    } else {
+      //todo current realm
+      // todo in localhost, it may run wiht a different IP/port to don't use the hostport, just relative
+//        Services.config.hostport
+      ""
+    }) + "/" + {
+      if (realm.isDefined) func(this, wpath)
       else canonpath
     }
   }

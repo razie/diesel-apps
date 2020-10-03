@@ -231,6 +231,7 @@ object DieselMsg {
     final val VALS = "vals"
     final val DIESEL_RETURN = "diesel.return"
     final val DIESEL_THROW = "diesel.throw"
+    final val DIESEL_TRY = "diesel.try"
     final val DIESEL_CATCH = "diesel.catch"
     final val DIESEL_VALS = "diesel.vals"
     final val DIESEL_BEFORE = "diesel.before"
