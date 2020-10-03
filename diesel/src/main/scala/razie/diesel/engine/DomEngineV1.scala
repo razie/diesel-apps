@@ -14,14 +14,13 @@ import razie.diesel.engine.exec.{EApplicable, Executors}
 import razie.diesel.engine.nodes._
 import razie.diesel.expr._
 import razie.diesel.model.DieselMsg
+import razie.diesel.model.DieselMsg.ENGINE._
+import razie.hosting.Website
 import razie.js
 import razie.tconf.DSpec
 import scala.Option.option2Iterable
 import scala.collection.mutable.HashMap
-import scala.collection.parallel.mutable
 import scala.util.Try
-import DieselMsg.ENGINE._
-import razie.hosting.Website
 
 /** the actual engine implementation
   *
@@ -583,29 +582,123 @@ class DomEngineV1(
         // first parent may be a ENext, see through
         case ast if ast.value.isInstanceOf[ENext] => findParent(ast)
         case ast@_ => Some(ast)
-      }.flatten.toList.flatMap(_.children).foreach {ast=>
-        if(! DomState.isDone(ast.status)) {
+      }.flatten.toList.flatMap(_.children).foreach { ast =>
+        if (!DomState.isDone(ast.status)) {
           evChangeStatus(ast, DomState.SKIPPED)
         }
       }
       true
+
+    } else if (ea == DieselMsg.ENGINE.DIESEL_THROW) {
+
+      // todo
+      // exc has scope, exception, message and more stuff
+      // default scope is global, other values: "scope" or "rest" or "local"
+
+      // todo also while recursing see if htere's matching CATCH and stop skipping
+
+      // expand all spec vals
+      in.attrs.map(_.calculatedP).foreach { p =>
+        evAppChildren(a, DomAst(EVal(p)))
+        this.ctx.put(p)
+      }
+
       // stop other children
+      // todo find cur scope, not parent
       findParent(a).collect {
         // first parent may be a ENext, see through
         case ast if ast.value.isInstanceOf[ENext] => findParent(ast)
         case ast@_ => Some(ast)
-      }.flatten.toList.flatMap(_.children).foreach {ast=>
-        if(! DomState.isDone(ast.status)) {
+      }.flatten.toList.flatMap(_.children).foreach { ast =>
+        if (!DomState.isDone(ast.status)) {
           evChangeStatus(ast, DomState.SKIPPED)
         }
       }
+
+      // todo then set payload to exception
+      val ex = new IllegalStateException("diesel.thrown")
+      val p = EVal(P(Diesel.PAYLOAD, "diesel.thrown", WTypes.wt.EXCEPTION).withValue(ex, WTypes.wt.EXCEPTION))
+      ctx.put(p.p)
+      val newD = DomAst(new EError("Exception:", ex), AstKinds.ERROR)
+      evAppChildren(a, newD)
+
       true
 
-    } else if(ea == DieselMsg.ENGINE.DIESEL_VALS) {
+    } else if (ea == DieselMsg.ENGINE.DIESEL_TRY) {
+      // rudimentary TRY scope for catch.
+      // normally we'd have CATCH apply to the enclosing scope, but we don't have a good EEScope
+
+      val newD = DomAst(new EScope("diesel.try:", ""), AstKinds.GENERATED)
+      evAppChildren(a, newD)
+      true
+
+    } else if (ea == DieselMsg.ENGINE.DIESEL_CATCH) {
+
+      // todo handle
+      // for the current scope, stop prpag exc and handle if matching
+      // exc has attrs: exception and message and then more crap
+      // catch must match
+
+      // for now - let's just handle scope exceeeeeptions
+
+      var inScope = false
+      var done = false
+
+      // 1. am I in scope?
+      // todo find cur scope, not parent
+      findParent(a).collect {
+        // first parent may be a ENext, see through
+        case ast if ast.value.isInstanceOf[ENext] => findParent(ast)
+        case ast@_ => Some(ast)
+      }.flatten.toList.flatMap(_.children).foreach { ast =>
+        if (!done) {
+          ast.collect({
+            // todo more generic scope ident
+            // the idea is that catch works in a scope, not just inside try
+            case x if x.value.isInstanceOf[EMsg] && x.value.asInstanceOf[EMsg].ea == DIESEL_TRY => {
+              inScope = true
+            }
+          })
+
+          if (ast eq a) {
+            done = true // found myself - stop - good for seq todo handle par
+          }
+        }
+      }
+
+      done = false
+
+      // stop other children
+      // todo find cur scope, not parent
+      findParent(a).collect {
+        // first parent may be a ENext, see through
+        case ast if ast.value.isInstanceOf[ENext] => findParent(ast)
+        case ast@_ => Some(ast)
+      }.flatten.toList.flatMap(_.children).foreach { ast =>
+        // find any EError and mark it "handled"
+        if (!done) {
+          ast.collect({
+            case x if x.value.isInstanceOf[EError] && !x.value.asInstanceOf[EError].handled && inScope => {
+              val ee = x.value.asInstanceOf[EError]
+              ee.handled = true
+              val newD = DomAst(new EInfo("caught:" + ee.msg, ""), AstKinds.GENERATED)
+              evAppChildren(a, newD)
+            }
+          })
+
+          if (ast eq a) {
+            done = true // found myself - stop - good for seq todo handle par
+          }
+        }
+      }
+
+      true
+
+    } else if (ea == DieselMsg.ENGINE.DIESEL_VALS) {
 
       // expand all spec vals
       dom.moreElements.collect {
-        case v:EVal => {
+        case v: EVal => {
           evAppChildren(a, DomAst(v, AstKinds.TRACE))
           // do not calculate here - keep them more like exprs .calculatedP)
           this.ctx.put(v.p)
@@ -614,23 +707,29 @@ class DomEngineV1(
 
       true
 
-    } else if(ea == DieselMsg.ENGINE.DIESEL_SYNC) {
+    } else if (ea == DieselMsg.ENGINE.DIESEL_SYNC) {
 
       // turn the engine sync
-      ctx.root.asInstanceOf[DomEngECtx].engine.map(_.synchronous = true)
+      ctx.root.engine.map(_.synchronous = true)
       true
 
-    } else if(ea == DieselMsg.SCOPE.DIESEL_PUSH) {
+    } else if (ea == DieselMsg.ENGINE.DIESEL_ASYNC) {
+
+      // turn the engine async
+      ctx.root.engine.map(_.synchronous = false)
+      true
+
+    } else if (ea == DieselMsg.SCOPE.DIESEL_PUSH) {
 
       this.ctx = new ScopeECtx(Nil, Some(this.ctx), Some(a))
       true
 
-    } else if(ea == DieselMsg.SCOPE.DIESEL_POP && this.ctx.isInstanceOf[ScopeECtx]) {
+    } else if (ea == DieselMsg.SCOPE.DIESEL_POP && this.ctx.isInstanceOf[ScopeECtx]) {
 
       this.ctx = this.ctx.base.get
       true
 
-    } else if(ea == "diesel.engine.debug") {
+    } else if (ea == "diesel.engine.debug") {
 
       val s = this.settings.toJson
       val c = this.ctx.toString
@@ -640,12 +739,12 @@ class DomEngineV1(
       evAppChildren(a, DomAst(EInfo("engine", e), AstKinds.DEBUG))
       true
 
-    } else if(ea == DieselMsg.ENGINE.DIESEL_ENG_SET) {
+    } else if (ea == DieselMsg.ENGINE.DIESEL_ENG_SET) {
 
       // todo move this to an executor
 
       // NOTE: this may be a security risk - they can set trust and stuff -  limit to only some parms
-      in.attrs.foreach{ p=>
+      in.attrs.foreach { p =>
         val v = p.currentStringValue
         p.name match {
 
@@ -662,9 +761,9 @@ class DomEngineV1(
 
       // todo move this to an executor
       // todo this may be a security risk - they can set trust and stuff -  limit to only some parms?
-      in.attrs.foreach{ p=>
+      in.attrs.foreach { p =>
         val r = this.settings.realm
-        if(r.isEmpty) evAppChildren(a, DomAst(EError("realm not defined...???"), AstKinds.ERROR))
+        if (r.isEmpty) evAppChildren(a, DomAst(EError("realm not defined...???"), AstKinds.ERROR))
         else {
           r.foreach(Website.putRealmProps(_, p.name, p.calculatedP))
           r.flatMap(Website.forRealm).map(_.put(p.name, p.calculatedValue))

@@ -72,11 +72,11 @@ object DomEngineView {
 
   def failedTestCount(nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {
     case d@DomAst(n: TestResult, _, _, _) if n.value.startsWith("fail") => n
-    case d@DomAst(n: EError, _, _, _) => n
+    case d@DomAst(n: EError, _, _, _) if !n.handled => n
   })).size
 
   def errorCount(nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {
-    case d@DomAst(n: EError, _, _, _) => n
+    case d@DomAst(n: EError, _, _, _) if !n.handled => n
   })).size
 
   def successTestCount (nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {

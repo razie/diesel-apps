@@ -50,23 +50,29 @@ case class EError(msg: String, details: String = "", code:String = "ERROR") exte
     ) // escape html - some exc contain html content
 
   var pos: Option[EPos] = None
+  var handled: Boolean = false
 
   def withPos(p: Option[EPos]) = {
-    this.pos = p; this
+    this.pos = p;
+    this
   }
 
   def withCode(code: String) = {
     this.copy(code = code)
   }
 
-  override def toHtml =
-    kspan("err", "default") +
+  override def toHtml = {
+    val getErrClass = if (handled) "warn" else "err"
+    val color = if (handled) CanHtml.COLOR_WARN else CanHtml.COLOR_DANGER
+
+    kspan(getErrClass, "default") +
         (
             if (details.length > 0)
-              spanClick("fail-error::", "danger", details) + msg
+              spanClick("fail-error::", color, details) + msg
             else
-              span("fail-error::", "danger", details) + " " + msg
+              span("fail-error::", color, details) + " " + msg
             )
+  }
 
   override def toString = "fail-error::" + msg + details
 }

@@ -44,6 +44,10 @@ object CanHtml {
     val t = prepTitle(title)
     s"""<span class="label label-$k" $t>$s</span>"""
   }
+
+  val COLOR_INFO = "info"
+  val COLOR_DANGER = "danger"
+  val COLOR_WARN = "warning"
 }
 
 /** things that can represent themselves in HTML - instances have an toHtml method */
