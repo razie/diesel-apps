@@ -24,6 +24,8 @@ case class CExprNull() extends Expr {
 
 /**
   * constant expression - similar to PValue
+  *
+  * note strings are interpolated with ${} - escape for that is $${}
   */
 case class CExpr[T](ee: T, ttype: WType = WTypes.wt.EMPTY) extends Expr {
   val expr = ee.toString
@@ -45,10 +47,10 @@ case class CExpr[T](ee: T, ttype: WType = WTypes.wt.EMPTY) extends Expr {
       if (es contains "${") {
         var s1 = ""
         try {
-          val PAT = """\$\{([^\}]*)\}""".r
+          val PAT = """(?<!\$)\$\{([^\}]*)\}""".r
           val eeEscaped = es
-            .replaceAllLiterally("(", """\(""")
-            .replaceAllLiterally(")", """\)""")
+              .replaceAllLiterally("(", """\(""")
+              .replaceAllLiterally(")", """\)""")
           s1 = PAT.replaceAllIn(es, {
             m =>
               (new SimpleExprParser).parseExpr(m.group(1)).map { e =>
