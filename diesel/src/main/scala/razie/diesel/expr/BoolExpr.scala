@@ -53,9 +53,9 @@ case class BCMPConst(a: String) extends BoolExpr(a) {
   override def bapply(e: Any)(implicit ctx: ECtx) = BExprResult(a == "true")
 }
 
-/** composed boolean expression */
-case class BCMP1(a: BoolExpr, op: String, b: BoolExpr)
-    extends BoolExpr("("+a.toDsl + " " + op + " " + b.toDsl+")") {
+/** and/or - composed boolean expression */
+case class BCMPAndOr(a: BoolExpr, op: String, b: BoolExpr)
+    extends BoolExpr("(" + a.toDsl + " " + op + " " + b.toDsl + ")") {
   override def bapply(in: Any)(implicit ctx: ECtx) = {
     val av = a.bapply(in)
     val bv = b.bapply(in)
@@ -74,7 +74,7 @@ case class BCMP1(a: BoolExpr, op: String, b: BoolExpr)
   override def toString = a.toString + " " + op + " " + b.toString
 }
 
-/** simple boolean expression */
+/** bool cmp operator simple boolean expression */
 case class BCMP2(a: Expr, op: String, b: Expr)
     extends BoolExpr("("+a.toDsl + " " + op + " " + b.toDsl+")") {
 
@@ -199,6 +199,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
 
 
             case "is" if b_is("number") => as.matches("[0-9.]+")
+            case "not" if b_is("number") => as.matches("[0-9.]+")
 
             case "is" if b_is("boolean") =>
               a.getType == WTypes.wt.BOOLEAN || ap.calculatedTypedValue.contentType == WTypes.BOOLEAN

@@ -5,7 +5,7 @@
  */
 package razie.diesel.expr
 
-import razie.diesel.dom.RDOM.{P, PM}
+import razie.diesel.dom.RDOM.P
 import razie.diesel.dom.{RDOM, WType, WTypes, XPathIdent}
 import razie.diesel.engine.nodes.PAS
 import scala.util.parsing.combinator.RegexParsers
@@ -46,47 +46,67 @@ trait ExprParser extends RegexParsers {
   //======================= MAIN: operator expressions and conditions ========================
   //
 
+  private def opsAS: Parser[String] = "as"
+
+  private def opsMAP: Parser[String] = "map" <~ ws | "flatMap" <~ ws | "flatten" <~ ws | "filter" <~ ws | "exists" <~
+      ws | ">>"
+
+  private def opsOR: Parser[String] = "or" | "xor"
+
+  private def opsAND: Parser[String] = "and"
+
+  private def opsCMP: Parser[String] =
+    ">" | "<" | ">=" | "<=" | "==" | "!=" |
+        "~=" | "~path" <~ ws |
+        "?=" | "is" <~ ws | "in" <~ ws | "not in" <~ ws | "notIn" <~ ws | "not" <~ ws |
+        "contains" <~ ws | "containsNot" <~ ws
+
+  private def opsPLUS: Parser[String] = "+" | "-" | "||" | "|"
+
+  private def opsMULT: Parser[String] = "*" | "/(?!/)".r // negative lookahead to not match comment - it acts funny
+  // with multiple lines of comment
+
+
+  //--------------------------- expressions
+
   /** main entry point for an expression */
-  def expr:  Parser[Expr] = exprAS | pterm1
+  def expr: Parser[Expr] = exprAS | pterm
 
   // a reduced expr, from boolean down, useful for lambdas for conditions
-  def expr2: Parser[Expr] = exprOR | pterm1
+  def expr2: Parser[Expr] = exprOR | pterm
 
-  private def opsAS: Parser[String] = "as"
-  private def opsMAP: Parser[String] = "map" <~ ws | "flatMap" <~ ws | "flatten" <~ ws | "filter" <~ ws | "exists" <~ ws | ">>"
-  private def opsOR: Parser[String] = "or" | "xor"
-  private def opsAND: Parser[String] = "and"
-  private def opsCMP: Parser[String] = ">" | "<" | ">=" | "<=" | "==" | "!=" | "~=" | "~path" <~ ws | "?=" | "is" <~ ws | "in" <~ ws | "not in" <~ ws | "notIn" <~ ws | "not" <~ ws | "contains" <~ ws | "containsNot" <~ ws
-  private def opsPLUS: Parser[String] = "+" | "-" | "||" | "|"
-  private def opsMULT: Parser[String] = "*" | "/(?!/)".r // negative lookahead to not match comment - it acts funny with multiple lines of comment
+  private def faexpr2: (Expr, String, Expr) => Expr = { (a, b, c) =>
+    if (b == ">>") AExprFunc(
+      c.asInstanceOf[AExprIdent].start,
+      List(P("", "", WTypes.wt.UNKNOWN, Some(a.asInstanceOf[AExprIdent]))))
+    else AExpr2(a, b, c)
+  }
 
   // "1" as number
-  def exprAS: Parser[Expr] = exprMAP ~ opt(ows ~> opsAS ~ ows ~ pterm1) ^^ {
+  def exprAS: Parser[Expr] = exprMAP ~ opt(ows ~> opsAS ~ ows ~ pterm) ^^ {
     case a ~ None => a
     case a ~ Some(op ~ _ ~ p) => AExpr2(a, op, p)
   }
 
-  private def faexpr2 :(Expr, String, Expr) => Expr = { (a,b,c) =>
-    if(b == ">>") AExprFunc(
-      c.asInstanceOf[AExprIdent].start,
-      List(P("", "", WTypes.wt.UNKNOWN, Some(a.asInstanceOf[AExprIdent]))))
-    else AExpr2(a,b,c)
-  }
-
   // x map (x => x+1)
-  def exprMAP: Parser[Expr] = exprPLUS ~ rep(ows ~> opsMAP ~ ows ~ exprOR) ^^ {
-//    case a ~ l => foldAssocAexpr2(a, l, AExpr2)
-    case a ~ l => foldAssocAexpr2(a, l, faexpr2)
-  }
+//  def exprMAP: Parser[Expr] = exprPLUS ~ rep(ows ~> opsMAP ~ ows ~ exprOR) ^^ {
+def exprMAP: Parser[Expr] = exprOR ~ rep(ows ~> opsMAP ~ ows ~ exprOR) ^^ {
+  case a ~ l => foldAssocAexpr2(a, l, faexpr2)
+}
 
-  // x > y
+  // x > y or ...
   def exprOR: Parser[Expr] = exprAND ~ rep(ows ~> (opsOR <~ ws) ~ ows ~ exprAND) ^^ {
-    case a ~ l => foldAssocAexpr2(a, l, ebcmp)
+    case a ~ l => foldAssocAexpr2(a, l, bMkAndOr)
   }
 
-  // x > y
-  def exprAND: Parser[Expr] = exprCMP ~ rep(ows ~> (opsAND <~ ws) ~ ows ~ exprCMP) ^^ {
-    case a ~ l => foldAssocAexpr2(a, l, ebcmp)
+  // x > y and ...
+  def exprAND: Parser[Expr] = (exprNOTCMP | exprCMP) ~ rep(ows ~> (opsAND <~ ws) ~ ows ~ (exprNOTCMP | exprCMP)) ^^ {
+    case a ~ l => foldAssocAexpr2(a, l, bMkAndOr)
+  }
+
+  def exprNOTCMP: Parser[Expr] = (("not" | "NOT") <~ ws) ~> ows ~> exprCMP ^^ {
+    case e if e.isInstanceOf[BoolExpr] => BCMPNot(e.asInstanceOf[BoolExpr])
+    case x => BCMPNot(BCMPSingle(x))
   }
 
   // x > y
@@ -101,7 +121,7 @@ trait ExprParser extends RegexParsers {
   }
 
   // x * y
-  def exprMULT: Parser[Expr] = pterm1 ~ rep(ows ~> opsMULT ~ ows ~ pterm1) ^^ {
+  def exprMULT: Parser[Expr] = pterm ~ rep(ows ~> opsMULT ~ ows ~ pterm) ^^ {
     case a ~ l => foldAssocAexpr2(a, l, AExpr2)
   }
 
@@ -119,13 +139,13 @@ trait ExprParser extends RegexParsers {
   //
 
   // a term in an expression
-  def pterm1: Parser[Expr] =
-    numConst | boolConst | multilineStrConst | strConst | jnull |
-    xpident |
-    lambda | jsexpr2 | jsexpr1 |
-    exregex | eblock | jarray | jobj |
-    scexpr2 | scexpr1 |
-    afunc | aidentaccess | aident | jsexpr4
+  def pterm: Parser[Expr] =
+    numConst | bConst | multilineStrConst | strConst | jnull |
+        xpident |
+        lambda | jsexpr2 | jsexpr1 |
+        exregex | eblock | jarray | jobj |
+        scalaexpr2 | scalaexpr1 |
+        callFunc | aidentaccess | aident | jsexpr4
 //    exregex | eblock | jarray | jobj
 
   //
@@ -182,17 +202,15 @@ trait ExprParser extends RegexParsers {
   //================================== constants - CExpr
   //
 
-  def boolConst: Parser[Expr] = ("true" | "false") ^^ {
-    b => new CExpr(b, WTypes.wt.BOOLEAN)
-  }
-
   // a number
-  def numConst: Parser[Expr]   = (afloat | aint ) ^^ { case i => new CExpr(i, WTypes.wt.NUMBER) }
-  def aint:     Parser[String] = """-?\d+""".r
-  def afloat:   Parser[String] = """-?\d+[.]\d+""".r
+  def numConst: Parser[Expr] = (afloat | aint) ^^ { case i => new CExpr(i, WTypes.wt.NUMBER) }
+
+  def aint: Parser[String] = """-?\d+""".r
+
+  def afloat: Parser[String] = """-?\d+[.]\d+""".r
 
   /** prepare a parsed string const */
-  private def prepStrConst (e:String) = {
+  private def prepStrConst(e: String) = {
     // string const with escaped chars
     var s = e
 
@@ -277,7 +295,7 @@ trait ExprParser extends RegexParsers {
 
   // calling a function, this is not defining it, so no type annotations etc
   // named parameters need to be mentioned, unless it's just one
-  def afunc: Parser[Expr] = qident ~ attrs ^^ { case i ~ a => AExprFunc(i, a) }
+  def callFunc: Parser[Expr] = qident ~ attrs ^^ { case i ~ a => AExprFunc(i, a) }
 
   /**
     * simple ident = expr assignemtn when calling
@@ -383,18 +401,23 @@ trait ExprParser extends RegexParsers {
   //
 
   def jsexpr1: Parser[Expr] = "js:" ~> ".*(?=[,)])".r ^^ (li => JSSExpr(li))
-  def jsexpr2: Parser[Expr] = "js:{" ~> ".*(?=})".r <~ "}" ^^ (li => JSSExpr(li))
-  //  def jsexpr3: Parser[Expr] = "js:{{ " ~> ".*(?=})".r <~ "}}" ^^ { case li => JSSExpr(li) }
-  def scexpr1: Parser[Expr] = "sc:" ~> ".*(?=[,)])".r ^^ (li => SCExpr(li))
-  def scexpr2: Parser[Expr] = "sc:{" ~> ".*(?=})".r <~ "}" ^^ (li => SCExpr(li))
 
-  def eblock: Parser[Expr] = "(" ~ ows ~> expr <~ ows ~ ")" ^^ (ex => BlockExpr(ex))
+  def jsexpr2: Parser[Expr] = "js:{" ~> ".*(?=})".r <~ "}" ^^ (li => JSSExpr(li))
+
+  //  def jsexpr3: Parser[Expr] = "js:{{ " ~> ".*(?=})".r <~ "}}" ^^ { case li => JSSExpr(li) }
+  def scalaexpr1: Parser[Expr] = "sc:" ~> ".*(?=[,)])".r ^^ (li => SCExpr(li))
+
+  def scalaexpr2: Parser[Expr] = "sc:{" ~> ".*(?=})".r <~ "}" ^^ (li => SCExpr(li))
+
+  def eblock: Parser[Expr] = "(" ~ ows ~> expr <~ ows ~ ")" ^^ (ex =>
+    if (ex.isInstanceOf[BoolExpr]) BExprBlock(ex.asInstanceOf[BoolExpr]) else BlockExpr(ex)
+      )
 
   // inline js expr: //1+2//
   def jsexpr4: Parser[Expr] = "//" ~> ".*(?=//)".r <~ "//" ^^ (li => JSSExpr(li))
 
   // remove single or double quotes if any, from ID matched with them
-  def unquote(s:String) =  {
+  def unquote(s: String) = {
     if (s.startsWith("'") && s.endsWith("\'") || s.startsWith("\"") && s
         .endsWith("\""))
       s.substring(1, s.length - 1)
@@ -414,7 +437,7 @@ trait ExprParser extends RegexParsers {
 
   // one json block nvp pair
   def jnvp: Parser[(String, Expr)] = ows ~> jsonIdent ~ " *[:=] *".r ~ jexpr ^^ {
-    case name ~ _ ~ ex =>  (unquote(name), ex)
+    case name ~ _ ~ ex => (unquote(name), ex)
   }
 
   // array [...] - elements are expressions
@@ -422,7 +445,7 @@ trait ExprParser extends RegexParsers {
     li => JArrExpr(li) //CExpr("[ " + li.mkString(",") + " ]")
   }
 
-  def jexpr: Parser[Expr] = jobj | jarray | boolConst | jother ^^ (ex => ex) //ex.toString }
+  def jexpr: Parser[Expr] = jobj | jarray | bConst | jother ^^ (ex => ex) //ex.toString }
 
   //  def jother: Parser[String] = "[^{}\\[\\],]+".r ^^ { case ex => ex }
   def jother: Parser[Expr] = expr ^^ (ex => ex)
@@ -442,9 +465,9 @@ trait ExprParser extends RegexParsers {
     case a ~ l => foldAssocAexpr2(a, l, bcmp)
   }
 
-  def bfactor1: Parser[BoolExpr] = notbfactor1 | bfactor2
+  def bfactor1: Parser[BoolExpr] = notbfactor2 | bfactor2
 
-  def notbfactor1: Parser[BoolExpr] = ows ~> (("not" | "NOT") <~ ws) ~> ows ~> bfactor2 ^^ { BCMPNot }
+  def notbfactor2: Parser[BoolExpr] = ows ~> (("not" | "NOT") <~ ws) ~> ows ~> bfactor2 ^^ {BCMPNot}
 
   def bfactor2: Parser[BoolExpr] = bConst | ibex(opsBool) | bvalue | condBlock
 
@@ -457,18 +480,32 @@ trait ExprParser extends RegexParsers {
   }
 
   /** true or false constants */
-  def bConst: Parser[BoolExpr] = ("true" | "false") ^^ { BCMPConst }
+  def bConst: Parser[BoolExpr] = ("true" | "false") ^^ {BCMPConst}
 
 
   /** single value expressions, where != 0 is true and != null is true */
-  def bvalue : Parser[BoolExpr] = expr ^^ {
+  def bvalue: Parser[BoolExpr] = expr ^^ {
     a => BCMPSingle(a)
   }
 
-  private def bcmp(a: BoolExpr, s: String, b: BoolExpr) = BCMP1(a, s, b)
-  private def ebcmp(a: Expr, s: String, b: Expr) = (a,b) match {
-    case (a:BoolExpr, b:BoolExpr) => BCMP1(a, s, b)
-    case (a,b) => throw new DieselExprException("ebcmp - can't combine non-logical expressions with or/and")
+  private def bcmp(a: BoolExpr, s: String, b: BoolExpr) = BCMPAndOr(a, s, b)
+
+  /** we can only combine: 2 bools with and/or ||| 2 non-bool exprs with non-bool operator ||| blow up */
+  private def bMkAndOr(a: Expr, s: String, b: Expr): Expr = (a, b) match {
+    case (a: BoolExpr, b: BoolExpr) => BCMPAndOr(a, s, b)
+
+    // todo build this into the parser - see exprMAP comments
+    case (a: Expr, b: Expr) if !a.isInstanceOf[BoolExpr] && !b.isInstanceOf[BoolExpr]
+    => AExpr2(a, s, b)
+
+    // need to allow simple idents - they mean "exists"
+    case (a: Expr, b: Expr) if a.isInstanceOf[AExprIdent] && b.isInstanceOf[BoolExpr]
+    => BCMPAndOr(BCMPSingle(a), s, b.asInstanceOf[BoolExpr])
+    case (a: Expr, b: Expr) if a.isInstanceOf[BoolExpr] || b.isInstanceOf[AExprIdent]
+    => BCMPAndOr(a.asInstanceOf[BoolExpr], s, BCMPSingle(b))
+
+    case (a, b) => throw new DieselExprException(
+      "bMkAndOr - can't combine non-logical expressions with or/and: " + a + " WITH " + b)
   }
 
 }
