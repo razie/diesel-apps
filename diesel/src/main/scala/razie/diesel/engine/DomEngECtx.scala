@@ -71,13 +71,13 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
 
   // uniques
   val uid = P("DIESEL_UID", new ObjectId().toString)
-  val millis = P("DIESEL_MILLIS", System.currentTimeMillis().toString)
+  val millis = P.fromSmartTypedValue("DIESEL_MILLIS", System.currentTimeMillis())
 
   /** source some of the unique values to help rerun tests */
   def pu (s:String) : Option[P] = s match {
     case "DIESEL_UID" => Some(uid)
     case "DIESEL_MILLIS" => Some(millis)
-    case "DIESEL_CURMILLIS" => Some(P("DIESEL_CURMILLIS", System.currentTimeMillis().toString))
+    case "DIESEL_CURMILLIS" => Some(P.fromSmartTypedValue("DIESEL_CURMILLIS", System.currentTimeMillis()))
 
     // allow setting this
     case "diesel.env" =>

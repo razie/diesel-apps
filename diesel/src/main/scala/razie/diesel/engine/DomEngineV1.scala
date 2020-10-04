@@ -80,7 +80,9 @@ class DomEngineV1(
 
       case stop : EEngSuspend => {
         // suspend and wait for a continuation async
-        evAppChildren(a, DomAst(EInfo(s"""Suspending engine <a href="/diesel/engine/view/${this.id}">${this.id}</a>""")))//.withPos((m.get.pos)))
+        evAppChildren(a,
+          DomAst(EInfo(s"""Suspending engine <a href="/diesel/engine/view/${this.id}">${this.id}</a>""")))
+        //.withPos((m.get.pos)))
         stop.onSuspend.foreach(_.apply(this, a, level))
       }
 
@@ -312,8 +314,8 @@ class DomEngineV1(
               DomAst(EInfo("rule excluded", exKey).withPos(r.pos), AstKinds.TRACE) ::
               Nil
         } else {
-          if(r.arch.contains("exclusive")) {
-            exclusives.put (r.e.cls + "." + r.e.met, r) // we do exclusive per pattern
+          if (r.arch.contains("exclusive")) {
+            exclusives.put(r.e.cls + "." + r.e.met, r) // we do exclusive per pattern
           }
 
           newNodes = newNodes ::: ruleDecomp(a, n, r, ctx)
@@ -321,9 +323,16 @@ class DomEngineV1(
       }
     }
 
-    // any generated sub-messages go in sequence - important as many mocks and rules may apply
-    // side-effecting
-    if(newNodes.size > 1) newNodes.drop(1).foldLeft(newNodes.head)((a,b)=> {
+    /* any generated sub-messages go in sequence - important as many mocks and rules may apply
+       side-effecting
+
+       this applies across all rules and mocks decomposed, in sequence
+
+       this will chain all generated messages, so each waits for predecessor
+
+      we only apply default sync if no applicable $flow
+     */
+    if (findFlows(a).isEmpty && newNodes.size > 1) newNodes.drop(1).foldLeft(newNodes.head)((a, b) => {
       b.withPrereq(List(a.id))
     })
 
@@ -558,8 +567,15 @@ class DomEngineV1(
 
       result = result ::: newMsgs.flatMap(_.toList)
     }
-    // if multiple results from a single map, default to sequence, i.e. make them dependent
-    if(result.size > 1) result.drop(1).foldLeft(result.head)((a,b)=> {
+    /* if multiple results from a single map, default to sequence, i.e. make them dependent
+
+      this one applies to those generated from this rule only
+
+      this will chain the children, so each waits for predecessor
+
+      we only apply default sync if no applicable $flow
+     */
+    if (findFlows(a).isEmpty && result.size > 1) result.drop(1).foldLeft(result.head)((a, b) => {
       b.withPrereq(List(a.id))
     })
 

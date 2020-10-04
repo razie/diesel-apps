@@ -43,7 +43,7 @@ case object DEStop extends DEMsg { override def engineId = ""}
 case object DESuspend extends DEMsg { override def engineId = ""}
 
 /** send the next message later */
-case class  DELater (engineId:String, d:Int, next:DEMsg) extends DEMsg
+case class DELater(engineId: String, d: Int, next: DEMsg, durationExpr: Option[String] = None) extends DEMsg
 
 case class DEStartTimer (engineId:String, d:Int, results:List[DomAst]) extends DEMsg
 case class DETimer      (engineId:String, results:List[DomAst]) extends DEMsg
@@ -156,11 +156,18 @@ class DomEngineActor (eng:DomEngine) extends Actor with Stash {
       context stop self
     }
 
-    case timer @ DELater(id,d,m) => {
-      // used when engines schedule stuff
-      if(eng.id == id) {
+    // used when engines schedule stuff
+    case timer@DELater(id, d, m, durationExpr) => {
+      // todo get this to work
+//      val dur: FiniteDuration = durationExpr
+//          .map(Duration.create)
+//          .getOrElse(Duration.create(d, TimeUnit.MILLISECONDS))
+
+      val dur = Duration.create(d, TimeUnit.MILLISECONDS)
+
+      if (eng.id == id) {
         DieselAppContext.getActorSystem.scheduler.scheduleOnce(
-          Duration.create(d, TimeUnit.MILLISECONDS),
+          dur,
           this.self,
           m
         )
@@ -168,13 +175,13 @@ class DomEngineActor (eng:DomEngine) extends Actor with Stash {
       else DieselAppContext.router.map(_ ! timer)
     }
 
-    case timer @ DEStartTimer(id,d,m) => {
+    case timer@DEStartTimer(id, d, m) => {
       // used when engines schedule stuff
-      if(eng.id == id) {
+      if (eng.id == id) {
         DieselAppContext.getActorSystem.scheduler.scheduleOnce(
           Duration.create(d, TimeUnit.MILLISECONDS),
           this.self,
-          DETimer(id,m)
+          DETimer(id, m)
         )
       }
       else DieselAppContext.router.map(_ ! timer)

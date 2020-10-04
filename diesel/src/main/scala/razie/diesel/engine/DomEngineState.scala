@@ -63,21 +63,26 @@ trait DomEngineState {
   protected def crdep(p:List[DomAst], d:List[DomAst]) = {
     d.map{d=>
       // d will wait
-      if(p.nonEmpty) evChangeStatus(d, DomState.DEPENDENT)
+      if (p.nonEmpty) evChangeStatus(d, DomState.DEPENDENT)
 
-      p.map{p=>
-        evAddDepy(p,d)
+      p.map { p =>
+        evAddDepy(p, d)
       }
     }
   }
 
   //========================== DDD
+  /**
+    * we keep a list of events with all the changes to the current engine (nodes status, parameters, new nodes etc)
+    *
+    * this is/will be used for persisting/recovering engines, distributed hot-hot etc
+    */
 
-  val events : ListBuffer[DEvent] = new ListBuffer[DEvent]()
+  val events: ListBuffer[DEvent] = new ListBuffer[DEvent]()
 
-  def addEvent(e:DEvent*) : Unit = {
+  def addEvent(e: DEvent*): Unit = {
     // collect events if needed
-    if(!settings.slaSet.contains(DieselSLASettings.NOPERSIST)) {
+    if (!settings.slaSet.contains(DieselSLASettings.NOPERSIST)) {
       events.append(e: _*)
     }
 

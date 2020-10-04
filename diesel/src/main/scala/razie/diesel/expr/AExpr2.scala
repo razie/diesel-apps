@@ -8,7 +8,6 @@ package razie.diesel.expr
 import org.json.JSONObject
 import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.dom._
-import razie.js
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.util.Try
@@ -158,6 +157,9 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
           }
 
           case _ => {
+            throw new DieselExprException(
+              "[ERR can't apply operator " + op + s" to ${a.getType} and ${b.getType}] (" + a + " , " + b + ")"
+            )
             PValue("[ERR can't apply operator " + op + s" to ${a.getType} and ${b.getType}]")
           }
         }

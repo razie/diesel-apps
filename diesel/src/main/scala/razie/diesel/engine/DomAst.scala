@@ -51,14 +51,14 @@ case class DomAst(
   def status_=(s:String): Unit = istatus = s
 
   /** timestamp started */
-  var tstart:Long = System.currentTimeMillis()
+  var tstart: Long = System.currentTimeMillis()
   /** timestamp started */
-  var tend:Long = System.currentTimeMillis()
+  var tend: Long = System.currentTimeMillis()
   /** execution sequence number - an engine is a single sequence */
-  var seqNo:Long = -1
+  var seqNo: Long = -1
 
   /** will force updates to go through a DES */
-  def appendAll(other:List[DomAst])(implicit engine: DomEngineState): Unit = {
+  def appendAll(other: List[DomAst])(implicit engine: DomEngineState): Unit = {
     engine.evAppChildren(this, other)
   }
 
@@ -82,19 +82,24 @@ case class DomAst(
   var specs: List[Any] = Nil
   var prereq: List[String] = Nil
 
-  /** depends on other nodes by IDs */
-  def withPrereq (s:List[String]) = {
-    prereq = (s ::: prereq).distinct  // distinct is important for some reason - hanoi fails mizerably otherwise
+  /** depends on other nodes by IDs
+    *
+    * this node will not start unless those prereq are complete
+    *
+    * engines strategies, tags and rules dictate how these prerequisites are setup
+    */
+  def withPrereq(s: List[String]) = {
+    prereq = (s ::: prereq).distinct  // distinct is important for some reason - hanoi fails miserably otherwise
     this
   }
 
   /** this node has a spec */
-  def withSpec (s:Any) = {
+  def withSpec(s: Any) = {
     specs = s :: specs
     this
   }
 
-  def withStatus (s:String) = {
+  def withStatus(s: String) = {
     this.status=s
     this
   }

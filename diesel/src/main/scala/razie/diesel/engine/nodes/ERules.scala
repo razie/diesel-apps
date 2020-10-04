@@ -5,7 +5,7 @@
  */
 package razie.diesel.engine.nodes
 
-import razie.{cdebug, clog, ctrace}
+import razie.ctrace
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.exec.EApplicable
@@ -317,7 +317,7 @@ case class ERule(e: EMatch, arch:String, i: List[EMap]) extends CanHtml with EAp
   }
 
   override def toHtml =
-    span(arch+"::", "default") +
+    span(arch + "::") + " " +
         e.asMsg.hrefBtnGlobal +
         s" ${e.toHtml} <br>${i.map(_.toHtml).mkString("<br>")} <br>"
 
@@ -347,7 +347,7 @@ case class EElse() extends CanHtml with EIf {
   override def toString = "$else "
 }
 
-// an expression condition
+/** an expression condition */
 case class EIfc(cond: BoolExpr) extends CanHtml with EIf {
   def test(e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
     // todo collect from bapply
@@ -357,7 +357,7 @@ case class EIfc(cond: BoolExpr) extends CanHtml with EIf {
   override def toString = "$ifc " + cond.toDsl
 }
 
-// $mock
+/** a mock, must like a rule */
 case class EMock(rule: ERule) extends CanHtml with HasPosition {
   var pos: Option[EPos] = rule.pos
 
@@ -367,7 +367,7 @@ case class EMock(rule: ERule) extends CanHtml with HasPosition {
   def count = rule.i.map(_.count).sum // todo is slow
 }
 
-// just a wrapper for type
+/** a typed variable */
 case class EVal(p: RDOM.P) extends CanHtml with HasPosition {
   def this(name: String, value: String) = this(P(name, value))
 

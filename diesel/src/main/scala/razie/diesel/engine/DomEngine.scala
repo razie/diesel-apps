@@ -83,7 +83,7 @@ abstract class DomEngine(
     if(synchronous) {
       m.map(processDEMsg)
     } else
-      m.map(m=>DieselAppContext.router.map(_ ! m))
+      m.map(m => DieselAppContext.router.map(_ ! m))
   }
 
   /** stop and discard this engine */
@@ -137,69 +137,75 @@ abstract class DomEngine(
     *
     * a is already assumed to have been stitched in the main tree
     *
-    * @param a find front from here down
-    * @param results - the results returned from a's executor
+    * @param parent  front from here down
+    * @param results - the results returned from a parent's executor
     * @return
     */
-  protected def findFront(a: DomAst, results:List[DomAst]): List[DomAst] = {
+  protected def findFront(parent: DomAst, results: List[DomAst]): List[DomAst] = {
     // any flows to shape it?
     var res = results
 
     // seq-par: returns the front of that branch and builds side effecting depys from those to the rest
-    def rec(e:FlowExpr) : List[DomAst] = e match {
+    def rec(e: FlowExpr): List[DomAst] = e match {
 
-        // sequential, create depys
+      // sequential, create depys
       case SeqExpr(op, l) if op == "+" => {
         val res = rec(l.head)
-        l.drop(1).foldLeft(res)((a,b)=> {
+        l.drop(1).foldLeft(res)((a, b) => {
           val bb = rec(b)
-          crdep(a,bb)
+          crdep(a, bb)
           bb
         })
         res
       }
 
-        // parallel, start them all
+      // parallel, start them all
       case SeqExpr(op, l) if op == "|" => {
         l.flatMap(rec).toList
       }
 
-      case MsgExpr(ea) => a.children.collect {
-        case n: DomAst if
-          n.value.isInstanceOf[EMsg] &&
-          n.value.asInstanceOf[EMsg].entity + "." + n.value.asInstanceOf[EMsg].met == ea
-          => n
+      // more seq-par
+      case BFlowExpr(ex) => rec(ex)
+
+      case MsgExpr(ea) => parent.children.collect {
+        case n: DomAst if n.value.isInstanceOf[EMsg] && n.value.asInstanceOf[EMsg].ea == ea => n
       }
 
-        // more seq-par
-      case BFlowExpr(ex) => rec(ex)
     }
 
-    // any seq/par flows apply to a ?
-    if(a.value.isInstanceOf[EMsg]) {
-      implicit val ctx: StaticECtx = new StaticECtx(a.value.asInstanceOf[EMsg].attrs, Some(this.ctx), Some(a))
-      flows.filter(_.e.test(a.value.asInstanceOf[EMsg])).map { f =>
-        res = rec(f.ex)
-      }
+    // any seq/par flows apply to a ? (a is the parent that generated these messages)
+    findFlows(parent).map { f =>
+      res = rec(f.ex)
     }
 
     // add explicit depys for results/children
-    results.filter(_.prereq.nonEmpty).map{res=>
-      crdep(res.prereq.flatMap(x=> root.find(x)), List(res))
+    // note - the strategy to exec logially sync or async rests with the V1, not here - see who populates prereq
+    results.filter(_.prereq.nonEmpty).map { res =>
+      crdep(res.prereq.flatMap(x => root.find(x)), List(res))
     }
 
-    res
-        .filter(a=> a.status != DomState.DEPENDENT && !DomState.isDone(a.status))
+    res.filter(a => a.status != DomState.DEPENDENT && !DomState.isDone(a.status))
   }
+
+  /** find any applicable flow directives */
+  def findFlows(parent: DomAst) = {
+    // any seq/par flows apply to a ? (a is the parent that generated these messages)
+    if (parent.value.isInstanceOf[EMsg]) {
+      implicit val ctx: StaticECtx = new StaticECtx(parent.value.asInstanceOf[EMsg].attrs, Some(this.ctx), Some(parent))
+      flows.filter(_.e.test(parent.value.asInstanceOf[EMsg]))
+    } else
+      Nil
+  }
+
 
   /** a decomp req - starts processing a message. these can be deferred async or recurse synchronously
     *
-    * @param a the node to decompose/process
+    * @param a       the node to decompose/process
     * @param recurse recurse or not
-    * @param level - current level, root is 0
+    * @param level   - current level, root is 0
     */
   protected def req(a: DomAst, recurse: Boolean = true, level: Int) {
-    var msgs : List[DEMsg] = Nil
+    var msgs: List[DEMsg] = Nil
 
     if(!DomState.isDone(a.status)) { // may have been skipped by others
       evChangeStatus(a, DomState.STARTED)

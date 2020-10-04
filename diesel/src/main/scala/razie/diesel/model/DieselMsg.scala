@@ -239,21 +239,21 @@ object DieselMsg {
     final val DIESEL_DEBUG = "diesel.debug"
     final val DIESEL_LATER = "diesel.later"
     final val DIESEL_REST = "diesel.rest"
-    final val DIESEL_SYNC = "diesel.engineSync"
-    final val DIESEL_ASYNC = "diesel.engineAsync"
+    final val DIESEL_SYNC = "diesel.engine.sync"
+    final val DIESEL_ASYNC = "diesel.engine.async"
     final val BEFORE = "before"
     final val AFTER = "after"
     final val DEBUG = "debug"
 
     final val DIESEL_MSG_ENTITY = "diesel.msg.entity"
     final val DIESEL_MSG_ACTION = "diesel.msg.action"
-    final val DIESEL_MSG_EA     = "diesel.msg.ea"
-    final val DIESEL_MSG_ATTRS  = "diesel.msg.attrs"
+    final val DIESEL_MSG_EA = "diesel.msg.ea"
+    final val DIESEL_MSG_ATTRS = "diesel.msg.attrs"
 
     final val DIESEL_ENG_SET = "diesel.engine.set"
 
     final val DIESEL_ENG_SETTINGS = "diesel.engine.settings"
-    final val DIESEL_ENG_DESC =     "diesel.engine.description"
+    final val DIESEL_ENG_DESC = "diesel.engine.description"
 
     final val ERR_NORULESMATCH = "ERR_DIESEL_NORULESMATCH"
   }
