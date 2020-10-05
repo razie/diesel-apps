@@ -223,9 +223,9 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
   * This is used to wrap async spawns ==> and
   * normal => when there's more than one (they start one at a time)
   *
-  * @param msg the message wrapped / to be executed next
-  * @param arrow - how to call next: wait => or no wait ==>
-  * @param cond optional condition for this step
+  * @param msg   the message wrapped / to be executed next
+  * @param arrow - how to call next: wait => or no wait ==> or spawn wait <=>
+  * @param cond  optional condition for this step
   * @param deferred
   */
 case class ENextPas(msg: EMsgPas, arrow: String, cond: Option[EIf] = None, deferred:Boolean=false, indentLevel:Int=0) extends CanHtml {

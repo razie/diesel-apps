@@ -10,7 +10,8 @@ import razie.wiki.model.WID
 /* global */
 object DieselAssets {
 
-  def mkLink(w: WID, path: String) = {
+  /** make a link to see the asset */
+  def mkLink(w: WID, path: String = "") = {
     w.cat match {
       case "DieselEngine" => {
         val x = s"""diesel/viewAst/${w.name}"""
@@ -20,7 +21,7 @@ object DieselAssets {
     }
   }
 
-  def mkEditLink(w: WID, path: String) = {
+  def mkEditLink(w: WID, path: String = "") = {
     w.cat match {
       case "DieselEngine" => {
         val x = s"""diesel/viewAst/${w.name}"""
@@ -29,4 +30,16 @@ object DieselAssets {
       case _ => s"""wikie/editold/$path"""
     }
   }
+
+  /** make a link to see the asset */
+  def mkAhref(w: WID, path: String = "") = {
+    w.cat match {
+      case "DieselEngine" => {
+        // todo what's diff /diesel/engine/view vs /diesel/viewAst
+        s"""<a href="/diesel/engine/view/${w.name}">${w.name}</a>"""
+      }
+      case _ => s"""wiki/$path"""
+    }
+  }
+
 }

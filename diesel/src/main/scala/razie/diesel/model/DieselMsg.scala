@@ -7,11 +7,11 @@
 package razie.diesel.model
 
 import razie.audit.Audit
-import razie.{clog, cout}
-import razie.diesel.engine.{DieselAppContext, DomEngineSettings}
+import razie.diesel.engine.DomEngineSettings
 import razie.diesel.samples.DomEngineUtils
 import razie.tconf.{SpecPath, TSpecPath, TagQuery}
 import razie.wiki.model.{WID, WikiSearch}
+import razie.{clog, cout}
 
 /** a message string - send these to Services to have them executed
   *
@@ -222,25 +222,37 @@ object DieselMsg {
 
   object SCOPE {
     final val ENTITY = "diesel.scope"
-    final val DIESEL_PUSH ="diesel.scope.push"
+    final val DIESEL_PUSH = "diesel.scope.push"
     final val DIESEL_POP = "diesel.scope.pop"
+  }
+
+  object STREAMS {
+    final val CREATE = "new"
+    final val STREAM_PUT = "diesel.stream.put"
+    final val STREAM_ONDATA = "diesel.stream.onData"
+    final val STREAM_ONDATASLICE = "diesel.stream.onDataSlice"
+    final val STREAM_ONDONE = "diesel.stream.onDone"
+    final val STREAM_ONERROR = "diesel.stream.onError"
   }
 
   object ENGINE {
     final val ENTITY = "diesel"
     final val VALS = "vals"
+    final val DIESEL_VALS = "diesel.vals"
+    final val DIESEL_BEFORE = "diesel.before"
+    final val DIESEL_AFTER = "diesel.after"
     final val DIESEL_RETURN = "diesel.return"
     final val DIESEL_THROW = "diesel.throw"
     final val DIESEL_TRY = "diesel.try"
     final val DIESEL_CATCH = "diesel.catch"
-    final val DIESEL_VALS = "diesel.vals"
-    final val DIESEL_BEFORE = "diesel.before"
-    final val DIESEL_AFTER = "diesel.after"
     final val DIESEL_DEBUG = "diesel.debug"
     final val DIESEL_LATER = "diesel.later"
+    final val DIESEL_WHILE = "diesel.while"
+    final val DIESEL_MAP = "diesel.map"
     final val DIESEL_REST = "diesel.rest"
     final val DIESEL_SYNC = "diesel.engine.sync"
     final val DIESEL_ASYNC = "diesel.engine.async"
+    final val DIESEL_PONG = "diesel.engine.pong"
     final val BEFORE = "before"
     final val AFTER = "after"
     final val DEBUG = "debug"

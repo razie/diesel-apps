@@ -8,7 +8,7 @@ package razie.diesel.engine.nodes
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.AstKinds
-import razie.diesel.expr.{AExprIdent, ECtx, Expr, SimpleExprParser, StaticECtx}
+import razie.diesel.expr._
 import razie.tconf.EPos
 import scala.Option.option2Iterable
 import scala.util.Try
@@ -101,7 +101,8 @@ case class EMapCls(cls: String, met: String, attrs: Attrs, arrow:String="=>", co
           .withPos(this.pos.orElse(apos))
           .withSpec(destSpec)
 
-      if(arrow == "==>" || cond.isDefined || deferEvaluation)
+      // wrap in a delayer or not?
+      if (cond.isDefined || deferEvaluation || arrow == "==>" || arrow == "<=>")
         ENext(m, arrow, cond, deferEvaluation, indentLevel)
             .withParent(in)
             .withSpec(destSpec)

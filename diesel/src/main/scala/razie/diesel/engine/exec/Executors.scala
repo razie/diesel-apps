@@ -62,12 +62,26 @@ trait EApplicable {
   * @param name - the name of this executor
   */
 abstract class EExecutor (val name:String) extends EApplicable {
+
+  /** is this applicable to the given message?
+    *
+    * the default implementation matches a single message name to the name of the executor
+    *
+    * @param m    the message to test applicability on
+    * @param cole collect match/no-match info
+    * @param ctx  context
+    * @return true/false if this executor can execute this message. it's up to the engine's strategy to use this info
+    */
+  override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx): Boolean = {
+    m.ea == name
+  }
+
   /** the list of message specs for this executor - overwrite and return them for content assist. this is not neccessary
     * for the functioning of the executor - it's just for content assist
     *
     * it is preferable and easier to have them defined in one of the specs included in your flows
     */
-  def messages : List[EMsg] = Nil
+  def messages: List[EMsg] = Nil
 }
 
 /** manage all executors */

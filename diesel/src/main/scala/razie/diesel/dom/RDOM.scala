@@ -13,7 +13,6 @@ import razie.diesel.expr._
 import razie.js
 import razie.wiki.Enc
 import scala.collection.mutable.HashMap
-import scala.collection.parallel.mutable
 import scala.concurrent.Future
 
 /**
@@ -189,13 +188,15 @@ object RDOM {
     * @deprecated
     */
   object P {
-    def fromSmartTypedValue(name:String, v:Any) : P = v match {
-      case s:String if s.trim.startsWith("{") => P.fromTypedValue(name, s, WTypes.JSON)
-      case s:String if s.trim.startsWith("[") => P.fromTypedValue(name, s, WTypes.ARRAY)
+    def of(name: String, v: Any): P = fromSmartTypedValue(name, v)
+
+    def fromSmartTypedValue(name: String, v: Any): P = v match {
+      case s: String if s.trim.startsWith("{") => P.fromTypedValue(name, s, WTypes.JSON)
+      case s: String if s.trim.startsWith("[") => P.fromTypedValue(name, s, WTypes.ARRAY)
       case _ => P.fromTypedValue(name, v)
     }
 
-    def fromTypedValue(name:String, v:Any, expectedType:String):P =
+    def fromTypedValue(name: String, v: Any, expectedType: String): P =
       fromTypedValue(name, v, WType(expectedType))
 
     /** construct proper typed values */

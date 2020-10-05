@@ -12,16 +12,23 @@ import scala.collection.mutable.ListBuffer
 
 /** DDD - base trait for events */
 trait DEvent {
-  def dtm : DateTime
+  def dtm: DateTime
 }
 
 /** DDD - node expanded */
-case class DEventExpNode(nodeId:String, children:List[DomAst], dtm:DateTime=DateTime.now) extends DEvent with CanHtml {
+case class DEventAddStream(stream: DomStream, dtm: DateTime = DateTime.now) extends DEvent with
+    CanHtml {
+  override def toHtml = s"EvAddStream: ${stream.name}"
+}
+
+/** DDD - node expanded */
+case class DEventExpNode(nodeId: String, children: List[DomAst], dtm: DateTime = DateTime.now) extends DEvent with
+    CanHtml {
   override def toHtml = s"EvExpNode: $nodeId, ${children.map(_.toString).mkString}"
 }
 
 /** DDD - node status */
-case class DEventNodeStatus(nodeId:String, status:String, dtm:DateTime=DateTime.now) extends DEvent with CanHtml {
+case class DEventNodeStatus(nodeId: String, status: String, dtm: DateTime = DateTime.now) extends DEvent with CanHtml {
   override def toHtml = s"EvNodeStatus: $nodeId, $status}"
 }
 
@@ -44,17 +51,19 @@ trait DomEngineState {
   var seqNo = 0 // each node being processed in sequence, gets a stamp here, so you can debug what runs in parallel
   def seq() = {
     val t = seqNo
-    seqNo = seqNo +1
+    seqNo = seqNo + 1
     t
   }
 
+  var ownedStreams: ListBuffer[DomStream] = new ListBuffer[DomStream]
+
   // we need settings
-  def settings : DomEngineSettings
+  def settings: DomEngineSettings
 
   // setup the context for this eval
-  implicit def ctx : ECtx
+  implicit def ctx: ECtx
 
-  def n(id:String):DomAst
+  def n(id: String): DomAst
 
   /** dependencies */
   protected val depys = ListBuffer[DADepy]()
@@ -89,6 +98,12 @@ trait DomEngineState {
     //
     e collect {
 
+      case DEventAddStream(stream, _) => {
+        ownedStreams.append(stream)
+
+        this.curExpands = curExpands + 1
+      }
+
       case DEventExpNode(parentId, children, _) => {
         // must add directly to children, to avoid recursing
         n(parentId).childrenCol appendAll children
@@ -100,20 +115,23 @@ trait DomEngineState {
         n(parentId).status = status
 
       case DADepyEv(pId, dId, _) =>
-        depys.append(DADepy(n(pId),n(dId)))
+        depys.append(DADepy(n(pId), n(dId)))
     }
   }
 
   // todo it's faster here where i have the node handles than looking it up by id above...
 
-  def evAppChildren (parent:DomAst, children:DomAst) : Unit =
+  def evAppStream(stream: DomStream): Unit =
+    addEvent(DEventAddStream(stream))
+
+  def evAppChildren(parent: DomAst, children: DomAst): Unit =
     evAppChildren(parent, List(children))
 
-  def evAppChildren (parent:DomAst, children:List[DomAst]) : Unit = {
+  def evAppChildren(parent: DomAst, children: List[DomAst]): Unit = {
     addEvent(DEventExpNode(parent.id, children))
   }
 
-  private[engine] def evChangeStatus (node:DomAst, status:String) : Unit = {
+  private[engine] def evChangeStatus(node: DomAst, status: String): Unit = {
 //    node.status = status
     addEvent(DEventNodeStatus(node.id, status))
   }

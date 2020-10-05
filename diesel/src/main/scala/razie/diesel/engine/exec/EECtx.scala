@@ -35,7 +35,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
   override def isMock: Boolean = true
 
   override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
-    m.entity == CTX
+    m.entity == CTX // todo why not && messages.exists(_.met == m.met)
   }
 
   override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = {
@@ -404,8 +404,11 @@ class EECtx extends EExecutor(EECtx.CTX) {
 
       case "timer" => {
         val d = in.attrs.find(_.name == "duration").map(_.currentStringValue.toInt).getOrElse(1000)
-        val m = in.attrs.find(_.name == "msg").map(_.currentStringValue).getOrElse("$msg ctx.echo (msg=\"timer without message\")")
-        DieselAppContext.router.map(_ ! DEStartTimer("x", d, Nil))
+        val m = in.attrs.find(_.name == "msg").map(_.currentStringValue).getOrElse(
+          "$msg ctx.echo (msg=\"timer without message\")")
+
+        DieselAppContext ! DEStartTimer("x", d, Nil)
+
         new EInfo("ctx.timer - start " + d) :: Nil
       }
 
@@ -418,10 +421,10 @@ class EECtx extends EExecutor(EECtx.CTX) {
         3. continuation DEComplete
          */
 
-        val d = in.attrs.find(_.name == "duration").map(_.currentStringValue.toInt).getOrElse(1000)
+        val d = in.attrs.find(_.name == "duration").map(_.calculatedTypedValue.asInt).getOrElse(1000)
         EInfo("ctx.sleep - slept " + d) ::
             EEngSuspend("ctx.sleep", "", Some((e, a, l) => {
-              DieselAppContext.router.map(_ ! DELater(e.id, d, DEComplete(e.id, a, recurse = true, l, Nil)))
+              DieselAppContext ! DELater(e.id, d, DEComplete(e.id, a.id, recurse = true, l, Nil))
             })) ::
             Nil
       }

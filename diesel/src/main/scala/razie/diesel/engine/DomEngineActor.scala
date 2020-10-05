@@ -9,8 +9,10 @@ import akka.actor.{Actor, Stash}
 import java.util.concurrent.TimeUnit
 import razie.audit.Audit
 import razie.clog
+import razie.diesel.dom.RDOM.P
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
+import scala.util.Try
 
 
 /** ====================== Actor infrastructure =============== */
@@ -24,7 +26,7 @@ trait DEMsg {
   *
   * The engine will decompose the given node a and send to self a DERep
   */
-case class DEReq (engineId:String, a:DomAst, recurse:Boolean, level:Int) extends DEMsg
+case class DEReq(engineId: String, a: DomAst, recurse: Boolean, level: Int) extends DEMsg
 
 /** a message - reply to decompose, basically asynchronous completion of a message
   *
@@ -32,27 +34,35 @@ case class DEReq (engineId:String, a:DomAst, recurse:Boolean, level:Int) extends
   *
   * send this from async executors
   */
-case class DERep      (engineId:String, a:DomAst, recurse:Boolean, level:Int, results:List[DomAst]) extends DEMsg
-case class DEComplete (engineId:String, a:DomAst, recurse:Boolean, level:Int, results:List[DomAst]) extends DEMsg
+case class DERep(engineId: String, a: DomAst, recurse: Boolean, level: Int, results: List[DomAst]) extends DEMsg
+
+case class DEComplete(engineId: String, targetId: String, recurse: Boolean, level: Int, results: List[DomAst])
+    extends DEMsg
+
+/** like DEComplete but just expand, not done yet */
+case class DEExpand(engineId: String, targetId: String, recurse: Boolean, level: Int, results: List[DomAst])
+    extends DEMsg
 
 /** initialize and stop the engine */
-case object DEInit extends DEMsg { override def engineId = ""}
-case object DEStop extends DEMsg { override def engineId = ""}
+case object DEInit extends DEMsg {override def engineId = ""}
+
+case object DEStop extends DEMsg {override def engineId = ""}
 
 /** suspend the engine for async messages - to continue you have to fire off a DERep yourself, later */
-case object DESuspend extends DEMsg { override def engineId = ""}
+case object DESuspend extends DEMsg {override def engineId = ""}
 
 /** send the next message later */
 case class DELater(engineId: String, d: Int, next: DEMsg, durationExpr: Option[String] = None) extends DEMsg
 
-case class DEStartTimer (engineId:String, d:Int, results:List[DomAst]) extends DEMsg
-case class DETimer      (engineId:String, results:List[DomAst]) extends DEMsg
+case class DEStartTimer(engineId: String, d: Int, results: List[DomAst]) extends DEMsg
+
+case class DETimer(engineId: String, results: List[DomAst]) extends DEMsg
 
 /** error handling
   *
   * todo should not be part of normal processing DEMsg
   */
-case class DEError      (engineId:String, msg:String) extends DEMsg
+case class DEError(engineId: String, msg: String) extends DEMsg
 
 /**
   * engine router - routes updates to proper engine actor
@@ -87,13 +97,24 @@ class DomEngineRouter () extends Actor {
     }
 
     // all DE messages share routing
-    case m : DEMsg => route(m.engineId, m)
+    case m: DEMsg => route(m.engineId, m)
 
+    // all DES messages share routing
+    case m: DESMsg => {
+      DieselAppContext.activeStreamsByName
+          .get(m.streamName)
+          .map(x => {route(x.id, m); ""})
+          .getOrElse(
+            clog << "DomEngine Router DROP STREAM message " + m
+            // todo recover failed workflows
+            // todo distributed routing
+          )
+    }
   }
 
-  def route (id:String, msg:DEMsg) = {
+  def route(id: String, msg: Any) = {
     DieselAppContext.activeActors.get(id).map(_ ! msg).getOrElse(
-      clog << "DomEngine Router DROP message "+msg
+      clog << "DomEngine Router DROP message " + msg
       // todo recover failed workflows
       // todo distributed routing
     )
@@ -107,10 +128,10 @@ class DomEngineRouter () extends Actor {
   *
   * an engine will parallelize as much as async is built-into their activities
   */
-class DomEngineActor (eng:DomEngine) extends Actor with Stash {
+class DomEngineActor(eng: DomEngine) extends Actor with Stash {
 
-  def checkInit : Boolean = {
-    if(!DieselAppContext.serviceStarted) {
+  def checkInit: Boolean = {
+    if (!DieselAppContext.serviceStarted) {
       // if not started, stash the message for now
       stash()
       false
@@ -126,24 +147,41 @@ class DomEngineActor (eng:DomEngine) extends Actor with Stash {
       unstashAll()
     }
 
-    case req @ DEReq(eid, a, r, l) if checkInit => {
-      if(eng.id == eid) eng.processDEMsg(req)
+    case req@DEReq(eid, a, r, l) if checkInit => {
+      if (eng.id == eid) Try {
+        eng.processDEMsg(req)
+      }
       else DieselAppContext.router.map(_ ! req)
     }
 
-    case rep @ DERep(eid, a, r, l, results) if checkInit => {
+    case rep@DERep(eid, a, r, l, results) if checkInit => {
       checkInit
-      if(eng.id == eid) {
-        eng.processDEMsg(rep)
+      if (eng.id == eid) {
+        Try {
+          eng.processDEMsg(rep)
+        }
       } else {
         DieselAppContext.router.map(_ ! rep)
       }
     }
 
-    case rep @ DEComplete(eid, a, r, l, results) if checkInit => {
+    case rep@DEComplete(eid, a, r, l, results) if checkInit => {
       checkInit
-      if(eng.id == eid) {
-        eng.processDEMsg(rep)
+      if (eng.id == eid) {
+        Try {
+          eng.processDEMsg(rep)
+        }
+      } else {
+        DieselAppContext.router.map(_ ! rep)
+      }
+    }
+
+    case rep@DEExpand(eid, a, r, l, results) if checkInit => {
+      checkInit
+      if (eng.id == eid) {
+        Try {
+          eng.processDEMsg(rep)
+        }
       } else {
         DieselAppContext.router.map(_ ! rep)
       }
@@ -187,9 +225,9 @@ class DomEngineActor (eng:DomEngine) extends Actor with Stash {
       else DieselAppContext.router.map(_ ! timer)
     }
 
-    case timer @ DETimer(id,m) => {
+    case timer@DETimer(id, m) => {
       // used when engines schedule stuff
-      if(eng.id == id) {
+      if (eng.id == id) {
       }
       else DieselAppContext.router.map(_ ! timer)
     }
@@ -201,4 +239,108 @@ class DomEngineActor (eng:DomEngine) extends Actor with Stash {
   }
 }
 
+
+/** each stream has its own actor
+  *
+  * it will serialize status udpates and execution
+  *
+  * an engine will parallelize as much as async is built-into their activities
+  */
+class DomStreamActor(stream: DomStream) extends Actor with Stash {
+
+  def checkInit: Boolean = {
+    if (!DieselAppContext.serviceStarted) {
+      // if not started, stash the message for now
+      stash()
+      false
+    } else
+      true
+  }
+
+  def receive = {
+
+    case DEInit => {
+      //save refs for active engines
+      // started, take all stashed messages
+      unstashAll()
+    }
+
+    case req@DESPut(name, l) if checkInit => {
+      if (stream.name == name) Try {
+        stream.put(l)
+      }
+      else DieselAppContext.router.map(_ ! req)
+    }
+
+    case req@DESConsume(name) => {
+      if (stream.name == name) {
+        Try {
+          stream.consume()
+        }
+      }
+      else DieselAppContext.router.map(_ ! req)
+    }
+
+    case req@DESDone(name) => {
+      if (stream.name == name) {
+        Try {
+          stream.done()
+        }
+      }
+      else DieselAppContext.router.map(_ ! req)
+    }
+
+    case req@DESClean(name) => {
+      if (stream.name == name) {
+        //remove refs for active engines
+        DieselAppContext.activeStreams.remove(stream.id)
+        DieselAppContext.activeStreamsByName.remove(stream.name)
+        DieselAppContext.activeActors.remove(stream.id)
+        context stop self
+      }
+      else DieselAppContext.router.map(_ ! req)
+    }
+
+    case req@DESDone(name) => {
+      if (stream.name == name) {
+        Try {
+          stream.done()
+        }
+      }
+      else DieselAppContext.router.map(_ ! req)
+    }
+
+    case req@DESError(name, parms) => {
+      if (stream.name == name) {
+        Try {
+          stream.error(parms)
+        }
+      }
+      else DieselAppContext.router.map(_ ! req)
+    }
+  }
+
+  override def postStop() = {
+    // assert it's stopped
+    // DieselAppContext.activeActors.remove(eng.id)
+  }
+}
+
+
+/** base class for streams internal message */
+trait DESMsg {
+  def streamName: String
+}
+
+/** put in stream
+  */
+case class DESPut(streamName: String, l: List[Any]) extends DESMsg
+
+case class DESConsume(streamName: String) extends DESMsg
+
+case class DESDone(streamName: String) extends DESMsg
+
+case class DESClean(streamName: String) extends DESMsg
+
+case class DESError(streamName: String, l: List[P]) extends DESMsg
 

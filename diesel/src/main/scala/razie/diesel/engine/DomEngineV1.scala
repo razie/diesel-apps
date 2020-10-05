@@ -19,7 +19,7 @@ import razie.hosting.Website
 import razie.js
 import razie.tconf.DSpec
 import scala.Option.option2Iterable
-import scala.collection.mutable.HashMap
+import scala.collection.mutable.{HashMap, ListBuffer}
 import scala.util.Try
 
 /** the actual engine implementation
@@ -30,11 +30,12 @@ class DomEngineV1(
   dom: RDomain,
   root: DomAst,
   settings: DomEngineSettings,
-  pages : List[DSpec],
-  description:String,
-  id:String = new ObjectId().toString)
-    extends DomEngine (
-  dom, root, settings, pages, description, id
+  pages: List[DSpec],
+  description: String,
+  correlationId: Option[String] = None,
+  id: String = new ObjectId().toString)
+    extends DomEngine(
+      dom, root, settings, pages, description, correlationId, id
     ) {
 
   assert(settings.realm.isDefined, "need realm defined for engine settings")
@@ -44,7 +45,7 @@ class DomEngineV1(
     * 1. you can collect children of the current node, like info nodes etc
     * 2. return continuations, including processing through the children
     *
-    * @param a node to decompose
+    * @param a       node to decompose
     * @param recurse should recurse
     * @param level
     * @return continuations
@@ -74,19 +75,27 @@ class DomEngineV1(
 
       case stop : EEngStop => {
         // stop engine
-        evAppChildren(a, DomAst(EInfo(s"""Stopping engine <a href="/diesel/engine/view/${this.id}">${this.id}</a>""")))//.withPos((m.get.pos)))
+        evAppChildren(a, DomAst(EInfo(s"""Stopping engine $href""")))//.withPos((m.get.pos)))
         stopNow
       }
 
       case stop : EEngSuspend => {
         // suspend and wait for a continuation async
         evAppChildren(a,
-          DomAst(EInfo(s"""Suspending engine <a href="/diesel/engine/view/${this.id}">${this.id}</a>""")))
+          DomAst(EInfo(s"""Suspending engine $href""")))
         //.withPos((m.get.pos)))
-        stop.onSuspend.foreach(_.apply(this, a, level))
+        try {
+          stop.onSuspend.foreach(_.apply(this, a, level))
+        } catch {
+          case e: Exception => {
+            msgs = rep(a, recurse, level, List(
+              DomAst(new EError("While calling suspend callback", e), AstKinds.ERROR)
+            ))
+          }
+        }
       }
 
-      case next@ENext(m, "==>", cond, _, _) => {
+      case next@ENext(m, arrow, cond, _, _) if "==>" == arrow || "<=>" == arrow => {
         // forking new engine / async branch
         implicit val ctx = mkMsgContext(
           next.parent,
@@ -94,12 +103,35 @@ class DomEngineV1(
           this.ctx,
           a)
 
-        // start new engine/process
+        // start new engine/process - evaluate this message as the root of new engine
         // todo should find settings for target service  ?
-        val eng = spawn(List(DomAst(next.evaluateMsg)))
+        val spawnedNodes = ListBuffer(DomAst(next.evaluateMsg))
+        var correlationId = this.id
+
+        if ("<=>" == arrow) {
+          val suspend =
+            DomAst(EEngSuspend("spawn <=>", "Waiting for spawned engine", Some((e, a, l) => {
+            })))
+
+          // make sure the other engine knows it has to notify me
+          correlationId = correlationId + "." + suspend.id
+
+          msgs = rep(a, recurse, level, List(suspend))
+        }
+
+        // create new engine
+        val eng = spawn(spawnedNodes.toList, Some(correlationId))
+
         eng.process // start it up in the background
-        evAppChildren(a, DomAst(EInfo(s"""Spawn engine <a href="/diesel/engine/view/${eng.id}">${eng.id}</a>""")))//.withPos((m.get.pos)))
-        // no need to return anything - children have been decomposed
+
+        // todo use mkLink for asset, not hardcode url
+        evAppChildren(a, DomAst(EInfo(
+          s"""Spawn $arrow engine ${eng.href}""")))//.withPos((m.get.pos)))
+
+        if ("<=>" == arrow) {
+        }
+
+        // else no need to return anything - children have been decomposed
       }
 
       case n1@ENext(m, ar, cond, _, _) if "-" == ar || "=>" == ar => {
@@ -189,19 +221,6 @@ class DomEngineV1(
       }
     }
     msgs
-  }
-
-  /** make a static context for children */
-  protected def mkMsgContext (in:Option[EMsg], attrs:List[P], parentCtx:ECtx, a:DomAst) = {
-    new StaticECtx(
-      in.map(in=>P.fromTypedValue(DIESEL_MSG_ENTITY, in.entity)).toList :::
-      in.map(in=>P.fromTypedValue(DIESEL_MSG_ACTION, in.met)).toList :::
-      in.map(in=>P.fromTypedValue(DIESEL_MSG_EA, in.ea)).toList :::
-          // todo avoid this every time - lazy parms ?
-      List(P.fromTypedValue(DIESEL_MSG_ATTRS, attrs.map(p=> (p.name, p.calculatedTypedValue(parentCtx).value)).toMap)) :::
-      attrs,
-      Some(parentCtx),
-      Some(a))
   }
 
   /** expand a single message */
@@ -710,6 +729,18 @@ class DomEngineV1(
 
       true
 
+    } else if (ea == DieselMsg.ENGINE.DIESEL_PONG) {
+
+      // expand vals
+      val nctx = mkMsgContext(Some(in), calcMsg(in)(ctx).attrs, ctx, a)
+
+      val parentId = nctx.getRequired("parentId")
+      val targetId = nctx.getRequired("targetId")
+      val level = nctx.getRequired("level").toInt
+
+      notifyParent(a, parentId, targetId, level)
+      true
+
     } else if (ea == DieselMsg.ENGINE.DIESEL_VALS) {
 
       // expand all spec vals
@@ -786,6 +817,58 @@ class DomEngineV1(
           evAppChildren(a, DomAst(EInfo("updated..."), AstKinds.DEBUG))
         }
       }
+      true
+
+    } else if (ea == DieselMsg.ENGINE.DIESEL_MAP) {
+
+      var info: List[Any] = Nil
+
+      info = EInfo(s"engine msg") :: info
+
+      // l can be a constant with another parm name OR the actual array
+      val list = {
+        val l = ctx.getRequiredp(Diesel.PAYLOAD).calculatedP
+        if (l.isOfType(WTypes.wt.ARRAY)) {
+          l
+        } else if (l.isOfType(WTypes.wt.STRING)) {
+          ctx.getRequiredp(l.currentStringValue)
+        } else {
+          info = EWarning(s"Can't source input list - what type is it? ${l}") :: info
+          P("", "", WTypes.wt.UNDEFINED) //throw new IllegalArgumentException(s"Can't source input list: $ctxList")
+        }
+      }
+
+      razie.js.parse(s"{ list : ${list.currentStringValue} }").apply("list") match {
+
+        case l: collection.Seq[Any] => {
+          // passing any other parameters that were given to foreach
+
+          l.map { item: Any =>
+            // for each item in list, create message
+            val itemP = P.fromTypedValue(Diesel.PAYLOAD, item)
+            val m = EMsg("diesel", "mapItem", itemP :: Nil)
+            evAppChildren(a, DomAst(m, AstKinds.GENERATED))
+          }.toList
+        }
+
+        case x@_ => {
+          List(EError("value to iterate on was not a list", x.getClass.getName) :: info)
+        }
+
+      }
+
+      info.map { x =>
+        evAppChildren(a, DomAst(x, AstKinds.TRACE))
+      }
+
+      // expand all spec vals
+      dom.moreElements.collect {
+        case v: EVal => {
+          evAppChildren(a, DomAst(v, AstKinds.TRACE))
+          this.ctx.put(v.p)
+        }
+      }
+
       true
 
     } else {

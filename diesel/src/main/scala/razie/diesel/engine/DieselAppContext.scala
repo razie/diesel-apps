@@ -5,7 +5,7 @@
  **/
 package razie.diesel.engine
 
-import akka.actor.{ActorRef, ActorSystem, Props}
+import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import razie.Logging
 import razie.audit.Audit
 import razie.diesel.dom.RDomain
@@ -22,8 +22,9 @@ class DieselEngineFactory(node: String, app: String) {
                root: DomAst,
                settings: DomEngineSettings,
                pages: List[DSpec],
-               description: String) =
-    new DomEngineV1(dom, root, settings, pages, description)
+               description: String,
+               correlationId: Option[String] = None) =
+    new DomEngineV1(dom, root, settings, pages, description, correlationId)
 }
 
 /** a diesel application context - actor infrastructure, engine management, cache etc
@@ -39,11 +40,13 @@ object DieselAppContext extends Logging {
   @volatile private var engineFactory: Option[DieselEngineFactory] = None
 
   implicit def executionContext =
-    if(simpleMode) ExecutionContext.Implicits.global
+    if (simpleMode) ExecutionContext.Implicits.global
     else getActorSystem.dispatchers.lookup(DIESEL_DISPATCHER)
 
   /** active engines -ussed for routing so weak concurrent control ok */
   val activeEngines = new TrieMap[String, DomEngine]()
+  val activeStreams = new TrieMap[String, DomStream]()
+  val activeStreamsByName = new TrieMap[String, DomStream]()
   val activeActors = new TrieMap[String, ActorRef]()
 
   /** router - routes messages to individual engines */
@@ -114,6 +117,7 @@ object DieselAppContext extends Logging {
         new EETest ::
         new EEFunc ::
         new EEFormatter ::
+        new EEStreams ::
         Nil map Executors.add
   }
 
@@ -150,9 +154,10 @@ object DieselAppContext extends Logging {
                root: DomAst,
                settings: DomEngineSettings,
                pages: List[DSpec],
-               description: String) = synchronized {
+               description: String,
+               correlationId: Option[String] = None) = synchronized {
 
-    val eng = ctx.mkEngine(dom, root, settings, pages, description)
+    val eng = ctx.mkEngine(dom, root, settings, pages, description, correlationId)
     val p = Props(new DomEngineActor(eng))
     val a = actorOf(p, name = "engine-" + eng.id)
 
@@ -164,6 +169,22 @@ object DieselAppContext extends Logging {
     }
 
     eng
+  }
+
+  /** the static version - delegates to factory */
+  def mkStream(stream: DomStream) = synchronized {
+    val p = Props(new DomStreamActor(stream))
+    val a = actorOf(p, name = "stream-" + stream.id)
+
+    DieselAppContext.activeStreamsByName.put(stream.name, stream)
+    DieselAppContext.activeStreams.put(stream.id, stream)
+    DieselAppContext.activeActors.put(stream.id, a)
+
+    if (serviceStarted) {
+      a ! DEInit
+    }
+
+    stream
   }
 
   /** these actors won't start processing unless this module/service is "started"
@@ -184,8 +205,16 @@ object DieselAppContext extends Logging {
 
       Audit.logdb(
         "DEBUG",
-        s"Starting all engines... ${ activeActors.size} engines waiting"
+        s"Starting all engines... ${activeActors.size} engines waiting"
       )
+    }
+  }
+
+  /** send a message via the router */
+  def !(message: Any)(implicit sender: ActorRef = Actor.noSender): Unit = {
+    router.map(_ ! message)
+    if (router.isEmpty) {
+      throw new IllegalStateException("DieselAppContext.router not initialized?")
     }
   }
 
@@ -194,6 +223,6 @@ object DieselAppContext extends Logging {
   def ctx = engineFactory.getOrElse(init())
 
   def report =
-    s"Engines: ${ activeEngines.size} - running: ${ activeEngines.values.filter(_.status == DomState.DONE).size}"
+    s"Engines: ${activeEngines.size} - running: ${activeEngines.values.filter(_.status == DomState.DONE).size}"
 }
 

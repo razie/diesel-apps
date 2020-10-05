@@ -5,6 +5,7 @@
  */
 package razie.diesel.engine
 
+import controllers.DieselAssets
 import org.bson.types.ObjectId
 import razie.Logging
 import razie.diesel.Diesel
@@ -13,8 +14,10 @@ import razie.diesel.dom.RDomain
 import razie.diesel.engine.nodes._
 import razie.diesel.expr._
 import razie.diesel.model.DieselMsg
+import razie.diesel.model.DieselMsg.ENGINE.{DIESEL_MSG_ACTION, DIESEL_MSG_ATTRS, DIESEL_MSG_EA, DIESEL_MSG_ENTITY}
 import razie.diesel.utils.DomCollector
 import razie.tconf.DSpec
+import razie.wiki.model.WID
 import scala.Option.option2Iterable
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -34,53 +37,91 @@ trait InfoNode // just a marker for useless info nodes
   *
   * The DomEngineExec is the actual implementation
   *
+  * @param correlationId is parentEngineID.parentSuspendID - if dot is missing, this was a fire/forget
+  *
   */
 abstract class DomEngine(
   val dom: RDomain,
   val root: DomAst,
   val settings: DomEngineSettings,
-  val pages : List[DSpec],
-  val description:String,
-  val id:String = new ObjectId().toString) extends Logging with DomEngineState with DomRoot with DomEngineExpander {
+  val pages: List[DSpec],
+  val description: String,
+  val correlationId: Option[String] = None,
+  val id: String = new ObjectId().toString) extends Logging with DomEngineState with DomRoot with DomEngineExpander {
 
   assert(settings.realm.isDefined, "need realm defined for engine settings")
+
+  def wid = WID("DieselEngine", id)
+
+  def href = DieselAssets.mkAhref(WID("DieselEngine", this.id))
 
   var synchronous = false
   implicit val engine: DomEngineState = this
 
   // setup the context for this eval
-  implicit var ctx : ECtx = new DomEngECtx(settings)
-    .withEngine(this)
-    .withDomain(dom)
-    .withSpecs(pages)
-    .withCredentials(settings.userId)
-    .withHostname(settings.node)
+  implicit var ctx: ECtx = new DomEngECtx(settings)
+      .withEngine(this)
+      .withDomain(dom)
+      .withSpecs(pages)
+      .withCredentials(settings.userId)
+      .withHostname(settings.node)
 
   /** myself */
   def href (format:String="") = s"/diesel/engine/view/$id?format=$format"
 
   val rules = dom.moreElements.collect {
-    case e:ERule => e
+    case e: ERule => e
   }
 
   val flows = dom.moreElements.collect {
-    case e:EFlow => e
+    case e: EFlow => e
   }
 
   //==========================
 
+  /** make a static context for children */
+  protected def mkMsgContext(in: Option[EMsg], attrs: List[P], parentCtx: ECtx, a: DomAst) = {
+    new StaticECtx(
+      in.map(in => P.fromTypedValue(DIESEL_MSG_ENTITY, in.entity)).toList :::
+          in.map(in => P.fromTypedValue(DIESEL_MSG_ACTION, in.met)).toList :::
+          in.map(in => P.fromTypedValue(DIESEL_MSG_EA, in.ea)).toList :::
+          // todo avoid this every time - lazy parms ?
+          List(P.fromTypedValue(DIESEL_MSG_ATTRS,
+            attrs.map(p => (p.name, p.calculatedTypedValue(parentCtx).value)).toMap)) :::
+          attrs,
+      Some(parentCtx),
+      Some(a))
+  }
+
   /** spawn new engine */
-  protected def spawn (nodes:List[DomAst]) = {
+  protected def spawn(nodes: List[DomAst], correlationId: Option[String]) = {
     val newRoot = DomAst("root", AstKinds.ROOT).withDetails("(spawned)")
-    evAppChildren(newRoot, nodes)
-    val engine = DieselAppContext.mkEngine(dom, newRoot, settings, pages, "engine:spawn")
+    /* can't use evAppChildren*/
+//    evAppChildren(newRoot, nodes)
+    newRoot.childrenCol appendAll nodes
+    val engine = DieselAppContext.mkEngine(dom, newRoot, settings, pages, "engine:spawn", correlationId)
     engine.ctx.root._hostname = ctx.root._hostname
     engine
   }
 
+  /** if have correlationID, notify parent... */
+  protected def notifyParent(a: DomAst, parentId: String, targetId: String, level: Int) = {
+    // completed - notify parent
+    val newD = DomAst(new EInfo(
+      "Completing - notifying parent: " + DieselAssets.mkLink(WID("DieselEngine", parentId)), ""),
+      AstKinds.GENERATED)
+
+    DieselAppContext ! DEComplete(parentId, targetId, recurse = true, level,
+      ctx.getp(Diesel.PAYLOAD).map(p => DomAst(EVal(p))).toList
+    )
+
+    evAppChildren(a, newD)
+    true
+  }
+
   /** process a list of continuations */
-  protected def later (m:List[DEMsg]): List[Any] = {
-    if(synchronous) {
+  protected def later(m: List[DEMsg]): List[Any] = {
+    if (synchronous) {
       m.map(processDEMsg)
     } else
       m.map(m => DieselAppContext.router.map(_ ! m))
@@ -161,14 +202,18 @@ abstract class DomEngine(
 
       // parallel, start them all
       case SeqExpr(op, l) if op == "|" => {
-        l.flatMap(rec).toList
+        val x = l.flatMap(rec).toList
+        x
       }
 
       // more seq-par
       case BFlowExpr(ex) => rec(ex)
 
       case MsgExpr(ea) => parent.children.collect {
-        case n: DomAst if n.value.isInstanceOf[EMsg] && n.value.asInstanceOf[EMsg].ea == ea => n
+        case n: DomAst if
+        n.value.isInstanceOf[EMsg] && n.value.asInstanceOf[EMsg].ea == ea ||
+            n.value.isInstanceOf[ENext] && n.value.asInstanceOf[ENext].msg.ea == ea
+        => n
       }
 
     }
@@ -301,17 +346,28 @@ abstract class DomEngine(
 
     if(root.status == DomState.DONE && status != DomState.DONE) {
       status = DomState.DONE
-      trace("DomEng "+id+" finish")
-      DomCollector.collectAst ("engine", settings.realm.mkString, id, settings.userId, this)
+      trace("DomEng " + id + " finish")
+      DomCollector.collectAst("engine", settings.realm.mkString, id, settings.userId, this)
       finishP.success(this)
       DieselAppContext.activeActors.get(id).foreach(_ ! DEStop) // stop the actor and remove engine
+
+      // stop owned streams
+      // todo get pissed if not done?
+      this.ownedStreams.foreach(stream => {
+        stream.cleanup()
+      })
+
     }
 
     result
   }
 
-  /** add built-in triggers and rules */
-  protected def prepRoot(l:ListBuffer[DomAst]) : ListBuffer[DomAst] = {
+  /** add built-in triggers and rules
+    *
+    * IT IS important that this be called just before starting execution, after all children were
+    * added to the root
+    * */
+  protected def prepRoot(l: ListBuffer[DomAst]): ListBuffer[DomAst] = {
     val vals = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_VALS), AstKinds.TRACE)
     val before = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_BEFORE), AstKinds.TRACE)
     val after = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_AFTER), AstKinds.TRACE)
@@ -323,15 +379,37 @@ abstract class DomEngine(
     // create dependencies and add them to the list
     after.prereq = l.map(_.id).toList
     l.append(after)
-    l.foreach(x=> x.prereq = before.id :: x.prereq)
+    l.foreach(x => x.prereq = before.id :: x.prereq)
     l.prepend(before)
     l.prepend(vals)
     l.prepend(desc)
 
+    //child engines notify parent if needed
+    correlationId
+        .filter(_ contains ".")
+        .foreach(cid => {
+          val ids = cid.split("\\.")
+          val notifyParent = DomAst(EMsg(
+            DieselMsg.ENGINE.DIESEL_PONG,
+            List(
+              P.of("parentId", ids(0)),
+              P.of("targetId", ids(1)),
+              P.of("level", -1)
+            )
+          ))
+
+          // dead last node
+          notifyParent.prereq = l.map(_.id).toList
+          l.append(notifyParent)
+        })
     l
   }
 
-  /** process only the tests - synchronously */
+  /**
+    * process only the tests - in sequence
+    *
+    * this will prep the root node, then start execution
+    */
   def processTests = {
     Future {
       root.status = DomState.STARTED
@@ -340,8 +418,8 @@ abstract class DomEngine(
 
       prepRoot(
         root
-          .childrenCol
-          .filter(_.kind == "test")
+            .childrenCol
+            .filter(_.kind == "test")
       ).foreach(expand(_, recurse = true, 1))
 
       this
@@ -352,10 +430,15 @@ abstract class DomEngine(
   val finishP = Promise[DomEngine]()
   val finishF = finishP.future
 
-  def process : Future[DomEngine] = {
-    if(root.status != DomState.STARTED) {
+  /**
+    * process the root
+    *
+    * this will prep the root node, then start execution
+    */
+  def process: Future[DomEngine] = {
+    if (root.status != DomState.STARTED) {
 
-      trace( "DomEng " + id + " process root: " + root.value)
+      trace("DomEng " + id + " process root: " + root.value)
       root.status = DomState.STARTED
       this.status = DomState.STARTED
       root.start(seq())
@@ -402,7 +485,7 @@ abstract class DomEngine(
   }
 
   /** main processing of next - called from actor in async and in thread when sync/decompose */
-  private[engine] def processDEMsg (m:DEMsg) = {
+  private[engine] def processDEMsg(m: DEMsg) = {
     m match {
       case DEReq(eid, a, r, l) => {
         require(eid == this.id) // todo logical error not a fault
@@ -414,11 +497,24 @@ abstract class DomEngine(
         this.rep(a, r, l, results)
       }
 
-      case DEComplete(eid, a, r, l, results) => {
+      case DEComplete(eid, aid, r, l, results) => {
         require(eid == this.id) // todo logical error not a fault
-        val msgs = nodeDone(a, l)
-        checkState()
-        later(msgs)
+        val target = n(aid)
+        if (target.status != DomState.DONE) {
+          evAppChildren(target, results)
+          val msgs = nodeDone(n(aid), l)
+          checkState()
+          later(msgs)
+        } else Nil
+      }
+
+      case DEExpand(eid, aid, r, l, results) => {
+        require(eid == this.id) // todo logical error not a fault
+        val target = n(aid)
+//        evAppChildren(target, results)
+        later(
+          this.rep(target, true, l, results)
+        )
       }
     }
   }
