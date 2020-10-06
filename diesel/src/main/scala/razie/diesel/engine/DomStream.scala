@@ -14,19 +14,20 @@ import razie.diesel.model.DieselMsg
 import razie.wiki.model.WID
 import scala.collection.mutable.ListBuffer
 
-/** the engine: one flow = one engine = one actor
+/** simple streaming for inter-flow comms
   *
-  * this class is a generic engine, managing the execution of the nodes, starting from the root
+  * A stream needs only one consumer flow (the owner). When the owner dies, the stream dies too.
+  * The stream has one actor that manages it - all access is via its actor.
   *
-  * specific instances, like DomEngineV1 will take care of the actual execution of nodes. The two methods to
-  * implement are:
-  * - expand
+  * put elements on the stream from various flows and they'll be sent to the consumer flow.
   *
+  * The stream creates new message for each batchf
   *
-  * The DomEngineExec is the actual implementation
+  * More needed: backpressure, persistence, queueing, timed slice window, distributed
+  *
+  * NOT - MT-safe, need to wrap in an actor
   *
   * @param correlationId is parentEngineID.parentSuspendID - if dot is missing, this was a fire/forget
-  *
   */
 abstract class DomStream(
   val owner: DomEngine,
@@ -35,6 +36,7 @@ abstract class DomStream(
   val batch: Boolean = false,
   val batchSize: Int,
   val correlationId: Option[String] = None,
+  val maxSize: Int = 100,
   val id: String = new ObjectId().toString) extends Logging {
 
   assert(name.trim.length > 0, "streams need unique names")
@@ -60,101 +62,128 @@ abstract class DomStream(
   private var isError = false
   private var isConsumed = false
 
+  /** put some elements onto the stream
+    *
+    * if in single element mode - sent straight to consumers
+    *
+    * if in batch mode, they may be batched or not
+    */
   def put(l: List[Any], justConsume: Boolean = false) = {
+    trace("DStream.put: " + l.mkString(","))
     if (!justConsume) {
       assert(!isDone)
-      list.appendAll(l)
+
+      var acceptable = Math.min(maxSize - list.size, l.size)
+      if (l.size > acceptable) {
+        // todo throw back to sender
+        assert(false, "stream overflow")
+      } else {
+        trace(" - DStream appended: " + l.mkString(","))
+        list.appendAll(l)
+      }
     }
 
-    targetId.map { tid =>
+    // todo I send right away - should batch up with a timeout
+
+    if (isConsumed) targetId.map { tid =>
       if (batch && batchSize > 0) {
         var pickedUp = 0
-        val x = list.toList
-            .grouped(batchSize)
-            .toList
-        list.toList
+        val asts = list.toList
             .grouped(batchSize)
             .toList
             .map { batch =>
-              // todo I ahave to erase the value :( maybe see why?
-//              val array = batch.map(_.value)
-              val ast = DomAst(EMsg(
+              trace(" - DStream sending.slice: " + batch.mkString(","))
+              pickedUp += batch.size
+
+              DomAst(EMsg(
                 DieselMsg.STREAMS.STREAM_ONDATASLICE,
                 P.of("stream", name) :: P.of("data", batch) :: Nil
               ))
-              DieselAppContext ! DEExpand(owner.id, tid, recurse = true, -1, List(ast))
-              pickedUp += batch.size
             }
 
-        list.drop(pickedUp)
+        trace(s" - DStream size ${list.size} dropping: $pickedUp")
+        list.remove(0, pickedUp)
+        DieselAppContext ! DEAddChildren(owner.id, tid, recurse = true, -1, asts)
+        trace(s" - DStream list size ${list.size} is: " + list.mkString)
       } else {
         list.toList.map { data =>
           val ast = DomAst(EMsg(
             DieselMsg.STREAMS.STREAM_ONDATA,
             P.of("stream", name) :: P.of("data", data) :: Nil
           ))
-          DieselAppContext ! DEExpand(owner.id, tid, recurse = true, -1, List(ast))
+          DieselAppContext ! DEAddChildren(owner.id, tid, recurse = true, -1, List(ast))
         }
 
+        trace(" - DStream clear: ")
         list.clear()
       }
+    } else {
+      // no consumers - accumulate to a point
     }
   }
 
-  def done(justConsume: Boolean = false) = {
-    if (!justConsume) isDone = true
+  def done(justConsume: Boolean = false): Unit = {
+    if (!justConsume) {
+      isDone = true
+      if (isConsumed) {
+        consume()
+      }
+    } else {
+      val ast = DomAst(EMsg(
+        DieselMsg.STREAMS.STREAM_ONDONE,
+        List(
+          P.of("stream", name)
+        )
+      ))
 
-    val ast = DomAst(EMsg(
-      DieselMsg.STREAMS.STREAM_ONDONE,
-      List(
-        P.of("stream", name)
-      )
-    ))
-
-    if (list.size <= 0) {
       targetId.map { tid =>
-        DieselAppContext ! DEExpand(owner.id, tid, recurse = true, -1, List(ast))
+        DieselAppContext ! DEAddChildren(owner.id, tid, recurse = true, -1, List(ast))
         DieselAppContext ! DEComplete(owner.id, targetId.get, recurse = true, -1, Nil)
       }
     }
   }
 
-  def error(l: List[P], justConsume: Boolean = false) = {
+  def error(l: List[P], justConsume: Boolean = false): Unit = {
     if (!justConsume) {
       isError = true
       isDone = true
       errors.appendAll(l)
-    }
+      if (isConsumed) {
+        consume()
+      }
+    } else {
 
-    val ast = DomAst(EMsg(
-      DieselMsg.STREAMS.STREAM_ONERROR,
-      List(
-        P.of("stream", name)
-      ) ::: errors.toList
-    ))
+      val ast = DomAst(EMsg(
+        DieselMsg.STREAMS.STREAM_ONERROR,
+        List(
+          P.of("stream", name)
+        ) ::: errors.toList
+      ))
 
-    targetId.map { tid =>
-      DieselAppContext ! DEExpand(owner.id, targetId.get, recurse = true, -1, List(ast))
-      DieselAppContext ! DEComplete(owner.id, targetId.get, recurse = true, -1, Nil)
+      targetId.map { tid =>
+        DieselAppContext ! DEAddChildren(owner.id, targetId.get, recurse = true, -1, List(ast))
+        DieselAppContext ! DEComplete(owner.id, targetId.get, recurse = true, -1, Nil)
+      }
     }
   }
 
   // owner starts consuming
-  def consume() = {
+  def consume(): Unit = {
+    isConsumed = true
     // if something already, consume it
     if (list.size > 0) put(Nil, true)
     if (isDone && !isError) done(true)
     if (isDone && isError) error(Nil, true)
 
-    isConsumed = true
 
-    targetId.map { tid =>
-      DieselAppContext ! DEComplete(owner.id, targetId.get, recurse = true, -1, Nil)
-    }
+    // not done - will wait for done
+//    targetId.map { tid =>
+//      DieselAppContext ! DEComplete(owner.id, targetId.get, recurse = true, -1, Nil)
+//    }
   }
 
   // it's cleanup by the owner engine
-  def cleanup() = {
+  def cleanup(): Unit = {
     // make sure it's done - don't accept anymore
     isDone = true
 
@@ -162,15 +191,6 @@ abstract class DomStream(
     DieselAppContext ! DESClean(name)
   }
 }
-
-//          val ast = DomAst(EMsg(
-//            DieselMsg.ENGINE.DIESEL_PONG,
-//            List(
-//              P.of("parentId", ids(0)),
-//              P.of("targetId", ids(1)),
-//              P.of("level", -1)
-//            )
-//          ))
 
 class DomStreamV1(
   owner: DomEngine,

@@ -7,15 +7,20 @@ package razie.diesel.engine
 
 /** the states of a node */
 object DomState {
-  final val INIT="initial.init" // new node
-  final val STARTED="exec.started" // is executing now
-  final val DONE="final.done" // done
-  final val CANCEL="final.cancelled" // done
-  final val SKIPPED="final.skipped" // skipped
-  final val LATER="exec.later" // queued up somewhere for later
-  final val ASYNC="exec.async" // started but will complete itself later
-  final val DEPENDENT="exec.depy" // waiting on another task
+  final val INIT = "initial.init" // new node
+  final val STARTED = "exec.started" // is executing now
+  final val DONE = "final.done" // done
+  final val CANCEL = "final.cancelled" // done
+  final val SKIPPED = "final.skipped" // skipped
+  final val LATER = "exec.later" // queued up somewhere for later
+  final val SUSPENDED = "exec.waiting.suspended" // queued up somewhere for later - holds up siblings
+  final val DAEMON = "exec.waiting.daemon" // queued up somewhere for later - does not hold up siblings
+  final val ASYNC = "exec.async" // started but will complete itself later
+  final val DEPENDENT = "exec.depy" // waiting on another task
 
-  def inProgress(s:String) = s startsWith "exec."
-  def isDone(s:String) = s startsWith "final."
+  def inProgress(s: String) = s startsWith "exec."
+
+  def isDone(s: String) = s startsWith "final."
+
+  def inWaiting(s: String) = s startsWith "exec.waiting."
 }

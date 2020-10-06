@@ -31,7 +31,15 @@ class EEngMsg(val msg: String, val details: String = "", val kind:String, val co
 
 /** error and stop engine */
 case class EEngStop(override val msg: String, override val details: String = "")
-  extends EEngMsg(msg, details, "error::", "danger")
+    extends EEngMsg(msg, details, "error::", "danger")
+
+/** suspend execution - presumably waiting for someone to continue this branch
+  *
+  * use onSuspend to start the async message  (like sending a DeRep) - you'll have control next
+  */
+case class EEngSuspend(override val msg: String, override val details: String = "", onSuspend: Option[(DomEngine,
+    DomAst, Int) => Unit])
+    extends EEngMsg(msg, details, "suspend::", "warning")
 
 /** suspend execution - presumably waiting for someone to continue this branch
   *
@@ -39,5 +47,11 @@ case class EEngStop(override val msg: String, override val details: String = "")
   */
 case class EEngSuspend(override val msg: String, override val details: String = "", onSuspend:Option[(DomEngine, DomAst, Int) => Unit])
     extends EEngMsg(msg, details, "suspend::", "warning")
+
+/**
+  * opposite of suspend - complete node
+  */
+case class EEngComplete(override val msg: String, override val details: String = "")
+    extends EEngMsg(msg, details, "complete::", "warning")
 
 

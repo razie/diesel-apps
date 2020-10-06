@@ -49,6 +49,7 @@ trait DomRoot {
       case a if a.children.exists(_.id == node.id) => a
     }.headOption
 
+  /** find the level of a node - traverse the tree from the root */
   def findLevel(node: DomAst): Int =
     root.collect2 {
       case t@(a,l) if a.id == node.id => l

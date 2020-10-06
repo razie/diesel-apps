@@ -10,7 +10,6 @@ import javax.script.ScriptEngineManager
 import jdk.nashorn.api.scripting.{ClassFilter, NashornScriptEngineFactory, ScriptObjectMirror}
 import org.bson.types.ObjectId
 import razie.audit.Audit
-import razie.base.scripting.RazScript.{RSError, RSSucc}
 import razie.diesel.expr.ECtx
 import razie.tconf.DUsers
 import razie.{CSTimer, Logging, js}
@@ -99,8 +98,7 @@ object DieselScripster extends Logging {
         offset = expressions.lines.size + 1
 
         {
-          val root = ctx.root
-          val settings = root.engine.map(_.settings)
+          val settings = ctx.root.engine.map(_.settings)
           val au = settings.flatMap(_.userId).map(new ObjectId(_))
               .flatMap(DUsers.impl.findUserById)
 
@@ -126,6 +124,17 @@ object DieselScripster extends Logging {
           // return objects with nice tostring
           val json = engine.eval("JSON").asInstanceOf[ScriptObjectMirror]
           val s = json.callMember("stringify", res)
+
+          // debug weirdness on 107
+//          val jsres = res.asInstanceOf[ScriptObjectMirror]
+//          trace("JS result is a " + jsres.getClassName + " AS STRING: " + jsres.toString + " S AS STRING " + s
+//          .getClass.getSimpleName + ":" + s.toString)
+//          trace("JSON JS result is a " + json.getClassName + " AS STRING: " + json.toString + " S AS STRING " +
+//          json.getClass.getSimpleName + ":" + json.toString)
+//          val st = json.getMember("stringify")
+//          trace("ST JS result is a " + st.getClass.getSimpleName + " AS STRING: " + st.toString + " S AS STRING " +
+//          st.getClass.getSimpleName + ":" + st.toString)
+
           (true, s.toString, res)
         }
         else

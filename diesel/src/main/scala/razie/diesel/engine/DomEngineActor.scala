@@ -36,11 +36,12 @@ case class DEReq(engineId: String, a: DomAst, recurse: Boolean, level: Int) exte
   */
 case class DERep(engineId: String, a: DomAst, recurse: Boolean, level: Int, results: List[DomAst]) extends DEMsg
 
+/** complete a node that was waiting for async response */
 case class DEComplete(engineId: String, targetId: String, recurse: Boolean, level: Int, results: List[DomAst])
     extends DEMsg
 
 /** like DEComplete but just expand, not done yet */
-case class DEExpand(engineId: String, targetId: String, recurse: Boolean, level: Int, results: List[DomAst])
+case class DEAddChildren(engineId: String, targetId: String, recurse: Boolean, level: Int, results: List[DomAst])
     extends DEMsg
 
 /** initialize and stop the engine */
@@ -114,6 +115,8 @@ class DomEngineRouter () extends Actor {
 
   def route(id: String, msg: Any) = {
     DieselAppContext.activeActors.get(id).map(_ ! msg).getOrElse(
+      // todo if the engine is still around, collected, alert these in the there - add warn nodes
+      // otherwise we need to alert somehow... anyways, something's off?
       clog << "DomEngine Router DROP message " + msg
       // todo recover failed workflows
       // todo distributed routing
@@ -176,7 +179,7 @@ class DomEngineActor(eng: DomEngine) extends Actor with Stash {
       }
     }
 
-    case rep@DEExpand(eid, a, r, l, results) if checkInit => {
+    case rep@DEAddChildren(eid, a, r, l, results) if checkInit => {
       checkInit
       if (eng.id == eid) {
         Try {
@@ -326,18 +329,22 @@ class DomStreamActor(stream: DomStream) extends Actor with Stash {
   }
 }
 
+/* *****************************
+streaming messages
+ */
 
 /** base class for streams internal message */
 trait DESMsg {
   def streamName: String
 }
 
-/** put in stream
-  */
+/** put in stream */
 case class DESPut(streamName: String, l: List[Any]) extends DESMsg
 
+/** consume from stream */
 case class DESConsume(streamName: String) extends DESMsg
 
+/** stream is done */
 case class DESDone(streamName: String) extends DESMsg
 
 case class DESClean(streamName: String) extends DESMsg

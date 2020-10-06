@@ -15,7 +15,11 @@ object EEStreams {
   final val PREFIX = "diesel.stream"
 }
 
-/** executor for "ctx." messages - operations on the current context */
+/** executor for "ctx." messages - operations on the current context
+  *
+  * See
+  * http://specs.dieselapps.com/Topic/Concurrency,_asynchronous_and_distributed
+  */
 class EEStreams extends EExecutor(EEStreams.PREFIX) {
 
   import razie.diesel.engine.exec.EEStreams.PREFIX

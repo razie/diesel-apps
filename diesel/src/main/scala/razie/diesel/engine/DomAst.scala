@@ -63,11 +63,11 @@ case class DomAst(
   }
 
   /** will force updates to go through a DES */
-  def append(other:DomAst)(implicit engine: DomEngineState) {
+  def append(other: DomAst)(implicit engine: DomEngineState) {
     engine.evAppChildren(this, other)
   }
 
-  def start(seq:Long) {
+  def start(seq: Long) {
     tstart = System.currentTimeMillis()
     seqNo = seq
   }
@@ -100,35 +100,35 @@ case class DomAst(
   }
 
   def withStatus(s: String) = {
-    this.status=s
+    this.status = s
     this
   }
 
-  def withDetails (s:String) = {
+  def withDetails(s: String) = {
     moreDetails = moreDetails + s
     this
   }
 
   //============== traversal
 
-  private def shouldPrune (k:DomAst) =
+  private def shouldPrune(k: DomAst) =
     AstKinds.shouldPrune(k.kind) ||
-      k.value.isInstanceOf[DomAstInfo] && k.value.asInstanceOf[DomAstInfo].shouldPrune
+        k.value.isInstanceOf[DomAstInfo] && k.value.asInstanceOf[DomAstInfo].shouldPrune
 
-  private def shouldIgnore (k:DomAst) =
+  private def shouldIgnore(k: DomAst) =
     AstKinds.shouldIgnore(k.kind) ||
-      k.value.isInstanceOf[DomAstInfo] && k.value.asInstanceOf[DomAstInfo].shouldIgnore
+        k.value.isInstanceOf[DomAstInfo] && k.value.asInstanceOf[DomAstInfo].shouldIgnore
 
-  private def shouldSkip (k:DomAst) =
+  private def shouldSkip(k: DomAst) =
     AstKinds.shouldSkip(k.kind) ||
-      k.value.isInstanceOf[DomAstInfo] && k.value.asInstanceOf[DomAstInfo].shouldSkip
+        k.value.isInstanceOf[DomAstInfo] && k.value.asInstanceOf[DomAstInfo].shouldSkip
 
-  private def shouldRollup (k:DomAst) =
+  private def shouldRollup(k: DomAst) =
     AstKinds.shouldRollup(k.kind) ||
-      k.value.isInstanceOf[DomAstInfo] && k.value.asInstanceOf[DomAstInfo].shouldRollup
+        k.value.isInstanceOf[DomAstInfo] && k.value.asInstanceOf[DomAstInfo].shouldRollup
 
   // visit/recurse with filter
-  def collect[T](f: PartialFunction[DomAst, T]) : List[T] = {
+  def collect[T](f: PartialFunction[DomAst, T]): List[T] = {
     val res = new ListBuffer[T]()
 
     def inspect(d: DomAst, level: Int) {
@@ -141,7 +141,7 @@ case class DomAst(
   }
 
   // visit/recurse with filter AND level
-  def collect2[T](f: PartialFunction[(DomAst, Int), T]) : List[T] = {
+  def collect2[T](f: PartialFunction[(DomAst, Int), T]): List[T] = {
     val res = new ListBuffer[T]()
 
     def inspect(d: DomAst, level: Int) {
@@ -156,43 +156,57 @@ case class DomAst(
   //================= view
 
   /** non-recursive tostring */
-  def meTos(level: Int, html:Boolean): String = {
+  def meTos(level: Int, html: Boolean): String = {
 
     def theKind = {
       val duration = tend - tstart
-      if(html) s"""<span seqNo="$seqNo" msec="$duration" id="$id" prereq="${prereq.mkString(",")}" title="$kind, $duration ms">${kind.take(3)}</span>"""
+      if (html)
+        s"""<span status="$status" seqNo="$seqNo" msec="$duration" id="$id" prereq="${prereq.mkString(",")}"
+           |title="$kind, $duration ms">${kind.take(3)}</span>""".stripMargin
       else kind
     }
 
-    (" " * level) +
-    theKind +
-    "::" + {
-    value match {
-      case c: CanHtml if html => c.toHtml
-      case x => x.toString
+    def theState = {
+      if (!DomState.inProgress(this.status)) {
+        ""
+      } else {
+        if (html)
+          s""" <span class="glyphicon glyphicon-exclamation-sign" style="color:red" title="State: $status"></span>"""
+        else s" ($status"
+      }
     }
+
+    (" " * level) +
+        theKind +
+        "::" +
+        theState + {
+      value match {
+        case c: CanHtml if html => c.toHtml
+        case x => x.toString
+      }
     }.lines.map((" " * 1) + _).mkString("\n") + moreDetails
   }
 
+
   /** recursive tostring */
-  private def tos(level: Int, html:Boolean): String = {
+  private def tos(level: Int, html: Boolean): String = {
 
-    def h(s:String) = if(html) s else ""
+    def h(s: String) = if (html) s else ""
 
-    def toschildren (level:Int, kids : List[DomAst]) : List[Any] =
-      kids.filter(k=> !shouldIgnore(k)).flatMap{k=>
-        if(shouldRollup(k) && k.children.size == 1) {
+    def toschildren(level: Int, kids: List[DomAst]): List[Any] =
+      kids.filter(k => !shouldIgnore(k)).flatMap { k =>
+        if (shouldRollup(k) && k.children.size == 1) {
 //           rollup NEXT nodes and others - just show the children
-          toschildren(level+1, k.children)
+          toschildren(level + 1, k.children)
         } else
-          List(k.tos(level+1, html))
+          List(k.tos(level + 1, html))
       }
 
-    if(!shouldSkip(this)) {
-        h(s"""<div kind="$kind" level="$level">""") +
-        meTos(level, html) + "\n" +
-        toschildren(level, children).mkString +
-        h("</div>")
+    if (!shouldSkip(this)) {
+      h(s"""<div kind="$kind" level="$level">""") +
+          meTos(level, html) + "\n" +
+          toschildren(level, children).mkString +
+          h("</div>")
     } else {
       toschildren(level, children).mkString
     }

@@ -73,16 +73,15 @@ class DomEngineV1(
 
     a.value match {
 
-      case stop : EEngStop => {
+      case stop: EEngStop => {
         // stop engine
         evAppChildren(a, DomAst(EInfo(s"""Stopping engine $href""")))//.withPos((m.get.pos)))
         stopNow
       }
 
-      case stop : EEngSuspend => {
+      case stop: EEngSuspend => {
         // suspend and wait for a continuation async
-        evAppChildren(a,
-          DomAst(EInfo(s"""Suspending engine $href""")))
+        evAppChildren(a, DomAst(EInfo(s"""Suspending engine $href""")))
         //.withPos((m.get.pos)))
         try {
           stop.onSuspend.foreach(_.apply(this, a, level))
@@ -93,6 +92,11 @@ class DomEngineV1(
             ))
           }
         }
+      }
+
+      case stop: EEngComplete => {
+        evAppChildren(a, DomAst(EInfo(s"""Complete suspended node... """)))
+        //.withPos((m.get.pos)))
       }
 
       case next@ENext(m, arrow, cond, _, _) if "==>" == arrow || "<=>" == arrow => {
@@ -1001,8 +1005,10 @@ class DomEngineV1(
     if (subtrees.size > 0) {
       // todo look at all possible targets - will need to create a matchCollector per etc
 
-      subtrees.foreach {n=>
-        var vvals = n.collect {
+      subtrees.foreach { aTarget =>
+
+        // collecting all Values created in the sub-tree
+        var vvals = aTarget.collect {
           case d@DomAst(n: EVal, k, _, _) if AstKinds.isGenerated(k) => d
         }
 
@@ -1010,33 +1016,30 @@ class DomEngineV1(
         vvals = vvals.reverse.groupBy(_.value.asInstanceOf[EVal].p.name).values.toList.map(_.head)
 
         // include the message's values in its context
-        def newctx = new StaticECtx(n.value.asInstanceOf[EMsg].attrs, Some(ctx), Some(n))
+        def newctx = new StaticECtx(aTarget.value.asInstanceOf[EMsg].attrs, Some(ctx), Some(aTarget))
 
         val values = vvals.map(_.value.asInstanceOf[EVal].p)
 
-        if (!n.value.isInstanceOf[EMsg]) {
+        if (!aTarget.value.isInstanceOf[EMsg]) {
           // wtf did we just target?
           a append DomAst(
             TestResult("fail", "Target not a message - did something run?").withPos(e.pos),
             AstKinds.TEST
           ).withSpec(e)
-        } else if (vvals.size > 0 &&
-          !e.applicable(values)(newctx)) {
+        } else if (vvals.size > 0 && !e.applicable(values)(newctx)) {
           // n/a
           a append DomAst(
             TestResult("n/a").withPos(e.pos),
             AstKinds.TEST
           ).withSpec(e)
-        } else if (vvals.size > 0 &&
-          e.test(values, Some(cole), vvals)(newctx)) {
+        } else if (vvals.size > 0 && e.test(values, Some(cole), vvals)(newctx)) {
           // test ok
           a append DomAst(
             TestResult("ok").withPos(e.pos),
             AstKinds.TEST
           ).withSpec(e)
-        } else if (vvals.size == 0 &&
-          e.test(Nil, Some(cole), vvals)(newctx)) {
-          // previous generated no values, so this is a global state condition
+        } else if (vvals.size == 0 && e.test(Nil, Some(cole), vvals)(newctx)) {
+          // targeted tree generated no values, so this is a global state condition
 
           a append DomAst(
             TestResult("ok").withPos(e.pos),
@@ -1044,7 +1047,7 @@ class DomEngineV1(
           ).withSpec(e)
         } else
         //if no rules succeeded and there were vals, collect the misses
-          values.map(v=> cole.missed(v.name))
+          values.map(v => cole.missed(v.name))
       }
 
       cole.done

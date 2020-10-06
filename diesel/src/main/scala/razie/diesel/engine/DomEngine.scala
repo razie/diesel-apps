@@ -160,16 +160,18 @@ abstract class DomEngine(
 
     val x =
       checkState(findParent(a).getOrElse(root)) :::
-      depys.toList.filter(_.prereq.id == a.id).flatMap(d=>
-        root.find(d.depy.id).toList
-      ).filter { n =>
-        val prereq = depys.filter(x => x.depy.id == n.id && DomState.inProgress(x.prereq.status))
-        prereq.isEmpty && n.status == DomState.DEPENDENT // not started - important!
-      }.map { n =>
-        evChangeStatus(n, DomState.LATER)
-        DEReq(id, n, recurse = true, findLevel(n)) // depys are not even equals - they would have their own level...?
-        // had a problem here, where the level was reseting sometimes - can't depend on parent level, have to re-find it
-      }
+          depys.toList.filter(_.prereq.id == a.id).flatMap(d =>
+            root.find(d.depy.id).toList
+          ).filter { n =>
+            val prereq = depys.filter(x => x.depy.id == n.id && DomState.inProgress(x.prereq.status))
+            prereq.isEmpty && n.status == DomState.DEPENDENT // not started - important!
+          }.map { n =>
+            evChangeStatus(n, DomState.LATER)
+            DEReq(id, n, recurse = true,
+              findLevel(n)) // depys are not even equals - they would have their own level...?
+            // had a problem here, where the level was reseting sometimes - can't depend on parent level, have to
+            // re-find it
+          }
     x
   }
 
@@ -224,7 +226,8 @@ abstract class DomEngine(
     }
 
     // add explicit depys for results/children
-    // note - the strategy to exec logially sync or async rests with the V1, not here - see who populates prereq
+    // note - the strategy to exec logically sync or async rests with the V1, not here - see who populates prereq
+    // here we just respect them by creating depys
     results.filter(_.prereq.nonEmpty).map { res =>
       crdep(res.prereq.flatMap(x => root.find(x)), List(res))
     }
@@ -280,9 +283,12 @@ abstract class DomEngine(
         }
       }.get
 
-      if (a.value.isInstanceOf[EEngSuspend]) {
+      if (a.value.isInstanceOf[EEngSuspendDaemon]) {
         // nop
-        evChangeStatus(a, DomState.LATER)
+        evChangeStatus(a, DomState.SUSPENDED)
+      } else if (a.value.isInstanceOf[EEngSuspend]) {
+        // nop
+        evChangeStatus(a, DomState.SUSPENDED)
       } else if (msgs.isEmpty)
         msgs = msgs ::: nodeDone(a, level)
     }
@@ -295,56 +301,73 @@ abstract class DomEngine(
     *
     * will decompose this node into children and spawn async those that need it
     *
-    * @param a the node that got this reply
+    * @param a       the node that got this reply
     * @param recurse do i need to recurse into children? default=true
-    * @param level - current level, 0 is first
+    * @param level   - current level, 0 is first
     * @param results - the results
     * @return
     */
-  def rep(a: DomAst, recurse: Boolean = true, level: Int, results:List[DomAst]): List[DEMsg] = {
+  def rep(a: DomAst, recurse: Boolean = true, level: Int, results: List[DomAst], justAddChildren: Boolean = false)
+  : List[DEMsg] = {
     var msgs: List[DEMsg] = Nil // continuations from this cycle
 
     evAppChildren(a, results)
 
     // can't do this - too stupid. it's easy to have stories with 100 or more activities
 //    if (a.children.size >= maxLevels) {
-      // simple protection against infinite loops
-//      evAppChildren(a, DomAst(TestResult("fail: Max-Children!", "You have a loop rule out of control ( > 20 loops)..."), "error"))
+    // simple protection against infinite loops
+//      evAppChildren(a, DomAst(TestResult("fail: Max-Children!", "You have a loop rule out of control ( > 20 loops).
+//      .."), "error"))
 //    } else
     if (recurse) {
       msgs =
           msgs :::
-          findFront(a, results).map { n =>
-            // start the next child
-            // todo this would be sync:     req(n, recurse, level + 1)i
-            evChangeStatus(n, DomState.LATER)
-            DEReq(id, n, recurse, level + 1) // increase level for children
-            }
+              findFront(a, results).map { n =>
+                // start the next child
+                // todo this would be sync:     req(n, recurse, level + 1)i
+                evChangeStatus(n, DomState.LATER)
+                DEReq(id, n, recurse, level + 1) // increase level for children
+              }
     }
 
     msgs
   }
 
-  // check the state at end of step - anything still running?
-  protected def checkState (node:DomAst = root) = {
+  /** check the state at end of step - anything still running?
+    *
+    * @return list of continuations triggered by this state change
+    */
+  protected def checkState(node: DomAst = root) = {
     val res = node.collect {
       case a if a.id != node.id && DomState.inProgress(a.status) => a
     }
 
-    var result : List[DEMsg] = Nil
+    var result: List[DEMsg] = Nil
 
-    if(res.size > 0) {
-      evChangeStatus(node, DomState.STARTED)
-      node.end()
-    } else {
-      if(node.status != DomState.DONE)
+    if (res.size > 0) {
+      if (node.status != DomState.SUSPENDED) {
+        // suspended nodes stay in SUSPENDED. their children can continue tho
+        evChangeStatus(node, DomState.STARTED)
+        node.end()
+      }
+    } else if (
+      node.status != DomState.SUSPENDED ||
+          node.childrenCol.exists(child =>
+            child.value.isInstanceOf[EEngComplete] &&
+                DomState.isDone(child.status)
+          )
+    ) {
+      // only if they have a completed EEngComplete can complete a SUSPENDED
+
+      if (node.status != DomState.DONE) {
         // call only when transitioning to DONE
         result = nodeDone(node) //node.status = DONE
+      }
     }
 
     // when all done, the entire engine is done
 
-    if(root.status == DomState.DONE && status != DomState.DONE) {
+    if (root.status == DomState.DONE && status != DomState.DONE) {
       status = DomState.DONE
       trace("DomEng " + id + " finish")
       DomCollector.collectAst("engine", settings.realm.mkString, id, settings.userId, this)
@@ -412,6 +435,11 @@ abstract class DomEngine(
     */
   def processTests = {
     Future {
+      trace("*******************************************************")
+      trace("DomEng.tests STARTING " + id + " - " + description)
+      trace("*******************************************************")
+      trace("")
+
       root.status = DomState.STARTED
       this.status = DomState.STARTED
       root.start(seq())
@@ -438,7 +466,10 @@ abstract class DomEngine(
   def process: Future[DomEngine] = {
     if (root.status != DomState.STARTED) {
 
-      trace("DomEng " + id + " process root: " + root.value)
+      trace("*******************************************************")
+      trace("DomEng STARTING " + id + " - " + description)
+      trace("*******************************************************")
+      trace("")
       root.status = DomState.STARTED
       this.status = DomState.STARTED
       root.start(seq())
@@ -500,20 +531,34 @@ abstract class DomEngine(
       case DEComplete(eid, aid, r, l, results) => {
         require(eid == this.id) // todo logical error not a fault
         val target = n(aid)
+        val completer = DomAst(EEngComplete("DEComplete"), AstKinds.BUILTIN)
+        val toAdd = results ::: completer :: Nil
+        // don't trust them, find level
+        val level = Try {findLevel(target)}.getOrElse(l)
         if (target.status != DomState.DONE) {
-          evAppChildren(target, results)
-          val msgs = nodeDone(n(aid), l)
+          evAppChildren(target, toAdd)
+          //          val msgs = nodeDone(n(aid), level + 1)
+          val msgs = nodeDone(completer, level + 1)
           checkState()
           later(msgs)
-        } else Nil
+        } else {
+          // todo add a warn
+          evAppChildren(
+            target,
+            List(DomAst(EWarning("DEComplete on DONE"), AstKinds.DEBUG))
+          )
+
+          Nil
+        }
       }
 
-      case DEExpand(eid, aid, r, l, results) => {
+      case DEAddChildren(eid, aid, r, l, results) => {
         require(eid == this.id) // todo logical error not a fault
         val target = n(aid)
-//        evAppChildren(target, results)
+        // don't trust them, find level
+        val level = Try {findLevel(target)}.getOrElse(l)
         later(
-          this.rep(target, true, l, results)
+          this.rep(target, true, level + 1, results)
         )
       }
     }
