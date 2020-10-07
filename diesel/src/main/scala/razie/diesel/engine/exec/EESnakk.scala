@@ -13,17 +13,16 @@ import razie.diesel.Diesel.PAYLOAD
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.RDExt.{DieselJsonFactory, spec}
+import razie.diesel.engine._
 import razie.diesel.engine.nodes._
-import razie.diesel.engine.{AstKinds, DomEngECtx, EContent, InfoAccumulator}
 import razie.diesel.expr.{ECtx, SimpleExprParser}
-import razie.diesel.model.DieselMsg
 import razie.diesel.snakk.FFDPayload
 import razie.tconf.{DTemplate, EPos}
 import razie.wiki.Enc
 import razie.{Logging, js}
 import scala.Option.option2Iterable
 import scala.collection.mutable
-import scala.collection.mutable.{HashMap, ListBuffer}
+import scala.collection.mutable.ListBuffer
 import scala.util.Try
 
 /** executor for snakking REST APIs */
@@ -31,18 +30,18 @@ class EESnakk extends EExecutor("snakk") with Logging {
   import EESnakk._
 
   /** can I execute this task? */
-  override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
-    def known (s:String) =
+  override def test(ast: DomAst, m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
+    def known(s: String) =
       (s contains "GET") ||
-      (s contains "PATCH") ||
-      (s contains "POST") ||
-      (s contains "TELNET") ||
-      (s contains "HTTP")
+          (s contains "PATCH") ||
+          (s contains "POST") ||
+          (s contains "TELNET") ||
+          (s contains "HTTP")
 
     // snakk messages
-    m.ea == "snakk.json"      ||
-    m.ea == "snakk.xml"       ||
-    m.ea == "snakk.text"      ||
+    m.ea == "snakk.json" ||
+        m.ea == "snakk.xml" ||
+        m.ea == "snakk.text" ||
     m.ea == "snakk.telnet"    ||
     m.ea == "snakk.ffd"       ||
     m.ea == "snakk.fdFormat"  ||

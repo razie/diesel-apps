@@ -9,10 +9,25 @@ import razie.ctrace
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.exec.EApplicable
-import razie.diesel.engine.{AstKinds, DomAst}
-import razie.diesel.expr.{BoolExpr, CExpr, ECtx}
+import razie.diesel.engine.{AstKinds, DomAst, DomState}
+import razie.diesel.expr.{BoolExpr, CExpr, DieselExprException, ECtx}
 import razie.tconf.EPos
 import razie.wiki.Enc
+
+/**
+  * these nodes support conditions
+  */
+trait EConditioned {
+
+  def cond: Option[EIf]
+
+  /** test cond and remember in ast */
+  def test(ast: DomAst, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
+    val res = cond.fold(true)(_.test(ast, List.empty, cole))
+    ast.guard = if (res) DomState.GUARD_TRUE else DomState.GUARD_FALSE
+    res
+  }
+}
 
 /** test - expect a message m. optional guard */
 case class ExpectM(not: Boolean, m: EMatch) extends CanHtml with HasPosition {
@@ -88,28 +103,31 @@ case class ExpectV(not: Boolean, pm: MatchAttrs, cond: Option[EIf] = None) exten
   }
 
   /** check to match the arguments */
-  def applicable(a: Attrs)(implicit ctx: ECtx) = {
-    cond.fold(true)(_.test(a, None))
+  def applicable(ast: DomAst, a: Attrs)(implicit ctx: ECtx) = {
+    val res = cond.fold(true)(_.test(ast, a, None))
+    ast.guard = if (res) DomState.GUARD_TRUE else DomState.GUARD_FALSE
+    res
   }
 
   /** check to match the arguments
     *
-    * @param a results of previous tree/message or Nil for context-only matches
-    * @param cole collector for debugging info
+    * @param a     results of previous tree/message or Nil for context-only matches
+    * @param cole  collector for debugging info
     * @param nodes nodes that were targeted, to reference in collectors
     * @param ctx
     */
-  def test(a: Attrs, cole: Option[MatchCollector] = None, nodes: List[DomAst])(implicit ctx: ECtx) = {
+  def test(ast: DomAst, a: Attrs, cole: Option[MatchCollector] = None, nodes: List[DomAst])(implicit ctx: ECtx) = {
     val res = testMatchAttrs(a, pm, cole, Some({ p =>
       // start a new collector for each value we're looking for, to mark this value
-      cole.foreach{c=>
+      cole.foreach { c =>
         nodes
-          .find(_.value.asInstanceOf[EVal].p.name == p.name)
-          .foreach(n => c.newMatch(n))
-        }
+            .find(_.value.asInstanceOf[EVal].p.name == p.name)
+            .foreach(n => c.newMatch(n))
+      }
     }), !not)
     // we don't check the cond - it just doesn't apply
     // && cond.fold(true)(_.test(a, cole))
+    ast.guard = if (res) DomState.GUARD_TRUE else DomState.GUARD_FALSE
     res
   }
 
@@ -148,11 +166,13 @@ case class ExpectAssert(not: Boolean, exprs: List[BoolExpr]) extends CanHtml wit
   }
 
   /** check to match the arguments */
-  def test(a: Attrs, cole: Option[MatchCollector] = None, nodes: List[DomAst])(implicit ctx: ECtx) = {
+  def test(ast: DomAst, a: Attrs, cole: Option[MatchCollector] = None, nodes: List[DomAst])(implicit ctx: ECtx) = {
     // todo collect from bapply
-    exprs.foldLeft(true)((a,b)=> a && b.bapply("").value )
+    val res = exprs.foldLeft(true)((a, b) => a && b.bapply("").value)
+    ast.guard = if (res) DomState.GUARD_TRUE else DomState.GUARD_FALSE
+    res
 //    testA(a, pm, cole, Some({ p =>
-      // start a new collector to mark this value
+    // start a new collector to mark this value
 //      cole.foreach(c => nodes.find(_.value.asInstanceOf[EVal].p.name == p.name).foreach(n => c.newMatch(n)))
 //    }))
   }
@@ -162,11 +182,12 @@ case class ExpectAssert(not: Boolean, exprs: List[BoolExpr]) extends CanHtml wit
 case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf] = None) extends CanHtml {
   // todo match also the object parms if any and method parms if any
   /** test if this rule should apply
+    *
     * @param fallback if this is looking for fallbacks or not
     */
-  def test(e: EMsg, cole: Option[MatchCollector] = None, fallback:Boolean = false)(implicit ctx: ECtx) = {
-    if(testEA(e, cole, fallback))
-      testAttrCond(e, cole, fallback)
+  def test(ast: DomAst, e: EMsg, cole: Option[MatchCollector] = None, fallback: Boolean = false)(implicit ctx: ECtx) = {
+    if (testEA(e, cole, fallback))
+      testAttrCond(ast, e, cole, fallback)
     else false
   }
 
@@ -188,14 +209,15 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
   }
 
   /** test that the attrs and cond match */
-  def testAttrCond(e: EMsg, cole: Option[MatchCollector] = None, fallback:Boolean = false)(implicit ctx: ECtx) = {
-        cole.map(_.plus(e.met))
-        val testedok = testMatchAttrs(e.attrs, attrs, cole)
-        val condok = if(testedok) true else cond.fold(true)(_.test(e.attrs, cole)) // respect bool shortcut
-        fallback || {
-          if(! (testedok && condok)) ctrace << s"...rule skipped attr/cond: $this"
-          testedok && condok
-        }
+  def testAttrCond(ast: DomAst, e: EMsg, cole: Option[MatchCollector] = None, fallback: Boolean = false)(implicit
+                                                                                                         ctx: ECtx) = {
+    cole.map(_.plus(e.met))
+    val testedok = testMatchAttrs(e.attrs, attrs, cole)
+    val condok = if (testedok) true else cond.fold(true)(_.test(ast: DomAst, e.attrs, cole)) // respect bool shortcut
+    fallback || {
+      if (!(testedok && condok)) ctrace << s"...rule skipped attr/cond: $this"
+      testedok && condok
+    }
   }
 
   def ea:String = cls + "." + met
@@ -228,22 +250,27 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
   * @param cond  optional condition for this step
   * @param deferred
   */
-case class ENextPas(msg: EMsgPas, arrow: String, cond: Option[EIf] = None, deferred:Boolean=false, indentLevel:Int=0) extends CanHtml {
-  var parent:Option[EMsg] = None
-  var spec:Option[EMsg] = None
+case class ENextPas(msg: EMsgPas, arrow: String, cond: Option[EIf] = None, deferred: Boolean = false,
+                    indentLevel: Int = 0) extends CanHtml with EConditioned {
+  var parent: Option[EMsg] = None
+  var spec: Option[EMsg] = None
 
-  def withParent(p:EMsg) = { this.parent=Some(p); this}
-  def withSpec(p:Option[EMsg]) = { this.spec=p; this}
+  def withParent(p: EMsg) = {
+    this.parent = Some(p);
+    this
+  }
+
+  def withSpec(p: Option[EMsg]) = {
+    this.spec = p;
+    this
+  }
 
   // todo match also the object parms if any and method parms if any
-  def test(cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
-    cond.fold(true)(_.test(List.empty, cole))
-  }
 
   def evaluateMsg(implicit ctx: ECtx) = {
     // if evaluation was deferred, do it
     val m = if (deferred) {
-        EMap.sourcePasAttrs(msg.attrs)
+      EMap.sourcePasAttrs(msg.attrs)
     } else msg
 
     m
@@ -259,39 +286,44 @@ case class ENextPas(msg: EMsgPas, arrow: String, cond: Option[EIf] = None, defer
   * This is used to wrap async spawns ==>
   * and normal => when there's more than one (they start one at a time) so then decomp is async
   *
-  * @param msg the message wrapped / to be executed next
-  * @param arrow - how to call next: wait => or no wait ==>
-  * @param cond optional condition for this step
+  * @param msg         the message wrapped / to be executed next
+  * @param arrow       - how to call next: wait => or no wait ==>
+  * @param cond        optional condition for this step
   * @param deferred
   * @param indentLevel if > 0 then this is part of a subtree
   */
-case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred:Boolean=false, indentLevel:Int=0) extends CanHtml {
-  var parent:Option[EMsg] = None
-  var spec:Option[EMsg] = None
+case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred: Boolean = false, indentLevel: Int = 0)
+    extends CanHtml with EConditioned {
+  var parent: Option[EMsg] = None
+  var spec: Option[EMsg] = None
 
-  def withParent(p:EMsg) = { this.parent=Some(p); this}
-  def withSpec(p:Option[EMsg]) = { this.spec=p; this}
-
-  // todo match also the object parms if any and method parms if any
-  def test(cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
-    cond.fold(true)(_.test(List.empty, cole))
+  def withParent(p: EMsg) = {
+    this.parent = Some(p);
+    this
   }
 
-  /** apply - evaluate the message if not already */
-    def evaluateMsg(implicit ctx: ECtx) = {
-      // if evaluation was deferred, do it
-      val m = if (deferred) {
-        parent.map { parent =>
-          msg
-              .copy(attrs = EMap.sourceAttrs(parent, msg.attrs, spec.map(_.attrs)))
-              .copiedFrom(msg)
-        } getOrElse {
-          msg // todo evaluate something here as well...
-        }
-      } else msg
+  def withSpec(p: Option[EMsg]) = {
+    this.spec = p;
+    this
+  }
 
-      m
-    }
+  // todo match also the object parms if any and method parms if any
+
+  /** apply - evaluate the message if not already */
+  def evaluateMsg(implicit ctx: ECtx) = {
+    // if evaluation was deferred, do it
+    val m = if (deferred) {
+      parent.map { parent =>
+        msg
+            .copy(attrs = EMap.sourceAttrs(parent, msg.attrs, spec.map(_.attrs)))
+            .copiedFrom(msg)
+      } getOrElse {
+        msg // todo evaluate something here as well...
+      }
+    } else msg
+
+    m
+  }
 
   override def toHtml = (if (arrow != "-") arrow + " " else "") + msg.toHtml
 
@@ -307,8 +339,8 @@ case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred:Bo
 case class ERule(e: EMatch, arch:String, i: List[EMap]) extends CanHtml with EApplicable with HasPosition {
   var pos: Option[EPos] = None
 
-  override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
-    e.test(m, cole)
+  override def test(ast: DomAst, m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
+    e.test(ast, m, cole)
 
   /** after testing, apply this rule and decomp the message */
   override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = {
@@ -326,34 +358,71 @@ case class ERule(e: EMatch, arch:String, i: List[EMap]) extends CanHtml with EAp
 
 // base for conditions
 trait EIf extends CanHtml {
-  def test(e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) : Boolean
+  def test(ast: DomAst, e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx): Boolean
 }
 
 // a match condition
 case class EIfm(attrs: MatchAttrs) extends CanHtml with EIf {
-  def test(e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
-    testMatchAttrs(e, attrs, cole)
+  override def test(ast: DomAst, e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
+    val res = testMatchAttrs(e, attrs, cole)
+    ast.guard = if (res) DomState.GUARD_TRUE else DomState.GUARD_FALSE
+    res
+  }
 
   override def toHtml = span("$ifm::") + attrs.mkString("<small>(", ", ", ")</small>")
+
   override def toString = "$ifm " + attrs.mkString
 }
 
 // a match condition
 case class EElse() extends CanHtml with EIf {
-  def test(e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
-    ???
+  override def test(ast: DomAst, e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
+    if (ast != null) {
+      // must find last applicable IF in rule and then find out if it was applied and then NOT that
+      var lastIF: Option[DomAst] = None
+      var found = false
+      // previous sibbling
+      ctx.root
+          .engine
+          .flatMap(_.findParent(ast))
+          .toList
+          .flatMap(_.children)
+          .foreach { e =>
+            if (!found) {
+              if (e.id == ast.id) {
+                found = true
+              } else {
+                if (e.guard != DomState.GUARD_NONE) {
+                  lastIF = Some(e)
+                }
+              }
+            }
+          }
+
+      if (lastIF.isDefined) {
+        lastIF.get.guard == DomState.GUARD_FALSE
+      } else {
+        // should I ignore silently?
+        throw new DieselExprException("$else found no preceeding $if")
+      }
+    } else {
+      false
+    }
+  }
 
   override def toHtml = span("$else::")
+
   override def toString = "$else "
 }
 
 /** an expression condition */
 case class EIfc(cond: BoolExpr) extends CanHtml with EIf {
-  def test(e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
-    // todo collect from bapply
+  override def test(ast: DomAst, e: Attrs, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
+  // todo collect from bapply
     cond.bapply("").value
 
   override def toHtml = span("$ifc::") + cond.toDsl
+
   override def toString = "$ifc " + cond.toDsl
 }
 

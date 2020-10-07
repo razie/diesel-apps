@@ -26,7 +26,7 @@ class EEStreams extends EExecutor(EEStreams.PREFIX) {
 
   override def isMock: Boolean = true
 
-  override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
+  override def test(ast: DomAst, m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
     m.entity == PREFIX && messages.exists(_.met == m.met)
     // don't eat .onDone...
   }

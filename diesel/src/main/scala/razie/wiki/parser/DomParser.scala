@@ -10,7 +10,7 @@ import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.exec.EESnakk
 import razie.diesel.engine.nodes._
-import razie.diesel.engine.{DomAstInfo, DomEngine, nodes}
+import razie.diesel.engine.{DomEngine, nodes}
 import razie.diesel.expr._
 import razie.tconf.parser.{FoldingContext, LazyAstNode, StrAstNode}
 import razie.tconf.{DSpec, DUser, EPos}
@@ -209,18 +209,24 @@ trait DomParser extends ParserBase with ExprParser {
   }
 
   // if-condition or if-match
-  def pif: Parser[EIf] = pifc | pifm
+  def pif: Parser[EIf] = pifc | pifm | pelse
 
   // ifc is the default if
   def pifc: Parser[EIf] =
     """[.$]?ifc?""".r ~> ows ~> notoptCond ^^ {
-            case b : BoolExpr => EIfc(b)
+      case b: BoolExpr => EIfc(b)
     }
 
   // if-match
   def pifm: Parser[EIf] =
     """[.$]?match""".r ~> ows ~> notoptMatchAttrs ^^ {
-      case a : List[PM] => EIfm(a)
+      case a: List[PM] => EIfm(a)
+    }
+
+  // if-else
+  def pelse: Parser[EIf] =
+    """[.$]?else""".r ^^ {
+      case a => EElse()
     }
 
   /**
@@ -237,7 +243,7 @@ trait DomParser extends ParserBase with ExprParser {
       }
     }
 
-  def pArrow: Parser[String] = "=>" | "==>" ^^ {
+  def pArrow: Parser[String] = "=>" | "==>" | "<=>" ^^ {
     case s => s
   }
 
@@ -535,7 +541,7 @@ trait DomParser extends ParserBase with ExprParser {
     *
     * An NVP is either the spec or an instance of a function call, a message, a data object... whatever...
     */
-  def psend: PS = keyw("[.$]send *".r) ~
+  def psend: PS = keyw("[.$](send| ) *".r) ~
       opt("<" ~> "[^>]+".r <~ "> *".r) ~
       (clsMet | justAttrs) ~
       opt(" *: *".r ~> optAttrs) <~ " *".r <~ optComment3 ^^ {
@@ -544,7 +550,8 @@ trait DomParser extends ParserBase with ExprParser {
         val f = cp match {
           // class with message
           case Tuple3(zc, zm, za) =>
-            EMsg(zc.toString, zm.toString, za.asInstanceOf[List[RDOM.P]], "send", ret.toList.flatten(identity), stype.mkString.trim)
+            EMsg(zc.toString, zm.toString, za.asInstanceOf[List[RDOM.P]], "send", ret.toList.flatten(identity),
+              stype.mkString.trim)
                 .withPos(pos(k, ctx))
 
           // just parm assignments

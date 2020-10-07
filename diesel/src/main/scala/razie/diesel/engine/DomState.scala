@@ -18,6 +18,10 @@ object DomState {
   final val ASYNC = "exec.async" // started but will complete itself later
   final val DEPENDENT = "exec.depy" // waiting on another task
 
+  final val GUARD_NONE = "no" // had no guard
+  final val GUARD_FALSE = "false" // had guard and was false
+  final val GUARD_TRUE = "true" // had guard and was true
+
   def inProgress(s: String) = s startsWith "exec."
 
   def isDone(s: String) = s startsWith "final."

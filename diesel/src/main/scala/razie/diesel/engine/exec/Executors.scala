@@ -5,21 +5,27 @@
  */
 package razie.diesel.engine.exec
 
+import razie.diesel.engine.DomAst
 import razie.diesel.engine.nodes.{EMsg, MatchCollector}
 import razie.diesel.expr.ECtx
 import scala.collection.concurrent.TrieMap
 
 /** an applicable or message executor - can execute a message */
-trait EApplicable {
+trait EConditional {
 
   /** is this applicable to the given message?
     *
-    * @param m the message to test applicability on
+    * @param ast  node applied to
+    * @param m    the message to test applicability on
     * @param cole collect match/no-match info
-    * @param ctx context
+    * @param ctx  context
     * @return true/false if this executor can execute this message. it's up to the engine's strategy to use this info
     */
-  def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) : Boolean
+  def test(ast: DomAst, m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx): Boolean
+}
+
+/** an applicable or message executor - can execute a message */
+trait EApplicable extends EConditional {
 
   /** is this async? note that this flag is just for info, not needed, but do read this comment on async execs
     *
@@ -72,7 +78,7 @@ abstract class EExecutor (val name:String) extends EApplicable {
     * @param ctx  context
     * @return true/false if this executor can execute this message. it's up to the engine's strategy to use this info
     */
-  override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx): Boolean = {
+  override def test(ast: DomAst, m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx): Boolean = {
     m.ea == name
   }
 

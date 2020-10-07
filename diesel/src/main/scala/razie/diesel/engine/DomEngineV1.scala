@@ -147,7 +147,7 @@ class DomEngineV1(
           this.ctx,
           a)
 
-        if(n1.test()) {
+        if (n1.test(a)) {
           val newmsg = n1.evaluateMsg
           val newnode = DomAst(newmsg, AstKinds.kindOf(newmsg.arch))
 
@@ -167,8 +167,8 @@ class DomEngineV1(
           this.ctx,
           a)
 
-        if(n1.test()) {
-          appendValsPas (a, m, m.attrs, ctx)
+        if (n1.test(a)) {
+          appendValsPas(a, m, m.attrs, ctx)
         }
       }
 
@@ -259,11 +259,11 @@ class DomEngineV1(
       val exclusives = HashMap[String, ERule]()
       var matchingRules = (root.collect {
         // mocks from story AST
-        case d@DomAst(m: EMock, _, _, _) if m.rule.e.test(n) && a.children.isEmpty => m
+        case d@DomAst(m: EMock, _, _, _) if m.rule.e.test(a, n) && a.children.isEmpty => m
       } ::: dom.moreElements.toList).collect {
         // todo perf optimize moreelements.toList above
         // plus mocks from spec dom
-        case m: EMock if m.rule.e.test(n) && a.children.isEmpty => m
+        case m: EMock if m.rule.e.test(a, n) && a.children.isEmpty => m
       }
 
       // todo do fallbacks for mocks, like in the rules?
@@ -298,7 +298,7 @@ class DomEngineV1(
     if ((true || !mocked) && !settings.simMode) {
       var matchingRules = rules
           .filter(_.e.testEA(n))
-          .filter(x => x.e.testAttrCond(n) || {
+          .filter(x => x.e.testAttrCond(a, n) || {
             // add debug
             newNodes = newNodes ::: DomAst(EInfo("rule skipped", x.e.toString).withPos(x.pos), AstKinds.TRACE) :: Nil
             false
@@ -312,9 +312,10 @@ class DomEngineV1(
             rules
                 .filter(_.arch contains "fallback")
                 .filter(_.e.testEA(n, None, true))
-                .filter(x => x.e.testAttrCond(n, None, true) || {
+                .filter(x => x.e.testAttrCond(a, n, None, true) || {
                   // add debug
-                  newNodes = newNodes ::: DomAst(EInfo("rule skipped", x.e.toString).withPos(x.pos), AstKinds.TRACE) :: Nil
+                  newNodes = newNodes ::: DomAst(EInfo("rule skipped", x.e.toString).withPos(x.pos),
+                    AstKinds.TRACE) :: Nil
                   false
                 })
 
@@ -369,7 +370,7 @@ class DomEngineV1(
       Executors.withAll(_.filter { x =>
         // todo inconsistency: I am running rules if no mocks fit, so I should also run
         //  any executor ??? or only the isMocks???
-        (true /*!settings.mockMode || x.isMock*/) && x._2.test(n)
+        (true /*!settings.mockMode || x.isMock*/) && x._2.test(a, n)
       }.map { t =>
         val r = t._2
         mocked = true
@@ -436,11 +437,11 @@ class DomEngineV1(
       // sketch messages - from AST and then dom, as the stories are not always told
       // when running as an API from REST (wrest) the story is collected in DOM not in AST
       (collectValues {
-        case x: ExpectM if x.when.exists(_.test(n)) => x
+        case x: ExpectM if x.when.exists(_.test(a, n)) => x
       }.headOption
           orElse
           dom.moreElements.collectFirst {
-            case x: ExpectM if x.when.exists(_.test(n)) => x
+            case x: ExpectM if x.when.exists(_.test(a, n)) => x
           }
           ).map { e =>
         mocked = true
@@ -457,11 +458,11 @@ class DomEngineV1(
       // sketch messages - from AST and then dom, as the stories are not always told
       // when running as an API from REST (wrest) the story is collected in DOM not in AST
       (collectValues {
-        case x: ExpectV if x.when.exists(_.test(n)) => x
+        case x: ExpectV if x.when.exists(_.test(a, n)) => x
       }.headOption
           orElse
           dom.moreElements.collectFirst {
-            case x: ExpectV if x.when.exists(_.test(n)) => x
+            case x: ExpectV if x.when.exists(_.test(a, n)) => x
           }
           ).foreach { e =>
         val newctx = new StaticECtx(n.attrs, Some(ctx), Some(a))
@@ -923,7 +924,7 @@ class DomEngineV1(
     var targets = e.target.map(List(_)).getOrElse(if (e.when.isDefined) {
       // find generated messages that should be tested
       root.collect {
-        case d@DomAst(n: EMsg, k, _, _) if e.when.exists(_.test(n)) => d
+        case d@DomAst(n: EMsg, k, _, _) if e.when.exists(_.test(a, n)) => d
       }
     } else List(root))
 
@@ -932,7 +933,7 @@ class DomEngineV1(
       targets.head.collect {
         case d@DomAst(n: EMsg, k, _, _) if AstKinds.isGenerated(k) =>
           cole.newMatch(d)
-          if (e.m.test(n, Some(cole)))
+          if (e.m.test(a, n, Some(cole)))
             evAppChildren(a, DomAst(TestResult("ok").withPos(e.pos), "test").withSpec(e))
       }
 
@@ -998,7 +999,7 @@ class DomEngineV1(
     val subtrees = e.target.map(List(_)).getOrElse(if (e.when.isDefined) {
       // find generated messages that should be tested
       root.collect {
-        case d@DomAst(n: EMsg, k, _, _) if e.when.exists(_.test(n)) => d
+        case d@DomAst(n: EMsg, k, _, _) if e.when.exists(_.test(a, n)) => d
       }
     } else List(root))
 
@@ -1026,19 +1027,19 @@ class DomEngineV1(
             TestResult("fail", "Target not a message - did something run?").withPos(e.pos),
             AstKinds.TEST
           ).withSpec(e)
-        } else if (vvals.size > 0 && !e.applicable(values)(newctx)) {
+        } else if (vvals.size > 0 && !e.applicable(a, values)(newctx)) {
           // n/a
           a append DomAst(
             TestResult("n/a").withPos(e.pos),
             AstKinds.TEST
           ).withSpec(e)
-        } else if (vvals.size > 0 && e.test(values, Some(cole), vvals)(newctx)) {
+        } else if (vvals.size > 0 && e.test(a, values, Some(cole), vvals)(newctx)) {
           // test ok
           a append DomAst(
             TestResult("ok").withPos(e.pos),
             AstKinds.TEST
           ).withSpec(e)
-        } else if (vvals.size == 0 && e.test(Nil, Some(cole), vvals)(newctx)) {
+        } else if (vvals.size == 0 && e.test(a, Nil, Some(cole), vvals)(newctx)) {
           // targeted tree generated no values, so this is a global state condition
 
           a append DomAst(
@@ -1123,7 +1124,7 @@ class DomEngineV1(
     val subtrees = e.target.map(List(_)).getOrElse(if (e.when.isDefined) {
       // find generated messages that should be tested
       root.collect {
-        case d@DomAst(n: EMsg, k, _, _) if e.when.exists(_.test(n)) => d
+        case d@DomAst(n: EMsg, k, _, _) if e.when.exists(_.test(a, n)) => d
       }
     } else List(root))
 
@@ -1140,14 +1141,14 @@ class DomEngineV1(
 
         val values = vvals.map(_.value.asInstanceOf[EVal].p)
 
-        if (vvals.size > 0 && e.test(values, Some(cole), vvals)(newctx))
+        if (vvals.size > 0 && e.test(a, values, Some(cole), vvals)(newctx))
           a append DomAst(
             TestResult("ok").withPos(e.pos),
             AstKinds.TEST
           ).withSpec(e)
         else
-          //if no rules succeeded and there were vals, collect the misses
-          values.map(v=> cole.missed(v.name))
+        //if no rules succeeded and there were vals, collect the misses
+          values.map(v => cole.missed(v.name))
     }
 
       cole.done

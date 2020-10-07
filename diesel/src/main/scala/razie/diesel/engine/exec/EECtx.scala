@@ -34,7 +34,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
 
   override def isMock: Boolean = true
 
-  override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
+  override def test(ast: DomAst, m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
     m.entity == CTX // todo why not && messages.exists(_.met == m.met)
   }
 
@@ -176,9 +176,11 @@ class EECtx extends EExecutor(EECtx.CTX) {
       case "echo" => {
         val toPrint = if (in.attrs.nonEmpty) in.attrs else ctx.getp(Diesel.PAYLOAD).toList
 
-        toPrint.map { p =>
+        val res = toPrint.map { p =>
           EInfo(p.toString, p.calculatedTypedValue.asNiceString)
         }
+
+        if (res.isEmpty) List(EInfo("No arguments with values found...")) else res
       }
 
       case "setVal" => {

@@ -5,16 +5,17 @@
  */
 package razie.diesel.engine.nodes
 
+import razie.diesel.engine.DomAst
 import razie.diesel.engine.exec.EApplicable
 import razie.diesel.expr.ECtx
 import razie.tconf.EPos
 
 /** flows seq/par and depys are processed directly by the engine */
 case class EFlow(e: EMatch, ex: FlowExpr) extends CanHtml with EApplicable with HasPosition {
-  var pos : Option[EPos] = None
+  var pos: Option[EPos] = None
 
-  override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
-    e.test(m, cole)
+  override def test(ast: DomAst, m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
+    e.test(ast, m, cole)
 
   override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] =
     Nil

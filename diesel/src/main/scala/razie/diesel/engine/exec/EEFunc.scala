@@ -9,9 +9,9 @@ import jdk.nashorn.api.scripting.ScriptObjectMirror
 import razie.base.scriptingx.DieselScripster
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
-import razie.diesel.engine.DieselJs
 import razie.diesel.engine.RDExt.spec
 import razie.diesel.engine.nodes.{EMsg, EVal, MatchCollector}
+import razie.diesel.engine.{DieselJs, DomAst}
 import razie.diesel.expr.{DieselExprException, ECtx}
 
 // the context persistence commands
@@ -20,7 +20,7 @@ class EEFunc extends EExecutor("func") {
   // can execute even in mockMode
   override def isMock = true
 
-  override def test(in: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
+  override def test(ast: DomAst, in: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
     ctx.domain.exists(_.funcs.contains(in.entity + "." + in.met))
   }
 

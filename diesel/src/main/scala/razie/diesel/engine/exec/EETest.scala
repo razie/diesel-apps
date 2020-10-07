@@ -5,12 +5,13 @@
  */
 package razie.diesel.engine.exec
 
+import razie.diesel.engine.DomAst
 import razie.diesel.engine.nodes.{EMsg, EVal, MatchCollector}
 import razie.diesel.expr.ECtx
 
 /** execute tests */
 class EETest extends EExecutor("test") {
-  override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
+  override def test(ast: DomAst, m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
     m.stype.startsWith("TEST.")
   }
 

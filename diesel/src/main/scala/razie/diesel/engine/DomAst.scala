@@ -46,9 +46,26 @@ case class DomAst(
 
   //=========== runtime data
 
-  private var istatus:String = DomState.INIT
-  def status:String = istatus
-  def status_=(s:String): Unit = istatus = s
+  // todo the nodes should remember the context they had, so we can see the values at that point, later
+  // todo most likely clone the environment, when processing done?
+  private var imyCtx: Option[ECtx] = None
+
+  def myCtx: Option[ECtx] = imyCtx
+
+  def orWithCtx(f: => Option[ECtx]) = {
+    if (!this.imyCtx.isDefined) {
+      this.imyCtx = f
+    }
+    this.imyCtx
+  }
+
+  var guard: String = DomState.GUARD_NONE
+
+  private var istatus: String = DomState.INIT
+
+  def status: String = istatus
+
+  def status_=(s: String): Unit = istatus = s
 
   /** timestamp started */
   var tstart: Long = System.currentTimeMillis()

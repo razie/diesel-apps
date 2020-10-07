@@ -44,7 +44,7 @@ trait DomRoot {
       case v if(f.isDefinedAt(v.value)) => f(v.value)
     }
 
-  protected def findParent(node: DomAst): Option[DomAst] =
+  def findParent(node: DomAst): Option[DomAst] =
     root.collect {
       case a if a.children.exists(_.id == node.id) => a
     }.headOption

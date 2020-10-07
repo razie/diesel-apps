@@ -100,6 +100,7 @@ case class EMsg(
       "arch" -> arch,
       "entity" -> entity,
       "met" -> met,
+      "ea" -> ea,
       "attrs" -> attrs.map { p =>
         Map(
           "name" -> p.name,
@@ -144,7 +145,8 @@ case class EMsg(
   }
 
   /** if has executor */
-  def hasExecutor:Boolean = Executors.withAll(_.exists(t=> t._2.test(this)(ECtx.empty)))
+  // todo the null
+  def hasExecutor: Boolean = Executors.withAll(_.exists(t => t._2.test(null, this)(ECtx.empty)))
 
   val ea:String = entity + "." + met
 

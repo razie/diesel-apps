@@ -240,7 +240,7 @@ abstract class DomEngine(
     // any seq/par flows apply to a ? (a is the parent that generated these messages)
     if (parent.value.isInstanceOf[EMsg]) {
       implicit val ctx: StaticECtx = new StaticECtx(parent.value.asInstanceOf[EMsg].attrs, Some(this.ctx), Some(parent))
-      flows.filter(_.e.test(parent.value.asInstanceOf[EMsg]))
+      flows.filter(_.e.test(parent, parent.value.asInstanceOf[EMsg]))
     } else
       Nil
   }

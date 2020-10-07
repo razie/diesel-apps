@@ -8,9 +8,9 @@ package razie.diesel.engine.exec
 import razie.clog
 import razie.diesel.Diesel
 import razie.diesel.dom.RDOM._
-import razie.diesel.engine.InfoAccumulator
 import razie.diesel.engine.RDExt.spec
 import razie.diesel.engine.nodes._
+import razie.diesel.engine.{DomAst, InfoAccumulator}
 import razie.diesel.expr.ECtx
 import razie.wiki.Enc
 
@@ -26,9 +26,9 @@ import razie.wiki.Enc
 class EEFormatter extends EExecutor("formatter") {
 
   /** can I execute this task? */
-  override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
+  override def test(ast: DomAst, m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
     // is there a "result" type template?
-    spec(m).exists(m => ctx.findTemplate(m.ea).exists(x=>
+    spec(m).exists(m => ctx.findTemplate(m.ea).exists(x =>
       x.tags.contains(Diesel.PAYLOAD)
     ))
   }
