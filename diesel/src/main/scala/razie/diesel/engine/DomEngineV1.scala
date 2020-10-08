@@ -160,6 +160,7 @@ class DomEngineV1(
         // message will be evaluate() later
       }
 
+      // simple assignment
       case n1@ENextPas(m, ar, cond, _, _) if "-" == ar || "=>" == ar => {
         implicit val ctx = mkMsgContext(
           n1.parent,
@@ -172,6 +173,7 @@ class DomEngineV1(
         }
       }
 
+      // simple assignment
       case n1@EMsgPas(ar) => {
         implicit val ctx = mkMsgContext(
           None,
@@ -427,6 +429,12 @@ class DomEngineV1(
             List(DomAst(new EError("Exception:", e), AstKinds.ERROR), DomAst(p, AstKinds.ERROR))
         }
 
+        /* make any generated activities dependent so they run in sequence
+        * todo how to hangle decomp to parallel? */
+        if (findFlows(a).isEmpty && news.size > 1) news.drop(1).foldLeft(news.head)((a, b) => {
+          b.withPrereq(List(a.id))
+        })
+
         newNodes = newNodes ::: news
       })
 
@@ -607,12 +615,12 @@ class DomEngineV1(
   }
 
   /** if it's an internal engine message, execute it */
-  private def expandEngineEMsg(a: DomAst, in: EMsg) : Boolean = {
+  private def expandEngineEMsg(a: DomAst, in: EMsg)(implicit ctx: ECtx): Boolean = {
     val ea = in.ea
 
-    if(ea == DieselMsg.ENGINE.DIESEL_RETURN) {
+    if (ea == DieselMsg.ENGINE.DIESEL_RETURN) {
       // expand all spec vals
-      in.attrs.map(_.calculatedP).foreach {p=>
+      in.attrs.map(_.calculatedP).foreach { p =>
         evAppChildren(a, DomAst(EVal(p)))
         this.ctx.put(p)
       }
