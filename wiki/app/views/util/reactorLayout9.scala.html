@@ -30,10 +30,6 @@ default layout 9/3 with ads, top and bottom
         @wiki.wikiFrag(rt, None, true)
       }
 
-      @if(stok.showSideAds(None)) {
-        @addRight()
-      }
-
       @if(stok.website.rightTop.isEmpty) {
         @wiki.wikiFrag(razie.wiki.model.WID("Admin", "Right").r(stok.realm), None, true)
       }

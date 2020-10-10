@@ -49,29 +49,39 @@ class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps
   def dieselTrust:String = this prop "diesel.trust" OR ""
   def dieselEnvList:String = this prop "diesel.envList" OR ""
 
-  def stylesheet:Option[WID] = this wprop "stylesheet"
+  def stylesheet: Option[WID] = this wprop "stylesheet"
 
-  def join:String = this prop "join" OR "/doe/join"
+  def join: String = this prop "join" OR "/doe/join"
 
-  def divMain:String = this prop "divMain" OR "9"
-  def copyright:Option[String] = this prop "copyright"
+  def divMain: String = this prop "divMain" OR "9"
 
-  def logo:Option[String] = this prop "logo"
+  def copyright: Option[String] = this prop "copyright"
 
-  def adsOnList = this bprop "adsOnList" OR true
-  def adsAtBottom = this bprop "adsAtBottom" OR true
-  def adsOnSide = this bprop "adsOnSide" OR true
-  def adsForUsers = this bprop "adsForUsers" OR true
-  def noadsForPerms = (this prop "noAdsForPerms").map(_.split(",")) OR Array.empty[String]
+  def logo: Option[String] = this prop "logo"
+
+  def adsOnList = false
+
+  def adsAtBottom = false
+
+  def adsOnSide = false
+
+  def adsForUsers = false
+
+  def noadsForPerms = false
+
   def needsConsent = this bprop "needsConsent" OR true
 
-  def openMembership         = this bprop "users.openMembership" OR true
-  def selfInvites            = this bprop "users.selfInvites" OR true
+  def openMembership = this bprop "users.openMembership" OR true
+
+  def selfInvites = this bprop "users.selfInvites" OR true
+
   def membersCanCreateTopics = this bprop "users.membersCanCreateTopics" OR true
 
-  def rightTop:Option[WID] = this wprop "rightTop"
-  def rightBottom:Option[WID] = this wprop "rightBottom"
-  def about:Option[String] = this prop "bottom.More.About" flatMap {s=>
+  def rightTop: Option[WID] = this wprop "rightTop"
+
+  def rightBottom: Option[WID] = this wprop "rightBottom"
+
+  def about: Option[String] = this prop "bottom.More.About" flatMap { s =>
     if (s.startsWith("http") || (s startsWith "/")) Some(s)
     else WID.fromPath(s).map(_.url)
   }

@@ -16,7 +16,7 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
   val _metas = new mutable.HashMap[String,String]() // moremetas
   var _css : Option[String] = None // if you determine you want a different CSS
   var stuff : List[String] = List() // keep temp status for this request
-  var bottomAd : Boolean = false
+  val bottomAd: Boolean = false
   var canonicalLink : Option[String] = None
 
   var _requireJs : Boolean = true
@@ -25,7 +25,7 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
 
   lazy val errCollector = new VErrors()
 
-  def showBottomAd(yes:Boolean) = {bottomAd = yes}
+  def showBottomAd(yes: Boolean) = {}
 
   def isLocalhost = request.exists(_.host.startsWith("localhost:"))
 
@@ -124,8 +124,6 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
     Res.NotFound (views.html.util.reactorLayout12(content(this), msg)(this))
 
   /** use when handling forms */
-//  def badRequest (content: => Html) =
-//    RkViewService.BadRequest (views.html.util.reactorLayout(content, msg)(this))
 
   def badRequest (content: StateOk => Html) = {
     msg("err" -> "[Form has errors]")
@@ -147,24 +145,10 @@ class StateOk(val realm:String, val au: Option[model.User], val request: Option[
   val website = Website.get(this.request.get)
 
   /** should show bottom ads */
-  def showBottomAds (page:Option[WikiEntry]) = {
-    this.website.adsAtBottom &&
-      (this.au.isEmpty || this.website.adsForUsers ||
-        !this.website.noadsForPerms.foldLeft(false)((a,b)=>a || this.au.exists(_.hasPerm(Perm(b))))) &&
-      !page.exists(_.contentProps.contains("noAds")) &&
-      !page.exists(_.content.matches( """(?s).*\{\{ad[:}].*\{\{ad[:}].*""")) &&
-      !this.au.exists(_.isUnder13)
-  }
+  def showBottomAds(page: Option[WikiEntry]) = false
 
   /** should show side ads - either adsOnSide is explicitely defined or else inherit adsAtBottom */
-  def showSideAds (page:Option[WikiEntry]) = {
-    (if(this.website.prop("adsOnSide").isDefined) website.adsOnSide else website.adsAtBottom) &&
-      (this.au.isEmpty || this.website.adsForUsers ||
-        !this.website.noadsForPerms.foldLeft(false)((a,b)=>a || this.au.exists(_.hasPerm(Perm(b))))) &&
-      !page.exists(_.contentProps.contains("noAds")) &&
-      !page.exists(_.content.matches( """(?s).*\{\{ad[:}].*\{\{ad[:}].*""")) &&
-      !this.au.exists(_.isUnder13)
-  }
+  def showSideAds(page: Option[WikiEntry]) = false
 
   /** prepare a WID - add current realm if missing */
   def prepWid (wid:WID) =
