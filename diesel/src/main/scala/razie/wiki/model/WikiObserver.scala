@@ -8,7 +8,7 @@ package razie.wiki.model
 
 import com.novus.salat.annotations.Ignore
 import controllers.{IgnoreErrors, VErrors}
-
+import razie.wiki.WikiConfig
 import scala.collection.mutable.ListBuffer
 
 /** just a syntax marker for events -
@@ -20,7 +20,7 @@ trait WikiEventBase {
 }
 
 /** an event that the configuration changed */
-case class WikiConfigChanged (val node:String="") extends WikiEventBase
+case class WikiConfigChanged(node: String = "", @transient config: WikiConfig) extends WikiEventBase
 
 /** a generic event refering to an entity
   *

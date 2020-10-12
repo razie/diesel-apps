@@ -104,12 +104,29 @@ case class EWarning(msg: String, details: String = "", code:String = "WARNING") 
   override def toString = "fail-warn::" + msg
 }
 
+/** a simple info node with a message and details - link opens */
+case class ELink(msg: String, url: String = "") extends CanHtml with HasPosition with InfoNode {
+  var pos: Option[EPos] = None
+
+  def withPos(p: Option[EPos]) = {
+    this.pos = p;
+    this
+  }
+
+  override def toHtml =
+    s"""<span onclick="welink('$url')" style="cursor:pointer" class="label
+       |label-info" title="click to open">link</span>&nbsp;""".stripMargin
+
+  override def toString = "info::" + msg
+}
+
 /** a simple info node with a message and details - details are displayed as a popup */
 case class EInfo(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {
   var pos: Option[EPos] = None
 
   def withPos(p: Option[EPos]) = {
-    this.pos = p; this
+    this.pos = p;
+    this
   }
 
   override def toHtml =

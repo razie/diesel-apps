@@ -299,6 +299,7 @@ class DomEngineV1(
     // todo - WHY? only some systems may be mocked ???
     if ((true || !mocked) && !settings.simMode) {
       var matchingRules = rules
+          .filter(x => !x.isFallback) // without fallbacks first
           .filter(_.e.testEA(n))
           .filter(x => x.e.testAttrCond(a, n) || {
             // add debug
@@ -308,11 +309,11 @@ class DomEngineV1(
 
       val exclusives = HashMap[String, ERule]()
 
-      // use fallbacks?
+      // no match without fallbacks - use fallbacks?
       if (matchingRules.isEmpty)
         matchingRules =
             rules
-                .filter(_.arch contains "fallback")
+                .filter(_.isFallback)
                 .filter(_.e.testEA(n, None, true))
                 .filter(x => x.e.testAttrCond(a, n, None, true) || {
                   // add debug
@@ -340,7 +341,7 @@ class DomEngineV1(
               DomAst(EInfo("rule excluded", exKey).withPos(r.pos), AstKinds.TRACE) ::
               Nil
         } else {
-          if (r.arch.contains("exclusive")) {
+          if (r.isExclusive) {
             exclusives.put(r.e.cls + "." + r.e.met, r) // we do exclusive per pattern
           }
 
@@ -817,7 +818,7 @@ class DomEngineV1(
       }
       true
 
-    } else if(ea == DieselMsg.REALM.REALM_SET) {
+    } else if (ea == DieselMsg.REALM.REALM_SET) {
 
       // todo move this to an executor
       // todo this may be a security risk - they can set trust and stuff -  limit to only some parms?

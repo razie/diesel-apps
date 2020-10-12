@@ -57,19 +57,23 @@ object WikiConfig {
   *
  */
 abstract class WikiConfig {
+
   import WikiConfig._
 
   def pconfig = WikiConfig.playConfig.underlying
 
   /** get from play config - needed as in some places I can't load sitecfg before props are needed */
-  def prop(name:String, dflt:String="") =
-    if(pconfig.hasPath(name)) pconfig.getString(name) else dflt
+  def hasProp(name: String) = pconfig.hasPath(name)
+
+  /** get from play config - needed as in some places I can't load sitecfg before props are needed */
+  def prop(name: String, dflt: String = "") =
+    if (pconfig.hasPath(name)) pconfig.getString(name) else dflt
 
   /** play config overwritten by sitecfg */
-  def weprop(name:String, dflt:String="") =
-    sitecfg(name) orElse (if(pconfig.hasPath(name)) Some(pconfig.getString(name)) else None) getOrElse dflt
+  def weprop(name: String, dflt: String = "") =
+    sitecfg(name) orElse (if (pconfig.hasPath(name)) Some(pconfig.getString(name)) else None) getOrElse dflt
 
-  final val home        = prop("wiki.home")
+  final val home = prop("wiki.home")
 
   final val hostport    = prop("wiki.hostport")
   final val node        = prop("wiki.node", hostport)//java.net.InetAddress.getLocalHost.getCanonicalHostName)
@@ -240,13 +244,14 @@ abstract class WikiConfig {
       //      xconfig.get(x).foreach(y => println(y.mkString("\n  ")))
     })
 
-    Services ! new WikiConfigChanged
+    Services ! new WikiConfigChanged("", this)
 
-    irobotUserAgents = sitecfg("robots.useragents").toList.flatMap(s=>s.split("[;,]"))
-    ireservedNames = sitecfg("reserved.names").toList.flatMap(s=>s.split("[;,]"))
+    irobotUserAgents = sitecfg("robots.useragents").toList.flatMap(s => s.split("[;,]"))
+    ireservedNames = sitecfg("reserved.names").toList.flatMap(s => s.split("[;,]"))
     //     todo settle this - there are two places for configuring trusted sites
-    itrustedSites = sitecfg("trusted.sites").toList.flatMap(s=>s.split("[;,]"))
-    ibadIps = sitecfg("badips").toList.flatMap(s=>s.split("[;,]")).toArray
+    itrustedSites = sitecfg("trusted.sites").toList.flatMap(s => s.split("[;,]"))
+    ibadIps = sitecfg("badips").toList.flatMap(s => s.split("[;,]")).toArray
+
   }
 
 }

@@ -10,6 +10,17 @@ import razie.wiki.model.WID
 /* global */
 object DieselAssets {
 
+  /** make a link to see the asset, embedded elsewhere, simplified view (no footers etc) */
+  def mkEmbedLink(w: WID, path: String = "") = {
+    w.cat match {
+      case "DieselEngine" => {
+        val x = s"""diesel/viewAst/${w.name}"""
+        x
+      }
+      case _ => s"""wiki/$path"""
+    }
+  }
+
   /** make a link to see the asset */
   def mkLink(w: WID, path: String = "") = {
     w.cat match {

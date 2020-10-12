@@ -338,6 +338,8 @@ case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred: B
   */
 case class ERule(e: EMatch, arch:String, i: List[EMap]) extends CanHtml with EApplicable with HasPosition {
   var pos: Option[EPos] = None
+  val isFallback = arch contains "fallback"
+  val isExclusive = arch contains "exclusive"
 
   override def test(ast: DomAst, m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) =
     e.test(ast, m, cole)

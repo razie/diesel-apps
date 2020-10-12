@@ -48,3 +48,6 @@ case class DieselTrace (
 }
 
 
+object DieselTrace {
+  final val dieselTrace = "dieselTrace"
+}

@@ -127,36 +127,45 @@ object RDExt extends Logging {
   def spec(m:EMsg)(implicit ctx: ECtx) : Option[EMsg] = spec(m.entity, m.met)
 
   // find the spec of the generated message, to ref
-  def spec(entity:String, met:String)(implicit ctx: ECtx) : Option[EMsg] =
+  def spec(entity: String, met: String)(implicit ctx: ECtx): Option[EMsg] =
     ctx.domain.flatMap(_.moreElements.collect {
       case x: EMsg
         if
         ("*" == x.entity || x.entity == entity || regexm(x.entity, entity)) &&
-        ("*" == x.met || x.met == met || regexm(x.met, met))
-         => x
+            ("*" == x.met || x.met == met || regexm(x.met, met))
+      => x
     }.headOption)
 
-  /** find the usages in stories */
-  def usagesStories(entity:String, met:String, stories:List[DSpec])(implicit ctx: ECtx) : List[(String, String, Option[EPos], String)] = {
+  /** find the usages in stories
+    *
+    * @return (what, ea, pos, line)
+    */
+  def usagesStories(entity: String, met: String, stories: List[DSpec])(implicit ctx: ECtx): List[(String, String,
+      Option[EPos], String)] = {
     stories
         .flatMap(
-      RDomain.domFilter(_) {
-        case x: EMsg if x.entity == entity && x.met == met => ("$send", x.ea, x.pos, x.toString)
-        case x: ExpectM if x.m.cls == entity && x.m.met == met => ("$expect", x.m.ea, x.pos, x.m.toString)
-      })
-    }
+          RDomain.domFilter(_) {
+            case x: EMsg if x.entity == entity && x.met == met => ("$send", x.ea, x.pos, x.toString)
+            case x: ExpectM if x.m.cls == entity && x.m.met == met => ("$expect", x.m.ea, x.pos, x.m.toString)
+          })
+  }
 
   /** find where it is decomposed (applicable rules)
     *
-    * @return what, ea, ops
+    * @return (what, ea, pos, line)
     */
-  def usagesSpecs(entity:String, met:String)(implicit ctx: ECtx) : List[(String, String, Option[EPos], String)] =
+  def usagesSpecs(entity: String, met: String)(implicit ctx: ECtx): List[(String, String, Option[EPos], String)] =
     ctx.domain.toList.flatMap(_.moreElements.collect {
       case u: EMsg if u.entity == entity && u.met == met => List(("$msg", u.ea, u.pos.orElse(u.rulePos), u.toCAString))
       case u: ERule => usagesInRule(u, entity, met)
     }).flatten
 
-  def usagesInRule(u:ERule, entity:String, met:String)(implicit ctx: ECtx) : List[(String, String, Option[EPos], String)] =
+  /** unpack usage in a rule
+    *
+    * @return (what, ea, pos, line)
+    */
+  def usagesInRule(u: ERule, entity: String, met: String)(implicit ctx: ECtx): List[(String, String, Option[EPos],
+      String)] =
     (
         if (u.e.cls == entity && u.e.met == met)
           List(("$when", u.e.cls + "." + u.e.met, u.pos, u.e.toString))

@@ -6,6 +6,7 @@
 package razie.diesel.engine.exec
 
 import com.razie.pub.comms.{CommRtException, Comms}
+import controllers.DieselAssets
 import java.net.{URI, URL}
 import razie.Snakk._
 import razie.diesel.Diesel
@@ -19,6 +20,7 @@ import razie.diesel.expr.{ECtx, SimpleExprParser}
 import razie.diesel.snakk.FFDPayload
 import razie.tconf.{DTemplate, EPos}
 import razie.wiki.Enc
+import razie.wiki.model.WID
 import razie.{Logging, js}
 import scala.Option.option2Iterable
 import scala.collection.mutable
@@ -59,7 +61,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
         ))
   }
 
-  /** execute the task then */
+  /** execute for snakk.parse... */
   def parseApply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = {
     val response = ctx.getRequired(Diesel.PAYLOAD)
     val ct = if (in.ea.contains("xml")) "application/xml" else "application/json"
@@ -90,7 +92,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
     }
   }
 
-    /** execute the task then */
+  /** execute the snakk task then */
   override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = {
 
     if(in.ea startsWith  "snakk.parse.")
@@ -129,6 +131,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
     var startMillis = System.currentTimeMillis()
     var durationMillis = 0L
 
+    // this used for snakk.json etc
     def snakkWithCall(sc: SnakkCall) = {
       val newurl = EESnakk.relativeUrl(sc.url)
 
@@ -260,13 +263,19 @@ class EESnakk extends EExecutor("snakk") with Logging {
       }
 
       // 3. look for stiching dieselTrace
-      if (reply.isJson && reply.body.contains("dieselTrace")) {
+      if (reply.isJson && reply.body.contains(DieselTrace.dieselTrace)) {
         val mres = js.parse(response)
-        if (mres.contains("dieselTrace")) {
-          val trace = DieselJsonFactory.trace(mres("dieselTrace").asInstanceOf[collection.Map[String, Any]])
+        if (mres.contains(DieselTrace.dieselTrace)) {
+          val trace = DieselJsonFactory.trace(mres(DieselTrace.dieselTrace).asInstanceOf[collection.Map[String, Any]])
           eres += trace
         }
       }
+
+      val traceId = reply.headers.get("dieselFlowId").map(t =>
+        ELink(
+          "dieselFlow",
+          DieselAssets.mkEmbedLink(WID("DieselEngine", t))
+        )).toList
 
       // if no typed result, add a generic text
       if (eres.eres.collect {
@@ -280,12 +289,13 @@ class EESnakk extends EExecutor("snakk") with Logging {
         case v@EVal(p) if p.name == PAYLOAD => false
         case x@_ => true
       } :::
-        new EInfo(SNAKK_RESPONSE, reply.body) ::
-        new EVal(reply.httpCodep).withKind(AstKinds.DEBUG) ::
-        new EVal(reply.headersp).withKind(AstKinds.DEBUG) ::
-      eres.eres.collect {
-        case v@EVal(p) if p.name == PAYLOAD => v
-      }
+          new EInfo(SNAKK_RESPONSE, reply.body) ::
+          new EVal(reply.httpCodep).withKind(AstKinds.DEBUG) ::
+          new EVal(reply.headersp).withKind(AstKinds.DEBUG) ::
+          traceId :::
+          eres.eres.collect {
+            case v@EVal(p) if p.name == PAYLOAD => v
+          }
     }
 
     // no snakk call / template found
@@ -508,22 +518,22 @@ object EESnakk {
     val encurl = xuri.toASCIIString();
 
     val C = "url,verb,body,result,snakkHttpOptions".split(",")
-    var headers = attrs.filter(p=> !(C contains p.name))
+    var headers = attrs.filter(p => !(C contains p.name))
     val fbody = attrs.find(_.name == "body")
     var content = f("body")
     content = content
 
     // figure out content type ?
-    if(!attrs.exists(_.name.toLowerCase == "content-type")) {
-      if(fbody.exists(_.ttype == WTypes.JSON))
+    if (!attrs.exists(_.name.toLowerCase == "content-type")) {
+      if (fbody.exists(_.ttype == WTypes.JSON))
         headers = P("Content-Type", "application/json") :: headers
-      else if(fbody.exists(_.ttype == WTypes.XML))
+      else if (fbody.exists(_.ttype == WTypes.XML))
         headers = P("Content-Type", "application/xml") :: headers
     }
 
     headers = snakkHttpOptions(attrs) ::: headers
 
-    val hattr = headers.map(p=> (p.name, p.calculatedValue)).toSeq.toMap
+    val hattr = headers.map(p => (p.name, p.calculatedValue)).toSeq.toMap
 
     new SnakkCall(
       "http",

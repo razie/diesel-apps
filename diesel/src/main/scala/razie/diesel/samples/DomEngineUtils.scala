@@ -149,7 +149,8 @@ object DomEngineUtils {
         "errors" -> errors.toList,
         "root" -> root,
         "engineId" -> engine.id,
-        "dieselTrace" -> DieselTrace(root, settings.node, engine.id, "diesel", "runDom", settings.parentNodeId).toJson
+        DieselTrace.dieselTrace -> DieselTrace(root, settings.node, engine.id, "diesel", "runDom",
+          settings.parentNodeId).toJson
       )
       m
     }
