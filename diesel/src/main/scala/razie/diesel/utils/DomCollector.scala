@@ -20,7 +20,7 @@ object DomCollector {
   /** a single collected trace */
   case class CollectedAst(stream:String, realm:String, id:String, userId:Option[String], engine:DomEngine, details:String, dtm:DateTime=DateTime.now) {
     def isLowerPriority = {
-      val desc = engine.description
+      val desc = engine.description // not collectGroup
       desc.contains(DieselMsg.fiddleStoryUpdated) ||
           desc.contains(DieselMsg.REALM.REALM_LOADED_MSG) ||
           desc.contains("$msg " + DieselMsg.GPOLL)
@@ -29,7 +29,7 @@ object DomCollector {
     /** how many of these to keep in trace collector? */
     def getMaxCount = {
       engine.settings.collectCount.filter(_ != 0).getOrElse {
-        val desc = engine.description
+        val desc = engine.settings.collectGroup.getOrElse(engine.description)
         if(
           desc.contains(DieselMsg.fiddleStoryUpdated) ||
           desc.contains(DieselMsg.GPOLL)
@@ -72,7 +72,7 @@ object DomCollector {
           // remove one of this kind, done
           lesser.reverse.find(e => DomState.isDone(e.engine.status)).map(_.id).foreach { lastId =>
             newAsts = newAsts.filter(_.id != lastId).take(MAX_SIZE - 1)
-            lesser = newAsts.filter(_.engine.description == eng.description)
+            lesser = newAsts.filter(_.engine.settings.collectGroup == eng.settings.collectGroup)
           }
 
           // bug 636 - it was spinning if too many flows in progress with same description
@@ -80,7 +80,7 @@ object DomCollector {
             // remove some of the done flows too
             lesser.lastOption.map(_.id).foreach { lastId =>
               newAsts = newAsts.filter(_.id != lastId).take(MAX_SIZE - 1)
-              lesser = newAsts.filter(_.engine.description == eng.description)
+              lesser = newAsts.filter(_.engine.settings.collectGroup == eng.settings.collectGroup)
             }
           }
         }

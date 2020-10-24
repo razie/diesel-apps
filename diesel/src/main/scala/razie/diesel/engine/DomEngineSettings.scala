@@ -27,28 +27,29 @@ case class DomEngineSettings
   var userId : Option[String] = None,
 
   /** content that was posted with the request */
-  var postedContent : Option[EContent] = None,
+  var postedContent: Option[EContent] = None,
 
   /** tag query to select for modeBlender */
-  var tagQuery : Option[String] = None,
+  var tagQuery: Option[String] = None,
 
   /** tag query to select for mocks */
-  var mockQuery : Option[String] = None,
+  var mockQuery: Option[String] = None,
 
-  var hostport : Option[String] = None,
+  var hostport: Option[String] = None,
 
-  var realm : Option[String] = None,
+  var realm: Option[String] = None,
 
   /** env target for this request, or None */
-  var env : Option[String] = None,
+  var env: Option[String] = None,
 
   /** collector settings - how many of this kind to collect */
-  var collectCount : Option[Int] = None,
+  @transient var collectCount: Option[Int] = None,
+  @transient var collectGroup: Option[String] = None,
 
   /** SLA settings - how to store and manage this instance. Default None means no persistance */
-  var sla : Option[String] = None,
+  var sla: Option[String] = None,
 
-  var simMode : Boolean = false
+  var simMode: Boolean = false
 ) {
   val node = DieselAppContext.localNode // todo shouldn't I remember the node? or is that the hostport?
 
@@ -81,7 +82,6 @@ case class DomEngineSettings
     ).getOrElse(Map.empty) ++ mockQuery.map(x=> Map(MOCK_QUERY -> x)
     ).getOrElse(Map.empty) ++ realm.map(x=> Map(REALM -> x)
     ).getOrElse(Map.empty) ++ env.map(x=> Map(ENV -> x)
-    ).getOrElse(Map.empty) ++ collectCount.map(x=> Map(COLLECT -> x.toString)
     ).getOrElse(Map.empty) ++ sla.map(x=> Map(SLA -> x)
     ).getOrElse(Map.empty) ++ hostport.map(x=>
       Map(HOSTPORT -> x)
@@ -142,7 +142,6 @@ object DomEngineSettings {
       tagQuery = fqhParm(TAG_QUERY),
       mockQuery = fqhParm(MOCK_QUERY),
       env = fqhParm(ENV),
-      collectCount = fqhParm(COLLECT).map(_.toInt),
       sla = fqhParm(SLA),
       simMode = fqhoParm(SIM_MODE, "true").toBoolean
     )
