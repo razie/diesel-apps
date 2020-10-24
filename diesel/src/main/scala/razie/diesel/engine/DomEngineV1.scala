@@ -501,7 +501,7 @@ class DomEngineV1(
         // not for internal diesel messages
         val ms = n.entity + "." + n.met
         if(!ms.startsWith("diesel.")) {
-          val cfg = this.pages.map(_.specPath.wpath).mkString("\n")
+          val cfg = this.pages.map(_.specRef.wpath).mkString("\n")
           evAppChildren(a, DomAst(
             EWarning(
               "No rules, mocks or executors match for " + in.toString,
@@ -809,13 +809,25 @@ class DomEngineV1(
         val v = p.currentStringValue
         p.name match {
 
-          case "diesel.engine.settings.collectCount" => {
+          case "diesel.engine.settings.collectCount" | "collectCount" => {
             this.settings.collectCount = Option(v.toInt)
-            evAppChildren(a, DomAst(EInfo("updated..."), AstKinds.DEBUG))
+            // if it has collect settings there must be a group
+            if (settings.collectGroup.isEmpty) {
+              settings.collectGroup = Some(description)
+            }
           }
 
+          case "diesel.engine.settings.collectGroup" | "collectGroup" => {
+            this.settings.collectGroup = Option(v)
+          }
         }
       }
+      evAppChildren(a,
+        DomAst(EInfo(s"collect settings updated ${settings.collectCount} - ${settings.collectGroup}"), AstKinds.TRACE))
+
+      true
+
+    } else if (ea == "diesel.branch") { // nothing
       true
 
     } else if (ea == DieselMsg.REALM.REALM_SET) {
