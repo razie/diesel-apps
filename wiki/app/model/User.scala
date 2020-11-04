@@ -19,7 +19,7 @@ import razie.db._
 import razie.db.tx.txn
 import razie.audit.Audit
 import razie.diesel.dom.WikiDomain
-import razie.hosting.WikiReactors
+import razie.hosting.{Website, WikiReactors}
 import razie.wiki.util.Maps
 import scala.collection.mutable
 
@@ -177,24 +177,45 @@ case class User(
     wikis.filter(uw=>uw.uwid.cat==uwid.cat && uw.uwid.id == uwid.id)
 
   /** pages of category that I linked to */
-  def pages(realm:String, cat: String*) = wikis.filter{w=>
-    (cat=="*"   || cat.contains(w.uwid.cat)) &&
-    (realm=="*" || realm==w.uwid.getRealm || WikiReactors(realm).supers.contains(w.uwid.getRealm))
+  def pages(realm: String, cat: String*) = wikis.filter { w =>
+    (cat == "*" || cat.contains(w.uwid.cat)) &&
+        (realm == "*" || realm == w.uwid.getRealm || WikiReactors(realm).supers.contains(w.uwid.getRealm))
   }
 
-  def myPages(realm:String, cat: String) = pages (realm, cat)
+  def myPages(realm: String, cat: String) = pages(realm, cat)
 
   lazy val memberReactors = (ownedPages("rk", "Reactor").map(_.name).toList ::: realms.toList).distinct
 
-  def ownedPages(realm:String, cat: String) =
-    Wikis(realm).weTable(cat).find(Map("props.owner" -> id, "category" -> cat)) map {o=>
+  def memberReactorsSameOrg(realm: String) = {
+    // todo complete this
+//        Website
+//        .forRealm(realm)
+//        .flatMap(_.prop("org"))
+//        .toList
+//        .flatMap(org =>
+    (
+        ownedPages("rk", "Reactor").map(_.name).toList ::: realms.toList
+        ).distinct
+  }
+
+  def ownedPages(realm: String, cat: String) =
+    Wikis(realm).weTable(cat).find(Map("props.owner" -> id, "category" -> cat)) map { o =>
       WID(cat, o.getAs[String]("name").get).r(o.getAs[String]("realm").get)
     }
 
-  def auditCreated(realm:String) { Log.audit("USER_CREATED " + email + " realm: " + realm) }
-  def auditLogout(realm:String) { Log.audit("USER_LOGOUT " + email+" realm: "+realm) }
-  def auditLogin(realm:String) { Log.audit("USER_LOGIN " + email + " realm: " + realm) }
-  def auditLoginFailed(realm:String, count:Int = -1) {
+  def auditCreated(realm: String) {
+    Log.audit("USER_CREATED " + email + " realm: " + realm)
+  }
+
+  def auditLogout(realm: String) {
+    Log.audit("USER_LOGOUT " + email + " realm: " + realm)
+  }
+
+  def auditLogin(realm: String) {
+    Log.audit("USER_LOGIN " + email + " realm: " + realm)
+  }
+
+  def auditLoginFailed(realm: String, count: Int = -1) {
     Log.audit(s"USER_LOGIN_FAILED $email - realm: $realm - count: $count")
   }
 

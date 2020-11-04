@@ -49,7 +49,9 @@ case class CommentStream(
     RDelete.noAudit[CommentStream](this)
   }
 
-  def isDuplo (oid:String) = comments.exists(_.id equals oid)
+  def isDuplo(oid: String) = comments.exists(_.id equals oid)
+
+  def findWikiEntry() = Wikis.find(topic)
 }
 
 /**
@@ -106,9 +108,13 @@ case class Comment (
 
 /** factory and utils */
 object Comments {
-  def findForWiki(id:ObjectId) = ROne[CommentStream]("what" -> "Wiki", "topic" -> id)
-  def findFor(id:ObjectId, role:String) = ROne[CommentStream]("what" -> role, "topic" -> id)
+  def findForWiki(id: ObjectId) = ROne[CommentStream]("what" -> "Wiki", "topic" -> id)
+
+  def findFor(id: ObjectId, role: String) = ROne[CommentStream]("what" -> role, "topic" -> id)
+
   def findCommentById(id: String) = ROne[Comment](new ObjectId(id))
+
+  def findStreamById(id: ObjectId) = ROne[CommentStream](id)
 
   final val AUDIT_COMMENT_CREATED = "COMMENT_CREATED"
   final val AUDIT_COMMENT_UPDATED = "COMMENT_UPDATED"
