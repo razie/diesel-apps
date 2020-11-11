@@ -237,7 +237,7 @@ class DomEngineV1(
     implicit var ctx = parentCtx
 
     // expand message expr if the message attrs were expressions, calculate their values
-    val n: EMsg = calcMsg(in)(ctx)
+    val n: EMsg = calcMsg(a, in)(ctx)
     // replace it so we see the calculated values
     a.value = n
 
@@ -746,7 +746,7 @@ class DomEngineV1(
     } else if (ea == DieselMsg.ENGINE.DIESEL_PONG) {
 
       // expand vals
-      val nctx = mkMsgContext(Some(in), calcMsg(in)(ctx).attrs, ctx, a)
+      val nctx = mkMsgContext(Some(in), calcMsg(a, in)(ctx).attrs, ctx, a)
 
       val parentId = nctx.getRequired("parentId")
       val targetId = nctx.getRequired("targetId")
@@ -904,25 +904,34 @@ class DomEngineV1(
   }
 
   // if the message attrs were expressions, calculate their values
-  private def calcMsg (in:EMsg)(implicit ctx: ECtx) : EMsg = {
+  private def calcMsg(a: DomAst, in: EMsg)(implicit ctx: ECtx): EMsg = {
+    val calcAttrs = in.attrs.flatMap { p =>
+      // this flattening is a duplicate of EMap.sourceAttrs but required for $send which is not calculated...
+      // flattening objects first
+      if (p.expr.exists { e =>
+        e.isInstanceOf[AExprIdent] &&
+            e.asInstanceOf[AExprIdent].rest.size > 0 &&
+            e.asInstanceOf[AExprIdent].rest.last.name.equals("asAttrs")
+      }) {
+        p :: flattenJson(p)
+      } else if (p.name.endsWith(".asAttrs")) {
+        // we have to resolve it here and flatten it
+        val ap = new SimpleExprParser().parseIdent(p.name).map(_.dropLast)
+        p :: flattenJson(p.copy(expr = ap).calculatedP)
+      } else {
+        List(p.calculatedP) // only calculate if not already calculated =likely in a different context=
+      }
+    }
+
+    // add trace info for undefined parms
+    calcAttrs
+        .filter(_.ttype == WTypes.UNDEFINED)
+        .foreach(attr => {
+          evAppChildren(a, DomAst(EInfo(s"""UNDEFINED parm $attr"""), AstKinds.DEBUG))
+        })
+
     in.copy(
-      attrs = in.attrs.flatMap { p =>
-          // this flattening is a duplicate of EMap.sourceAttrs but required for $send which is not calculated...
-        // flattening objects first
-        if(p.expr.exists{e=>
-          e.isInstanceOf[AExprIdent] &&
-              e.asInstanceOf[AExprIdent].rest.size > 0 &&
-              e.asInstanceOf[AExprIdent].rest.last.name.equals("asAttrs")
-        }) {
-          p :: flattenJson(p)
-        } else if(p.name.endsWith(".asAttrs")) {
-          // we have to resolve it here and flatten it
-          val ap = new SimpleExprParser().parseIdent(p.name).map(_.dropLast)
-          p :: flattenJson(p.copy(expr = ap).calculatedP)
-        } else {
-          List(p.calculatedP) // only calculate if not already calculated =likely in a different context=
-        }
-      }.filter (_.ttype != WTypes.UNDEFINED) // an undefined parm is the same as not passed in !!
+      attrs = calcAttrs.filter(_.ttype != WTypes.UNDEFINED) // an undefined parm is the same as not passed in !!
     ).copiedFrom(in)
   }
 
