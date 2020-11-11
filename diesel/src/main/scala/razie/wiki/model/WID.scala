@@ -7,13 +7,13 @@
 package razie.wiki.model
 
 import com.novus.salat._
-import controllers.DieselAssets
 import model.CMDWID
 import org.bson.types.ObjectId
 import razie.base.data.TripleIdx
 import razie.db.RazSalatContext._
+import razie.diesel.dom.DieselAssets
 import razie.hosting.WikiReactors
-import razie.tconf.TSpecPath
+import razie.tconf.TSpecRef
 import razie.wiki.Services
 
 
@@ -371,7 +371,7 @@ object WID {
 
   final val empty = WID("-", "-")
 
-  implicit class WidSpecPath (wid:WID) extends TSpecPath {
+  implicit class WidSpecPath (wid:WID) extends TSpecRef {
     def source:String = ""
     def wpath:String = wid.wpath
     def realm:String = wid.getRealm
@@ -382,8 +382,8 @@ object WID {
     override def toString = wid.toString
   }
 
-  implicit def fromSpecPath (s:TSpecPath) : WID = fromPath(s.wpath).get
-  implicit def fromSpecPathList (s:List[TSpecPath]) : List[WID] = s.map(fromSpecPath)
+  implicit def fromSpecPath (s:TSpecRef) : WID = fromPath(s.wpath).get
+  implicit def fromSpecPathList (s:List[TSpecRef]) : List[WID] = s.map(fromSpecPath)
 }
 
 /** a unique ID - it is less verbose than the WID - used in data modelling.

@@ -18,7 +18,7 @@ import razie.wiki.parser.{ParserBase, SimpleSpecParser}
   * engine etc
   */
 trait DSpec {
-  def specPath: TSpecPath
+  def specRef: TSpecRef
 
   // todo this is too specific - need to refactor out
   def findSection(name: String, tags: String = ""): Option[DTemplate]
@@ -89,7 +89,7 @@ trait DTemplate {
 
   def tags: String
 
-  def specPath: TSpecPath
+  def specRef: TSpecRef
 
   def pos: EPos
 
@@ -105,14 +105,14 @@ trait DTemplate {
 
 /** can retrieve specs, by wpath and ver */
 trait DSpecInventory {
-  def findSpec(path: TSpecPath): Option[DSpec]
+  def findSpec(path: TSpecRef): Option[DSpec]
 
   def querySpecs(realm: String, q: String, scope: String, curTags: String = "", max: Int = 2000): List[DSpec]
 }
 
 /** most specifications are made of a text content, which is parsed */
 class BaseTextSpec(val name: String, val text: String, val tags: Seq[String] = Seq()) extends DSpec {
-  def specPath: TSpecPath = new SpecPath("local", name, "")
+  def specRef: TSpecRef = new SpecRef("local", name, "")
 
   def findSection(name: String, tags: String = ""): Option[DTemplate] = None
 

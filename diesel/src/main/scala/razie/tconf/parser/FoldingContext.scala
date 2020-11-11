@@ -31,7 +31,7 @@ abstract class FoldingContext[+T <: DSpec, +U <: DUser] {
     */
   def eval(kind: String, expr: String): String
 
-  def wpath = we.map(_.specPath.wpath)
+  def wpath = we.map(_.specRef.wpath)
 
   /** is this cacheable as parsed or not? */
   def cacheable: Boolean = we.map(_.cacheable).getOrElse(false)

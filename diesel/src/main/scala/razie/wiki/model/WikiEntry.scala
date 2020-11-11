@@ -14,7 +14,7 @@ import razie.{AA, Log, cdebug, ctrace}
 import razie.db.RazSalatContext._
 import razie.db._
 import razie.tconf.parser.StrAstNode
-import razie.tconf.{DSpec, DTemplate, EPos, SpecPath, Visibility}
+import razie.tconf.{DSpec, DTemplate, EPos, SpecRef, Visibility}
 import razie.wiki.Services
 import razie.wiki.model.features.{FieldDef, FormStatus, WikiCount, WikiForm}
 import razie.wiki.parser.WAST
@@ -99,8 +99,8 @@ case class WikiEntry(
   // from DSpec
   override def cat = category
   // from DSpec
-  override def specPath =
-    new SpecPath("local", this.wid.wpath, this.realm) {
+  override def specRef =
+    new SpecRef("local", this.wid.wpath, this.realm) {
       override def ahref: Option[String] = Some(wid.ahref)
     }
 
@@ -465,7 +465,7 @@ case class WikiDTemplate (t:WikiSection) extends DTemplate {
   def content : String = t.content
   def tags : String = t.signature
   def parms : Map[String,String] = t.args ++ Map("signature" -> t.signature)
-  def specPath = SpecPath("local", t.wid.wpath, t.wid.getRealm)
+  def specRef = SpecRef("local", t.wid.wpath, t.wid.getRealm)
   def pos : EPos = EPos(t.wid.copy(section = None).wpath, t.line, t.col)
 
 }
