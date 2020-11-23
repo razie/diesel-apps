@@ -115,7 +115,7 @@ case class ELink(msg: String, url: String = "") extends CanHtml with HasPosition
 
   override def toHtml =
     s"""<span onclick="welink('$url')" style="cursor:pointer" class="label
-       |label-info" title="click to open">link</span>&nbsp;""".stripMargin
+       |label-info" title="click to open">link</span>&nbsp; $msg""".stripMargin
 
   override def toString = "info::" + msg
 }

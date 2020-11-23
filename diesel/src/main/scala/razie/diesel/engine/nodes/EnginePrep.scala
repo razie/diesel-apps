@@ -12,7 +12,7 @@ import razie.diesel.dom.RDomain.DOM_LIST
 import razie.diesel.dom.{RDomain, WikiDomain}
 import razie.diesel.engine._
 import razie.diesel.utils.{DomUtils, SpecCache}
-import razie.tconf.{DSpec, TSpecPath, TagQuery}
+import razie.tconf.{DSpec, TSpecRef, TagQuery}
 import razie.wiki.admin.Autosave
 import razie.wiki.model._
 import scala.collection.mutable
@@ -247,7 +247,7 @@ object EnginePrep extends Logging {
   }
 
   /** nice links to stories in AST trees */
-  case class StoryNode (path:TSpecPath) extends CanHtml with InfoNode {
+  case class StoryNode (path:TSpecRef) extends CanHtml with InfoNode {
     def x = s"""<a id="${path.wpath.replaceAll("^.*:", "")}"></a>""" // from wpath leave just name
     override def toHtml = x + s"""Story ${path.ahref.mkString}"""
     override def toString = "Story " + path.wpath
@@ -305,7 +305,7 @@ object EnginePrep extends Logging {
       // add a node to represent the story, if multiple stories or fiddles
       if(stories.size > 1 || addFiddles)
         root.childrenCol appendAll {
-          lastAst = List(DomAst(StoryNode(story.specPath), AstKinds.STORY).withPrereq(lastAst.map(_.id)).withStatus(DomState.SKIPPED))
+          lastAst = List(DomAst(StoryNode(story.specRef), AstKinds.STORY).withPrereq(lastAst.map(_.id)).withStatus(DomState.SKIPPED))
           lastAst
         }
 
@@ -335,7 +335,7 @@ object EnginePrep extends Logging {
           _._1.startsWith("$expect")).collect {
 
           case (line, row) if !findElemLine(row+1) =>
-            DomAst(EError(s"Unparsed line #$row: " + line, story.specPath.wpath), AstKinds.ERROR).withStatus(
+            DomAst(EError(s"Unparsed line #$row: " + line, story.specRef.wpath), AstKinds.ERROR).withStatus(
               DomState.SKIPPED)
         }
       }

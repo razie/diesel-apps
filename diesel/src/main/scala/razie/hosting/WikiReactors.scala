@@ -15,6 +15,7 @@ import razie.db.RazSalatContext._
 import razie.diesel.engine.DieselAppContext
 import razie.diesel.model.{DieselMsg, DieselTarget, ScheduledDieselMsg}
 import razie.tconf.hosting.Reactors
+import razie.wiki.admin.GlobalData
 import razie.wiki.model._
 import razie.wiki.util.DslProps
 import razie.wiki.{Services, WikiConfig}
@@ -99,9 +100,8 @@ object WikiReactors extends Logging with Reactors {
 
   // ====================================== loading
 
-  // stays on even after they're loaded
+  // stays on even after they're loaded, so it's never done again
   @volatile var loading = false
-
   private def loadReactors(): Unit = synchronized {
     if(loading) {
       Audit.logdb("DEBUG-WARNING", "Already Loading reactors " + Thread.currentThread().getName)
@@ -176,14 +176,10 @@ object WikiReactors extends Logging with Reactors {
             |=======================================================
             |""".stripMargin
       DieselAppContext.start
-      reactorsLoadedP.success(true)
+      GlobalData.reactorsLoaded = true
+      GlobalData.reactorsLoadedP.success(true)
     }
   }
-
-  private val reactorsLoadedP : Promise[Boolean] = Promise[Boolean]()
-
-  /** wait here if you need reactors */
-  val reactorsLoadedF : Future[Boolean] = reactorsLoadedP.future
 
   /** lazy load a reactor
     *

@@ -14,7 +14,7 @@ import razie.diesel.expr.ECtx
 import razie.tconf.{DSpec, EPos}
 import razie.wiki.Enc
 import scala.collection.mutable
-import scala.collection.mutable.{HashMap, ListBuffer}
+import scala.collection.mutable.ListBuffer
 
 /** accumulate results and infos and errors */
 class InfoAccumulator (var eres : List[Any] = Nil) {
@@ -138,41 +138,43 @@ object RDExt extends Logging {
 
   /** find the usages in stories
     *
-    * @return (what, ea, pos, line)
+    * @return (what, ea, pos, line, parent)
     */
-  def usagesStories(entity: String, met: String, stories: List[DSpec])(implicit ctx: ECtx): List[(String, String,
-      Option[EPos], String)] = {
+  def usagesStories(entity: String, met: String, stories: List[DSpec])(implicit ctx: ECtx)
+  : List[(String, String, Option[EPos], String, String)] = {
     stories
         .flatMap(
           RDomain.domFilter(_) {
-            case x: EMsg if x.entity == entity && x.met == met => ("$send", x.ea, x.pos, x.toString)
-            case x: ExpectM if x.m.cls == entity && x.m.met == met => ("$expect", x.m.ea, x.pos, x.m.toString)
+            case x: EMsg if x.entity == entity && x.met == met => ("$send", x.ea, x.pos, x.toString, "")
+            case x: ExpectM if x.m.cls == entity && x.m.met == met => ("$expect", x.m.ea, x.pos, x.m.toString, "")
           })
   }
 
   /** find where it is decomposed (applicable rules)
     *
-    * @return (what, ea, pos, line)
+    * @return (what, ea, pos, line, parent)
     */
-  def usagesSpecs(entity: String, met: String)(implicit ctx: ECtx): List[(String, String, Option[EPos], String)] =
+  def usagesSpecs(entity: String, met: String)(implicit ctx: ECtx)
+  : List[(String, String, Option[EPos], String, String)] =
     ctx.domain.toList.flatMap(_.moreElements.collect {
-      case u: EMsg if u.entity == entity && u.met == met => List(("$msg", u.ea, u.pos.orElse(u.rulePos), u.toCAString))
+      case u: EMsg if u.entity == entity && u.met == met => List(
+        ("$msg", u.ea, u.pos.orElse(u.rulePos), u.toCAString, ""))
       case u: ERule => usagesInRule(u, entity, met)
     }).flatten
 
   /** unpack usage in a rule
     *
-    * @return (what, ea, pos, line)
+    * @return (what, ea, pos, line, parent)
     */
-  def usagesInRule(u: ERule, entity: String, met: String)(implicit ctx: ECtx): List[(String, String, Option[EPos],
-      String)] =
+  def usagesInRule(u: ERule, entity: String, met: String)(implicit ctx: ECtx)
+  : List[(String, String, Option[EPos], String, String)] =
     (
         if (u.e.cls == entity && u.e.met == met)
-          List(("$when", u.e.cls + "." + u.e.met, u.pos, u.e.toString))
+          List(("$when", u.e.cls + "." + u.e.met, u.pos, u.e.toString, ""))
         else Nil
         ) :::
         u.i.collect {
-          case x: EMap if x.cls == entity && x.met == met => ("=>", x.cls + "." + x.met, x.pos, x.toCAString)
+          case x: EMap if x.cls == entity && x.met == met => ("=>", x.cls + "." + x.met, x.pos, x.toCAString, u.e.ea)
         }
 
   // to collect msg def

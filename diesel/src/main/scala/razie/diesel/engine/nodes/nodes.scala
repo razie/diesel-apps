@@ -138,7 +138,7 @@ package object nodes {
 
     if (!positive) result = !result
 
-    if(result) {
+    if (result) {
       // populated the calculated only if all else matched and this rule will be used then...
       calculated.foreach(ctx.put)
     }
@@ -146,12 +146,22 @@ package object nodes {
     result
   }
 
-  def toHtmlAttrs(attrs: Attrs)      = if(attrs.nonEmpty) s"""${attrs.map(_.toHtml).mkString("(", ", ", ")")}""" else ""
-  def toHtmlMAttrs(attrs: MatchAttrs) = if(attrs.nonEmpty) s"""${attrs.map(_.toHtml).mkString("(", ", ", ")")}""" else ""
-  def toHtmlPAttrs(attrs: List[PAS]) = if(attrs.nonEmpty) s"""${attrs.map(_.toHtml).mkString("(", ", ", ")")}""" else ""
+  def toHtmlAttrs(attrs: Attrs) =
+    if (attrs.nonEmpty) s"""${attrs.map(_.toHtml).mkString("(", ", ", ")")}"""
+    else ""
+
+  def toHtmlMAttrs(attrs: MatchAttrs) = if (attrs.nonEmpty)
+    s"""${
+      attrs.map(_.toHtml).mkString("(", ", ", ")")
+    }""" else ""
+
+  def toHtmlPAttrs(attrs: List[PAS]) = if (attrs.nonEmpty)
+    s"""${
+      attrs.map(_.toHtml).mkString("(", ", ", ")")
+    }""" else ""
 
   //todo when types are supported, remove this method and all its uses
-  def stripQuotes(s:String) =
-    if(s.startsWith("\"") && s.endsWith("\"")) s.substring(1,s.length-1) else s
+  def stripQuotes(s: String) =
+    if (s.startsWith("\"") && s.endsWith("\"")) s.substring(1, s.length - 1) else s
 
 }

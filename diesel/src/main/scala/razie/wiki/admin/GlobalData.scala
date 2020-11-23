@@ -6,7 +6,9 @@
  */
 package razie.wiki.admin
 
+import java.util.concurrent.atomic.AtomicLong
 import org.joda.time.DateTime
+import scala.concurrent.{Future, Promise}
 
 /** current ops data is updated here from all over - you can inspect this in a page
   *
@@ -25,11 +27,20 @@ object GlobalData {
   @volatile var servedApiRequests = 0L
   @volatile var limitedApiRequests = 0L // how many were kicked off under load
 
+  val dieselEnginesTotal = new AtomicLong(0) // how many engines created
+  val dieselEnginesActive = new AtomicLong(0) // how many engines active
+
   /** how many wiki options have been requested - simple stats */
   var wikiOptions = 0L
 
   val startedDtm = DateTime.now
 
-  var clusterStatus : String = "-"
+  var clusterStatus: String = "-"
+
+  var reactorsLoaded = false
+  val reactorsLoadedP : Promise[Boolean] = Promise[Boolean]()
+  /** wait here if you need reactors */
+  val reactorsLoadedF : Future[Boolean] = reactorsLoadedP.future
+
 }
 

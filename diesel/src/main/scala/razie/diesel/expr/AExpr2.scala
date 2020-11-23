@@ -142,7 +142,18 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
       case "-" => {
         val bv = b.applyTyped(v)
         (a, b) match {
-          case _ if isNum(av) && isNum (bv) => {
+          // json exprs are different, like cart + { item:...}
+          case (aei: AExprIdent, JBlockExpr(jb, _))
+            if aei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) =>
+            jsonExpr(op, a(v).toString, b(v).toString)
+
+          // json exprs are different, like cart + { item:...}
+          case (aei: AExprIdent, bei: AExprIdent)
+            if aei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) &&
+                bei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) =>
+            jsonExpr(op, a(v).toString, b(v).toString)
+
+          case _ if isNum(av) && isNum(bv) => {
             // if a is num, b will be converted to num
             val as = av.calculatedValue
             if (as.contains(".")) {
@@ -409,7 +420,8 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
     val bi = try {
       razie.js.parse(bb)
     } catch {
-      case t:Throwable => throw new DieselExprException(s"Parm ${bb} can't be parsed to JSON: " + t.toString).initCause(t)
+      case t: Throwable => throw new DieselExprException(
+        s"Parm ${bb} can't be parsed to JSON: " + t.toString).initCause(t)
     }
     val res = new mutable.HashMap[String, Any]()
 
@@ -417,52 +429,60 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
       res.put(t._1, t._2)
     }
 
-    bi.foreach { t =>
-      val k = t._1
-      val bv = t._2
-      if (res.contains(k)) {
-        val ax = res(k)
-        ax match {
+    if ("+" == op.trim) {
+      bi.foreach { t =>
+        val k = t._1
+        val bv = t._2
+        if (res.contains(k)) {
+          val ax = res(k)
+          ax match {
 
-          case al: collection.Seq[_] => {
-            bv match {
+            case al: collection.Seq[_] => {
+              bv match {
                 // add lists
-              case bll: collection.Seq[_] => {
-                val l = new ListBuffer[Any]
-                l.appendAll(al)
-                l.appendAll(bll)
-                res.put(k, l)
-              }
-              case _ => {
-                val l = new ListBuffer[Any]
-                l.appendAll(al)
-                l.append(bv)
-                res.put(k, l)
+                case bll: collection.Seq[_] => {
+                  val l = new ListBuffer[Any]
+                  l.appendAll(al)
+                  l.appendAll(bll)
+                  res.put(k, l)
+                }
+                case _ => {
+                  val l = new ListBuffer[Any]
+                  l.appendAll(al)
+                  l.append(bv)
+                  res.put(k, l)
+                }
               }
             }
-          }
 
-          case m: collection.Map[_, _] => {
-            // merge maps
-            val mres = new mutable.HashMap[String, Any]()
-            m.foreach { t =>
-              mres.put(t._1.toString, t._2)
+            case m: collection.Map[_, _] => {
+              // merge maps
+              val mres = new mutable.HashMap[String, Any]()
+              m.foreach { t =>
+                mres.put(t._1.toString, t._2)
+              }
+              res.put(k, mres)
             }
-            res.put(k, mres)
-          }
 
-          case y @ _ => {
-            (y, bv) match {
+            case y@_ => {
+              (y, bv) match {
 //              case (a:Int, b:Int) => res.put(k, a+b)
-              // todo this will concatenate strings instead of merging maps
-              case _ => res.put(k, bv)
+                // todo this will concatenate strings instead of merging maps
+                case _ => res.put(k, bv)
 //              case _ => res.put(k, y.toString + bv.toString)
                 // todo this will concatenate strings instead of merging maps
+              }
             }
           }
-        }
-      } else res.put(k, bv)
+        } else res.put(k, bv)
+      }
+    } else if ("-" == op.trim) {
+      bi.foreach { t =>
+        val k = t._1
+        res.remove(k)
+      }
     }
+
     val s = razie.js.tojsons(res.toMap)
     PValue(res, WTypes.wt.JSON).withStringCache(s)
   }

@@ -128,11 +128,17 @@ case class BCMP2(a: Expr, op: String, b: Expr)
         }
 
         case _ => {
-          def b_is(s: String) =
-            b.isInstanceOf[AExprIdent] && s == b
+          def expr_id(ex: Expr) =
+            if (ex.isInstanceOf[AExprIdent]) ex.asInstanceOf[AExprIdent].expr
+            else ""
+
+          def expr_is(ex: Expr, s: String) =
+            ex.isInstanceOf[AExprIdent] && s == ex
                 .asInstanceOf[AExprIdent]
                 .expr
                 .toLowerCase
+
+          def b_is(s: String) = expr_is(b, s)
 
           def isNum(p: P) = {
             p.ttype.name == WTypes.NUMBER || p.value.exists(_.cType.name == WTypes.NUMBER)
@@ -204,12 +210,40 @@ case class BCMP2(a: Expr, op: String, b: Expr)
             case "is" if b_is("boolean") =>
               a.getType == WTypes.wt.BOOLEAN || ap.calculatedTypedValue.contentType == WTypes.BOOLEAN
 
+            case "is" if b_is("bytes") =>
+              ap.calculatedTypedValue.contentType == WTypes.BYTES
+
             case "is" if b_is("json") || b_is("object") =>
               ap.calculatedTypedValue.contentType == WTypes.JSON
 
             case "is" if b_is("array") => {
               val av = ap.calculatedTypedValue
               av.contentType == WTypes.ARRAY
+            }
+
+            case "is" if b_is("class") => {
+              val cname = expr_id(a)
+              ctx.domain.exists(_.classes.contains(cname))
+              // nice to have class values
+//              val av = ap.calculatedTypedValue
+//              av.contentType == WTypes.CLASS
+            }
+
+//            case "is" if b_is(WTypes.MSG) => {
+//              val cname = expr_id(a)
+//              ctx.domain.exists(_.moreElements.contains(x => x.isInstanceOf[EMsg] && x.asInstanceOf[EMsg].ea ==
+//              cname))
+            // nice to have class values
+//              val av = ap.calculatedTypedValue
+//              av.contentType == WTypes.CLASS
+//            }
+
+            case "is" if b_is(WTypes.FUNC) => {
+              val cname = expr_id(a)
+              ctx.domain.exists(_.funcs.contains(cname))
+              // nice to have class values
+//              val av = ap.calculatedTypedValue
+//              av.contentType == WTypes.CLASS
             }
 
             case "is" | "==" if bp.ttype == WTypes.wt.ARRAY || ap.ttype == WTypes.wt.ARRAY => {

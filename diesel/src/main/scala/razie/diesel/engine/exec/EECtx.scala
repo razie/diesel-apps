@@ -5,6 +5,7 @@
  */
 package razie.diesel.engine.exec
 
+import org.apache.commons.codec.digest.DigestUtils
 import razie.clog
 import razie.diesel.Diesel
 import razie.diesel.dom.RDOM._
@@ -263,9 +264,10 @@ class EECtx extends EExecutor(EECtx.CTX) {
 
         // url safe version
       case "urlbase64encode" => {
-        val res = in.attrs.filter(_.name != "result").map { a =>
+        val res = in.attrs.filter(_.name != Diesel.RESULT).map { a =>
           import org.apache.commons.codec.binary.Base64
           def enc(s: String) = new Base64(true).encode(s.getBytes)
+
           val res = enc(a.calculatedValue)
           new EVal(a.name, new String(res).replaceAll("\n", "").replaceAll("\r", ""))
         }
@@ -275,9 +277,10 @@ class EECtx extends EExecutor(EECtx.CTX) {
 
         // normal base64 encoder
       case "base64encode" => {
-        val res = in.attrs.filter(_.name != "result").map { a =>
+        val res = in.attrs.filter(_.name != Diesel.RESULT).map { a =>
           import org.apache.commons.codec.binary.Base64
           def enc(s: String) = new Base64(false).encode(s.getBytes)
+
           val res = enc(a.calculatedValue)
           new EVal(a.name, new String(res).replaceAll("\n", "").replaceAll("\r", ""))
         }
@@ -377,7 +380,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       case "base64decode" => {
-        val res = in.attrs.filter(_.name != "result").map { a =>
+        val res = in.attrs.filter(_.name != Diesel.RESULT).map { a =>
           val res = Base64.dec(a.calculatedValue)
           new EVal(RDOM.P(a.name, "", WTypes.wt.BYTES, None, "",
             Some(PValue[Array[Byte]](res, "application/octet-stream"))))
@@ -387,7 +390,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       case "sha1" => {
-        val res = in.attrs.filter(_.name != "name").map { a =>
+        val res = in.attrs.filter(_.name != Diesel.RESULT).map { a =>
           val md = java.security.MessageDigest.getInstance("SHA-1")
           val s = md.digest(a.currentStringValue.getBytes("UTF-8")).map("%02X".format(_)).mkString
 //          val sb = DigestUtils.sha1Hex(a.dflt)
@@ -396,12 +399,27 @@ class EECtx extends EExecutor(EECtx.CTX) {
 
         res :::
             in.attrs
-                .find(_.name == "name")
+                .find(_.name == Diesel.RESULT)
                 .map(_.calculatedValue)
+                .orElse(Some(Diesel.PAYLOAD))
                 .map(p => new EVal(p, res.head.p.currentStringValue))
                 .toList
+      }
 
-//        new EVal(a.name+"_sha1", s) :: new EVal("result", s) :: Nil
+      case "sha256" => {
+        val res = in.attrs.filter(_.name != Diesel.RESULT).map { a =>
+          val md = java.security.MessageDigest.getInstance("SHA-256")
+          val s = DigestUtils.sha256Hex(a.currentStringValue)
+          new EVal(a.name + "_sha256", s)
+        }
+
+        res :::
+            in.attrs
+                .find(_.name == Diesel.RESULT)
+                .map(_.calculatedValue)
+                .orElse(Some(Diesel.PAYLOAD))
+                .map(p => new EVal(p, res.head.p.currentStringValue))
+                .toList
       }
 
       case "timer" => {
@@ -530,6 +548,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         EMsg(CTX, "setVal") ::
         EMsg(CTX, "setAll") ::
         EMsg(CTX, "sha1") ::
+        EMsg(CTX, "sha256") ::
         EMsg(CTX, "foreach") ::
         EMsg(CTX, "trace") ::
         EMsg(CTX, "debug") ::

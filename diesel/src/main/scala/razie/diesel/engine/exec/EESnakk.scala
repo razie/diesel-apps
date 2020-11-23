@@ -6,13 +6,12 @@
 package razie.diesel.engine.exec
 
 import com.razie.pub.comms.{CommRtException, Comms}
-import controllers.DieselAssets
 import java.net.{URI, URL}
 import razie.Snakk._
 import razie.diesel.Diesel
 import razie.diesel.Diesel.PAYLOAD
 import razie.diesel.dom.RDOM._
-import razie.diesel.dom._
+import razie.diesel.dom.{DieselAssets, _}
 import razie.diesel.engine.RDExt.{DieselJsonFactory, spec}
 import razie.diesel.engine._
 import razie.diesel.engine.nodes._
@@ -271,11 +270,13 @@ class EESnakk extends EExecutor("snakk") with Logging {
         }
       }
 
-      val traceId = reply.headers.get("dieselFlowId").map(t =>
+      val traceId = reply.headers.get("dieselFlowId").map { t =>
+        val url = DieselAssets.mkEmbedLink(WID("DieselEngine", t))
+        val href = DieselAssets.mkAhref(WID("DieselEngine", t))
         ELink(
-          "dieselFlow",
-          DieselAssets.mkEmbedLink(WID("DieselEngine", t))
-        )).toList
+          s"dieselFlow spawned $href",
+          url)
+      }.toList
 
       // if no typed result, add a generic text
       if (eres.eres.collect {
