@@ -49,13 +49,17 @@ trait DomParser extends ParserBase with ExprParser {
     * annotations have to be in the same page and are claimed by the first element that follows
     */
   def panno: PS =
-    """[.$]anno(tate)? +""".r ~> ows ~> optAttrs ^^ {
-      case attrs => {
+    keyw("""[.$]anno(tate)? +""".r) ~ ows ~ optAttrs ^^ {
+      case k ~ _ ~ attrs => {
         lazys { (current, ctx) =>
-          // was it collected? if so, merge the two defs
           ctx.we.foreach { w =>
-            w.collector.put(RDomain.DOM_ANNO_LIST, attrs)
+            // accumulate annotations
+            val anno = ctx.we.get.collector.getOrElse(RDomain.DOM_ANNO_LIST, Nil).asInstanceOf[List[RDOM.P]]
+            w.collector.put(RDomain.DOM_ANNO_LIST, attrs ::: anno)
           }
+
+          // collect just to indicate parsing on the left in ACE
+          collectDom((new Anno).withPos(pos(k, ctx)), ctx.we)
 
           StrAstNode(
             s"""${span("anno")} ${mksAttrs(attrs)}
@@ -87,6 +91,8 @@ trait DomParser extends ParserBase with ExprParser {
             Nil,
             anno)
 
+          c.pos = mkPos(ctx, k)
+
           var actions = ""
 
           // was it collected? if so, merge the two defs
@@ -106,7 +112,7 @@ trait DomParser extends ParserBase with ExprParser {
             c = collected.foldLeft(c){(a,b) => a.plus(b)}
             collectDom(c, ctx.we)
 
-            actions = RDomainPlugins.htmlActions(w.specPath.realm, c)
+            actions = DomInventories.htmlActions(w.specRef.realm, c)
           }
 
           StrAstNode(
@@ -352,7 +358,7 @@ trait DomParser extends ParserBase with ExprParser {
       case k ~ _ ~ oarch ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ _ ~ gens => {
         lazys { (current, ctx) =>
           val x = nodes.EMatch(ac, am, aa, cond)
-          val wpath = ctx.we.map(_.specPath.wpath).mkString
+          val wpath = ctx.we.map(_.specRef.wpath).mkString
           val arch = oarch.filter(_.length > 0).getOrElse(k.s) // archetype
           val r = ERule(x, arch, gens.map(m=>m.withPosition(m.pos.get.copy(wpath=wpath))))
           r.pos = Some(EPos(wpath, k.pos.line, k.pos.column))
@@ -521,7 +527,7 @@ trait DomParser extends ParserBase with ExprParser {
   }
 
   def pos (k:Keyw, ctx:FoldingContext[DSpec,DUser]) = {
-    Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
+    Some(EPos(ctx.we.map(_.specRef.wpath).mkString, k.pos.line, k.pos.column))
   }
 
   def pos (k:Keyw) = {
@@ -602,7 +608,7 @@ trait DomParser extends ParserBase with ExprParser {
 
         val f = EMsg(qcm._1, qcm._2, attrs, "def", ret.toList.flatten(identity), archn)
 
-        f.pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
+        f.pos = Some(EPos(ctx.we.map(_.specRef.wpath).mkString, k.pos.line, k.pos.column))
         collectDom(f, ctx.we)
         StrAstNode(f.toHtmlInPage + "<br>")
       }
@@ -633,7 +639,7 @@ trait DomParser extends ParserBase with ExprParser {
       opt(qclsMet) ~ optMatchAttrs ~ " *".r ~ opt(pif) <~ " *".r <~ optComment3 ^^ {
     case k ~ not ~ pif ~ _ ~ qcm ~ attrs ~ _ ~ cond => {
       lazys { (current, ctx) =>
-        val pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
+        val pos = Some(EPos(ctx.we.map(_.specRef.wpath).mkString, k.pos.line, k.pos.column))
         val f = qcm.map(qcm =>
           ExpectM(not.isDefined, nodes.EMatch(qcm._1, qcm._2, attrs, cond.orElse(pif)))
               .withPos(pos)
@@ -662,7 +668,7 @@ trait DomParser extends ParserBase with ExprParser {
   def passert: PS = keyw("[.$]assert".r <~ ws) ~ opt("not" <~ ws) ~ optAssertExprs <~ " *".r <~ optComment3 ^^ {
     case k ~ not ~ exprs => {
       lazys { (current, ctx) =>
-        val pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
+        val pos = Some(EPos(ctx.we.map(_.specRef.wpath).mkString, k.pos.line, k.pos.column))
         val f = ExpectAssert(not.isDefined, exprs).withPos(pos)
         collectDom(f, ctx.we)
         StrAstNode(f.toHtml + "<br>")

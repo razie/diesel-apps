@@ -13,7 +13,7 @@ package razie.tconf
   * wpath can be at minimum "class:id" or qualified "realm.class:id"
   * wpath could include a section Id, like "realm.class:id#section"
   *
-  * @param source - the source system: inventory understands and delegates to
+  * @param source - the source system: inventory understands and delegates to (preferably URL)
   * @param wpath  - unique id of the spec
   * @param realm  - optionally identify a realm within the source (multi-tenancy)
   * @param ver    - optionally identify a version of the spec
