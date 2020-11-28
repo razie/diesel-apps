@@ -27,30 +27,38 @@ import razie.wiki.Services
   * assumption is that when we link between wikis, we'll have wiki/parent/cat:name#section -
   *
   * NOTE: equals does not look at parent !!!
+  *
+  * @param sourceUrl not persisted/read, just temporary
   */
 case class WID(
   cat: String,
   name: String,
   parent: Option[ObjectId] = None,
   section: Option[String] = None,
-  realm:Option[String]=None) {
+  realm: Option[String] = None,
+  @transient sourceUrl: Option[String] = None) {
 
   override def toString = "[[" + wpath + "]]"
 
   lazy val grated = grater[WID].asDBObject(this)
   lazy val findParent = parent flatMap (p => Wikis(getRealm).find(p))
-  lazy val parentWid = parent flatMap (p => WikiIndex.withIndex(getRealm) { index => index.find { case (a, b, c) => c == p }.map(_._2) }) orElse (findParent map (_.wid))
+  lazy val parentWid = parent flatMap (p => WikiIndex.withIndex(getRealm)
+  { index => index.find { case (a, b, c) => c == p }.map(_._2) }) orElse (findParent map (_.wid))
+
+  /** clone with new sourceUrl */
+  def withSourceUrl(s: String) = this.copy(sourceUrl = Some(s))
 
   /** find a parent of the given category */
-  def parentOf(category: String=>Boolean) = {
-    def f(p: Option[WID]) = if (p.isEmpty) None else p.filter(x=>category(x.cat)).orElse(p.flatMap(_.parentWid))
+  def parentOf(category: String => Boolean) = {
+    def f(p: Option[WID]) = if (p.isEmpty) None else p.filter(x => category(x.cat)).orElse(p.flatMap(_.parentWid))
+
     f(parentWid)
   }
 
   /** find the page for this, if any - respects the NOCATS */
   lazy val page = {
     val w = if (Services.config.cacheWikis) {
-      WikiCache.getEntry(this.wpathFull+".page").map { x =>x
+      WikiCache.getEntry(this.wpathFull + ".page").map { x => x
       }
     } else None
 
@@ -202,18 +210,23 @@ case class WID(
   /** the canonical URL with the proper hostname for reactor */
   def url: String = intUrl(DieselAssets.mkLink)
 
-  /** the canonical URL with the proper hostname for reactor */
-  private def intUrl(func: (WID, String) => String): String = {
+  /** find hostport */
+  def hostport(forceRemote: Boolean = false): String = {
     val hasRealm = realm.isDefined && WikiReactors(realm.get).websiteProps.prop("domain").exists(_.length > 0)
 
-    (if (hasRealm && !Services.config.isLocalhost) {
+    (if (hasRealm && (forceRemote || !Services.config.isLocalhost)) {
       "http://" + WikiReactors(realm.get).websiteProps.prop("domain").get
     } else {
       //todo current realm
       // todo in localhost, it may run wiht a different IP/port to don't use the hostport, just relative
 //        Services.config.hostport
       ""
-    }) + "/" + {
+    })
+  }
+
+  /** the canonical URL with the proper hostname for reactor */
+  private def intUrl(func: (WID, String) => String): String = {
+    hostport() + "/" + {
       if (realm.isDefined) func(this, wpath)
       else canonpath
     }

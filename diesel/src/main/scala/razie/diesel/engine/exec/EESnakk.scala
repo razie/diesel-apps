@@ -271,8 +271,15 @@ class EESnakk extends EExecutor("snakk") with Logging {
       }
 
       val traceId = reply.headers.get("dieselFlowId").map { t =>
-        val url = DieselAssets.mkEmbedLink(WID("DieselEngine", t))
-        val href = DieselAssets.mkAhref(WID("DieselEngine", t))
+        var wid = WID("DieselEngine", t)
+        val host = reply.headers.get("dieselHost")
+        if (host.isDefined) {
+          wid = wid.withSourceUrl(host.mkString)
+        }
+
+        val url = DieselAssets.mkEmbedLink(wid)
+        val href = DieselAssets.mkAhref(wid)
+
         ELink(
           s"dieselFlow spawned $href",
           url)
@@ -317,7 +324,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
       findin("url").map { u =>
         // is it relative?
         val newurl = if (u.currentStringValue startsWith "http") u.currentStringValue else "http://" +
-            ctx.root.asInstanceOf[DomEngECtx].settings.hostport.mkString.mkString + u.currentStringValue
+            ctx.root.asInstanceOf[DomEngECtx].settings.dieselHost.mkString.mkString + u.currentStringValue
 
         val sc = new SnakkCall("http", in.arch, newurl, Map.empty, "")
         //          case class SnakkCall (method:String, url:String, headers:Map[String,String], content:String) {
@@ -496,8 +503,8 @@ object EESnakk {
 
   def relativeUrl(u:String)(implicit ctx:ECtx) =
     if (u startsWith "/") "http://" +
-      ctx.root.settings.hostport.mkString.mkString +
-      u
+        ctx.root.settings.dieselHost.mkString.mkString +
+        u
     else u
 
   /** extract a snakk call from message args - good for snakk.json and snakk.xml */

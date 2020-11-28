@@ -35,7 +35,8 @@ case class DomEngineSettings
   /** tag query to select for mocks */
   var mockQuery: Option[String] = None,
 
-  var hostport: Option[String] = None,
+  /** nost just host port, also protocol - so url root */
+  var dieselHost: Option[String] = None,
 
   var realm: Option[String] = None,
 
@@ -75,16 +76,16 @@ case class DomEngineSettings
       DRAFT_MODE -> draftMode.toString,
       EXEC_MODE -> execMode,
       RESULT_MODE -> resultMode
-    ) ++ parentNodeId.map(x=> Map(DIESEL_NODE_ID -> x)
-    ).getOrElse(Map.empty) ++ configTag.map(x=> Map(DIESEL_CONFIG_TAG -> x)
-    ).getOrElse(Map.empty) ++ userId.map(x=> Map(DIESEL_USER_ID -> x)
-    ).getOrElse(Map.empty) ++ tagQuery.map(x=> Map(TAG_QUERY -> x)
-    ).getOrElse(Map.empty) ++ mockQuery.map(x=> Map(MOCK_QUERY -> x)
-    ).getOrElse(Map.empty) ++ realm.map(x=> Map(REALM -> x)
-    ).getOrElse(Map.empty) ++ env.map(x=> Map(ENV -> x)
-    ).getOrElse(Map.empty) ++ sla.map(x=> Map(SLA -> x)
-    ).getOrElse(Map.empty) ++ hostport.map(x=>
-      Map(HOSTPORT -> x)
+    ) ++ parentNodeId.map(x => Map(DIESEL_NODE_ID -> x)
+    ).getOrElse(Map.empty) ++ configTag.map(x => Map(DIESEL_CONFIG_TAG -> x)
+    ).getOrElse(Map.empty) ++ userId.map(x => Map(DIESEL_USER_ID -> x)
+    ).getOrElse(Map.empty) ++ tagQuery.map(x => Map(TAG_QUERY -> x)
+    ).getOrElse(Map.empty) ++ mockQuery.map(x => Map(MOCK_QUERY -> x)
+    ).getOrElse(Map.empty) ++ realm.map(x => Map(REALM -> x)
+    ).getOrElse(Map.empty) ++ env.map(x => Map(ENV -> x)
+    ).getOrElse(Map.empty) ++ sla.map(x => Map(SLA -> x)
+    ).getOrElse(Map.empty) ++ dieselHost.map(x =>
+      Map(DIESEL_HOST -> x)
     ).getOrElse(Map.empty) ++
         Map(SIM_MODE -> simMode.toString)
   }
@@ -103,7 +104,7 @@ object DomEngineSettings {
   final val DIESEL_USER_ID = "dieselUserId"
   final val TAG_QUERY = "tagQuery"
   final val MOCK_QUERY = "mockQuery"
-  final val HOSTPORT = "hostport"
+  final val DIESEL_HOST = "dieselHost"
   final val SIM_MODE = "simMode"
   final val REALM = "realm"
   final val ENV = "env"
@@ -137,7 +138,7 @@ object DomEngineSettings {
       parentNodeId = fqhParm(DIESEL_NODE_ID),
       configTag = fqhParm(DIESEL_CONFIG_TAG),
       userId = fqhParm(DIESEL_USER_ID),
-      hostport = fqhParm(HOSTPORT),
+      dieselHost = fqhParm(DIESEL_HOST),
       realm = fqhParm(REALM),
       tagQuery = fqhParm(TAG_QUERY),
       mockQuery = fqhParm(MOCK_QUERY),
@@ -163,4 +164,14 @@ object DieselSLASettings {
 
   final val DEFAULT = "keep1,nopers"
 }
+
+//class DESSettableReference (val engine:DomEngineSettings) extends SettableReference ("diesel.engine") {
+//  def get(sub:String) : Option[SettableReference] = None
+//  def set(p:P) : Unit
+//}
+//
+//class DSettableReference (val engine:DomEngineSettings) extends SettableReference ("diesel.engine") {
+//  def get(sub:String) : Option[SettableReference] = None
+//  def set(p:P) : Unit
+//}
 
