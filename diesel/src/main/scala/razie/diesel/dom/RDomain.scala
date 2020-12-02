@@ -17,7 +17,6 @@ import scala.collection.mutable.ListBuffer
   * these are composable: bigger = root plus more
   */
 class RDomain(
-
   val name: String,
   val classes: Map[String, C],
   val assocs: List[A],
@@ -44,7 +43,7 @@ class RDomain(
       c.parms.filter(p=> nz(p.ttype) &&
         !RDomain.isDataType(p.ttype) &&
         !assocs.exists(a=>a.a == c.name && a.z==p.ttype && a.zRole==p.name)).map{p=>
-        A("", c.name, p.ttype, (if(!p.ttype.isRef) "Parent" else ""), p.name)
+        A("", c.name, p.ttype.name, (if (!p.ttype.isRef) "Parent" else ""), p.name)
       }
     }
 

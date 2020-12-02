@@ -7,10 +7,11 @@
 package razie.diesel.dom
 
 import org.json.{JSONArray, JSONObject}
-import razie.diesel.engine.nodes.CanHtml
+import razie.diesel.engine.nodes.{CanHtml, HasPosition}
 import razie.diesel.engine.{DomEngine, EContent}
 import razie.diesel.expr._
 import razie.js
+import razie.tconf.EPos
 import razie.wiki.Enc
 import scala.collection.mutable.HashMap
 import scala.concurrent.Future
@@ -23,47 +24,68 @@ import scala.concurrent.Future
 object RDOM {
   // archtetypes
 
-  trait DE // abstract base class for Domain Elements (classes etc)
-  class CM // abstract Class Member
+  // abstract base class for Domain Elements (classes etc)
+  trait DE extends HasPosition {
+    /** the pos of this element's spec */
+    var pos: Option[EPos] = None
 
-  private def classLink (s:String):String = s"""<b><a href="/wikie/show/Category:$s">$s</a></b>"""
+    def withPos(p: Option[EPos]) = {
+      this.pos = p;
+      this
+    }
+  }
+
+  // abstract Class Member
+  class CM extends HasPosition {
+    /** the pos of this element's spec */
+    var pos: Option[EPos] = None
+
+    def withPos(p: Option[EPos]) = {
+      this.pos = p;
+      this
+    }
+  }
+
+  class Anno extends DE
+
+  private def classLink(s: String): String = s"""<b><a href="/wikie/show/Category:$s">$s</a></b>"""
 
   /** represents a Class
     *
-    * @param name         name of the class
+    * @param name      name of the class
     * @param archetype
     * @param stereotypes
-    * @param base        name of base class
-    * @param typeParam   if higher kind, then type params
-    * @param parms       class members
-    * @param methods     class methods
-    * @param assocs      assocs to other classes
-    * @param props       annotations and other properties
+    * @param base      name of base class
+    * @param typeParam if higher kind, then type params
+    * @param parms     class members
+    * @param methods   class methods
+    * @param assocs    assocs to other classes
+    * @param props     annotations and other properties
     */
-  case class C (
-    name:String,
-    archetype:String,
-    stereotypes:String,
-    base:List[String],
-    typeParam:String,
-    parms:List[P]=Nil,
-    methods:List[F]=Nil,
-    assocs:List[A]=Nil,
-    props:List[P]=Nil) extends DE {
+  case class C(
+    name: String,
+    archetype: String,
+    stereotypes: String,
+    base: List[String],
+    typeParam: String,
+    parms: List[P] = Nil,
+    methods: List[F] = Nil,
+    assocs: List[A] = Nil,
+    props: List[P] = Nil) extends DE {
 
     override def toString = fullHtml
 
     def fullHtml = {
       span("class::") + classLink(name) +
-        smap(typeParam) (" [" + _ + "]") +
-        smap(archetype) (" &lt;" + _ + "&gt;") +
-        smap(stereotypes) (" &lt;" + _ + "&gt;") +
-        (if(base.exists(_.size>0)) "extends " else "") + base.map(classLink).mkString +
-        mksAttrs(parms, Some({p:P =>
-          "<small>" + qspan("", p.name) + "</small> " + p.toHtml
-        })) +
-        mks(methods, "{<br><hr>", "<br>", "<br><hr>}", "&nbsp;&nbsp;") +
-        mks(props, " PROPS(", ", ", ") ", "&nbsp;&nbsp;")
+          smap(typeParam)(" [" + _ + "]") +
+          smap(archetype)(" &lt;" + _ + "&gt;") +
+          smap(stereotypes)(" &lt;" + _ + "&gt;") +
+          (if (base.exists(_.size > 0)) "extends " else "") + base.map(classLink).mkString +
+          mksAttrs(parms, Some({ p: P =>
+            "<small>" + qspan("", p.name) + "</small> " + p.toHtml
+          })) +
+          mks(methods, "{<br><hr>", "<br>", "<br><hr>}", "&nbsp;&nbsp;") +
+          mks(props, " PROPS(", ", ", ") ", "&nbsp;&nbsp;")
     }
 
     def qspan(s: String, p:String, k: String = "default") = {
@@ -291,28 +313,42 @@ object RDOM {
     }
 
     /** nicer type-aware toString */
-    def asString (value:Any) = {
+    def asString(value: Any) = {
       val res = value match {
-        case s: HashMap[_, _] => if(s.isEmpty) "{}" else js.tojsons(s, 2).trim
-          // this must be before Seq
+        case s: HashMap[_, _] => if (s.isEmpty) "{}" else js.tojsons(s, 2).trim
+        // this must be before Seq
         case r: Range => {
           "" +
-              (if(r.start == scala.Int.MinValue) "" else r.start.toString) +
+              (if (r.start == scala.Int.MinValue) "" else r.start.toString) +
               ".." +
-              (if(r.end == scala.Int.MaxValue) "" else r.end.toString)
+              (if (r.end == scala.Int.MaxValue) "" else r.end.toString)
         }
-        case s: collection.Map[_, _] => if(s.isEmpty) "{}" else js.tojsons(s, 2).trim
+        case s: collection.Map[_, _] => if (s.isEmpty) "{}" else js.tojsons(s, 2).trim
         case s: collection.Seq[_] => js.tojsons(s, 0).trim
-        case s: JSONObject => if(s.length() == 0) "{}" else s.toString(2).trim
-        case s: JSONArray => if(s.length() == 0) "[]" else s.toString.trim
+        case s: JSONObject => if (s.length() == 0) "{}" else s.toString(2).trim
+        case s: JSONArray => if (s.length() == 0) "[]" else s.toString.trim
+        case s: Array[Byte] => new String(s)
         case x@_ => x.toString
       }
 
       res
     }
 
+    /** nicer type-aware toString */
+    def toObject(value: Any): Option[collection.Map[String, Any]] = {
+      val res = value match {
+        case s: HashMap[_, _] => Some(s.toMap.asInstanceOf[Map[String, Any]])
+        case s: collection.Map[_, _] => Some(s.asInstanceOf[Map[String, Any]])
+        case s: JSONObject => Some(js.fromObject(s).toMap)
+        case s: P => s.value.map(_.asObject)
+        case x@_ => None
+      }
+
+      res
+    }
+
     @deprecated
-    def apply (name:String, dflt:String, ttype:String):P = P(name, dflt, WType(ttype)).withValue(dflt, WType(ttype))
+    def apply(name: String, dflt: String, ttype: String): P = P(name, dflt, WType(ttype)).withValue(dflt, WType(ttype))
   }
 
   //  implicit def toWtype2(s:String) : WType = WType(s)
@@ -347,7 +383,7 @@ object RDOM {
 
     /** check if this value or def is of type t */
     def isOfType(t:WType) = {
-      value.map(_.cType == t).getOrElse(ttype == t)
+      value.map(x => WTypes.isSubtypeOf(t, x.cType)).getOrElse(WTypes.isSubtypeOf(t, ttype))
     }
 
     /** proper way to get the value */
@@ -546,13 +582,40 @@ object RDOM {
   case class F (name:String, parms:List[P], ttype:WType, archetype:String, script:String="",
                 body:List[Executable]=List.empty) extends CM with CanHtml {
 
-    override def toHtml = "   "+  span(s"$archetype:") + s" <b>$name</b> " +
-      mks(parms, " (", ", ", ") ") +
-      smap(ttype) (":" + _)
+    override def toHtml = {
+      def mkParms = parms.map { p => p.name + "=" + Enc.toUrl(p.currentStringValue) }.mkString("&")
 
-    override def toString = "   "+  span(s"$archetype:") + s" <b>$name</b> " +
-      mks(parms, " (", ", ", ") ") +
-      smap(ttype) (":" + _)
+      def mksPlay =
+        if (script.length > 0)
+          s""" | <a href="/diesel/splay/${this.name}/${
+            pos.map(_.wpath).mkString
+          }?$mkParms">splay</a>""" else ""
+
+      def mkjPlay = if (this.script.length > 0)
+        s""" | <a href="/diesel/jplay/${this.name}/${
+          pos.map(_.wpath).mkString
+        }?$mkParms">jplay</a>""" else ""
+
+      def mkCall =
+        s"""<a href="/diesel/fcall/${this.name}/${
+          pos.map(_.wpath).mkString
+        }?$mkParms">fcall</a>$mkjPlay$mksPlay""".stripMargin
+
+      s"""
+         |<div align="right"><small>$mkCall</small></div>
+         |<div class="well">
+         |$this <br>
+         |<small><pre>$script</pre></small>
+         |</div>""".stripMargin
+    }
+
+    def OLDtoHtml = "   " + span(s"$archetype:") + s" <b>$name</b> " +
+        mks(parms, " (", ", ", ") ") +
+        smap(ttype)(":" + _)
+
+    override def toString = "   " + span(s"$archetype:") + s" <b>$name</b> " +
+        mks(parms, " (", ", ", ") ") +
+        smap(ttype)(":" + _)
   }
 
   /** an executable statement */
@@ -582,7 +645,6 @@ object RDOM {
 
     def fullHtml = {
       span("object::") + " " + name + " : " + classLink(base) +
-//        smap(typeParam) (" [" + _ + "]") +
 //        smap(archetype) (" &lt;" + _ + "&gt;") +
 //        smap(stereotypes) (" &lt;" + _ + "&gt;") +
 //        (if(base.exists(_.size>0)) "extends " else "") + base.map("<b>" + _ + "</b>").mkString +

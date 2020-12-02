@@ -28,66 +28,67 @@ object WTypes {
 
     final val HTML=WType("HTML")     // why not... html templates?
 
-    final val XML=WType("XML")
-    final val JSON=WType("JSON")     // see asJson
-    final val OBJECT=WType("Object") // java object - serialize via json
+    final val XML = WType("XML")
+    final val JSON = WType("JSON")     // see asJson
+    final val OBJECT = WType("Object") // java object - serialize via json
 
-    final val SOURCE=WType("Source") // a source of values
+    final val SOURCE = WType("Source") // a source of values
 
-    final val ARRAY=WType("Array")   // pv.asArray
+    final val ARRAY = WType("Array")   // pv.asArray
 
-    final val BYTES=WType("Bytes")
+    final val BYTES = WType("Bytes")
 
-    final val EXCEPTION=WType("Exception")
-    final val ERROR=WType("Error")
+    final val EXCEPTION = WType("Exception")
+    final val ERROR = WType("Error")
 
-    final val UNKNOWN=WType("")
+    final val UNKNOWN = WType("")
 
     final val MSG = WType("Msg")   // a message (to call)
     final val FUNC = WType("Func") // a function (to call)
 
-    final val UNDEFINED=WType("Undefined") // same as null - it means it"s missing, not that it has an empty value
+    final val UNDEFINED = WType("Undefined") // same as null - it means it"s missing, not that it has an empty value
 
-    final val EMPTY=WType("")
+    final val EMPTY = WType("")
   }
 
   // constants for simple types -
   // todo should deprecate
 
-  final val NUMBER="Number"
-  final val STRING="String"
-  final val DATE="Date"
-  final val REGEX="Regex"
+  final val NUMBER = "Number"
+  final val STRING = "String"
+  final val DATE = "Date"
+  final val REGEX = "Regex"
 
-  final val INT="Int"
-  final val FLOAT="Float"
-  final val BOOLEAN="Boolean"
+  final val INT = "Int"
+  final val FLOAT = "Float"
+  final val BOOLEAN = "Boolean"
 
-  final val RANGE="Range"
+  final val RANGE = "Range"
 
-  final val HTML="HTML"     // why not... html templates? msg can create html results
+  final val HTML = "HTML"     // why not... html templates? msg can create html results
 
-  final val XML="XML"
-  final val JSON="JSON"     // see asJson
-  final val OBJECT="Object" // java object - serialize via json. todo: need a serialization framework
+  final val XML = "XML"
+  final val JSON = "JSON"     // see asJson
+  final val OBJECT = "Object" // java object - serialize via json. todo: need a serialization framework
 
-  final val SOURCE="Source" // a source of values
+  final val SOURCE = "Source" // a source of values
 
-  final val ARRAY="Array"   // pv.asArray
+  final val ARRAY = "Array"   // pv.asArray
 
-  final val BYTES="Bytes"
+  final val BYTES = "Bytes"
 
-  final val EXCEPTION="Exception"
-  final val ERROR="Error"
+  final val EXCEPTION = "Exception"
+  final val ERROR = "Error"
 
-  final val UNKNOWN=""
+  final val UNKNOWN = ""
 
   final val MSG = "Msg"   // a message (to call)
   final val FUNC = "Func" // a function (to call)
+  final val CLASS = "Class"   // a class in the domain
 
-  final val UNDEFINED="Undefined" // same as null - it means it's missing, not that it has an empty value
+  final val UNDEFINED = "Undefined" // same as null - it means it's missing, not that it has an empty value
 
-  final val CONTENT_TYPE="Content-type" // same as null - it means it's missing, not that it has an empty value
+  final val CONTENT_TYPE = "Content-type" // same as null - it means it's missing, not that it has an empty value
 
   /** just a few mime types */
   object Mime {
@@ -135,21 +136,32 @@ object WTypes {
   // todo is more fancy with types... schemas inherit
   /** check known static subtype hierarchies
     *
-    * for dynamic hierarchies, based on DOM, use the RDomain
+    * todo for dynamic hierarchies, based on DOM, use the RDomain
+    *
+    * @param typeToCheck the type we're checking
+    * @param subtype     the subtype
     */
-  def isSubtypeOf (a:WType, b:WType):Boolean = {
-    a.name.toLowerCase == b.name.toLowerCase || {
-      a.name.toLowerCase == EXCEPTION && b.name.toLowerCase == ERROR
+  def isSubtypeOf(typeToCheck: WType, subtype: WType): Boolean = {
+    typeToCheck.name.toLowerCase == subtype.name.toLowerCase || {
+      typeToCheck.name.toLowerCase == EXCEPTION && subtype.name.toLowerCase == ERROR
+    } || {
+      (typeToCheck.name == JSON || typeToCheck.name == OBJECT) &&
+          (subtype.name == JSON || subtype.name == OBJECT)
+      // todo check schemas if they're subtyped...
     }
   }
 
   /** check known static subtype hierarchies
     *
     * for dynamic hierarchies, based on DOM, use the RDomain
+    *
+    * @param typeToCheck the type we're checking
+    * @param subtype     the subtype
     */
-  def isSubtypeOf (a:String, b:String):Boolean = {
-    a.toLowerCase == b.toLowerCase || {
-      a.toLowerCase == EXCEPTION && b.toLowerCase == ERROR
+  def isSubtypeOf(typeToCheck: String, subtype: String): Boolean = {
+    typeToCheck.toLowerCase == subtype.toLowerCase || {
+      typeToCheck.toLowerCase == EXCEPTION && subtype.toLowerCase == ERROR
+      // todo check schemas if they're subtyped...
     }
   }
 
@@ -179,10 +191,12 @@ object WTypes {
   *
   * with this marker now we can add more types...
   *
-  * @param name is the WType
-  * @param schema is either a DOMType or some indication of a schema in context
+  * For objects, the name is JSON or Object and the schema is the class name
+  *
+  * @param name        is the WType
+  * @param schema      is either a DOMType or some indication of a schema in context
   * @param wrappedType is T in A[T]
-  * @param mime is an optional precise mime to be represented in
+  * @param mime        is an optional precise mime to be represented in
   */
 case class WType (name:String, schema:String = WTypes.UNKNOWN, wrappedType:Option[String]=None, mime:Option[String]=None, isRef:Boolean=false) {
 
