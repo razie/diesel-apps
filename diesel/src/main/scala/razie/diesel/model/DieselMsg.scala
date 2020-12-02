@@ -9,7 +9,7 @@ package razie.diesel.model
 import razie.audit.Audit
 import razie.diesel.engine.DomEngineSettings
 import razie.diesel.samples.DomEngineUtils
-import razie.tconf.{SpecPath, TSpecPath, TagQuery}
+import razie.tconf.{SpecRef, TSpecRef, TagQuery}
 import razie.wiki.model.{WID, WikiSearch}
 import razie.{clog, cout}
 
@@ -22,7 +22,8 @@ import razie.{clog, cout}
 case class DieselMsgString(msg: String,
                            target: DieselTarget = DieselTarget.RK,
                            ctxParms: Map[String, String] = Map.empty,
-                           osettings:Option[DomEngineSettings] = None
+                           osettings: Option[DomEngineSettings] = None,
+                           omsg: Option[DieselMsg] = None
                           ) {
   def mkMsgString: String = {
     if (ctxParms.nonEmpty) {
@@ -48,7 +49,7 @@ case class DieselMsgString(msg: String,
 
     import scala.concurrent.ExecutionContext.Implicits.global
     DomEngineUtils
-        .runDom(ms, target.specs, target.stories, settings)
+        .runDom(ms, target.specs, target.stories, settings, Some(this))
         .map { res =>
           // don't audit these frequent ones
           if(
@@ -69,6 +70,7 @@ case class DieselMsgString(msg: String,
               res.get("value").mkString.take(500)
             )
           }
+          res
         }
   }
 }
@@ -87,8 +89,9 @@ class DieselTarget (
   val realm:String,
   val env:String = DieselTarget.DEFAULT) {
 
-  def specs: List[TSpecPath] = Nil
-  def stories: List[TSpecPath] = Nil
+  def specs: List[TSpecRef] = Nil
+
+  def stories: List[TSpecRef] = Nil
 }
 
 /** a message intended for a target. Send to CQRS for execution, via Services */
@@ -99,23 +102,25 @@ case class DieselMsg(
   target: DieselTarget = DieselTarget.RK,
   osettings:Option[DomEngineSettings] = None
 ) {
+  def ea = e + "." + a
 
   def toMsgString = DieselMsgString(
     s"$$msg $e.$a (" +
-      (args
-        .map(
-          t =>
-            t._1 + "=" + (t._2 match {
-              case s: String => s""" "$s" """
-              case s: Int    => s"$s"
-              case s @ _     => s"${s.toString}"
-            })
-        )
-        .mkString(", ")) +
-      ")",
+        (args
+            .map(
+              t =>
+                t._1 + "=" + (t._2 match {
+                  case s: String => s""" "$s" """
+                  case s: Int => s"$s"
+                  case s@_ => s"${s.toString}"
+                })
+            )
+            .mkString(", ")) +
+        ")",
     target,
     Map.empty,
-    osettings
+    osettings,
+    Some(this)
   )
 
   def toJson : Map[String,Any] = {
@@ -135,10 +140,10 @@ case class DieselMsg(
 object DieselTarget {
   final val DEFAULT = "default"
 
-  def ENV_SETTINGS(realm:String) = SpecPath("", realm + ".Spec:EnvironmentSettings", realm)
+  def ENV_SETTINGS(realm: String) = SpecRef("", realm + ".Spec:EnvironmentSettings", realm)
 
   /** the environment settings - most common target */
-  def from (realm:String, env:String, specs:List[TSpecPath], stories:List[TSpecPath]) =
+  def from(realm: String, env: String, specs: List[TSpecRef], stories: List[TSpecRef]) =
     new DieselTargetList(realm, env, specs, stories)
 
   /** the environment settings - most common target */
@@ -192,10 +197,10 @@ object DieselTarget {
 }
 
 case class DieselTargetList(
-  override val realm:String,
-  override val env:String,
-  override val specs:List[TSpecPath],
-  override val stories:List[TSpecPath]) extends DieselTarget(realm)
+  override val realm: String,
+  override val env: String,
+  override val specs: List[TSpecRef],
+  override val stories: List[TSpecRef]) extends DieselTarget(realm)
 
 object DieselMsg {
   final val CRON_TICK = "$msg diesel.cron.tick"
@@ -248,6 +253,7 @@ object DieselMsg {
     final val DIESEL_DEBUG = "diesel.debug"
     final val DIESEL_LATER = "diesel.later"
     final val DIESEL_WHILE = "diesel.while"
+    final val DIESEL_ASSERT = "diesel.assert"
     final val DIESEL_MAP = "diesel.map"
     final val DIESEL_REST = "diesel.rest"
     final val DIESEL_SYNC = "diesel.engine.sync"

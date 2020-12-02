@@ -45,7 +45,8 @@ case class EEngSuspend(override val msg: String, override val details: String = 
   *
   * use onSuspend to start the async message  (like sending a DeRep) - you'll have control next
   */
-case class EEngSuspend(override val msg: String, override val details: String = "", onSuspend:Option[(DomEngine, DomAst, Int) => Unit])
+case class EEngSuspendDaemon(override val msg: String, override val details: String = "", onSuspend: Option[(DomEngine,
+    DomAst, Int) => Unit])
     extends EEngMsg(msg, details, "suspend::", "warning")
 
 /**

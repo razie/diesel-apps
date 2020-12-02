@@ -673,6 +673,24 @@ class DomEngineV1(
 
       true
 
+    } else if (ea == DieselMsg.ENGINE.DIESEL_ASSERT) {
+
+      // evaluate all boolean parms
+      val cp = in.attrs.map(_.calculatedP)
+      val bcp = cp.filter(_.isOfType(WTypes.wt.BOOLEAN)).map { p =>
+        p.value.get.asBoolean
+      }
+      val res = bcp.foldRight(true)((a, b) => a && b)
+
+      val newD =
+        if (res && bcp.size > 0)
+          DomAst(new EInfo("assert satisfied"), AstKinds.GENERATED)
+        else
+          DomAst(new EMsg("diesel", "return", cp.filter(!_.isOfType(WTypes.wt.BOOLEAN))),
+            AstKinds.GENERATED)
+      evAppChildren(a, newD)
+      true
+
     } else if (ea == DieselMsg.ENGINE.DIESEL_TRY) {
       // rudimentary TRY scope for catch.
       // normally we'd have CATCH apply to the enclosing scope, but we don't have a good EEScope

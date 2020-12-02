@@ -80,7 +80,7 @@ trait DomRoot {
         }
 
         // parent is a map/json object
-        case Some(pa:RDOM.P) if pa.ttype == WTypes.wt.JSON => {
+        case Some(pa: RDOM.P) if pa.isOfType(WTypes.wt.JSON) => {
           val paJ = pa.calculatedTypedValue.asJson
           val newValue = PValue(
             paJ + (av.asString -> vcalc.calculatedTypedValue.value),
@@ -90,20 +90,25 @@ trait DomRoot {
           pa.value = Some(newValue)
 
           // todo is this relevant?
-          if(paJ.isInstanceOf[HashMap[String,Any]])
+          if (paJ.isInstanceOf[HashMap[String, Any]])
             paJ.asInstanceOf[HashMap[String, Any]].put(av.asString, vcalc.calculatedTypedValue.value)
 
           // no need to set dflt, use p.currentStringValue
           // todo need to recurse on parent, not just hardcode ctx
           ctx.put(pa)
         }
+
+        case Some(x) => {
+          throw new DieselExprException(s"Not an Object/JSON from left-side accessor: ${x.asInstanceOf[P].ttype} - $x")
+        }
+
       }
       vcalc
     }
 
     val calc = attrs.flatMap { pas =>
       if (pas.left.rest.isEmpty) {
-        // classic p=e
+        // simple expression with unqualified left side p=e
         val calcp = P(pas.left.start, "").copy(expr = Some(pas.right)).calculatedP
         val calc = List(calcp)
         calc
