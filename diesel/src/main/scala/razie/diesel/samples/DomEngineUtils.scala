@@ -9,10 +9,12 @@ package razie.diesel.samples
 import org.bson.types.ObjectId
 import razie.audit.Audit
 import razie.ctrace
+import razie.diesel.Diesel
+import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
 import razie.diesel.engine._
 import razie.diesel.engine.nodes.{EMsg, EVal, EnginePrep}
-import razie.diesel.model.DieselMsg
+import razie.diesel.model.{DieselMsg, DieselMsgString}
 import razie.tconf.DSpec
 import razie.wiki.model.{WID, WikiEntry}
 import scala.collection.mutable.ListBuffer
@@ -59,22 +61,23 @@ object DomEngineUtils {
   final val NOUSER = new ObjectId()
 
   /** execute message - this is the typical use of an engine
-   * execute message to given reactor
+    * execute message to given reactor
     *
-    * @param msg "entity.action(p=value,etc)
-    * @param specs the specs to use for rules
-    * @param stories any other stories to add (tests, engine settings etc)
+    * @param msg      "entity.action(p=value,etc)
+    * @param specs    the specs to use for rules
+    * @param stories  any other stories to add (tests, engine settings etc)
     * @param settings engine settings
     * @return
     *
     * this is only used from the CQRS, internally - notice no request
     */
-  def runDom(msg:String, specs:List[WID], stories: List[WID], settings:DomEngineSettings) : Future[Map[String,Any]] = {
+  def runDom(msg: String, specs: List[WID], stories: List[WID], settings: DomEngineSettings,
+             omsg: Option[DieselMsgString] = None): Future[Map[String, Any]] = {
     val realm = settings.realm getOrElse specs.headOption.map(_.getRealm).mkString
     val page = new WikiEntry("Spec", "fiddle", "fiddle", "md", "", NOUSER, Seq("dslObject"), realm)
 
     // don't audit diesel messages - too many
-    if(
+    if (
       msg.startsWith(DieselMsg.REALM.REALM_LOADED_MSG) ||
           msg.startsWith(DieselMsg.GUARDIAN_RUN) ||
           msg.startsWith(DieselMsg.GUARDIAN_POLL) ||
@@ -137,11 +140,20 @@ object DomEngineUtils {
 
       // collect values
       val values = root.collect {
-        case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined => (p.name, p.currentStringValue)
+        case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) if oattrs.isEmpty || oattrs.find(
+          _.name == p.name).isDefined => (p.name, p.currentStringValue)
       }
+
+      val payload = engine.ctx.getp(Diesel.PAYLOAD).map(_.calculatedP(engine.ctx))
+      val resp = payload.orElse(
+        omsg.flatMap(_.omsg).flatMap(o => engine.extractFinalValue(o.ea))
+      )
+      val resValue = resp.map(_.currentStringValue).getOrElse("")
 
       var m = Map(
 //                   "value" -> values.headOption.map(_._2).map(stripQuotes).getOrElse(""),
+        "payload" -> payload.getOrElse(P(Diesel.PAYLOAD, "", WTypes.wt.UNDEFINED)),
+        "resValue" -> resValue,
         "value" -> engine.resultingValue,
         "values" -> values.toMap,
         "totalCount" -> (engine.totalTestCount),
