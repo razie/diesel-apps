@@ -140,13 +140,25 @@ abstract class DomEngine(
     DieselAppContext.stopActor(id)
   }
 
+  /** finalize and release resources, actors etc */
+  def engineDone() = {
+    GlobalData.dieselEnginesActive.decrementAndGet()
+    finishP.success(this)
+    DomCollector.collectAst("engine", settings.realm.mkString, id, settings.userId, this)
+
+    // stop owned streams
+    // todo get pissed if not done?
+    this.ownedStreams.foreach(stream => {
+      stream.cleanup()
+    })
+  }
+
   /** stop me now */
   def stopNow = {
-      status = DomState.CANCEL
-      trace("DomEng "+id+" stopNow")
-      DomCollector.collectAst ("engine", settings.realm.mkString, id, settings.userId, this)
-      finishP.success(this)
-      DieselAppContext.stopActor(id)
+    status = DomState.CANCEL
+    trace("DomEng " + id + " stopNow")
+    engineDone()
+    DieselAppContext.stopActor(id)
   }
 
   /** completed a node - udpate stat
@@ -375,15 +387,8 @@ abstract class DomEngine(
     if (root.status == DomState.DONE && status != DomState.DONE) {
       status = DomState.DONE
       trace("DomEng " + id + " finish")
-      DomCollector.collectAst("engine", settings.realm.mkString, id, settings.userId, this)
-      finishP.success(this)
+      engineDone()
       DieselAppContext.activeActors.get(id).foreach(_ ! DEStop) // stop the actor and remove engine
-
-      // stop owned streams
-      // todo get pissed if not done?
-      this.ownedStreams.foreach(stream => {
-        stream.cleanup()
-      })
 
     }
 
@@ -599,9 +604,11 @@ abstract class DomEngine(
     * 1. defined response oattrs
     * 2. last valuep - the last message produced in the flow
     * 3. payload
+    *
+    * @param ea = initial message ea if known, empty otherwise
     * */
-  def extractFinalValue (e:String, a:String) = {
-    require(DomState.isDone(this.status)) // no sync
+  def extractFinalValue(ea: String, evenIfExecuting: Boolean = false): Option[P] = {
+    if (!evenIfExecuting) require(DomState.isDone(this.status)) // no sync
 
     // find the spec and check its result
     // then find the resulting value.. if not, then json
@@ -648,5 +655,4 @@ abstract class DomEngine(
   }
 
 }
-
 
