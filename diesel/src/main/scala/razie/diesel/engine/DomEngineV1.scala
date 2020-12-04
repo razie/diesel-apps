@@ -18,6 +18,7 @@ import razie.diesel.model.DieselMsg.ENGINE._
 import razie.hosting.Website
 import razie.js
 import razie.tconf.DSpec
+import razie.wiki.admin.GlobalData
 import scala.Option.option2Iterable
 import scala.collection.mutable.{HashMap, ListBuffer}
 import scala.util.Try
@@ -619,7 +620,13 @@ class DomEngineV1(
   private def expandEngineEMsg(a: DomAst, in: EMsg)(implicit ctx: ECtx): Boolean = {
     val ea = in.ea
 
-    if (ea == DieselMsg.ENGINE.DIESEL_RETURN) {
+    if (ea == DieselMsg.ENGINE.DIESEL_PING) {
+      val p = EVal(P.fromSmartTypedValue(Diesel.PAYLOAD, GlobalData.toMap()))
+      evAppChildren(a, DomAst(p, AstKinds.TRACE))
+      ctx.put(p.p)
+      true
+
+    } else if (ea == DieselMsg.ENGINE.DIESEL_RETURN) {
       // expand all spec vals
       in.attrs.map(_.calculatedP).foreach { p =>
         evAppChildren(a, DomAst(EVal(p)))
@@ -831,7 +838,8 @@ class DomEngineV1(
             this.settings.collectCount = Option(v.toInt)
             // if it has collect settings there must be a group
             if (settings.collectGroup.isEmpty) {
-              settings.collectGroup = Some(description)
+              settings.collectGroup = Some(
+                description) // set it to desc just to be sure - it should be reset here as well
             }
           }
 
@@ -840,6 +848,7 @@ class DomEngineV1(
           }
         }
       }
+
       evAppChildren(a,
         DomAst(EInfo(s"collect settings updated ${settings.collectCount} - ${settings.collectGroup}"), AstKinds.TRACE))
 

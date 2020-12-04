@@ -5,18 +5,18 @@
  */
 package razie.diesel.engine
 
-import controllers.DieselAssets
 import org.bson.types.ObjectId
 import razie.Logging
 import razie.diesel.Diesel
 import razie.diesel.dom.RDOM.P
-import razie.diesel.dom.RDomain
+import razie.diesel.dom.{DieselAssets, RDomain}
 import razie.diesel.engine.nodes._
 import razie.diesel.expr._
 import razie.diesel.model.DieselMsg
 import razie.diesel.model.DieselMsg.ENGINE.{DIESEL_MSG_ACTION, DIESEL_MSG_ATTRS, DIESEL_MSG_EA, DIESEL_MSG_ENTITY}
 import razie.diesel.utils.DomCollector
 import razie.tconf.DSpec
+import razie.wiki.admin.GlobalData
 import razie.wiki.model.WID
 import scala.Option.option2Iterable
 import scala.collection.mutable.ListBuffer
@@ -50,6 +50,11 @@ abstract class DomEngine(
   val id: String = new ObjectId().toString) extends Logging with DomEngineState with DomRoot with DomEngineExpander {
 
   assert(settings.realm.isDefined, "need realm defined for engine settings")
+
+  GlobalData.dieselEnginesTotal.incrementAndGet()
+  GlobalData.dieselEnginesActive.incrementAndGet()
+
+  def collectGroup = settings.collectGroup.getOrElse(description)
 
   def wid = WID("DieselEngine", id)
 
@@ -130,7 +135,7 @@ abstract class DomEngine(
   /** stop and discard this engine */
   def discard = {
     status = DomState.CANCEL
-    trace("DomEng "+id+" discard")
+    trace("DomEng " + id + " discard")
     finishP.success(this)
     DieselAppContext.stopActor(id)
   }
@@ -396,7 +401,7 @@ abstract class DomEngine(
     val after = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_AFTER), AstKinds.TRACE)
     val desc = DomAst(EInfo(
       description,
-      this.pages.map(_.specPath.wpath).mkString("\n") + "\n" + this.settings.toString
+      this.pages.map(_.specRef.wpath).mkString("\n") + "\n" + this.settings.toString
     ), AstKinds.DEBUG).withStatus(DomState.SKIPPED)
 
     // create dependencies and add them to the list
@@ -601,7 +606,7 @@ abstract class DomEngine(
     // find the spec and check its result
     // then find the resulting value.. if not, then json
     val oattrs = dom.moreElements.collectFirst {
-      case n: EMsg if n.entity == e && n.met == a => n
+      case n: EMsg if n.ea == ea => n
     }.toList.flatMap(_.ret)
 
     //    if (oattrs.isEmpty) {

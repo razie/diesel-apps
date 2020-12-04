@@ -14,15 +14,17 @@ import razie.diesel.model.DieselMsg
 /** collects the last engine traces */
 object DomCollector {
 
-  final val MAX_SIZE = 200 // how many to keep
-  final val MAX_SIZE_LOWER = 50 // how many to keep
+  final val MAX_SIZE = 200 // how many to keep overall
+  final val MAX_SIZE_LOWER = 50 // how many to keep, for lower priority traces
 
   /** a single collected trace */
-  case class CollectedAst(stream:String, realm:String, id:String, userId:Option[String], engine:DomEngine, details:String, dtm:DateTime=DateTime.now) {
+  case class CollectedAst(stream: String, realm: String, id: String, userId: Option[String], engine: DomEngine,
+                          details: String, dtm: DateTime = DateTime.now) {
     def isLowerPriority = {
       val desc = engine.description // not collectGroup
       desc.contains(DieselMsg.fiddleStoryUpdated) ||
           desc.contains(DieselMsg.REALM.REALM_LOADED_MSG) ||
+          desc.endsWith(DieselMsg.ENGINE.DIESEL_PING) ||
           desc.contains("$msg " + DieselMsg.GPOLL)
     }
 
@@ -30,9 +32,11 @@ object DomCollector {
     def getMaxCount = {
       engine.settings.collectCount.filter(_ != 0).getOrElse {
         val desc = engine.settings.collectGroup.getOrElse(engine.description)
-        if(
+        if (
+          desc.endsWith(DieselMsg.ENGINE.DIESEL_PING)
+        ) 3 else if (
           desc.contains(DieselMsg.fiddleStoryUpdated) ||
-          desc.contains(DieselMsg.GPOLL)
+              desc.contains(DieselMsg.GPOLL)
         ) 6 else {
           if (engine.settings.slaSet.contains(DieselSLASettings.NOKEEP)) -1 else 0
           // 0  means no self-imposed limit, default
@@ -55,10 +59,13 @@ object DomCollector {
     userId: Option[String], eng: DomEngine, details: String = "") = synchronized {
 
     val newOne = CollectedAst(stream, realm, xid, userId, eng, details)
-    var newAsts = newOne :: asts.filter(_.id != xid)
     val count = newOne.getMaxCount
 
-    if (count >= 0) { // no collect
+    val collectGroup = eng.collectGroup
+
+    if (count >= 0) { // collect it
+
+      var newAsts = newOne :: asts.filter(_.id != xid) // make sure no duplos
 
       // does it have collect settings? collect settings are per description
       if (count > 0) {
@@ -72,15 +79,15 @@ object DomCollector {
           // remove one of this kind, done
           lesser.reverse.find(e => DomState.isDone(e.engine.status)).map(_.id).foreach { lastId =>
             newAsts = newAsts.filter(_.id != lastId).take(MAX_SIZE - 1)
-            lesser = newAsts.filter(_.engine.settings.collectGroup == eng.settings.collectGroup)
+            lesser = newAsts.filter(_.engine.collectGroup == collectGroup)
           }
 
           // bug 636 - it was spinning if too many flows in progress with same description
           if (lesser.size > count) {
-            // remove some of the done flows too
+            // remove some of the in progress flows too
             lesser.lastOption.map(_.id).foreach { lastId =>
               newAsts = newAsts.filter(_.id != lastId).take(MAX_SIZE - 1)
-              lesser = newAsts.filter(_.engine.settings.collectGroup == eng.settings.collectGroup)
+              lesser = newAsts.filter(_.engine.collectGroup == collectGroup)
             }
           }
         }

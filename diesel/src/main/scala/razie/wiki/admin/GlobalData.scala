@@ -38,9 +38,28 @@ object GlobalData {
   var clusterStatus: String = "-"
 
   var reactorsLoaded = false
-  val reactorsLoadedP : Promise[Boolean] = Promise[Boolean]()
+  val reactorsLoadedP: Promise[Boolean] = Promise[Boolean]()
   /** wait here if you need reactors */
-  val reactorsLoadedF : Future[Boolean] = reactorsLoadedP.future
+  val reactorsLoadedF: Future[Boolean] = reactorsLoadedP.future
 
+  def toMap() = {
+    Map(
+      "Global.serving" -> GlobalData.serving,
+      "Global.served" -> GlobalData.served,
+      "Global.servingApiRequests" -> GlobalData.servingApiRequests,
+      "Global.servedApiRequests" -> GlobalData.servedApiRequests,
+      "Global.limitedApiRequests" -> GlobalData.limitedApiRequests,
+      "Global.maxServing" -> GlobalData.maxServing,
+      "Global.maxServingApiRequests" -> GlobalData.maxServingApiRequests,
+      "Global.dieselEnginesTotal" -> GlobalData.dieselEnginesTotal.get(),
+      "Global.dieselEnginesActive" -> GlobalData.dieselEnginesActive.get(),
+      "Global.wikiOptions" -> GlobalData.wikiOptions,
+      "Global.servedPages" -> GlobalData.servedRequests,
+      "Global.startedDtm" -> GlobalData.startedDtm,
+      "SendEmail.curCount" -> SendEmail.curCount,
+      "SendEmail.state" -> SendEmail.state,
+      "ClusterStatus" -> GlobalData.clusterStatus
+    )
+  }
 }
 
