@@ -323,8 +323,8 @@ class EESnakk extends EExecutor("snakk") with Logging {
       // no template or tcontent => old way without templates
       findin("url").map { u =>
         // is it relative?
-        val newurl = if (u.currentStringValue startsWith "http") u.currentStringValue else "http://" +
-            ctx.root.asInstanceOf[DomEngECtx].settings.dieselHost.mkString.mkString + u.currentStringValue
+        val newurl = if (u.currentStringValue startsWith "http") u.currentStringValue else
+          ctx.root.asInstanceOf[DomEngECtx].settings.dieselHost.mkString.mkString + u.currentStringValue
 
         val sc = new SnakkCall("http", in.arch, newurl, Map.empty, "")
         //          case class SnakkCall (method:String, url:String, headers:Map[String,String], content:String) {
@@ -502,9 +502,9 @@ object EESnakk {
   }
 
   def relativeUrl(u:String)(implicit ctx:ECtx) =
-    if (u startsWith "/") "http://" +
-        ctx.root.settings.dieselHost.mkString.mkString +
-        u
+    if (u startsWith "/")
+      ctx.root.settings.dieselHost.mkString.mkString +
+          u
     else u
 
   /** extract a snakk call from message args - good for snakk.json and snakk.xml */
