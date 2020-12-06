@@ -1,12 +1,11 @@
 package controllers
 
-import com.mongodb.WriteResult
 import model._
 import play.api.data.validation.{Constraint, Invalid, Valid, ValidationError}
 import play.api.mvc._
-import razie.db.Txn
 import razie.Logging
 import razie.audit.Audit
+import razie.db.Txn
 import razie.hosting.Website
 import razie.wiki.model._
 import razie.wiki.{Config, Services}
@@ -129,26 +128,26 @@ class RazController extends RazControllerBase with Logging {
         Unauthorized(
           views.html.util.reactorLayout12(
           views.html.util.utilMsg(
-          s""" <span style="color:red">$msg</span>""",
-          s"""
-             |${errCollector.mkString}
-             |>> $more
-             |""".stripMargin +
-            md("Admin:Unauthorized"),
-            (if(showContinue)Some(controllers.Wiki.w(wid).toString) else None),
+            s""" <span style="color:red">$msg</span>""",
+            s"""
+               |${errCollector.mkString}
+               |>> $more
+               |""".stripMargin +
+                md("Admin:Unauthorized"),
+            (if (showContinue) Some(wid.w.toString) else None),
             auth
           )(stok), Seq.empty)(stok))
       else
       // with teasers, don't send the Unauthorized answer anymore
         Ok(
           views.html.util.reactorLayout12(
-          views.html.util.utilMsg(
-        teaser,
-        s"""
-           |$more
-           |""".stripMargin +
-          md("Admin:Unauthorized"),
-            Some(controllers.Wiki.w(wid).toString), auth)(stok), Seq.empty)(stok))
+            views.html.util.utilMsg(
+              teaser,
+              s"""
+                 |$more
+                 |""".stripMargin +
+                  md("Admin:Unauthorized"),
+              Some(wid.w.toString), auth)(stok), Seq.empty)(stok))
     } else
       noPermOLD(wid, more + " " + errCollector.mkString)
   }
@@ -162,23 +161,29 @@ class RazController extends RazControllerBase with Logging {
   /** no permission */
   private def noPermOLD(wid: WID, more: String = "")(implicit request: Request[_]) = {
 //    implicit val stok = razRequest
-    Audit.auth("BY %s - Permission fail Page: %s Info: %s HEADERS: %s".format((auth.map(_.userName).getOrElse("")), wid.toString, more, request.headers))
+    Audit.auth(
+      "BY %s - Permission fail Page: %s Info: %s HEADERS: %s".format((auth.map(_.userName).getOrElse("")), wid.toString,
+        more, request.headers))
     val r = realmOf
     val uperm = auth.map(_.forRealm(r)).map(_.membershipLevel).getOrElse("none")
-    val member = if(uperm == "none") "" else auth.filter(_.asInstanceOf[User].realms.contains(r)).map(x=> "and you are member").getOrElse("but you are NOT a member of " + r)
-    val exp = if(uperm == "none") "" else auth.filter(_.hasMembershipLevel(Perm.Expired.s)).map(x=> "but it is expired").getOrElse("and it is in good standing")
-    val msg = Website.get.prop("msg.err.noPerm").getOrElse(s"Sorry, you don't have enough karma! (your membership level is $uperm $member $exp)")
+    val member = if (uperm == "none") "" else auth.filter(_.asInstanceOf[User].realms.contains(r)).map(
+      x => "and you are member").getOrElse("but you are NOT a member of " + r)
+    val exp = if (uperm == "none") "" else auth.filter(_.hasMembershipLevel(Perm.Expired.s)).map(
+      x => "but it is expired").getOrElse("and it is in good standing")
+    val msg = Website.get.prop("msg.err.noPerm").getOrElse(s"Sorry, you don't have enough karma! (your membership " +
+        s"level is $uperm $member $exp)")
     Unauthorized(
       views.html.util.reactorLayout12(
-      views.html.util.utilMsg(
-      s""" <span style="color:red">$msg</span>""",
-      s"""
+        views.html.util.utilMsg(
+          s""" <span style="color:red">$msg</span>""",
+          s"""
 
 >> $more
 
-If you got this message in error, please describe the issue in a <a href="/doe/support?desc=No+permission">support request</a> and we'll take care of it! Thanks!
+If you got this message in error, please describe the issue in a <a href="/doe/support?desc=No+permission">support
+request</a> and we'll take care of it! Thanks!
 
-"""+md("Admin:Unauthorized"), Some(controllers.Wiki.w(wid).toString), auth)(rhRequest), Seq.empty)(rhRequest))
+""" + md("Admin:Unauthorized"), Some(wid.w.toString), auth)(rhRequest), Seq.empty)(rhRequest))
   }
 
   def unauthorized(more: String = "", shouldAudit:Boolean=true)(implicit request: RequestHeader, errCollector: VErrors = IgnoreErrors) = {
@@ -208,7 +213,7 @@ ${errCollector.mkString}
     error(msg)
     Ok(
       views.html.util.reactorLayout12(
-        views.html.util.utilErr(msg, controllers.Wiki.w(wid))(rhRequest) , Seq.empty)(rhRequest)
+        views.html.util.utilErr(msg, wid.w)(rhRequest), Seq.empty)(rhRequest)
     )
   }
 
@@ -224,7 +229,7 @@ ${errCollector.mkString}
 
   /** message with a continuation to another page */
   def Msg(msg: String, wid: WID, u: Option[User] = None)(implicit request: Request[_]): play.api.mvc.Result = {
-    Msg2(msg, Some(controllers.Wiki.w(wid, false)), if (u.isDefined) u else auth)(request)
+    Msg2(msg, Some(wid.w), if (u.isDefined) u else auth)(request)
   }
 
   /** simple message, no continuation */

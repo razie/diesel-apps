@@ -6,33 +6,29 @@
  */
 package controllers
 
-import com.mongodb.DBObject
-import com.mongodb.casbah.Imports._
-import com.novus.salat._
 import com.typesafe.config.ConfigValue
-import controllers.Wikie._
 import model.{UserWiki, Users}
 import org.bson.types.ObjectId
 import play.api.mvc.Action
 import razie.Logging
 import razie.audit.Audit
-import org.joda.time.DateTime
 import razie.db._
 import razie.hosting.{Website, WikiReactors}
 import razie.tconf.Visibility
 import razie.wiki.admin.SendEmail
 import razie.wiki.model._
 import razie.wiki.model.features.WForm
-import razie.wiki.util.{PlayTools, Staged}
-import razie.wiki.{Base64, Config, Enc, Sec, Services}
+import razie.wiki.util.PlayTools
+import razie.wiki.{Config, Enc, Sec, Services}
 
 /** overall settings and state for this deployment */
 @RTable
-case class DieselSettings (uid:Option[String], realm:Option[String], name:String, value:String, _id:ObjectId = new ObjectId) {
+case class DieselSettings(uid: Option[String], realm: Option[String], name: String, value: String, _id: ObjectId =
+new ObjectId) {
   def set() = {
     import razie.db.tx.txn
 
-    ROne[DieselSettings]("uid" -> uid, "realm" -> realm, "name"->name).map {s=>
+    ROne[DieselSettings]("uid" -> uid, "realm" -> realm, "name" -> name).map { s =>
       // todo cluster propagate notification?
       RUpdate[DieselSettings](s.copy(value = this.value))
     }.getOrElse {
@@ -96,7 +92,6 @@ object Realm extends RazController with Logging {
         ) ++ data
 
       import com.typesafe.config.ConfigFactory
-
       import scala.collection.JavaConversions._
 
       var pages : Iterable[WikiEntry] = Nil
@@ -193,12 +188,13 @@ object Realm extends RazController with Logging {
             ).copy(realms=au.realms+name)
           )
         } else {
-          applyStagedLinks(mainPage.wid, mainPage).create // create first, before using the reactor just below
+          controllers.Wikie.applyStagedLinks(mainPage.wid,
+            mainPage).create // create first, before using the reactor just below
         }
         cleanAuth(request.au)
         Services ! WikiAudit("CREATE_FROM_TEMPLATE", mainPage.wid.wpath, Some(au._id))
         pages foreach {p=>
-          applyStagedLinks(p.wid, p).create
+          controllers.Wikie.applyStagedLinks(p.wid, p).create
         }
       }
 
@@ -269,7 +265,7 @@ object Realm extends RazController with Logging {
   def addMod1(realm:String) = FAUR("add mod") { implicit request =>
       for (
         au <- request.au;
-        can <- canEdit(WID("Reactor", realm), auth, None);
+        can <- controllers.WikiUtil.canEdit(WID("Reactor", realm), auth, None);
         r1 <- au.hasPerm(Perm.uWiki) orCorr cNoPermission;
         twid <- Some(WID("Reactor", realm).r(realm));
         uwid <- twid.uwid orErr s"template/spec $realm not found"
@@ -293,7 +289,7 @@ object Realm extends RazController with Logging {
       twid <- WID.fromPath(module) orErr s"$module not a proper WID";
       tw <- Wikis.dflt.find(twid) orErr s"Module $twid not found";
       reactor <- Wikis.find(wid) orErr s"Reactor $realm not found";
-      can <- canEdit(wid, auth, Some(reactor));
+      can <- controllers.WikiUtil.canEdit(wid, auth, Some(reactor));
       r1 <- au.hasPerm(Perm.uWiki) orCorr cNoPermission;
       hasQuota <- (au.isAdmin || au.quota.canUpdate) orCorr cNoQuotaUpdates
     ) yield {
@@ -304,7 +300,6 @@ object Realm extends RazController with Logging {
       ) ++ data
 
       import com.typesafe.config.ConfigFactory
-
       import scala.collection.JavaConversions._
 
       var pages : Iterable[WikiEntry] = Nil
@@ -357,7 +352,7 @@ object Realm extends RazController with Logging {
         Emailer.tellAdmin("ADD MOD", au.userName, reactor.wid.ahref)
       }
 
-      Redirect(controllers.Wiki.w(reactor.wid, true)).flashing("count" -> "0")
+      Redirect(controllers.WikiUtil.w(reactor.wid, true)).flashing("count" -> "0")
     }
   }
 }

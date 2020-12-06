@@ -256,12 +256,17 @@ case class WID(
   /** helper to get a label, if defined or the default provided */
   //todo labels should not be in domain but in index...
   def label(action: String, alt: String) = WikiReactors(getRealm).wiki.labelFor(this, action).getOrElse(alt)
+
   def label(action: String) = WikiReactors(getRealm).wiki.labelFor(this, action).getOrElse(action)
 
   // this is my label
   def getLabel() = WikiReactors(getRealm).wiki.label(this)
 
   def toSpecPath = WID.WidSpecPath(this)
+
+  def w: String = urlRelative
+
+  def w(shouldCount: Boolean = true): String = urlRelative + (if (!shouldCount) "?count=0" else "")
 }
 
 /** wid utils */
