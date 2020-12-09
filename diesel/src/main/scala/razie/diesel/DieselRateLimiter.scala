@@ -18,7 +18,7 @@ case class RateLimitGroup(name: String, limit: Int, regex: List[String], headers
 case class RateLimitStats(name: String, max: Long, limited: Long)
 
 /** rate limiting stats and config */
-object DieselRateLimiter {
+object DieselRateLimiter extends razie.Logging {
   // rate limit groups
   val rateLimits = new TrieMap[String, RateLimitGroup]()
   val rateCurrent = new TrieMap[String, Int]()
@@ -33,6 +33,7 @@ object DieselRateLimiter {
       val threads = config.prop("akka.actor.default-dispatcher.thread-pool-executor.fixed-pool-size", "25").toInt
       LIMIT_API = config.prop("diesel.staticRateLimit", "80").toInt
       RATELIMIT = config.prop("diesel.staticRateLimiting", "true").toBoolean
+      log(s"Updated RATE LIMITS to: $LIMIT_API , $RATELIMIT , $threads")
     }
   }
 
