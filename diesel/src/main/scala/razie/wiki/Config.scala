@@ -18,6 +18,8 @@ object Config extends WikiConfig {
 
   override def simulateHost = isimulateHost
 
+  var trustLocalUsers = prop("diesel.trustLocalUsers", "true").toBoolean
+
   var isimulateHost = {
     "www.dieselapps.com"    // for testing locally
   }
@@ -34,6 +36,7 @@ object Config extends WikiConfig {
     }
 
     case WikiConfigChanged(node, config) => {
+      trustLocalUsers = prop("diesel.staticRateLimiting", "true").toBoolean
     }
   }
 }
