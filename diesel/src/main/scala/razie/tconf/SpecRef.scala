@@ -26,11 +26,26 @@ trait TSpecRef {
 
   def realm: String
 
+  def className: String
+
   def ver: Option[String]
 
   def draft: Option[String]
 
   def ahref: Option[String]
+
+  def toJson: Map[String, Any] = {
+    Map(
+      "source" -> source,
+      "wpath" -> wpath,
+      "realm" -> realm,
+      "key" -> wpath,
+      "class" -> className
+    ) ++ ver.map(x => Map("ver" -> x)
+    ).getOrElse(Map.empty) ++ draft.map(x => Map("draft" -> x)
+    ).getOrElse(Map.empty) ++ ahref.map(x => Map("ahref" -> x)
+    ).getOrElse(Map.empty)
+  }
 }
 
 /** basic implmentation */
@@ -42,6 +57,8 @@ case class SpecRef(source: String,
     extends TSpecRef {
 
   def ahref: Option[String] = None
+
+  def className: String = wpath.replaceFirst(":.*", "")
 }
 
 /**
@@ -54,7 +71,7 @@ case class FullSpecRef(
   inventory: String,
   conn: String,
   cls: String,
-  id: String,
+  key: String,
   section: String,
   realm: String,
   ver: Option[String] = None,
@@ -62,11 +79,28 @@ case class FullSpecRef(
 
     extends TSpecRef {
 
+  override def className: String = cls
+
   override def source: String = inventory + ":" + conn
 
-  override def wpath: String = cls + ":" + id
+  override def wpath: String = cls + ":" + key
 
   override def ahref: Option[String] = None
+
+  override def toJson: Map[String, Any] = {
+    Map(
+      "inventory" -> inventory,
+      "conn" -> conn,
+      "source" -> source,
+      "wpath" -> wpath,
+      "realm" -> realm,
+      "key" -> key,
+      "class" -> className
+    ) ++ ver.map(x => Map("ver" -> x)
+    ).getOrElse(Map.empty) ++ draft.map(x => Map("draft" -> x)
+    ).getOrElse(Map.empty) ++ ahref.map(x => Map("ahref" -> x)
+    ).getOrElse(Map.empty)
+  }
 }
 
 /** utilities */
@@ -81,6 +115,18 @@ object SpecRef {
       id,
       section,
       realm
+    )
+  }
+
+  /** make a generic specref */
+  def fromJson(j: Map[String, Any]) = {
+    new FullSpecRef(
+      j.getOrElse("inventory", "").toString,
+      j.getOrElse("conn", "").toString,
+      j.getOrElse("class", "").toString,
+      j.getOrElse("key", "").toString,
+      j.getOrElse("section", "").toString,
+      j.getOrElse("realm", "").toString
     )
   }
 

@@ -8,6 +8,7 @@ package razie.diesel.model
 
 import razie.audit.Audit
 import razie.diesel.engine.DomEngineSettings
+import razie.diesel.engine.nodes.EMsg
 import razie.diesel.samples.DomEngineUtils
 import razie.tconf.{SpecRef, TSpecRef, TagQuery}
 import razie.wiki.model.{WID, WikiSearch}
@@ -102,6 +103,14 @@ case class DieselMsg(
   target: DieselTarget = DieselTarget.RK,
   osettings:Option[DomEngineSettings] = None
 ) {
+
+  def this(m: EMsg, target: DieselTarget) = this(
+    m.entity,
+    m.met,
+    m.attrs.map(t => (t.name, t.currentStringValue)).toMap,
+    target
+  )
+
   def ea = e + "." + a
 
   def toMsgString = DieselMsgString(
@@ -243,6 +252,8 @@ object DieselMsg {
   object ENGINE {
     final val ENTITY = "diesel"
     final val VALS = "vals"
+    final val DIESEL_EXIT = "diesel.pleaseexit"
+    final val DIESEL_CRASHAKKA = "diesel.crashakka"
     final val DIESEL_VALS = "diesel.vals"
     final val DIESEL_BEFORE = "diesel.before"
     final val DIESEL_AFTER = "diesel.after"
@@ -301,6 +312,10 @@ object DieselMsg {
     final val LIST = "list"
     final val TICK = "tick"
     final val STOP = "stop"
+  }
+
+  object APIGW {
+    final val ENTITY = "diesel.apigw.limit"
   }
 
   object PROPS {

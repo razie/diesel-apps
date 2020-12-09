@@ -238,7 +238,12 @@ class DomEngineActor(eng: DomEngine) extends Actor with Stash {
 
   override def postStop() = {
     // assert it's stopped
-    // DieselAppContext.activeActors.remove(eng.id)
+    if (DieselAppContext.activeActors.contains(eng.id) ||
+        DieselAppContext.activeEngines.contains(eng.id)) {
+      Audit.logdb("DIESEL_ASSERT_FAILED", s"activeActor id: ${eng.id} still registered !!")
+      DieselAppContext.activeEngines.remove(eng.id)
+      DieselAppContext.activeActors.remove(eng.id)
+    }
   }
 }
 

@@ -5,9 +5,9 @@
  */
 package razie.diesel.engine
 
-import controllers.DieselAssets
 import org.bson.types.ObjectId
 import razie.Logging
+import razie.diesel.dom.DieselAssets
 import razie.diesel.dom.RDOM.P
 import razie.diesel.engine.nodes.EMsg
 import razie.diesel.model.DieselMsg

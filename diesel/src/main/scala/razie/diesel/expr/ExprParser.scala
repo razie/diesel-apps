@@ -329,9 +329,18 @@ def exprMAP: Parser[Expr] = exprOR ~ rep(ows ~> opsMAP ~ ows ~ exprOR) ^^ {
     * <> means it's a ref, not ownership
     * * means it's a list
     */
-  def optType: Parser[WType] = opt(" *: *".r ~> opt("<>") ~ ident ~ optKinds ~ opt(" *\\* *".r)) ^^ {
-    case Some(ref ~ tt ~ k ~ None) => WType(tt, "", k).withRef(ref.isDefined)
-    case Some(ref ~ tt ~ _ ~ Some(_)) => WType(WTypes.ARRAY, "", Some(tt)).withRef(ref.isDefined)
+  def optType: Parser[WType] = opt((" *: *<> *".r | " *: *".r) ~
+      // todo make it work better with the opt below - it stopped working at some point
+//      opt(" *<> *") ~
+      ident ~
+      optKinds ~
+      opt(" *\\* *".r)) ^^ {
+    case Some(ref ~ tt ~ k ~ None) => {
+      WType(tt, "", k).withRef(ref.contains("<>"))
+    }
+    case Some(ref ~ tt ~ _ ~ Some(_)) => {
+      WType(WTypes.ARRAY, "", Some(tt)).withRef(ref.contains("<>"))
+    }
     case None => WTypes.wt.EMPTY
   }
 
@@ -430,9 +439,10 @@ def exprMAP: Parser[Expr] = exprOR ~ rep(ows ~> opsMAP ~ ows ~ exprOR) ^^ {
   }
 
   // json object - sequence of nvp assignemnts separated with commas
-  def jobj: Parser[Expr] = opt("new" ~ whiteSpace ~ qident ~ whiteSpace) ~ "{" ~ ows ~ repsep(jnvp <~ ows, ",") <~ ows ~ "}" ^^ {
-    case None ~ _ ~ _ ~ li => JBlockExpr(li)
-    case Some(a ~ _ ~ b ~ _) ~ _ ~ _ ~ li => JBlockExpr(li, Some(b))
+  def jobj: Parser[Expr] = opt("new" ~ whiteSpace ~ qident) ~ ows ~ "{" ~ ows ~ repsep(jnvp <~ ows,
+    ",") <~ ows ~ "}" ^^ {
+    case None ~ _ ~ _ ~ _ ~ li => JBlockExpr(li)
+    case Some(a ~ _ ~ b) ~ _ ~ _ ~ _ ~ li => JBlockExpr(li, Some(b))
   }
 
   // one json block nvp pair

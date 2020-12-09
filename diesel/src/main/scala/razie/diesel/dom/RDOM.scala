@@ -73,6 +73,8 @@ object RDOM {
     assocs: List[A] = Nil,
     props: List[P] = Nil) extends DE {
 
+    def this(name: String) = this(name, "", "", Nil, "")
+
     override def toString = fullHtml
 
     def fullHtml = {
@@ -211,6 +213,8 @@ object RDOM {
     */
   object P {
     def of(name: String, v: Any): P = fromSmartTypedValue(name, v)
+
+    def undefined(name: String): P = P(name, "", WTypes.wt.UNDEFINED)
 
     def fromSmartTypedValue(name: String, v: Any): P = v match {
       case s: String if s.trim.startsWith("{") => P.fromTypedValue(name, s, WTypes.JSON)
@@ -641,7 +645,7 @@ object RDOM {
     * @param parms
     */
   case class O (name:String, base:String, parms:List[P]) {
-    def toJson = parms.map{p=> p.name -> p.value}.toMap
+    def toJson = parms.map { p => p.name -> p.calculatedTypedValue(ECtx.empty).value }.toMap
 
     def fullHtml = {
       span("object::") + " " + name + " : " + classLink(base) +
