@@ -52,7 +52,6 @@ abstract class DomEngine(
   assert(settings.realm.isDefined, "need realm defined for engine settings")
 
   GlobalData.dieselEnginesTotal.incrementAndGet()
-  GlobalData.dieselEnginesActive.incrementAndGet()
 
   def collectGroup = settings.collectGroup.getOrElse(description)
 
@@ -134,14 +133,21 @@ abstract class DomEngine(
 
   /** stop and discard this engine */
   def discard = {
-    status = DomState.CANCEL
-    trace("DomEng " + id + " discard")
-    finishP.success(this)
-    DieselAppContext.stopActor(id)
+    if (status != DomState.INIT) {
+      // did something, need to stop it instead
+      stopNow
+    } else {
+      clog << s"WF.DISCARD.$id"
+      status = DomState.CANCEL
+      trace("DomEng " + id + " discard")
+      finishP.success(this)
+      DieselAppContext.stopActor(id)
+    }
   }
 
   /** finalize and release resources, actors etc */
   def engineDone() = {
+    clog << s"WF.STOP.$id"
     GlobalData.dieselEnginesActive.decrementAndGet()
     finishP.success(this)
     DomCollector.collectAst("engine", settings.realm.mkString, id, settings.userId, this)
@@ -445,6 +451,8 @@ abstract class DomEngine(
     */
   def processTests = {
     Future {
+      GlobalData.dieselEnginesActive.incrementAndGet()
+      clog << s"WF.START.$id"
       trace("*******************************************************")
       trace("DomEng.tests STARTING " + id + " - " + description)
       trace("*******************************************************")
@@ -476,6 +484,8 @@ abstract class DomEngine(
   def process: Future[DomEngine] = {
     if (root.status != DomState.STARTED) {
 
+      GlobalData.dieselEnginesActive.incrementAndGet()
+      clog << s"WF.START.$id"
       trace("*******************************************************")
       trace("DomEng STARTING " + id + " - " + description)
       trace("*******************************************************")

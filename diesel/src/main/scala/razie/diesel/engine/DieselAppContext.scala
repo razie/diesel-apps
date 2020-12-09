@@ -57,10 +57,13 @@ object DieselAppContext extends Logging {
   private var actorSystemFactory: Option[() => ActorSystem] = None
 
   /** when this is set, no multi-tenant or special thread pools and other features are used,
-    * you don't need to initialize too much infrastructure
+    * you don't need to initialize too much infrastructure and can run in the default akka executor
     */
   def simpleMode = _simpleMode
 
+  /** when this is set, no multi-tenant or special thread pools and other features are used,
+    * you don't need to initialize too much infrastructure and can run in the default akka executor
+    */
   def withSimpleMode() = {
     this._simpleMode = true
     this
@@ -71,7 +74,7 @@ object DieselAppContext extends Logging {
   }
 
   /** use this actor system - defaults to creating its own */
-  def mkExecutionContext () = {
+  def WIP_mkExecutionContext() = {
     // default
     //    ExecutionContext.Implicits.global
 
@@ -85,7 +88,7 @@ object DieselAppContext extends Logging {
     )
   }
 
-  /** use this actor system - defaults to creating its own */
+  /** use this actor system, for testing - defaults to creating its own */
   def withActorSystem(s: ActorSystem) = synchronized {
     actorSystem = Some(s)
     this
@@ -144,8 +147,11 @@ object DieselAppContext extends Logging {
 
   /** initialize the engine cache and actor infrastructure */
   def actorOf(props:akka.actor.Props, name: String="") = {
-    val p = props //if(simpleMode) props else props.withDispatcher("xxt")//DIESEL_DISPATCHER)
-    val a = if(name.isEmpty) getActorSystem.actorOf(p) else getActorSystem.actorOf(p, name)
+    // run the specs tests - some don't finish with the other dispatcher. I think it's the futures that use
+    // the wrong execContext ?
+    // run on 118 - somehow that one gets stuck on stream.consume ?
+    val p = props //if (simpleMode) props else props.withDispatcher(DIESEL_DISPATCHER)
+    val a = if (name.isEmpty) getActorSystem.actorOf(p) else getActorSystem.actorOf(p, name)
     a
   }
 
