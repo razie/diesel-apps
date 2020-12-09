@@ -5,6 +5,7 @@
  */
 package razie.diesel.engine.exec
 
+import razie.base.AttrAccess
 import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.dom._
 import razie.diesel.engine.DomAst

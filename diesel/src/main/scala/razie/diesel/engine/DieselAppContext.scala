@@ -41,7 +41,13 @@ object DieselAppContext extends Logging {
 
   implicit def executionContext =
     if (simpleMode) ExecutionContext.Implicits.global
-    else getActorSystem.dispatchers.lookup(DIESEL_DISPATCHER)
+    else {
+      // todo this seems only used right now by the cron jobs - EEDieselCron
+      // todo use for all diesel actors?
+      val r = getActorSystem.dispatchers.lookup(DIESEL_DISPATCHER)
+//      log("XXXXX " + r)
+      r
+    }
 
   /** active engines -ussed for routing so weak concurrent control ok */
   val activeEngines = new TrieMap[String, DomEngine]()
@@ -70,22 +76,8 @@ object DieselAppContext extends Logging {
   }
 
   def stopActor(id: String) = {
+    val ac = activeActors.get(id).get
     activeActors.get(id).map(getActorSystem.stop)
-  }
-
-  /** use this actor system - defaults to creating its own */
-  def WIP_mkExecutionContext() = {
-    // default
-    //    ExecutionContext.Implicits.global
-
-    // custom
-    ExecutionContext.fromExecutor(
-      // flexible fork-join pool
-      // new java.util.concurrent.ForkJoinPool(5)
-
-      //If you want fixed size thread pool:
-      java.util.concurrent.Executors.newFixedThreadPool(5)
-    )
   }
 
   /** use this actor system, for testing - defaults to creating its own */
@@ -136,6 +128,9 @@ object DieselAppContext extends Logging {
         )
       )
     }
+
+//    log("XXXXXXX " + actorSystem.get.dispatcher)
+//    log("XXXXXXX " + actorSystem.get.dispatcher.prepare())
 
     val p = Props(new DomEngineRouter())
     val a = actorOf(p)

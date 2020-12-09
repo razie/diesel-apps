@@ -16,6 +16,7 @@ import razie.diesel.expr._
 import razie.diesel.model.DieselMsg
 import razie.diesel.model.DieselMsg.ENGINE._
 import razie.hosting.Website
+import razie.js
 import razie.tconf.DSpec
 import razie.wiki.admin.GlobalData
 import scala.Option.option2Iterable
