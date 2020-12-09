@@ -8,6 +8,8 @@ package razie.wiki.admin
 
 import java.util.concurrent.atomic.AtomicLong
 import org.joda.time.DateTime
+import razie.diesel.engine.DieselAppContext
+import razie.diesel.utils.DomCollector
 import scala.concurrent.{Future, Promise}
 
 /** current ops data is updated here from all over - you can inspect this in a page
@@ -18,14 +20,14 @@ object GlobalData {
   //todo use proper JMX istead
 
   // how many requests were served
-  @volatile var served = 0L
-  @volatile var servedRequests = 0L
-  @volatile var maxServing = 0 // how many threads are currently serving - if 0, there's none...
-  @volatile var maxServingApiRequests = 0 // how many threads are currently serving - if 0, there's none...
-  @volatile var serving = 0 // how many threads are currently serving - if 0, there's none...
-  @volatile var servingApiRequests = 0 // how many threads are currently serving - if 0, there's none...
-  @volatile var servedApiRequests = 0L
-  @volatile var limitedApiRequests = 0L // how many were kicked off under load
+  val served = new AtomicLong(0)
+  val servedRequests = new AtomicLong(0)
+  val maxServing = new AtomicLong(0) // how many threads are currently serving - if 0, there's none...
+  val maxServingApiRequests = new AtomicLong(0) // how many threads are currently serving - if 0, there's none...
+  val serving = new AtomicLong(0) // how many threads are currently serving - if 0, there's none...
+  val servingApiRequests = new AtomicLong(0) // how many threads are currently serving - if 0, there's none...
+  val servedApiRequests = new AtomicLong(0)
+  val limitedApiRequests = new AtomicLong(0) // how many were kicked off under load
 
   val dieselEnginesTotal = new AtomicLong(0) // how many engines created
   val dieselEnginesActive = new AtomicLong(0) // how many engines active
@@ -44,21 +46,25 @@ object GlobalData {
 
   def toMap() = {
     Map(
-      "Global.serving" -> GlobalData.serving,
-      "Global.served" -> GlobalData.served,
-      "Global.servingApiRequests" -> GlobalData.servingApiRequests,
-      "Global.servedApiRequests" -> GlobalData.servedApiRequests,
-      "Global.limitedApiRequests" -> GlobalData.limitedApiRequests,
-      "Global.maxServing" -> GlobalData.maxServing,
-      "Global.maxServingApiRequests" -> GlobalData.maxServingApiRequests,
+      "Global.serving" -> GlobalData.serving.get(),
+      "Global.served" -> GlobalData.served.get(),
+      "Global.servingApiRequests" -> GlobalData.servingApiRequests.get(),
+      "Global.servedApiRequests" -> GlobalData.servedApiRequests.get(),
+      "Global.limitedApiRequests" -> GlobalData.limitedApiRequests.get(),
+      "Global.maxServing" -> GlobalData.maxServing.get(),
+      "Global.maxServingApiRequests" -> GlobalData.maxServingApiRequests.get(),
       "Global.dieselEnginesTotal" -> GlobalData.dieselEnginesTotal.get(),
       "Global.dieselEnginesActive" -> GlobalData.dieselEnginesActive.get(),
       "Global.wikiOptions" -> GlobalData.wikiOptions,
-      "Global.servedPages" -> GlobalData.servedRequests,
+      "Global.servedPages" -> GlobalData.servedRequests.get(),
       "Global.startedDtm" -> GlobalData.startedDtm,
       "SendEmail.curCount" -> SendEmail.curCount,
       "SendEmail.state" -> SendEmail.state,
-      "ClusterStatus" -> GlobalData.clusterStatus
+      "ClusterStatus" -> GlobalData.clusterStatus,
+      "Diesel.collectedAst" -> DomCollector.withAsts(_.size),
+      "Diesel.activeEngines" -> DieselAppContext.activeEngines.size,
+      "Diesel.activeActors" -> DieselAppContext.activeActors.size,
+      "Diesel.activeStreams" -> DieselAppContext.activeStreams.size
     )
   }
 }

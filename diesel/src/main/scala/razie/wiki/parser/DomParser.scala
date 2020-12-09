@@ -68,18 +68,23 @@ trait DomParser extends ParserBase with ExprParser {
       }
     }
 
+  def mkPos(ctx: FoldingContext[DSpec, DUser], k: Keyw) = {
+    Some(EPos(ctx.we.map(_.specRef.wpath).mkString, k.pos.line, k.pos.column))
+  }
+
   /**
     * .class X [T] (a,b:String) extends A,B {}
     */
   def pclass: PS =
-    """[.$]class""".r ~> ws ~>
-      qident ~ opt(ows ~> "[" ~> ows ~> repsep(qident, ",") <~ "]") ~
-      optAttrs ~
-      opt(ws ~> "extends" ~> ws ~> repsep(qident, ",")) ~
-      opt(ws ~> "<" ~> ows ~> repsep(ident, ",") <~ ">") ~ " *".r ~ optClassBody ^^ {
-      case name ~ tParm ~ attrs ~ ext ~ stereo ~ _ ~ funcs => {
+    keyw("""[.$]class""".r) ~ ws ~
+        qident ~ opt(ows ~> "[" ~> ows ~> repsep(qident, ",") <~ "]") ~
+        optAttrs ~
+        opt(ws ~> "extends" ~> ws ~> repsep(qident, ",")) ~
+        opt(ws ~> "<" ~> ows ~> repsep(ident, ",") <~ ">") ~ " *".r ~ optClassBody ^^ {
+      case k ~ _ ~ name ~ tParm ~ attrs ~ ext ~ stereo ~ _ ~ funcs => {
         lazys { (current, ctx) =>
 
+            //consume all annotations up to here?
           val anno = ctx.we.get.collector.getOrElse(RDomain.DOM_ANNO_LIST, Nil).asInstanceOf[List[RDOM.P]]
           ctx.we.get.collector.remove(RDomain.DOM_ANNO_LIST)
 
@@ -377,7 +382,7 @@ trait DomParser extends ParserBase with ExprParser {
         lazys { (current, ctx) =>
           val x = nodes.EMatch(ac, am, aa, cond)
           val f = EFlow(x, ex)
-          f.pos = Some(EPos(ctx.we.map(_.specPath.wpath).mkString, k.pos.line, k.pos.column))
+          f.pos = Some(EPos(ctx.we.map(_.specRef.wpath).mkString, k.pos.line, k.pos.column))
           addToDom(f).ifold(current, ctx)
         }
       }
@@ -494,11 +499,6 @@ trait DomParser extends ParserBase with ExprParser {
     case cond => {
       PM(AExprIdent(""), WTypes.wt.UNKNOWN, "", "", Some(cond))
     }
-  }
-
- def optClassBody: Parser[List[RDOM.F]] = opt(" *\\{".r ~> CRLF2 ~> rep1sep(defline | msgline, CRLF2) <~ CRLF2 <~ " *\\} *".r) ^^ {
-    case Some(a) => a
-    case None => List.empty
   }
 
   /**
@@ -687,27 +687,13 @@ trait DomParser extends ParserBase with ExprParser {
   /**
     * .func name (a,b) : String
     */
-  def pdef: PS = "[.$]def *".r ~> qident ~ optAttrs ~ optType ~ optScript ~ optBlock ^^ {
-    case name ~ attrs ~ optType ~ script ~ block => {
+  def pdef: PS = keyw("[.$]def *".r) ~ qident ~ optAttrs ~ optType ~ optScript ~ optBlock ^^ {
+    case k ~ name ~ attrs ~ optType ~ script ~ block => {
       lazys { (current, ctx) =>
         val f = F(name, attrs, optType, "def", script.fold(ctx).s, block)
+        f.withPos(mkPos(ctx, k))
         collectDom(f, ctx.we)
-
-        def mkParms = f.parms.map { p => p.name + "=" + Enc.toUrl(p.currentStringValue) }.mkString("&")
-
-        def mksPlay = if (f.script.length > 0) s""" | <a href="/diesel/splay/${f.name}/${ctx.we.map(_.specPath.wpath).mkString}?$mkParms">splay</a>""" else ""
-
-        def mkjPlay = if (f.script.length > 0) s""" | <a href="/diesel/jplay/${f.name}/${ctx.we.map(_.specPath.wpath).mkString}?$mkParms">jplay</a>""" else ""
-
-        def mkCall =
-          s"""<a href="/diesel/fcall/${f.name}/${ctx.we.map(_.specPath.wpath).mkString}?$mkParms">fcall</a>$mkjPlay$mksPlay""".stripMargin
-
-        StrAstNode(
-          s"""
-             |<div align="right"><small>$mkCall</small></div>
-             |<div class="well">
-             |$f $script
-             |</div>""".stripMargin)
+        StrAstNode(f.toHtml)
       }
     }
   }
@@ -726,26 +712,51 @@ trait DomParser extends ParserBase with ExprParser {
       // todo return a lambda JS executable
   }
 
-  /**
-    * msg name (a,b) : String
-    */
-  def defline: Parser[RDOM.F] = " *\\$?XXdef *".r ~> ident ~ optAttrs ~ optType ~ " *".r ~ optBlock ^^ {
-    case name ~ a ~ t ~ _ ~ b => {
-      new F(name, a, t, "def", "", b)
+  def optClassBody: Parser[List[RDOM.F]] = {
+    // todo if I remove this first CRLF2 is goes to sh*t
+    opt(" *\\{ *".r ~ CRLF2 ~>
+        repsep(defline | msgline | emptyline , CRLF2)
+        <~ opt(CRLF2) ~ " *\\} *".r) ^^ {
+      case Some(a) => a.collect {
+        case x: RDOM.F => x
+      }
+      case None => List.empty
     }
   }
 
   /**
     * def name (a,b) : String
     */
-  def msgline: Parser[RDOM.F] = " *\\$?msg *".r ~> ident ~ optAttrs ~ optType ~ " *".r ~ opt(pgen) ^^ {
+  def defline: Parser[RDOM.F] =
+    keyw(" *\\$?def *".r) ~ ident ~ optAttrs ~ optType ~ " *".r ~ optBlock ^^ {
+      case k ~ name ~ a ~ t ~ _ ~ b => {
+        val f = new F(name, a, t, "def", "", b)
+        f.withPos(pos(k)) // todo add spec
+        f
+      }
+    }
+
+  /**
+    * msg name.b (a,b) : String
+    */
+  def emptyline: Parser[String] = ws ^^ {
+    case x => ""
+  }
+
+  /**
+    * msg name.b (a,b) : String
+    */
+  def msgline: Parser[RDOM.F] = " *\\$?msg *".r ~> qident ~ optAttrs ~ optType ~ " *".r ~ opt(pgen) ^^ {
     case name ~ a ~ t ~ _ ~ m => {
-      new F(name, a, t, "msg", "", m.toList.map(x=>new ExecutableMsg(x)))
+      new F(name, a, t, "msg", "", m.toList.map(x => new ExecutableMsg(x)))
     }
   }
 
-  def optBlock: Parser[List[Executable]] = opt(" *\\{".r ~> CRLF2 ~> rep1sep(statement, CRLF2) <~ CRLF2 <~ " *\\} *".r) ^^ {
-    case Some(a) => a
+  def optBlock: Parser[List[Executable]] = opt(
+    " *\\{".r ~> rep1sep(statement | emptyline, CRLF2) <~ " *\\} *".r) ^^ {
+    case Some(a) => a.collect {
+      case x: Executable => x
+    }
     case None => List.empty
   }
 
@@ -755,7 +766,8 @@ trait DomParser extends ParserBase with ExprParser {
 
   // not used yet - class member val
   // todo use optType
-//  def valueDef: Parser[RDOM.P] = "val *".r ~> ident ~ opt(" *: *".r ~> opt("<>") ~ ident) ~ opt(" *\\* *".r) ~ opt(" *= *".r ~> value) ^^ {
+//  def valueDef: Parser[RDOM.P] = "val *".r ~> ident ~ opt(" *: *".r ~> opt("<>") ~ ident) ~ opt(" *\\* *".r) ~ opt
+//  (" *= *".r ~> value) ^^ {
   def valueDef: Parser[RDOM.P] = "val *".r ~> ident ~ optType ~ opt(" *= *".r ~> expr) ^^ {
     case name ~ t ~ e => P(name, e.mkString, t)
   }

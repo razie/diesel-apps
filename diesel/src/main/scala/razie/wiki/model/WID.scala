@@ -395,7 +395,9 @@ object WID {
     def realm:String = wid.getRealm
     def ver:Option[String] = None
     def draft:Option[String] = None
-    def ahref:Option[String] = Some(wid.ahref)
+    def ahref: Option[String] = Some(wid.ahref)
+
+    def className: String = wid.cat
 
     override def toString = wid.toString
   }
