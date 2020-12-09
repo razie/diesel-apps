@@ -16,7 +16,6 @@ import razie.diesel.expr._
 import razie.diesel.model.DieselMsg
 import razie.diesel.model.DieselMsg.ENGINE._
 import razie.hosting.Website
-import razie.js
 import razie.tconf.DSpec
 import razie.wiki.admin.GlobalData
 import scala.Option.option2Iterable
@@ -625,6 +624,24 @@ class DomEngineV1(
       evAppChildren(a, DomAst(p, AstKinds.TRACE))
       ctx.put(p.p)
       true
+
+//    } else if (ea == DieselMsg.ENGINE.DIESEL_EXIT) {
+//      Audit.logdb("DIESEL_EXIT", s"user ${settings.userId}")
+//
+//      if (Config.isLocalhost) {
+//        System.exit(-1)
+//      }
+//
+//      true
+
+//    } else if (ea == DieselMsg.ENGINE.DIESEL_CRASHAKKA) {
+//      Audit.logdb("DIESEL_CRASHAKKA", s"user ${settings.userId}")
+//
+//      if (Config.isLocalhost) {
+//        DieselAppContext.getActorSystem.terminate()
+//      }
+//
+//      true
 
     } else if (ea == DieselMsg.ENGINE.DIESEL_RETURN) {
       // expand all spec vals
