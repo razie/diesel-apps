@@ -10,35 +10,67 @@ import com.razie.pub.comms.{CommRtException, Comms}
 import java.net.{HttpURLConnection, URI}
 import org.json.JSONObject
 import razie.Snakk._
+import razie.diesel.Diesel
 import razie.diesel.dom.RDOM._
+import razie.diesel.engine.nodes.EMsg
 import razie.diesel.expr.ECtx
-import razie.tconf.{DSpecInventory, SpecPath}
+import razie.tconf.{DSpecInventory, FullSpecRef, SpecRef}
 import razie.wiki.Sec
 import razie.{Snakk, clog, js}
 import scala.collection.mutable
 import scala.util.Try
 
 /** ODATA CRM domain plugin */
-class CRMRDomainPlugin (
-                         var props : Map[String,String] = Map.empty
-                       ) extends RDomainPlugin {
+class OdataCRMDomInventory(
+  override val name: String = "d365odata",
+  var props: Map[String, String] = Map.empty
+) extends DomInventory {
 
-  var realm:String = ""
-  var specInv : Option[DSpecInventory] = None
+  // annotation specific to these classes
+  final val ODATA_NAME = "odata.name"
 
-  override def mkInstance(irealm:String, wi:DSpecInventory) : List[RDomainPlugin] = {
-    realm = irealm
-    specInv = Some(wi)
-    reset()
+
+  override def conn = props.getOrElse("conn.name", "default")
+
+  var realm: String = ""
+  var env: String = ""
+  var specInv: Option[DSpecInventory] = None
+  var iprops: Map[String, String] = Map.empty
+
+  /**
+    * can this support the class? You can look at it's annotations etc
+    */
+  override def isDefinedFor(realm: String, c: C): Boolean = {
+    c.props.find(_.name == ODATA_NAME).isDefined || super.isDefinedFor(realm, c)
   }
 
-  private def reset() : List[RDomainPlugin] = {
-    val pspec = SpecPath ("", realm+".ReactorMod:ODataCrmDomainPlugin", realm)
-    val props = SpecPath ("", realm+".Form:ODataCrmDomainProps", realm)
+  /** if the ReactorMod is present and a connection, create it - just one conn */
+  override def mkInstance(irealm: String, ienv: String, wi: DSpecInventory, newName: String, dprops: Map[String,
+      String] = Map.empty)
+  : List[DomInventory] = {
+    this.iprops = dprops
+    realm = irealm
+    env = ienv
+    specInv = Some(wi)
+    reset(iprops, newName)
+  }
 
-    specInv.flatMap(_.findSpec(pspec)).flatMap(x=>specInv.flatMap(_.findSpec(props))).toList.map {wprops =>
-      new CRMRDomainPlugin (wprops.allProps)
-    }
+  private def reset(iprops: Map[String, String], newName: String): List[DomInventory] = {
+    val pspec = SpecRef("", realm + ".ReactorMod:ODataCrmDomainPlugin", realm)
+    val props = SpecRef("", realm + ".Form:ODataCrmDomainProps", realm)
+
+    specInv
+        .flatMap(_.findSpec(pspec))
+        .flatMap(x => specInv.flatMap(_.findSpec(props)))
+        .toList
+        .map { wprops =>
+          val ret = new OdataCRMDomInventory(newName, iprops ++ wprops.allProps)
+          ret.realm = realm
+          ret.specInv = this.specInv
+          ret.iprops = this.iprops
+          ret.env = this.env
+          ret
+        }
 
     // todo add observer when form changes and not reset all the time
     // todo design mechanism for wiki changes propagating and objects changing state
@@ -49,10 +81,6 @@ class CRMRDomainPlugin (
   def authSecret = props.getOrElse("odata.authSecret", "")
   def URL = props.getOrElse("odata.url", "")
 
-  override def name = "d365odata"
-  override def conn = props.getOrElse("conn.name", "default")
-
-  final val ODATA_NAME = "odata.name"
 
   def accessToken = iAccessToken.getOrElse {
     val j = Snakk.json(
@@ -83,9 +111,10 @@ class CRMRDomainPlugin (
     iAccessToken.get
   }
 
-  var iAccessToken : Option[String] = None
+  var iAccessToken: Option[String] = None
 
-  def classOname (c:C): String = c.props.find(_.name == ODATA_NAME).map(_.calculatedValue(ECtx.empty)).getOrElse(c.name)
+  def classOname(c: C): String =
+    c.props.find(_.name == ODATA_NAME).map(_.calculatedValue(ECtx.empty)).getOrElse(c.name)
 
   // reset during calls
   var completeUri: String = ""
@@ -111,7 +140,7 @@ class CRMRDomainPlugin (
   /**
     * do an action on some domain entity (explore, browse etc)
     *
-    * @param r           the domain
+    * @param dom         the domain
     * @param action      the action to execute
     * @param completeUri the entire URL called (use it to get host/port etc)
     * @param epath       id of the entity
@@ -120,11 +149,16 @@ class CRMRDomainPlugin (
   def doAction(dom: RDomain, conn:String, action: String, completeUri: String, epath: String): String = {
     try {
       // todo for now to force reloading the attributes
-      reset()
+      reset(iprops, name)
 
       this.completeUri = completeUri
 
       action match {
+        case "testConnection" => DomInventories.resolve(testConnection(dom, epath)).currentStringValue
+        case "findByRef" => findByRefs(dom, epath)
+        case "findByQuery" => findByQuerys(dom, epath)
+        case "listAll" => xlistAll(dom, epath)
+
         case "accessToken" => accessToken
         case "attrs" => getEntityAttrs(dom, action, epath)
         case "sample" => redirectToSample(dom, action, epath)
@@ -133,10 +167,6 @@ class CRMRDomainPlugin (
         case "metaAttrs" => metaAttrs(dom, epath)
         case "makeClass" => makeClass(dom, epath, loadClasses(dom))
         case "makeAllClasses" => makeAllClasses(dom, action, epath)
-        case "testConnection" => testConnection(dom, epath)
-        case "findByRef" => findByRefs(dom, epath)
-        case "findByQuery" => findByQuerys(dom, epath)
-        case "listAll" => listAll(dom, epath)
         case _ => throw new NotImplementedError(s"doAction $action - $completeUri - $epath")
       }
     } catch {
@@ -148,27 +178,32 @@ class CRMRDomainPlugin (
   }
 
   /** html for the supported actions */
-  private def testConnection (dom: RDomain, epath: String): String = {
-    s"""testing auth...\n
-       |
-       |authUrl=$authUrl\n
-       |authClient=$authClient\n
-       |authSecret=$authSecret\n
-       |\n
-       |accessToken=${accessToken}\n
-       |\n
-       |listClasses=${listClasses(dom,epath).split(",").size}\n
-       |
+  override def testConnection(dom: RDomain, epath: String): Either[P, EMsg] = {
+    val s =
+      s"""testing auth...\n
+         |
+         |authUrl=$authUrl\n
+         |authClient=$authClient\n
+         |authSecret=$authSecret\n
+         |\n
+         |accessToken=${accessToken}\n
+         |\n
+         |listClasses=${listClasses(dom, epath).split(",").size}\n
+         |
      """.stripMargin
+    Left(P(Diesel.PAYLOAD, s))
   }
 
+  override def connect(dom: RDomain, env: String): Either[P, EMsg] =
+    Left(P(Diesel.PAYLOAD, "ok"))
+
   /** html for the supported actions */
-  private def getEntityAttrs (dom: RDomain, action: String, epath: String): String = {
+  private def getEntityAttrs(dom: RDomain, action: String, epath: String): String = {
     dom.classes.get(epath) match {
       case Some(c) => {
         val oname = classOname(c)
 
-        getEntityAttrsFor(dom,oname, loadClasses(dom))
+        getEntityAttrsFor(dom, oname, loadClasses(dom))
       }
 
       case _ => "eh?"
@@ -336,7 +371,9 @@ class CRMRDomainPlugin (
   /**
     * list all
     */
-  private def listAll(dom:RDomain, epath: String, collectRefs:Option[mutable.HashMap[String,String]]=None): String = {
+  private def xlistAll(dom: RDomain, epath: String, collectRefs: Option[mutable.HashMap[String, String]] = None)
+  : String = {
+//    : Either[List[DieselAsset[_]], EMsg] = {
     doQuery(epath, dom, "", collectRefs)
   }
 
@@ -374,42 +411,43 @@ class CRMRDomainPlugin (
 
   /** turn a json value into a nice object, merge with class def and mark refs etc */
   def oFromJ (name:String, j:JSONObject, c:C) = {
+    // see DomInventories.oFromJ - but this one needs more filtering
 
     // move parms containing name/desc to the top of the list
     val parmNames = j.keySet
-      .toArray
-      .toList
-      .map(_.toString)
-      .filter(n=> !n.startsWith("@"))
-      .filter(n=> !filterAttrs.contains(n))
-//      .sorted
-    val a1 = parmNames.filter(n=> n.contains("name") || n.contains("key"))
-    val a2 = parmNames.filter(n=> n.contains("description") || n.contains("code"))
-    val b = parmNames.filterNot(n=> n.contains ("name") || n.contains("description") || n.contains("code"))
+        .toArray
+        .toList
+        .map(_.toString)
+        .filter(n => !n.startsWith("@"))
+        .filter(n => !filterAttrs.contains(n))
+    //      .sorted
+    val a1 = parmNames.filter(n => n.contains("name") || n.contains("key"))
+    val a2 = parmNames.filter(n => n.contains("description") || n.contains("code"))
+    val b = parmNames.filterNot(n => n.contains("name") || n.contains("description") || n.contains("code"))
 
     val parms = (a1 ::: a2 ::: b)
-      .map {k=>
-      val value = j.get(k).toString
-      val kn = k.toString
-      val oname = classOname(c)
+        .map { k =>
+          val value = j.get(k).toString
+          val kn = k.toString
+          val oname = classOname(c)
 
-      c.parms.find(_.name == kn).map {cp=>
-        cp.copy(dflt = value.toString) // todo add PValue
-      } getOrElse {
-        // key refs
-        if(kn.startsWith("_") && kn.endsWith(("_value")) ) {
-          val PAT="""_(.+)_value""".r
-          val PAT(n) = kn
-
-          c.parms.find(_.name == n).map {cpk=>
-            cpk.copy(dflt = value.toString) // todo add PValue
+          c.parms.find(_.name == kn).map { cp =>
+            cp.copy(dflt = value.toString) // todo add PValue
           } getOrElse {
-            P(kn, value)
+            // key refs
+            if (kn.startsWith("_") && kn.endsWith(("_value"))) {
+              val PAT = """_(.+)_value""".r
+              val PAT(n) = kn
+
+              c.parms.find(_.name == n).map { cpk =>
+                cpk.copy(dflt = value.toString) // todo add PValue
+              } getOrElse {
+                P(kn, value)
+              }
+            } else
+              P(kn, value)
           }
-        } else
-        P(kn, value)
-      }
-    }
+        }
 
     O(name, c.name, parms)
   }
@@ -451,26 +489,25 @@ class CRMRDomainPlugin (
   /**
     * find by entity/ref
     */
-  override def findByRef(dom:RDomain, epath: String, collectRefs:Option[mutable.HashMap[String,String]]=None): Option[O] = {
+  override def findByRef(dom: RDomain, ref: FullSpecRef, collectRefs: Option[mutable.HashMap[String, String]] = None)
+  : Either[Option[DieselAsset[_]], EMsg] = {
     val host = new URI(completeUri).getHost
-    val PAT = """([^/]+)/(.+)""".r
-    val PAT(cls, id) = epath
 
-    dom.classes.get(cls).map { classDef=>
+    Left(dom.classes.get(ref.cls).map { classDef =>
       val oname = classOname(classDef)
 
       // the idiots use an englishly-correct plural
-      val plural = if(oname endsWith "y") oname.take(oname.length-1)+"ies" else oname+"s"
+      val plural = if (oname endsWith "y") oname.take(oname.length - 1) + "ies" else oname + "s"
 
-      val u = URL+s"/api/data/v8.2/$plural($id)"
+      val u = URL + s"/api/data/v8.2/$plural(${ref.key})"
 
       val b = crmJson(u)
 
 //      b.node.j.asInstanceOf[JSONObject].toString(2)
 
-        val o = oFromJ(id, b.node.j.asInstanceOf[JSONObject], classDef)
-        o
-      }
+      val o = oFromJ(ref.key, b.node.j.asInstanceOf[JSONObject], classDef)
+      new DieselAsset[O](ref, o)
+    })
   }
 
   /**
@@ -478,16 +515,17 @@ class CRMRDomainPlugin (
     *
     * if the field and id is null, then no filter
     */
-  override def findByQuery(dom:RDomain, epath: String, collectRefs:Option[mutable.HashMap[String,String]]=None): List[O] = {
+  override def findByQuery(dom: RDomain, ref: FullSpecRef, epath: String, collectRefs: Option[mutable.HashMap[String,
+      String]] = None): List[DieselAsset[_]] = {
     val host = new URI(completeUri).getHost
     val PAT = """([^/]+)/(.+)/(.+)""".r
     val PAT(cls, field, id) = epath
 
-    dom.classes.get(cls).toList.flatMap { classDef=>
+    dom.classes.get(cls).toList.flatMap { classDef =>
       val oname = classOname(classDef)
 
       // the idiots use an englishly-correct plural
-      val plural = if(oname endsWith "y") oname.take(oname.length-1)+"ies" else oname+"s"
+      val plural = if (oname endsWith "y") oname.take(oname.length - 1) + "ies" else oname + "s"
 
       val filter = {
         if (id == "" || id == "*" || id == "'*'")
@@ -506,7 +544,7 @@ class CRMRDomainPlugin (
         val jo = n.j.asInstanceOf[JSONObject]
         val key = if(jo.has(oname+"id")) jo.get(oname+"id").toString else epath
         val o = oFromJ(key, jo, classDef)
-        o
+        new DieselAsset[O](SpecRef.make(ref.realm, name, conn, classDef.name, key), o)
       }
     }
   }

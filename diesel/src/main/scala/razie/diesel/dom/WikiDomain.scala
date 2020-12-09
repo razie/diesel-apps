@@ -5,26 +5,45 @@
   */
 package razie.diesel.dom
 
+import razie.diesel.dom.RDOM.DE
 import razie.hosting.WikiReactors
 import razie.tconf.TagQuery
 import razie.wiki.model._
 
 /**
-  * encapsulates the knowledge to use the wiki-defined domain model
+  * The domain for a realm. All sub-domains should be combined in this one domain.
+  *
+  * Combine all domain tools with higher level helpers on top of a domain
   */
 trait WikiDomain {
-  def realm:String
-  def wi:WikiInst
+  def realm: String
 
-  def plugins : List[RDomainPlugin]
+  def wi: WikiInst
 
-  def rdom : RDomain
+  /** all plugins for this domain and in this realm */
+  def allPlugins: List[DomInventory]
+
+  def addPlugin(inv: DomInventory): List[DomInventory]
+
+  def findPlugins(inventory: String, conn: String = ""): List[DomInventory] = {
+    allPlugins.find(_.name == inventory).orElse(allPlugins.find(_.isInstanceOf[DefaultRDomainPlugin])).toList
+  }
+
+  /** based on annotations etc */
+  def findPluginsForClass(c: DE): List[DomInventory] = {
+    // todo get annotation "inventory"
+    Nil
+  }
+
+  /** the aggregated domain representation for this realm */
+  def rdom: RDomain
 
   /* while loading, it may recursively try to do some stuff - */
-  def isLoading : Boolean
+  def isLoading: Boolean
 
-  def resetDom : Unit
+  def resetDom: Unit
 
+  /** is this an actual wiki category or a user-defined class or imported concept? */
   def isWikiCategory(cat: String): Boolean
 
   /** parse categories into domain model */
@@ -113,6 +132,7 @@ object WikiDomain {
     /** present a WE as a generic spec */
   def spec (we:WikiEntry) = we
 
+  /** if any special DOM wiki changes, rebuild the domain */
   WikiObservers mini {
     case WikiEvent(_, "WikiEntry", _, Some(x), _, _, _)
       if domTagQuery.matches(x.asInstanceOf[WikiEntry])
