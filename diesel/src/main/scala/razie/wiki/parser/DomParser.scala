@@ -12,6 +12,7 @@ import razie.diesel.engine.exec.EESnakk
 import razie.diesel.engine.nodes._
 import razie.diesel.engine.{DomEngine, nodes}
 import razie.diesel.expr._
+import razie.diesel.model.DieselMsg.ENGINE
 import razie.tconf.parser.{FoldingContext, LazyAstNode, StrAstNode}
 import razie.tconf.{DSpec, DUser, EPos}
 import razie.wiki.Enc
@@ -300,8 +301,9 @@ trait DomParser extends ParserBase with ExprParser {
   def pgenStep: Parser[EMap] =
     ows ~> opt("[|.]*".r) ~ keyw("-") ~ ows ~ opt(pif) ~ ows ~ "[^\n\r;]+".r <~ opt(";") <~ optComment3 ^^ {
       case level ~ arrow ~ _ ~ cond ~ _ ~ desc => {
+        val m = if (desc.trim.startsWith("todo ")) ENGINE.TODO else ENGINE.STEP
         nodes
-            .EMapCls("diesel", "step", List(P("desc", desc)), arrow.s, cond, level.mkString.length)
+            .EMapCls(ENGINE.ENTITY, m, List(P("desc", desc)), arrow.s, cond, level.mkString.length)
             .withPosition(EPos("", arrow.pos.line, arrow.pos.column))
       }
     }
@@ -313,7 +315,9 @@ trait DomParser extends ParserBase with ExprParser {
   def pgenText: Parser[EMap] =
     ows ~> keyw("[^\n\r=\\-;]".r) ~ ows ~ opt(pif) ~ ows ~ "[^\n\r;]+".r <~ opt(";") ^^ {
       case arrow ~ _ ~ cond ~ _ ~ desc => {
-        nodes.EMapCls("diesel", "step", List(P("desc", arrow.s+desc)), "-", cond).withPosition(EPos("", arrow.pos.line, arrow.pos.column))
+        val m = if (desc.trim.startsWith("todo ")) ENGINE.TODO else ENGINE.STEP
+        nodes.EMapCls(ENGINE.ENTITY, m, List(P("desc", arrow.s + desc)), "-", cond).withPosition(
+          EPos("", arrow.pos.line, arrow.pos.column))
       }
     }
 

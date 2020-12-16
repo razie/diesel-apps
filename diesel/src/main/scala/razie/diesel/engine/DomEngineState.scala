@@ -42,8 +42,8 @@ case class DADepyEv (prereq:String, depy:String, dtm:DateTime=DateTime.now) exte
 /** the state changes of an engine, including all events, tree changes etc, go through here */
 trait DomEngineState {
 
-  final val maxLevels = 45
-  final val maxExpands= 10000
+  var maxLevels = 45
+  final val maxExpands = 10000
   var curExpands = 0
 
   var status = DomState.INIT

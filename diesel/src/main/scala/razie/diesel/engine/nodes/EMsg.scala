@@ -174,7 +174,15 @@ case class EMsg(
 
   /** this html works well in a diesel fiddle, use toHtmlInPage elsewhere */
   override def toHtml = {
-  /*span(arch+"::")+*/first(pos) + eaHtml + " " + toHtmlAttrs(attrs)
+    if (DieselMsg.ENGINE.DIESEL_STEP == ea) {
+      /*span(arch+"::")+*/ first(pos) + eaHtml + " " + span(attrs.head.currentStringValue, "primary")
+    } else if (DieselMsg.ENGINE.DIESEL_TODO == ea) {
+      val m = attrs.head.currentStringValue
+//      val color = if (m contains "!") "danger" else "warning"
+      /*span(arch+"::")+*/ first(pos) + eaHtml + " " + span(m, "warning")
+    } else {
+      /*span(arch+"::")+*/ first(pos) + eaHtml + " " + toHtmlAttrs(attrs)
+    }
   }
 
   /** as opposed to toHtml, this will produce an html that can be displayed in any page, not just the fiddle */

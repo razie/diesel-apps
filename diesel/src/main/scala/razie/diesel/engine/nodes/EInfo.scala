@@ -97,9 +97,9 @@ case class EWarning(msg: String, details: String = "", code:String = "WARNING") 
 
   override def toHtml =
     if (details.length > 0)
-      spanClick("warn::", "warning", details) + msg
+      spanClick("warn::", "warning", details) + msg.replace("\n", "")
     else
-      span("warn::", "warning", details) + " " + msg
+      span("warn::", "warning", details) + " " + msg.replace("\n", "")
 
   override def toString = "fail-warn::" + msg
 }
@@ -135,7 +135,7 @@ case class EInfo(msg: String, details: String = "") extends CanHtml with HasPosi
         "info::",
         "info",
         details,
-        msg
+        msg.replace("\n", "")
       )
     } else {
       span("info::", "info", details) + " " + msg
