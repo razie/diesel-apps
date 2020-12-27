@@ -36,12 +36,13 @@ trait DomRoot {
 
   /** collect the last generated value OR empty string */
   def resultingValue = root.collect {
-    case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.currentStringValue)
+    case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _,
+    _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.currentStringValue)
   }.lastOption.map(_._2).getOrElse("")
 
-  protected def collectValues[T] (f: PartialFunction[Any, T]) : List[T] =
+  protected def collectValues[T](f: PartialFunction[Any, T]): List[T] =
     root.collect {
-      case v if(f.isDefinedAt(v.value)) => f(v.value)
+      case v if (f.isDefinedAt(v.value)) => f(v.value)
     }
 
   def findParent(node: DomAst): Option[DomAst] =
@@ -49,12 +50,20 @@ trait DomRoot {
       case a if a.children.exists(_.id == node.id) => a
     }.headOption
 
+  def findScope(node: DomAst): DomAst =
+    findParent(node).collectFirst {
+      case a if a.id == root.id => a // found root
+      case a if a.value.isInstanceOf[EScope] => a
+      case a if a.kind == AstKinds.RECEIVED => a // todo stories told are automatically catch boundaries ???
+      case a => findScope(a)
+    }.get // always something - it stops at root
+
   /** find the level of a node - traverse the tree from the root */
   def findLevel(node: DomAst): Int =
     root.collect2 {
-      case t@(a,l) if a.id == node.id => l
+      case t@(a, l) if a.id == node.id => l
     }.headOption.getOrElse {
-      throw new IllegalArgumentException("Can't find level for "+node)
+      throw new IllegalArgumentException("Can't find level for " + node)
     }
 
   /** an assignment message */

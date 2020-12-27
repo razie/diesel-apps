@@ -26,7 +26,7 @@ trait TSpecRef {
 
   def realm: String
 
-  def className: String
+  def category: String
 
   def ver: Option[String]
 
@@ -40,7 +40,7 @@ trait TSpecRef {
       "wpath" -> wpath,
       "realm" -> realm,
       "key" -> wpath,
-      "class" -> className
+      "class" -> category
     ) ++ ver.map(x => Map("ver" -> x)
     ).getOrElse(Map.empty) ++ draft.map(x => Map("draft" -> x)
     ).getOrElse(Map.empty) ++ ahref.map(x => Map("ahref" -> x)
@@ -58,7 +58,7 @@ case class SpecRef(source: String,
 
   def ahref: Option[String] = None
 
-  def className: String = wpath.replaceFirst(":.*", "")
+  def category: String = wpath.replaceFirst(":.*", "")
 }
 
 /**
@@ -79,7 +79,7 @@ case class FullSpecRef(
 
     extends TSpecRef {
 
-  override def className: String = cls
+  override def category: String = cls
 
   override def source: String = inventory + ":" + conn
 
@@ -95,7 +95,7 @@ case class FullSpecRef(
       "wpath" -> wpath,
       "realm" -> realm,
       "key" -> key,
-      "class" -> className
+      "class" -> category
     ) ++ ver.map(x => Map("ver" -> x)
     ).getOrElse(Map.empty) ++ draft.map(x => Map("draft" -> x)
     ).getOrElse(Map.empty) ++ ahref.map(x => Map("ahref" -> x)

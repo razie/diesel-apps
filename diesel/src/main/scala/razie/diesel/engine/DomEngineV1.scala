@@ -6,6 +6,8 @@
 package razie.diesel.engine
 
 import org.bson.types.ObjectId
+import razie.js
+import razie.clog
 import razie.diesel.Diesel
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom.{RDomain, WTypes}
@@ -16,7 +18,6 @@ import razie.diesel.expr._
 import razie.diesel.model.DieselMsg
 import razie.diesel.model.DieselMsg.ENGINE._
 import razie.hosting.Website
-import razie.js
 import razie.tconf.DSpec
 import razie.wiki.admin.GlobalData
 import scala.Option.option2Iterable
@@ -304,7 +305,8 @@ class DomEngineV1(
           .filter(_.e.testEA(n))
           .filter(x => x.e.testAttrCond(a, n) || {
             // add debug
-            newNodes = newNodes ::: DomAst(EInfo("rule skipped", x.e.toString).withPos(x.pos), AstKinds.TRACE) :: Nil
+            newNodes = newNodes ::: DomAst(EInfo("rule skipped", x.e.toString + "\n" + x.pos).withPos(x.pos),
+              AstKinds.TRACE) :: Nil
             false
           })
 
@@ -318,7 +320,7 @@ class DomEngineV1(
                 .filter(_.e.testEA(n, None, true))
                 .filter(x => x.e.testAttrCond(a, n, None, true) || {
                   // add debug
-                  newNodes = newNodes ::: DomAst(EInfo("rule skipped", x.e.toString).withPos(x.pos),
+                  newNodes = newNodes ::: DomAst(EInfo("rule skipped", x.e.toString + "\n" + x.pos).withPos(x.pos),
                     AstKinds.TRACE) :: Nil
                   false
                 })
@@ -671,27 +673,46 @@ class DomEngineV1(
 
       // todo also while recursing see if htere's matching CATCH and stop skipping
 
+      var msg = "diesel.thrown"
+      var code: Option[Int] = Some(500) // default code
+
       // expand all spec vals
       in.attrs.map(_.calculatedP).foreach { p =>
         evAppChildren(a, DomAst(EVal(p)))
         this.ctx.put(p)
+        if (p.name == Diesel.PAYLOAD || p.name == "msg") {
+          msg = p.currentStringValue
+        } else if (p.name == DieselMsg.HTTP.STATUS) {
+          code = Some(p.calculatedTypedValue.asInt)
+        }
       }
+
+      var caught = false
+      val aLevel = findLevel(a)
 
       // stop other children
       // todo find cur scope, not parent
-      findParent(a).collect {
+      findScope(a).collect {
         // first parent may be a ENext, see through
-        case ast if ast.value.isInstanceOf[ENext] => findParent(ast)
+//        case ast if ast.value.isInstanceOf[ENext] => findParent(ast)
         case ast@_ => Some(ast)
       }.flatten.toList.flatMap(_.children).foreach { ast =>
-        if (!DomState.isDone(ast.status)) {
+        if (!caught &&
+            ast.value.isInstanceOf[EMsg] &&
+            ast.value.asInstanceOf[EMsg].ea == DieselMsg.ENGINE.DIESEL_CATCH &&
+            findLevel(ast) >= aLevel // only if it's higher level or sibbling
+        // todo should i also check I don't know what, to make sure it was meant to catch me?
+        ) {
+          caught = true // stop when caught
+          // todo add info to the catch that it caught this
+        } else if (!DomState.isDone(ast.status) && !caught) {
           evChangeStatus(ast, DomState.SKIPPED)
         }
       }
 
       // todo then set payload to exception
-      val ex = new IllegalStateException("diesel.thrown")
-      val p = EVal(P(Diesel.PAYLOAD, "diesel.thrown", WTypes.wt.EXCEPTION).withValue(ex, WTypes.wt.EXCEPTION))
+      val ex = new DieselException(msg, code)
+      val p = EVal(P(Diesel.PAYLOAD, msg, WTypes.wt.EXCEPTION).withValue(ex, WTypes.wt.EXCEPTION))
       ctx.put(p.p)
       val newD = DomAst(new EError("Exception:", ex), AstKinds.ERROR)
       evAppChildren(a, newD)
@@ -716,6 +737,18 @@ class DomEngineV1(
       evAppChildren(a, newD)
       true
 
+//    } else if (ea == DieselMsg.ENGINE.DIESEL_LATER) {
+//      // send new message async later at the root level
+//      val EMsg.REGEX(e, m) = ctx.getRequired("msg")
+//      val nat = in.attrs.filter(e => !Array("msg").contains(e.name))
+//
+//      evAppChildren(findParent(findParent(a).get).get, DomAst(EMsg(e, m, nat), AstKinds.GENERATED))
+//      true
+
+    } else if (ea == DieselMsg.ENGINE.DIESEL_LEVELS) {
+      engine.maxLevels = ctx.getRequired("max").toInt
+      true
+
     } else if (ea == DieselMsg.ENGINE.DIESEL_TRY) {
       // rudimentary TRY scope for catch.
       // normally we'd have CATCH apply to the enclosing scope, but we don't have a good EEScope
@@ -738,9 +771,9 @@ class DomEngineV1(
 
       // 1. am I in scope?
       // todo find cur scope, not parent
-      findParent(a).collect {
+      findScope(a).collect {
         // first parent may be a ENext, see through
-        case ast if ast.value.isInstanceOf[ENext] => findParent(ast)
+//        case ast if ast.value.isInstanceOf[ENext] => findParent(ast)
         case ast@_ => Some(ast)
       }.flatten.toList.flatMap(_.children).foreach { ast =>
         if (!done) {
@@ -762,9 +795,9 @@ class DomEngineV1(
 
       // stop other children
       // todo find cur scope, not parent
-      findParent(a).collect {
+      findScope(a).collect {
         // first parent may be a ENext, see through
-        case ast if ast.value.isInstanceOf[ENext] => findParent(ast)
+//        case ast if ast.value.isInstanceOf[ENext] => findParent(ast)
         case ast@_ => Some(ast)
       }.flatten.toList.flatMap(_.children).foreach { ast =>
         // find any EError and mark it "handled"
@@ -877,9 +910,15 @@ class DomEngineV1(
 
     } else if (ea == DieselMsg.REALM.REALM_SET) {
 
+      val props = in.attrs
+          .filter(_.name == "props")
+          .filter(_.isOfType(WTypes.wt.JSON))
+          .flatMap(_.calculatedTypedValue.asJson.toList)
+          .map(t => P.fromSmartTypedValue(t._1, t._2))
+
       // todo move this to an executor
       // todo this may be a security risk - they can set trust and stuff -  limit to only some parms?
-      in.attrs.foreach { p =>
+      (props ::: in.attrs.filter(_.name != "props")).foreach { p =>
         val r = this.settings.realm
         if (r.isEmpty) evAppChildren(a, DomAst(EError("realm not defined...???"), AstKinds.ERROR))
         else {
@@ -891,6 +930,15 @@ class DomEngineV1(
       true
 
     } else if (ea == DieselMsg.ENGINE.DIESEL_MAP) {
+
+      // expanding diesel.map: make an item for each item and copy all children under the item
+
+      // TODO problem is the indented children are evaludated and added AFTER this :(
+
+      // save children and delete
+      val parent = findParent(a).flatMap(findParent)
+      val children = a.children
+      a.childrenCol.clear()
 
       var info: List[Any] = Nil
 
@@ -918,7 +966,14 @@ class DomEngineV1(
             // for each item in list, create message
             val itemP = P.fromTypedValue(Diesel.PAYLOAD, item)
             val m = EMsg("diesel", "mapItem", itemP :: Nil)
-            evAppChildren(a, DomAst(m, AstKinds.GENERATED))
+            val ast = DomAst(m, AstKinds.GENERATED)
+            evAppChildren(a, ast)
+
+            // copy children under each item
+            // TODO problem is the indented children are evaludated and added AFTER this :(
+//            children.foreach { c =>
+//              evAppChildren(ast, DomAst(c.value, AstKinds.GENERATED))
+//            }
           }.toList
         }
 
@@ -1090,11 +1145,15 @@ class DomEngineV1(
 
         // reverse (so last overwrites first) and distinct (so multiple payloads don't act funny)
         vvals = vvals.reverse.groupBy(_.value.asInstanceOf[EVal].p.name).values.toList.map(_.head)
-
-        // include the message's values in its context
-        def newctx = new StaticECtx(aTarget.value.asInstanceOf[EMsg].attrs, Some(ctx), Some(aTarget))
-
         val values = vvals.map(_.value.asInstanceOf[EVal].p)
+
+        // bug: if the target had (x=y) and produced value x then newctx would overwrite the newer x, so
+        // we're overwriting it again here by putting values in front of attrs
+
+        // new evaluation context - include the message's values in its context
+        def newctx = new StaticECtx(values ::: aTarget.value.asInstanceOf[EMsg].attrs, Some(ctx), Some(aTarget))
+
+        // start checking now
 
         if (!aTarget.value.isInstanceOf[EMsg]) {
           // wtf did we just target?
@@ -1103,7 +1162,7 @@ class DomEngineV1(
             AstKinds.TEST
           ).withSpec(e)
         } else if (vvals.size > 0 && !e.applicable(a, values)(newctx)) {
-          // n/a
+          // n/a - had a guard and guard not met
           a append DomAst(
             TestResult("n/a").withPos(e.pos),
             AstKinds.TEST

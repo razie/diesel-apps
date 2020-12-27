@@ -397,7 +397,7 @@ object WID {
     def draft:Option[String] = None
     def ahref: Option[String] = Some(wid.ahref)
 
-    def className: String = wid.cat
+    def category: String = wid.cat
 
     override def toString = wid.toString
   }
