@@ -18,7 +18,9 @@ import razie.diesel.model.DieselMsg
 import razie.tconf.DUsers
 import razie.tconf.hosting.Reactors
 import razie.wiki.Base64
+import razie.wiki.parser.CsvParser
 import scala.collection.concurrent.TrieMap
+import scala.collection.mutable.{HashMap, ListBuffer}
 import scala.util.Try
 
 object EECtx {
@@ -316,13 +318,14 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       // take all args and create a json doc with them
-      case "csv" => {
+      case "csv" | "jsonToCsv" => {
         val separator = ctx.getRequired("separator")
+        val useHeaders = ctx.get("useHeaders").getOrElse("true").toBoolean
 
         // l can be a constant with another parm name OR the actual array
         val list = {
-          val l = ctx.getRequiredp("list").calculatedP
-          if(l.isOfType(WTypes.wt.ARRAY)) {
+          val l = ctx.getp("list").getOrElse(ctx.getRequiredp(Diesel.PAYLOAD)).calculatedP
+          if (l.isOfType(WTypes.wt.ARRAY)) {
             val arr = l.calculatedTypedValue.asArray
             arr
           } else {
@@ -346,28 +349,107 @@ class EECtx extends EExecutor(EECtx.CTX) {
 
         // collect new names
         var rows = objects.map { m =>
-          names.map {n=>
+          names.map { n =>
             m
                 .get(n)
                 .filter(P.isSimpleType)
-                .map(x => "\"" + {
-                  val s = P.asString(x)
-                  s
-                      .replaceAll("\"", "\"\"")
+                .map(x => {
+
+                  if (P.isSimpleNonStringType(x)) {
+                    P.asString(x)
+                  } else {
+                    "\"" + {
+                      val s = P.asString(x)
+                      s
+                          .replaceAll("\"", "\"\"")
 //                      .replaceAll(separator, "\"" + separator + "\"")
-                } + "\"")
+                    } + "\""
+                  }
+
+                }
+                )
                 .getOrElse("")
           }.mkString(separator)
         }
 
-        rows = List(names.mkString(separator)) ++ rows
+        rows = (if (useHeaders) List(names.mkString(separator)) else Nil) ++ rows
 
         new EVal(
           RDOM.P.fromTypedValue(Diesel.PAYLOAD, rows, WTypes.wt.ARRAY)
         ) ::
-        new EVal(
-          RDOM.P.fromTypedValue("csvHeaders", names, WTypes.wt.ARRAY)
-        ) :: Nil
+            new EVal(
+              RDOM.P.fromTypedValue("csvHeaders", names, WTypes.wt.ARRAY)
+            ) :: Nil
+      }
+
+      // incoming csv parsed into json, based on header field.
+      // if no header, fields will be "col0"..."colN"
+      case "csvToJson" => {
+        val separator = ctx.getRequired("separator")
+        val hasHeaders = ctx.get("hasHeaders").getOrElse("true").toBoolean
+        val payload = ctx.getRequired(Diesel.PAYLOAD)
+        var headers = new Array[String](0)
+
+        val result: ListBuffer[Any] = new ListBuffer[Any]()
+
+        // 1. parse into lines
+        val parser = new CsvParser() {
+          def doit(s: String, delim: String) = {
+            parseAll(csv(separator), payload) match {
+              case Success(value, _) => value.filter(_.nonEmpty)
+              case NoSuccess(msg, _) => {
+                result.append(EError(msg, msg))
+                Nil
+              }
+              //todo ? throw new DieselExprException("Parsing error: " + msg)
+            }
+          }
+
+          def consts(s: String) = {
+            parseAll(csvnumConst, s) match {
+              case Success(value, _) => value
+              case NoSuccess(msg, _) => {
+                s // not matched, keep it
+              }
+              //todo ? throw new DieselExprException("Parsing error: " + msg)
+            }
+          }
+        }
+
+        var lines: List[List[String]] = parser.doit(payload, separator)
+
+        if (hasHeaders) {
+          headers = lines.head.toArray
+          lines = lines.drop(1)
+        }
+
+        val res = lines.map(l => {
+          val m = new HashMap[String, Any]()
+          l.zipWithIndex.foreach(x => {
+            val k = if (hasHeaders) headers(x._2) else "col" + x._2
+
+            var v = x._1
+
+            if (v.trim.startsWith("\"")) {
+              val y = v.replaceFirst("^\"", "").replaceFirst("\"$", "")
+              m.put(k, y)
+            } else {
+              val y = parser.consts(v)
+              if (y != null) {
+                m.put(k, y)
+              }
+            }
+
+          })
+
+          m
+        })
+
+        result.append(
+          new EVal(RDOM.P.fromTypedValue(Diesel.PAYLOAD, res.toList, WTypes.wt.ARRAY))
+        )
+
+        result.toList
       }
 
       // take all args and create a json doc with them

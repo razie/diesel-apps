@@ -279,10 +279,12 @@ def exprMAP: Parser[Expr] = exprOR ~ rep(ows ~> opsMAP ~ ows ~ exprOR) ^^ {
 
   // need to check single quotes first to force them strings - otherwise they end up IDs
   private def sqbraccess: Parser[RDOM.P] = "\\[".r ~> ows ~> (strConstSingleQuote | expr) <~ ows <~ "]" ^^ {
-    case e => P("", "").copy(expr=Some(e))
+    case e => P("", "").copy(expr = Some(e))
   }
+
   // for now the range is only numeric
-  private def sqbraccessRange: Parser[RDOM.P] = "\\[".r ~> ows ~> numConst ~ ows ~ ".." ~ ows ~ opt(numConst) <~ ows <~ "]" ^^ {
+  private def sqbraccessRange: Parser[RDOM.P] = "\\[".r ~> ows ~> (numConst) ~ ows ~ ".." ~ ows ~ opt(
+    numConst | aidentExpr) <~ ows <~ "]" ^^ {
     case e1 ~ _ ~ _ ~ _ ~ e2 => P("", "", WTypes.wt.RANGE).copy(
       expr = Some(ExprRange(e1, e2))
     )
