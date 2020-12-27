@@ -212,18 +212,33 @@ case class BCMP2(a: Expr, op: String, b: Expr)
 
             case "is" if b_is("bytes") =>
               ap.calculatedTypedValue.contentType == WTypes.BYTES
+            case "not" if b_is("bytes") =>
+              !(ap.calculatedTypedValue.contentType == WTypes.BYTES)
 
             case "is" if b_is("json") || b_is("object") =>
               ap.calculatedTypedValue.contentType == WTypes.JSON
+            case "not" if b_is("json") || b_is("object") =>
+              !(ap.calculatedTypedValue.contentType == WTypes.JSON)
 
             case "is" if b_is("array") => {
               val av = ap.calculatedTypedValue
               av.contentType == WTypes.ARRAY
             }
+            case "not" if b_is("array") => {
+              val av = ap.calculatedTypedValue
+              !(av.contentType == WTypes.ARRAY)
+            }
 
             case "is" if b_is("class") => {
               val cname = expr_id(a)
               ctx.domain.exists(_.classes.contains(cname))
+              // nice to have class values
+//              val av = ap.calculatedTypedValue
+//              av.contentType == WTypes.CLASS
+            }
+            case "not" if b_is("class") => {
+              val cname = expr_id(a)
+              !(ctx.domain.exists(_.classes.contains(cname)))
               // nice to have class values
 //              val av = ap.calculatedTypedValue
 //              av.contentType == WTypes.CLASS
@@ -241,6 +256,13 @@ case class BCMP2(a: Expr, op: String, b: Expr)
             case "is" if b_is(WTypes.FUNC) => {
               val cname = expr_id(a)
               ctx.domain.exists(_.funcs.contains(cname))
+              // nice to have class values
+//              val av = ap.calculatedTypedValue
+//              av.contentType == WTypes.CLASS
+            }
+            case "not" if b_is(WTypes.FUNC) => {
+              val cname = expr_id(a)
+              !(ctx.domain.exists(_.funcs.contains(cname)))
               // nice to have class values
 //              val av = ap.calculatedTypedValue
 //              av.contentType == WTypes.CLASS

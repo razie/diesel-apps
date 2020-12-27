@@ -302,8 +302,16 @@ trait DomParser extends ParserBase with ExprParser {
     ows ~> opt("[|.]*".r) ~ keyw("-") ~ ows ~ opt(pif) ~ ows ~ "[^\n\r;]+".r <~ opt(";") <~ optComment3 ^^ {
       case level ~ arrow ~ _ ~ cond ~ _ ~ desc => {
         val m = if (desc.trim.startsWith("todo ")) ENGINE.TODO else ENGINE.STEP
+        // use expr so we can use ${xxx} inside logs
         nodes
-            .EMapCls(ENGINE.ENTITY, m, List(P("desc", desc)), arrow.s, cond, level.mkString.length)
+            .EMapCls(ENGINE.ENTITY, m,
+              List(
+                P("desc",
+                  "",
+                  WTypes.wt.STRING,
+                  Some(CExpr(s""""${desc}"""")))
+              ), arrow.s, cond,
+              level.mkString.length)
             .withPosition(EPos("", arrow.pos.line, arrow.pos.column))
       }
     }
