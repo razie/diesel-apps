@@ -186,7 +186,11 @@ def exprMAP: Parser[Expr] = exprOR ~ rep(ows ~> opsMAP ~ ows ~ exprOR) ^^ {
   }
 
   def xpath: Parser[String] = ident ~ rep("[/@]+".r ~ ident) ^^ {
-    case i ~ l => (i :: l.map{x=>x._1+x._2}).mkString("")
+    case i ~ l => (i :: l.map { x => x._1 + x._2 }).mkString("")
+  }
+
+  def jpath: Parser[String] = ident ~ rep("[/@.]+".r ~ ident) ^^ {
+    case i ~ l => (i :: l.map { x => x._1.replace(".", "/") + x._2 }).mkString("")
   }
 
   //
@@ -210,7 +214,7 @@ def exprMAP: Parser[Expr] = exprOR ~ rep(ows ~> opsMAP ~ ows ~ exprOR) ^^ {
   def afloat: Parser[String] = """-?\d+[.]\d+""".r
 
   /** prepare a parsed string const */
-  private def prepStrConst(e: String) = {
+  private def prepStrConst(e: String): CExpr[String] = {
     // string const with escaped chars
     var s = e
 
@@ -247,8 +251,14 @@ def exprMAP: Parser[Expr] = exprOR ~ rep(ows ~> opsMAP ~ ows ~ exprOR) ^^ {
     e => prepStrConst(e)
   }
 
+  // xp or jp
+  def xpident: Parser[Expr] = xpp //| jpp
+
   // XP identifier (either json or xml)
-  def xpident: Parser[Expr] = "xp:" ~> xpath ^^ { case i => new XPathIdent(i) }
+  def xpp: Parser[Expr] = ("xp:" ~ xpath) ^^ { case x ~ i => new XPathIdent(i) }
+
+  // XP identifier (either json or xml)
+//  def jpp: Parser[Expr] = ("jp:" ~ jpath) ^^ { case x ~ i => new XPathIdent(i) }
 
   // regular expression, JS style
   def exregex: Parser[Expr] = """/[^/]+/""".r ^^ { case x => new CExpr(x, WTypes.wt.REGEX) }
@@ -271,11 +281,24 @@ def exprMAP: Parser[Expr] = exprOR ~ rep(ows ~> opsMAP ~ ows ~ exprOR) ^^ {
     case i ~ sa ~ a => new AExprIdent(i.head, i.tail.map(P("", _)) ::: sa :: a)
   }
 
-  def accessors: Parser[List[RDOM.P]] = rep(sqbraccess | sqbraccessRange | accessorIdent | accessorNum)
+  def accessors: Parser[List[RDOM.P]] = rep(sqbraccess | sqbraccessRange | accessorIdent | accessorNum) ^^ {
+    case p => p//.flatMap(prepAccessor)
+  }
 
-  private def accessorIdent: Parser[RDOM.P] = "." ~> ident ^^ {case id => P("", id, WTypes.wt.STRING)}
+  /** if a single accessor is a path, then flatten it */
+//  def prepAccessor(p: P): List[RDOM.P] = {
+//    if (p.expr.exists(_.isInstanceOf[CExpr[String]])) {
+//      p.expr.get.asInstanceOf[CExpr[String]].ee
+//          .split("\\.")
+//          .map(e => P("", "").copy(expr = Some(new CExpr(e))))
+//          .toList
+//    } else
+//      List(p)
+//  }
 
-  private def accessorNum: Parser[RDOM.P] = "." ~> "[0-9]+".r ^^ {case id => P("", id, WTypes.wt.NUMBER)}
+private def accessorIdent: Parser[RDOM.P] = "." ~> ident ^^ { case id => P("", id, WTypes.wt.STRING) }
+
+  private def accessorNum: Parser[RDOM.P] = "." ~> "[0-9]+".r ^^ { case id => P("", id, WTypes.wt.NUMBER) }
 
   // need to check single quotes first to force them strings - otherwise they end up IDs
   private def sqbraccess: Parser[RDOM.P] = "\\[".r ~> ows ~> (strConstSingleQuote | expr) <~ ows <~ "]" ^^ {

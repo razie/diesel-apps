@@ -14,9 +14,10 @@ import razie.diesel.expr.{ECtx, Expr}
 /** an xpath expr */
 case class XPathIdent(val expr: String) extends Expr {
   override def apply(v: Any)(implicit ctx: ECtx) = ctx.apply(expr)
-  override def applyTyped(v: Any)(implicit ctx: ECtx): P = ???
 
-  private def xpRoot (p:Option[P]) = {
+  override def applyTyped(v: Any)(implicit ctx: ECtx): P = ???//xpl(expr)
+
+  private def xpRoot(p: Option[P]) = {
     p
   }
 

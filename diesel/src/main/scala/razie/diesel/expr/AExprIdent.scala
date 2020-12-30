@@ -36,6 +36,13 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
     getp(start).flatMap { startP =>
       rest.foldLeft(Option(startP))((a, b) => access(a, b, false))
     }
+
+  // todo why do i make up a parm?
+  // don't blow up - used when has defaults
+  def tryApplyTypedFrom(p: Option[P])(implicit ctx: ECtx): Option[P] =
+    p.flatMap { startP =>
+      (P("", start) :: rest).foldLeft(Option(startP))((a, b) => access(a, b, false))
+    }
   // todo why do i make up a parm?
 
   override def applyTyped(v: Any)(implicit ctx: ECtx): P = {

@@ -24,89 +24,122 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
   override def applyTyped(v: Any)(implicit ctx: ECtx): P = {
 
     // calc first parm value
-    def firstParm = {
-      parms.headOption
+    def aParm(op: Option[P]) = {
+      op
           .flatMap { p =>
             // maybe the first parm is the accessor expression (lambda parm like)
-            val pv = if (p.name.contains(".") || p.name.contains("[")) {
-              (new SimpleExprParser).parseIdent(p.name).flatMap(_.tryApplyTyped(v))
-            } else if(p.dflt.isEmpty && p.expr.isEmpty) {
-              // sizeOf(payload)
-              ctx.getp(p.name) // don't care about names, just get the first parm and evalueate
+            val pv = if (p.dflt.isEmpty && p.expr.isEmpty) {
+              if (p.name.contains(".") || p.name.contains("["))
+                (new SimpleExprParser).parseIdent(p.name).flatMap(_.tryApplyTyped(v))
+              else
+                ctx.getp(p.name) // don't care about names, just get the first parm and evalueate
             } else {
               // nope - it's just a normal parm=expr
               Some(p)
             }
             pv
-          }.map (_.calculatedP)
-      }
+          }.map(_.calculatedP)
+    }
+
+    // calc first parm value
+    def firstParm = aParm(parms.headOption)
+
+    // calc first parm value
+    def secondParm = aParm(parms.drop(1).headOption)
 
     // is it built-in or generic?
-      expr match {
+    expr match {
 
-        case "sizeOf" => {
-          firstParm.map { p =>
-            val pv = p.calculatedTypedValue
+      case "sizeOf" => {
+        firstParm.map { p =>
+          val pv = p.calculatedTypedValue
 
-            if (pv.contentType == WTypes.ARRAY) {
-              val sz = pv.asArray.size
-              P.fromTypedValue("", sz, WTypes.wt.NUMBER)
-            } else if (pv.contentType == WTypes.JSON) {
-              val sz = pv.asJson.size
-              P.fromTypedValue("", sz, WTypes.wt.NUMBER)
-            } else if (pv.contentType == WTypes.STRING) {
-              val sz = pv.asString.length
-              P.fromTypedValue("", sz, WTypes.wt.NUMBER)
-            } else {
-              throw new DieselExprException(
-                "Not array: " + p.name + " is:" + pv.toString
-              )
-            }
-          }
-              .getOrElse(
-                // more failure resistant
-                P.fromTypedValue("", 0, WTypes.wt.NUMBER)
-              )
-        }
-
-        case "typeOf" => {
-            firstParm.map { p =>
-              val pv = p.calculatedTypedValue
-              P("", pv.contentType, WTypes.wt.STRING).withValue(pv.contentType, WTypes.wt.STRING)
-            }.getOrElse(
-              // todo could be unknown?
-              throw new DieselExprException(s"No arguments for $expr")
+          if (pv.contentType == WTypes.ARRAY) {
+            val sz = pv.asArray.size
+            P.fromTypedValue("", sz, WTypes.wt.NUMBER)
+          } else if (pv.contentType == WTypes.JSON) {
+            val sz = pv.asJson.size
+            P.fromTypedValue("", sz, WTypes.wt.NUMBER)
+          } else if (pv.contentType == WTypes.STRING) {
+            val sz = pv.asString.length
+            P.fromTypedValue("", sz, WTypes.wt.NUMBER)
+          } else {
+            throw new DieselExprException(
+              "Not array: " + p.name + " is:" + pv.toString
             )
+          }
         }
+            .getOrElse(
+              // more failure resistant
+              P.fromTypedValue("", 0, WTypes.wt.NUMBER)
+            )
+      }
 
-        case "urlencode" => {
-          firstParm.map { p =>
-            val p1 = p.calculatedValue
-            val pv = URLEncoder.encode(p1, "UTF8")
-            P("", pv, WTypes.wt.STRING).withValue(pv, WTypes.wt.STRING)
+      case "typeOf" => {
+        firstParm.map { p =>
+          val pv = p.calculatedTypedValue
+          P("", pv.contentType, WTypes.wt.STRING).withValue(pv.contentType, WTypes.wt.STRING)
+        }.getOrElse(
+          // todo could be unknown?
+          throw new DieselExprException(s"No arguments for $expr")
+        )
+      }
+
+      case "urlencode" => {
+        firstParm.map { p =>
+          val p1 = p.calculatedValue
+          val pv = URLEncoder.encode(p1, "UTF8")
+          P("", pv, WTypes.wt.STRING).withValue(pv, WTypes.wt.STRING)
+        }.getOrElse(
+          throw new DieselExprException(s"No arguments for $expr")
+        )
+      }
+
+      case "accessor" => {
+        firstParm.map { p =>
+          val pStart = p.calculatedP
+
+
+          // parse second parm as aexprident
+          parms.drop(1).headOption.flatMap { p =>
+            val pv = if (p.dflt.isEmpty && p.expr.isEmpty) {
+              P("", p.name)
+            } else {
+              // nope - it's just a normal parm=expr
+              p.calculatedP // need to do this to not affect the original with cached value
+            }
+
+            val p1 = pv.calculatedValue
+            val pa =
+              (new SimpleExprParser).parseIdent(p1).flatMap(_.tryApplyTypedFrom(Some(pStart)))
+
+            pa
           }.getOrElse(
             throw new DieselExprException(s"No arguments for $expr")
           )
-        }
+        }.getOrElse(
+          throw new DieselExprException(s"No arguments for $expr")
+        )
+      }
 
-        case "flatten" => {
-          firstParm.map { p =>
-            val av = p.calculatedP
-            p.calculatedTypedValue.cType.name match {
-              case WTypes.ARRAY => {
-                val elementType = av.calculatedTypedValue.cType.wrappedType
+      case "flatten" => {
+        firstParm.map { p =>
+          val av = p.calculatedP
+          p.calculatedTypedValue.cType.name match {
+            case WTypes.ARRAY => {
+              val elementType = av.calculatedTypedValue.cType.wrappedType
 
-                val arr = av.calculatedTypedValue.asArray.asInstanceOf[List[List[_]]]
-                val resArr = arr.flatMap { x =>
-                  if (x.isInstanceOf[List[Any]])
-                    x.asInstanceOf[List[Any]]
-                  else
-                    throw new DieselExprException("Can't flatten element: " + x)
-                }
-
-                val finalArr = resArr
-                P.fromTypedValue("", finalArr, WTypes.wt.ARRAY)
+              val arr = av.calculatedTypedValue.asArray.asInstanceOf[List[List[_]]]
+              val resArr = arr.flatMap { x =>
+                if (x.isInstanceOf[List[Any]])
+                  x.asInstanceOf[List[Any]]
+                else
+                  throw new DieselExprException("Can't flatten element: " + x)
               }
+
+              val finalArr = resArr
+              P.fromTypedValue("", finalArr, WTypes.wt.ARRAY)
+            }
 
               case _ => throw new DieselExprException("Can't do flatten on: " + av)
             }
