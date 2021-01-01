@@ -17,6 +17,7 @@ import scala.collection.mutable.ListBuffer
   * */
 trait WikiEventBase {
   def node : String
+  def consumedAlready: Boolean = false
 }
 
 /** an event that the configuration changed */
