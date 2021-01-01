@@ -210,6 +210,18 @@ case class BCMP2(a: Expr, op: String, b: Expr)
             case "is" if b_is("boolean") =>
               a.getType == WTypes.wt.BOOLEAN || ap.calculatedTypedValue.contentType == WTypes.BOOLEAN
 
+            // string is special, it's the default when not known but some value present
+            case "is" if b_is("string") =>
+              ap.calculatedTypedValue.contentType == WTypes.STRING ||
+                  ap.calculatedTypedValue.contentType == "" &&
+                      ap.calculatedTypedValue.value != null
+            case "not" if b_is("string") =>
+              !(
+                  ap.calculatedTypedValue.contentType == WTypes.STRING ||
+                      ap.calculatedTypedValue.contentType == "" &&
+                          ap.calculatedTypedValue.value != null
+                  )
+
             case "is" if b_is("bytes") =>
               ap.calculatedTypedValue.contentType == WTypes.BYTES
             case "not" if b_is("bytes") =>
@@ -281,20 +293,23 @@ case class BCMP2(a: Expr, op: String, b: Expr)
 
             case "in" if bp.ttype == WTypes.wt.ARRAY => isin(ap, bp)
 
-            case "notIn" if bp.ttype == WTypes.wt.ARRAY => ! isin(ap,bp)
-            case "not in" if bp.ttype == WTypes.wt.ARRAY => ! isin(ap,bp)
+            case "notIn" if bp.ttype == WTypes.wt.ARRAY => !isin(ap, bp)
+            case "not in" if bp.ttype == WTypes.wt.ARRAY => !isin(ap, bp)
 
-            case "is" => { // is nuber or is date or is string etc
-              /* x is TYPE */
-              if (b.isInstanceOf[AExprIdent])
+            case "is" => { // is number or is date or is string etc
+              /* x is TYPE (single id, not a value) */
+              if (b.isInstanceOf[AExprIdent] &&
+                  b.asInstanceOf[AExprIdent].rest.isEmpty &&
+                  ctx.get(b.asInstanceOf[AExprIdent].start).isEmpty)
                 (
                     WTypes.isSubtypeOf(a.getType, b.asInstanceOf[AExprIdent].expr) ||
-                    WTypes.isSubtypeOf(ap.calculatedTypedValue.contentType, b.asInstanceOf[AExprIdent].expr) ||
-                    WTypes.isSubtypeOf(as, bp.calculatedValue)
-                )
+                        WTypes.isSubtypeOf(ap.calculatedTypedValue.contentType, b.asInstanceOf[AExprIdent].expr) ||
+                        WTypes.isSubtypeOf(as, bp.calculatedValue)
+                    )
               else {
-              /* if type expr not known, then behave like equals */
-                (as == bp.calculatedValue)
+                /* if type expr not known, then behave like equals */
+                val bs = b.applyTyped(in).calculatedValue
+                as == bs
               }
             }
 
