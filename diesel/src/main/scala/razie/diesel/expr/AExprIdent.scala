@@ -21,7 +21,7 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
 
   // NOTE start contains last .
   def exprDot(implicit ctx: ECtx) =
-    start + rest.map(_.calculatedValue).mkString(".")
+    start + (if (rest.size > 0) "." else "") + rest.map(_.calculatedValue).mkString(".")
 
   // allow ctx["name"] as well as name
   def getp(name: String)(implicit ctx: ECtx): Option[P] = {

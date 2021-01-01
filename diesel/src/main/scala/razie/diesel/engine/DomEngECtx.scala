@@ -13,6 +13,7 @@ import razie.diesel.expr.{ECtx, SimpleECtx}
 import razie.diesel.model.DieselMsg
 import razie.hosting.Website
 import razie.tconf.{DSpec, DUsers}
+import razie.wiki.Config
 
 
 /** specific root context for an engine instance
@@ -79,24 +80,29 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
     case "DIESEL_MILLIS" => Some(millis)
     case "DIESEL_CURMILLIS" => Some(P.fromSmartTypedValue("DIESEL_CURMILLIS", System.currentTimeMillis()))
 
-    // allow setting this
+    // not in diesel, to allow setting this
     case "diesel.env" =>
       // first overrides, then settings and lastly current envList setting
       super
           .getp(s)
-          .orElse(settings.env.map(P("diesel.env",_)))
+          .orElse(settings.env.map(P("diesel.env", _)))
           .orElse(Some(P("diesel.env", dieselEnv(this))))
 
-    case "diesel.user" => Some(P("diesel.user", dieselUser(this)))
-    case "diesel.isLocalhost" => Some(P.fromTypedValue("diesel.isLocalhost", razie.wiki.Services.config.isLocalhost))
     case "diesel.db.newId" => Some(P("diesel.db.newId", new ObjectId().toString))
-    case DieselMsg.ENGINE.DIESEL_ENG_DESC => Some(P(DieselMsg.ENGINE.DIESEL_ENG_DESC, engine.map(_.description).mkString))
+    case DieselMsg.ENGINE.DIESEL_ENG_DESC => Some(
+      P(DieselMsg.ENGINE.DIESEL_ENG_DESC, engine.map(_.description).mkString))
 
     // todo use this and remove the . versions
     case "diesel" => Some(P.fromSmartTypedValue("diesel", new DieselParmSource(this)))
 
-    case _ if s startsWith "diesel.realm.props" => new DieselParmSource(this).getp(s.replaceFirst("diesel.", ""))
-    case _ if s startsWith "diesel.props.realm" => new DieselParmSource(this).getp(s.replaceFirst("diesel.", ""))
+    // todo this is just because I'm lazy - remove this and make the diesel object work well below...
+    case _ if s startsWith "diesel.realm.props" => {
+      new DieselParmSource(this).getp(s.replaceFirst("diesel.", ""))
+    }
+
+    case _ if s startsWith "diesel.props.realm" => {
+      new DieselParmSource(this).getp(s.replaceFirst("diesel.", ""))
+    }
 
     case _ => None
   }
@@ -155,6 +161,7 @@ class DieselParmSource (ctx:DomEngECtx) extends ParmSource {
   def remove (name: String): Option[P] = ???
 
   def getp   (name: String): Option[P] = name match {
+
     case "env" =>
       // first overrides, then settings and lastly current envList setting
       ctx
@@ -190,10 +197,17 @@ class DieselParmSource (ctx:DomEngECtx) extends ParmSource {
       }
     }
 
+    case "server" => Some(P.fromSmartTypedValue("diesel.server", Map(
+      "node" -> Config.node,
+      "host" -> java.net.InetAddress.getLocalHost.getCanonicalHostName,
+      "hostName" -> java.net.InetAddress.getLocalHost.getHostName,
+      "ip" -> java.net.InetAddress.getLocalHost.getHostAddress
+    )))
+
     case _ => None
   }
 
-  def put    (p: P): Unit = ???
+  def put(p: P): Unit = throw new DieselException("Can't overwrite values in this context!")
 
   def listAttrs: List[P] = ???
 

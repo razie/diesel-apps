@@ -176,8 +176,8 @@ def exprMAP: Parser[Expr] = exprOR ~ rep(ows ~> opsMAP ~ ows ~ exprOR) ^^ {
   def qlident: Parser[List[String]] = qidentDiesel | qualifiedIdent
 
   // fix this somehow - these need to be accessed as this - they should be part of a "diesel" object with callbacks
-  def qidentDiesel: Parser[List[String]] = "diesel." ~ qualifiedIdent ^^ {
-    case d ~ i => d :: i
+  def qidentDiesel: Parser[List[String]] = "diesel" ~ "." ~ qualifiedIdent ^^ {
+    case d ~ dot ~ i => d :: i
   }
 
   /** qualified idents, . notation, parsed as a list */

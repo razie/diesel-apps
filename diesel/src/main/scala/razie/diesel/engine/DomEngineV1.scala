@@ -1151,7 +1151,7 @@ class DomEngineV1(
         // we're overwriting it again here by putting values in front of attrs
 
         // new evaluation context - include the message's values in its context
-        def newctx = new StaticECtx(values ::: aTarget.value.asInstanceOf[EMsg].attrs, Some(ctx), Some(aTarget))
+        val newctx = new StaticECtx(values ::: aTarget.value.asInstanceOf[EMsg].attrs, Some(ctx), Some(aTarget))
 
         // start checking now
 
