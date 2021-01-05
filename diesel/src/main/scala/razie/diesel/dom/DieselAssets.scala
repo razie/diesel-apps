@@ -24,6 +24,12 @@ object DieselAssets {
   }
 
   /** make a link to see the asset */
+  def mkLinkAsset(w: FullSpecRef, path: String = "") = {
+    val x = s"""/diesel/objBrowserById/${w.inventory}/${w.conn}/${w.category}/${w.key}"""
+    x
+  }
+
+  /** make a link to see the asset */
   def mkLink(w: WID, path: String = "") = {
     w.cat match {
       case "DieselEngine" => {
@@ -63,7 +69,7 @@ object DieselAssets {
   : Option[DieselAsset[_]] = {
     val dom = WikiDomain(ref.realm)
     val p = dom.findPlugins(ref.inventory).headOption
-    val o = p.flatMap(x=> DomInventories.resolve(x.findByRef(dom.rdom, ref, collectRefs)))
+    val o = p.flatMap(x => DomInventories.resolve(ref.realm, x.findByRef(dom.rdom, ref, collectRefs)))
     o
   }
 

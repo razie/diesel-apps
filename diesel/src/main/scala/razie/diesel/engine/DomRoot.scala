@@ -71,21 +71,21 @@ trait DomRoot {
     implicit val ctx = appendToCtx
 
     /** setting one value */
-    def setp (parent:Any, accessor:P, v:P)(implicit ctx:ECtx): P = {
+    def setp(parentObject: Any, parentAccessor: String, accessor: P, v: P)(implicit ctx: ECtx): P = {
       // reset - need to recalc accessors every time
-      val av = accessor.copy(value=None).calculatedTypedValue
+      val av = accessor.copy(value = None).calculatedTypedValue
       val vcalc = v.calculatedP
 
-      parent match {
-        case c : ECtx => {
+      parentObject match {
+        case c: ECtx => {
           // parent is context = just set value
           // accessor must be string
-          if(av.contentType != WTypes.STRING)
+          if (av.contentType != WTypes.STRING)
             throw new DieselExprException(s"ctx. accessor must be string - we got: ${av.value}")
-          c.put(vcalc.copy(name=av.asString))
+          c.put(vcalc.copy(name = av.asString))
         }
         case None => {
-          throw new DieselExprException(s"parent not found")
+          throw new DieselExprException(s"Object container not found ($parentAccessor)")
         }
 
         // parent is a map/json object
@@ -130,28 +130,29 @@ trait DomRoot {
         val res = if (pas.left.rest.size > 1) { // [] accessors
           val vvalue = p.calculatedTypedValue.value
           val parentAccessor = pas.left.dropLast
-          val parent = parentAccessor.tryApplyTyped("")
+          val parentObject = parentAccessor.tryApplyTyped("")
           val last = pas.left.last.get // I know size > 1
-//          a append DomAst(EInfo("parent: "+parent.mkString).withPos(x.pos), AstKinds.TRACE)
-//          a append DomAst(EInfo("selector: "+pas.left.rest.head.calculatedTypedValue.toString).withPos(x.pos), AstKinds.TRACE)
+//          a append DomAst(EInfo("parentObject: "+parentObject.mkString).withPos(x.pos), AstKinds.TRACE)
+//          a append DomAst(EInfo("selector: "+pas.left.rest.head.calculatedTypedValue.toString).withPos(x.pos),
+//          AstKinds.TRACE)
 
-          parent.collect {
+          parentObject.collect {
 
-            case pa:RDOM.P if pa.ttype == WTypes.wt.JSON => {
-              val av = last.copy(value=None).calculatedTypedValue.asString
+            case pa: RDOM.P if pa.ttype == WTypes.wt.JSON => {
+              val av = last.copy(value = None).calculatedTypedValue.asString
               val m = pa.calculatedTypedValue.asJson
 
-              if(m.isInstanceOf[HashMap[String,Any]])
+              if (m.isInstanceOf[HashMap[String, Any]])
                 m.asInstanceOf[HashMap[String, Any]].put(av, vvalue)
               else {
-                a append DomAst(EError("Not mutable Map: " + parent.mkString).withPos(x.pos), AstKinds.ERROR)
+                a append DomAst(EError("Not mutable Map: " + parentObject.mkString).withPos(x.pos), AstKinds.ERROR)
               }
 
               val newv = PValue(
                 pa.calculatedTypedValue.asJson + (av -> vvalue),
                 WTypes.wt.JSON
               )
-              pa.value = Some(newv )
+              pa.value = Some(newv)
             }
 
             case pa:RDOM.P if pa.ttype == WTypes.wt.ARRAY => {
@@ -165,14 +166,18 @@ trait DomRoot {
             }
           }
         } else if (pas.left.start == "ctx") {
-          setp(ctx, pas.left.rest.head, p)
+          setp(ctx, "ctx", pas.left.rest.head, p)
         } else {
           val parent = pas.left.getp(pas.left.start)
           // a append DomAst(EInfo("parent: "+parent.mkString).withPos(x.pos), AstKinds.TRACE)
-          // a append DomAst(EInfo("selector: "+pas.left.rest.head.calculatedTypedValue.toString).withPos(x.pos), AstKinds.TRACE)
-          setp(parent, pas.left.rest.head, p)
+          // a append DomAst(EInfo("selector: "+pas.left.rest.head.calculatedTypedValue.toString).withPos(x.pos),
+          // AstKinds.TRACE)
+          setp(parent, pas.left.start, pas.left.rest.head, p)
         }
-        a append DomAst(EInfo(pas.left.toStringCalc + " = " + res, p.calculatedTypedValue.asString).withPos(x.pos), AstKinds.DEBUG)
+        a append DomAst(
+          EInfo(pas.left.toStringCalc + " = " + res, p.calculatedTypedValue.asString).withPos(x.pos),
+          AstKinds.DEBUG
+        )
         Nil
       }
     }
@@ -189,7 +194,7 @@ trait DomRoot {
         } else {
           val newa = DomAst(EVal(p) withPos (x.pos), kind).withSpec(x)
           newa ::
-          DomAst(EInfo(p.toString, p.calculatedTypedValue.asString).withPos(x.pos), AstKinds.DEBUG) :: Nil
+              DomAst(EInfo(p.toHtml, p.calculatedTypedValue.asNiceString).withPos(x.pos), AstKinds.DEBUG) :: Nil
         }
       }
 

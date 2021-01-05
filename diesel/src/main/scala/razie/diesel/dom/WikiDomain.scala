@@ -5,7 +5,7 @@
   */
 package razie.diesel.dom
 
-import razie.diesel.dom.RDOM.DE
+import razie.diesel.dom.RDOM.{C, DE}
 import razie.hosting.WikiReactors
 import razie.tconf.TagQuery
 import razie.wiki.model._
@@ -23,16 +23,39 @@ trait WikiDomain {
   /** all plugins for this domain and in this realm */
   def allPlugins: List[DomInventory]
 
+  /** register a connected inventory.
+    *
+    * Note - only useable inventories should be registered, i.e. where they are already connected */
   def addPlugin(inv: DomInventory): List[DomInventory]
 
   def findPlugins(inventory: String, conn: String = ""): List[DomInventory] = {
-    allPlugins.find(_.name == inventory).orElse(allPlugins.find(_.isInstanceOf[DefaultRDomainPlugin])).toList
+    allPlugins
+        .find(_.name == inventory)
+        .orElse(
+          None
+          //allPlugins.find(_.isInstanceOf[DomInvWikiPlugin])
+        ).toList
   }
+
+  final val INVENTORY = "inventory"
 
   /** based on annotations etc */
   def findPluginsForClass(c: DE): List[DomInventory] = {
-    // todo get annotation "inventory"
-    Nil
+    if (c.isInstanceOf[C]) {
+      allPlugins
+          .find(_.isDefinedFor(realm, c.asInstanceOf[C]))
+          .orElse(
+            // get annotation "inventory"
+            c.asInstanceOf[C].props
+                .find(_.name == INVENTORY)
+                .flatMap(inv => allPlugins.find(_.name == inv.currentStringValue))
+          ).orElse(
+        allPlugins
+            .find(_.isInstanceOf[DomInvWikiPlugin])
+            .filter(_.isDefinedFor(realm, c.asInstanceOf[C]))
+      )
+          .toList
+    } else Nil
   }
 
   /** the aggregated domain representation for this realm */
@@ -47,48 +70,30 @@ trait WikiDomain {
   def isWikiCategory(cat: String): Boolean
 
   /** parse categories into domain model */
-  def createRDom : RDomain
+  def createRDom: RDomain
 
-  /** aEnds that I link TO as role */
-  def assocsWhereTheyHaveRole(cat: String, role: String) : List[String] =
-    rdom.assocs.filter(t=> t.z == cat && t.aRole == role).map(_.a) :::
-      rdom.assocs.filter(t=> t.a == cat && t.zRole == role).map(_.z)
+  // todo expand these inline
+  def zEnds(aEnd: String, zRole: String) = rdom.zEnds(aEnd, zRole)
 
-  /** aEnds that I link TO as role */
-  def assocsWhereIHaveRole(cat: String, role: String) =
-    rdom.assocs.filter(t=> t.z == cat && t.zRole == role).map(_.a) :::
-      rdom.assocs.filter(t=> t.a == cat && t.aRole == role).map(_.z)
+  def needsOwner(cat: String) = rdom.needsOwner(cat)
 
-  /** aEnds that I link TO as role */
-  def aEnds(zEnd: String, zRole: String) =
-    rdom.assocs.filter(t=> t.z == zEnd && t.zRole == zRole).map(_.a)
+  def prop(cat: String, name: String): Option[String] = rdom.prop(cat, name)
 
-  /** zEnds that link to ME and I have role */
-  def zEnds(aEnd: String, zRole: String) =
-    rdom.assocs.filter(t=> t.a == aEnd && t.zRole == zRole).map(_.z)
+  def needsParent(cat: String) = rdom.needsParent(cat)
 
-  def needsOwner(cat: String) =
-    rdom.assocs.exists(t=> t.a == cat && t.z == "User" && t.zRole == "Owner")
-
-  def prop(cat: String, name:String) : Option[String] =
-    rdom.classes.get(cat).flatMap(_.props.find(_.name == name).map(_.currentStringValue))
+  def isA(what: String, cat: String): Boolean = rdom.isA(what, cat)
 
   def noAds(cat: String) =
     prop(cat, "noAds").isDefined
 
-  def needsParent(cat: String) =
-    rdom.assocs.filter(t=> t.a == cat && t.zRole == "Parent" && !Array("User", "Person").contains(t.z)).map(_.z)
-
-  def isA(what: String, cat:String) : Boolean =
-    what == cat || rdom.classes.get(cat).toList.flatMap(_.base).foldLeft(false)((a,b) => a || isA(what, b))
-
   // todo optimize
-  def dtree(base: String) : List[String] =
-    (base :: rdom.classes.values.filter(_.base contains base).toList.flatMap(x=>dtree(x.name))).distinct
+  def dtree(base: String): List[String] =
+    (base :: rdom.classes.values.filter(_.base contains base).toList.flatMap(x => dtree(x.name))).distinct
 
-  def roles(a: String, z:String) : List[String] = {
+  def roles(a: String, z: String): List[String] = {
     val mine = rdom.classes.get(a).toList.flatMap(_.assocs).filter(_.z == z).map(_.zRole)
-    if(mine.isEmpty) rdom.classes.get(a).toList.flatMap(_.base).foldLeft(List.empty[String])((a,b) => a ++ roles(b, z))
+    if (mine.isEmpty) rdom.classes.get(a).toList.flatMap(_.base).foldLeft(List.empty[String])(
+      (a, b) => a ++ roles(b, z))
     else mine
   }
 
@@ -129,7 +134,7 @@ object WikiDomain {
         .toList
   }
 
-    /** present a WE as a generic spec */
+  /** present a WE  as a generic spec */
   def spec (we:WikiEntry) = we
 
   /** if any special DOM wiki changes, rebuild the domain */

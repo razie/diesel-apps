@@ -38,7 +38,7 @@ package object nodes {
 
   def flattenJson (p: P)(implicit ctx: ECtx) : Attrs = {
     val v = p.calculatedTypedValue
-    assert(v.contentType == WTypes.JSON, "input needs to be JSON, but it's: "+p)
+    assert(v.contentType == WTypes.JSON || v.contentType == WTypes.UNDEFINED, "input needs to be JSON, but it's: " + p)
     val j = p.calculatedTypedValue.asJson
     j.map{t=>
       P.fromTypedValue(t._1, t._2)

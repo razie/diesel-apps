@@ -40,7 +40,7 @@ package object dom {
   }
 
   def mksAttrs (parms : List[P], tos:Option[P => String]=Some({p:P => p.toHtml})) : String = {
-    if(parms.size > 5)
+    if (parms.size > 2)
       mks(parms, " (", ",", ") ", "<br>&nbsp;&nbsp;", tos)
     else
       mks(parms, " (", ", ", ") ", "&nbsp;&nbsp;", tos)

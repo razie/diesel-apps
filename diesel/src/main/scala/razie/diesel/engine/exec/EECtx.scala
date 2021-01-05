@@ -180,7 +180,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         val toPrint = if (in.attrs.nonEmpty) in.attrs else ctx.getp(Diesel.PAYLOAD).toList
 
         val res = toPrint.map { p =>
-          EInfo(p.toString, p.calculatedTypedValue.asNiceString)
+          EInfo(p.toHtml, p.calculatedTypedValue.asNiceString)
         }
 
         if (res.isEmpty) List(EInfo("No arguments with values found...")) else res

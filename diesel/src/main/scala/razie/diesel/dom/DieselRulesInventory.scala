@@ -9,6 +9,7 @@ package razie.diesel.dom
 import com.razie.pub.comms.{CommRtException, Comms}
 import java.net.{HttpURLConnection, URI}
 import org.json.JSONObject
+import razie.diesel.dom.RDOM.P.asString
 import razie.diesel.dom.RDOM._
 import razie.diesel.engine.nodes.EMsg
 import razie.diesel.expr.ECtx
@@ -105,9 +106,9 @@ class DieselRulesInventory(
   }
 
   /** list all elements of class */
-  override def listAll(dom: RDomain, ref: FullSpecRef, collectRefs: Option[mutable.HashMap[String, String]] = None)
+  override def listAll(dom: RDomain, ref: FullSpecRef, start: Long, limit: Long, collectRefs: Option[mutable
+  .HashMap[String, String]] = None)
   : Either[List[DieselAsset[_]], EMsg] = {
-//    pToList(ref, runMsg(dom, "diesel.inv.impl", "listAll", mprops))
     Right(
       new EMsg(
         "diesel.inv.impl",
@@ -122,18 +123,17 @@ class DieselRulesInventory(
   }
 
   /**
-    * find by entity/ref
+    * remove by entity/ref
     */
-  override def findByRef(dom: RDomain, ref: FullSpecRef, collectRefs: Option[mutable.HashMap[String, String]] = None)
+  override def remove(dom: RDomain, ref: FullSpecRef)
   : Either[Option[DieselAsset[_]], EMsg] = {
     Right(
       new EMsg(
         "diesel.inv.impl",
-        "findByRef",
+        "remove",
         List(
           P("inventory", this.name),
           P("connection", this.conn),
-          P("class", ref.cls),
           P("class", ref.cls),
           P.fromSmartTypedValue("ref", ref.toJson)
         ))
@@ -152,14 +152,14 @@ class DieselRulesInventory(
       case c: C => {
         val oname = classOname(c)
 
-        def mkMetA = s"""<a href="/diesel/plugin/$name/$conn/attrs/${c.name}">attrs</a>"""
+        def mkListAll = s"""<a href="/diesel/dom/$name/$conn/${c.name}/listAll">listAll</a>"""
 
-        def mkListAll = s"""<a href="/diesel/plugin/$name/$conn/listAll/${c.name}">listAll</a>"""
+        def mkListAll2 = s"""<a href="/diesel/list2/${c.name}">list</a>"""
 
-        s"$mkMetA | $mkListAll"
+        s"$mkListAll | $mkListAll2 "
       }
 
-      case _ => "?"
+      case _ => "n/a"
     }
   }
 
@@ -178,9 +178,13 @@ class DieselRulesInventory(
 
       action match {
         case "testConnection" => DomInventories.resolve(testConnection(dom, epath)).currentStringValue
-        case "findByRef" => findByRefs(dom, epath)
-        case "findByQuery" => findByQuerys(dom, epath)
-        case "listAll" => listAll(dom, null).toString()
+        case "listAll" =>
+          DomInventories.resolve(
+            dom.name,
+            listAll(dom, new FullSpecRef(this.name, conn, epath, "", "", realm), 0, 100)
+          ).map { da =>
+            asString(da.getValueP)
+          }.mkString("\n")
         case _ => throw new NotImplementedError(s"doAction $action - $completeUri - $epath")
       }
     } catch {
@@ -209,40 +213,6 @@ class DieselRulesInventory(
         .asInstanceOf[List[Map[String, Any]]]
   }
 
-  /**
-    * find by entity/ref
-    */
-  private def findByRefs(dom: RDomain, epath: String, collectRefs: Option[mutable.HashMap[String, String]] = None)
-  : String = {
-    val host = new URI(completeUri).getHost
-    val PAT = """([^/]+)/(.+)""".r
-    val PAT(cls, id) = epath
-
-    dom.classes.get(cls).map { classDef =>
-      val oname = classOname(classDef)
-      val u = "" + s"/api/data/v8.2/${oname}s($id)"
-
-      val b = crmJson(u)
-
-      b.node.j.asInstanceOf[JSONObject].toString(2)
-    } getOrElse
-        "Class not found..."
-  }
-
-  /**
-    * find by field value
-    */
-  private def findByQuerys(dom: RDomain, epath: String, collectRefs: Option[mutable.HashMap[String, String]] = None)
-  : String = {
-    val host = new URI(completeUri).getHost
-    val PAT = """([^/]+)/(.+)/(.+)""".r
-    val PAT(cls, field, id) = epath
-    val filter = Sec.encUrl(s"$field eq $id")
-
-//    doQuery(cls, dom, filter, collectRefs)
-    ""
-  }
-
   private def mprops: Map[String, Any] = List(
     P.fromTypedValue("inventory", name),
     P.fromTypedValue("connection", conn)
@@ -257,49 +227,11 @@ class DieselRulesInventory(
         .flatMap(_.value.map(_.asArray))
         .map(x =>
           DieselAsset(
-            ref.copy(key = "?"),
+            ref.copy(key = "n/a"),
             P.toObject(x)
           )
         )
     Nil
-  }
-
-  /** turn a json value into a nice object, merge with class def and mark refs etc */
-  def oFromJ(name: String, j: JSONObject, c: C) = {
-    DomInventories.oFromJ(name, j, c, classOname(c), filterAttrs)
-  }
-
-  def crmJson(url: String) = {
-    clog << "Snakking: " + url
-    try {
-      val b = Snakk.body(Snakk.url(
-        url,
-        Map("Authorization" -> "")
-      ))
-
-      Snakk.json(b)
-    } catch {
-      case cre: CommRtException if cre.uc != null => {
-        val resCode = cre.uc.getHeaderField(0)
-        val c = Comms.readStream(cre.uc.asInstanceOf[HttpURLConnection].getErrorStream)
-        val msg = "Could not fetch data from url " + url + ", resCode=" + resCode + ", content=" + c
-        clog << "SNAKK COMM ERR: " + (msg)
-
-        val jc = if (c.startsWith("{") && c.endsWith("}")) c else s""""$c""""
-
-        val jo = new JSONObject()
-        jo.append("url", url)
-
-        if (c.startsWith("{") && c.endsWith("}"))
-          jo.append("error", c)
-        else
-          jo.append("error", c)
-
-        // just in case it may have expired - reset the token
-
-        Snakk.json(jo)
-      }
-    }
   }
 
   /**
@@ -308,37 +240,52 @@ class DieselRulesInventory(
     * if the field and id is null, then no filter
     */
   override def findByQuery(dom: RDomain, ref: FullSpecRef, epath: String, collectRefs: Option[mutable.HashMap[String,
-      String]] = None): List[DieselAsset[_]] = {
-    val host = new URI(completeUri).getHost
-    val PAT = """([^/]+)/(.+)/(.+)""".r
+      String]] = None): Either[List[DieselAsset[_]], EMsg] = {
+
+    val PAT = DomInventories.CLS_FIELD_VALUE
     val PAT(cls, field, id) = epath
 
-    dom.classes.get(cls).toList.flatMap { classDef =>
-      val oname = classOname(classDef)
-
-      // the idiots use an englishly-correct plural
-      val plural = if (oname endsWith "y") oname.take(oname.length - 1) + "ies" else oname + "s"
-
-      val filter = {
-        if (id == "" || id == "*" || id == "'*'")
-          s"$$top=50"
-        else
-          s"$$filter=" + Sec.encUrl(s"$field eq $id")
-      }
-
-      val u = "" + s"/api/data/v8.2/$plural?" + filter
-
-      val b = crmJson(u)
-
-      val v = b \ "value"
-
-      v.nodes.toList.map { n =>
-        val jo = n.j.asInstanceOf[JSONObject]
-        val key = if (jo.has(oname + "id")) jo.get(oname + "id").toString else epath
-        val o = oFromJ(key, jo, classDef)
-        new DieselAsset[O](SpecRef.make(ref.realm, name, conn, classDef.name, key), o)
-      }
+    val filter = {
+      if (id == "" || id == "*" || id == "'*'")
+        P.fromSmartTypedValue(field, Map())
+//        Nil // no query means all
+      else
+        P.fromSmartTypedValue(field, Map(field -> id))
     }
+
+    Right(
+      new EMsg(
+        "diesel.inv.impl",
+        "findByQuery",
+        List(
+          P("inventory", this.name),
+          P("connection", this.conn),
+          P("class", ref.cls),
+          P.fromSmartTypedValue(
+            "query",
+            filter
+          )
+        ))
+    )
+  }
+
+  /**
+    * find by entity/ref
+    */
+  override def findByRef(dom: RDomain, ref: FullSpecRef, collectRefs: Option[mutable.HashMap[String, String]] = None)
+  : Either[Option[DieselAsset[_]], EMsg] = {
+
+    Right(
+      new EMsg(
+        "diesel.inv.impl",
+        "findByRef",
+        List(
+          P("inventory", this.name),
+          P("connection", this.conn),
+          P("class", ref.cls),
+          P.fromSmartTypedValue("ref", ref.toJson)
+        ))
+    )
   }
 
 }

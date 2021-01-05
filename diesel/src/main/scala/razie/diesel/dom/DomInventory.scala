@@ -59,7 +59,8 @@ trait DomInventory {
   def upsert(dom: RDomain, ref: FullSpecRef, asset:DieselAsset[_]) : Either[Option[DieselAsset[_]], EMsg] = ???
 
   /** list all elements of class */
-  def listAll(dom: RDomain, ref: FullSpecRef, collectRefs: Option[mutable.HashMap[String, String]] = None)
+  def listAll(dom: RDomain, ref: FullSpecRef, start: Long, limit: Long, collectRefs: Option[mutable.HashMap[String,
+      String]] = None)
   : Either[List[DieselAsset[_]], EMsg] = ???
 
   // todo syncDomain into external too ?
@@ -93,10 +94,17 @@ trait DomInventory {
 
   /** find an element by query */
   def findByQuery(dom: RDomain, ref: FullSpecRef, epath: String, collectRefs: Option[mutable.HashMap[String, String]]
-  = None): List[DieselAsset[_]] = Nil
+  = None): Either[List[DieselAsset[_]], EMsg] = ???
+
+  /** remove an element by ref */
+  def remove(dom: RDomain, ref: FullSpecRef)
+  : Either[Option[DieselAsset[_]], EMsg] = ???
 
   /** html for the supported actions */
   def htmlActions(elem: DE): String
+
+  /** reset oauth tokens etc on error */
+  def resetOnError(error: Throwable) = {}
 
   /**
     * do an action on some domain entity (explore, browse etc)
@@ -108,180 +116,6 @@ trait DomInventory {
     * @return
     */
   def doAction(r: RDomain, conn: String, action: String, completeUri: String, epath: String): String
-}
-
-/** some helpers */
-object DomInventories extends razie.Logging {
-
-  /**
-    * list all
-    */
-  private def runMsg(msg:DieselMsg): Option[P] = {
-    val fut = msg.toMsgString.startMsg
-
-    // get timeout max from realm settings: paid gets more etc
-    val res = Await.result(fut, Duration.create(30, "seconds"))
-    res.get(Diesel.PAYLOAD).map(_.asInstanceOf[P])
-  }
-
-  /**
-    * list all
-    */
-  private def runMsg(realm:String, m: EMsg): Option[P] = {
-    runMsg(new DieselMsg(m, DieselTarget.ENV(realm)))
-  }
-
-  /**
-    * list all
-    */
-  private def runMsg(realm:String, e: String, a: String, parms: Map[String, Any]): Option[P] = {
-    runMsg(DieselMsg(e, a, parms, DieselTarget.ENV(realm)))
-  }
-
-  /** for synchornous people */
-  def resolve(e:Either[P,EMsg]) : P = {
-    // resolve EMrg's parameters in an empty context and run it and await?
-    e.fold (
-      p=> p,
-      m=> runMsg("?", m).getOrElse(P.undefined(Diesel.PAYLOAD))
-    )
-  }
-
-  /** for synchornous people */
-  def resolve(e:Either[Option[DieselAsset[_]],EMsg]) : Option[DieselAsset[_]] = {
-    // resolve EMrg's parameters in an empty context and run it and await?
-    e.fold (
-      p=> p,
-      m=> {
-        val p = runMsg("?", m)
-        if(p.isEmpty || !p.get.isOfType(WTypes.wt.JSON)) {
-          log("sub-flow return nothing or not an object - so no asset found!")
-          None
-        } else {
-          val j = p.get.calculatedTypedValue(ECtx.empty).asJson
-          val r = j.get("assetRef")
-              .filter(_.isInstanceOf[Map[String, _]])
-              .map(_.asInstanceOf[Map[String, _]])
-              .map(SpecRef.fromJson)
-
-            Some(new DieselAsset[P] (
-              ref = r.get,
-              value = p.get
-            ))
-        }
-      }
-    )
-  }
-
-  // todo add the CRMR plugin only if the reactor has one...
-  var pluginFactories: List[DomInventory] =
-    new OdataCRMDomInventory ::
-        new DieselRulesInventory() ::
-        new DefaultRDomainPlugin(null, "", "", "") ::
-        Nil
-
-  /** register (class, inventory) */
-  var invRegistry = new TrieMap[String, String]()
-
-  // you must provide factory and the domain when loading the realm will instantiate all plugins and connections
-
-  /** find the right plugin by name and conn */
-  def getPlugin(realm:String, inv:String, conn:String) : Option[DomInventory] = {
-    val dom = WikiDomain(realm)
-    val list = dom.findPlugins(inv)
-    val p = (if(conn.length > 0) list.filter(_.conn == conn) else list).headOption
-    trace(s"  Found inv $p")
-    p
-  }
-
-  /** find the right plugin by name and conn */
-  def getPluginForClass(realm:String, cls:DE, conn:String) : Option[DomInventory] = {
-    val dom = WikiDomain(realm)
-    var list = dom.findPluginsForClass(cls)
-    if(list.isEmpty) {
-      invRegistry.get(cls.asInstanceOf[C].name).foreach(inv =>
-          list = dom.findPlugins(inv, conn)
-      )
-    }
-    val p = (if(conn.length > 0) list.filter(_.conn == conn) else list).headOption
-    trace(s"  Found inv $p")
-    p
-  }
-
-  /** aggregate applicable actions on element in realm's plugins */
-  def htmlActions(realm: String, c: DE) = {
-    WikiDomain(realm).findPluginsForClass(c).foldLeft("")((a, b) => a + (if (a != "") " <b>|</b> " else "") + b.htmlActions(c))
-  }
-
-  /** find an element by ref */
-  def findByRef(ref: FullSpecRef, collectRefs: Option[mutable.HashMap[String, String]] = None)
-  : Option[DieselAsset[_]] = {
-    trace(s"findByRef $ref")
-    val dom = WikiDomain(ref.realm)
-    val p = getPlugin(ref.realm, ref.inventory, ref.conn)
-    trace(s"  Found inv $p")
-//    val o = p.flatMap(_.findByRef(dom.rdom, ref, collectRefs))
-//    trace(s"  Found obj $o")
-//    o
-  None}
-
-  /** find an element by query
-    *
-    * @param ref contains the plugin,conn,class, no ID
-    * @param epath
-    * @param collectRefs
-    * @return
-    */
-  def findByQuery(ref: FullSpecRef, epath: String, collectRefs: Option[mutable.HashMap[String, String]]
-  = None): List[DieselAsset[_]] = {
-    val dom = WikiDomain(ref.realm)
-    val p = dom.findPlugins(ref.inventory).headOption
-    val o = p.toList.flatMap(_.findByQuery(dom.rdom, ref, epath, collectRefs))
-    o
-  }
-
-  /** turn a json value into a nice object, merge with class def and mark refs etc */
-  def oFromJ (name:String, j:JSONObject, c:C, invClsName:String, filterAttrs:Array[String]) = {
-
-    // move parms containing name/desc to the top of the list
-    val parmNames = j.keySet
-        .toArray
-        .toList
-        .map(_.toString)
-        .filter(n=> !n.startsWith("@"))
-        .filter(n=> !filterAttrs.contains(n))
-    //      .sorted
-    val a1 = parmNames.filter(n=> n.contains("name") || n.contains("key"))
-    val a2 = parmNames.filter(n=> n.contains("description") || n.contains("code"))
-    val b = parmNames.filterNot(n=> n.contains ("name") || n.contains("description") || n.contains("code"))
-
-    val parms = (a1 ::: a2 ::: b)
-        .map {k=>
-          val value = j.get(k).toString
-          val kn = k.toString
-          val oname = invClsName
-
-          c.parms.find(_.name == kn).map {cp=>
-            cp.copy(dflt = value.toString) // todo add PValue
-          } getOrElse {
-            // key refs
-            if(kn.startsWith("_") && kn.endsWith(("_value")) ) {
-              val PAT="""_(.+)_value""".r
-              val PAT(n) = kn
-
-              c.parms.find(_.name == n).map {cpk=>
-                cpk.copy(dflt = value.toString) // todo add PValue
-              } getOrElse {
-                P(kn, value)
-              }
-            } else
-              P(kn, value)
-          }
-        }
-
-    O(name, c.name, parms)
-  }
-
 }
 
 /** default inventory for wiki defined classes */
@@ -306,7 +140,7 @@ class DefaultRDomainPlugin(val specInv: DSpecInventory, val realm: String, overr
     * @param iprops initial properties, when created via diesel message
     */
   override def mkInstance(realm: String, env:String, wi: DSpecInventory, newName:String, iprops: Map[String, String]): List[DomInventory] = {
-    List(new DefaultRDomainPlugin(wi, realm, "default", env))
+    List(new DomInvWikiPlugin(wi, realm, "default", env))
   }
 
   override def connect(dom: RDomain, env: String): Either[P, EMsg] =
@@ -333,6 +167,7 @@ class DefaultRDomainPlugin(val specInv: DSpecInventory, val realm: String, overr
       case _ => "?"
     }
   }
+
 
   def doAction(r: RDomain, conn: String, action: String, uri: String, epath: String) = ???
 }

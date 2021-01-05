@@ -430,7 +430,7 @@ class DomEngineV1(
             razie.Log.alarmThis("wtf", e)
             val p = EVal(P(Diesel.PAYLOAD, e.getMessage, WTypes.wt.EXCEPTION).withValue(e, WTypes.wt.EXCEPTION))
             ctx.put(p.p)
-            List(DomAst(new EError("Exception:", e), AstKinds.ERROR), DomAst(p, AstKinds.ERROR))
+            List(DomAst(new EError("Exception:", e.getClass.getSimpleName), AstKinds.ERROR), DomAst(p, AstKinds.ERROR))
         }
 
         /* make any generated activities dependent so they run in sequence
@@ -1151,6 +1151,10 @@ class DomEngineV1(
         // we're overwriting it again here by putting values in front of attrs
 
         // new evaluation context - include the message's values in its context
+        if (!aTarget.value.isInstanceOf[EMsg]) {
+          throw new DieselExprException("$expect must follow a $send...")
+        }
+
         val newctx = new StaticECtx(values ::: aTarget.value.asInstanceOf[EMsg].attrs, Some(ctx), Some(aTarget))
 
         // start checking now
@@ -1239,7 +1243,7 @@ class DomEngineV1(
         a append DomAst(
           TestResult(
             "fail",
-            "Exception: " + t.toString,
+            "Exception: " + t.getClass.getSimpleName + ": " + t.getMessage,
             cole.toHtml
           ),
           AstKinds.TEST

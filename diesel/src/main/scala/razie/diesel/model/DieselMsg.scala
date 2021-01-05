@@ -7,6 +7,7 @@
 package razie.diesel.model
 
 import razie.audit.Audit
+import razie.diesel.dom.RDOM.P.asString
 import razie.diesel.engine.DomEngineSettings
 import razie.diesel.engine.nodes.EMsg
 import razie.diesel.samples.DomEngineUtils
@@ -119,7 +120,15 @@ case class DieselMsg(
             .map(
               t =>
                 t._1 + "=" + (t._2 match {
-                  case s: String => s""" "$s" """
+                  case s: String if s.startsWith("{") || s.startsWith("[") => {
+//                    val ss = s.replaceAll("\\\"", "\\\"")
+                    s""" $s """
+                  }
+                  case s: String => {
+                    // todo should escape them...
+//                    val ss = s.replaceAll("\\\"", "\\\"")
+                    s""" "$s" """
+                  }
                   case s: Int => s"$s"
                   case s@_ => s"${s.toString}"
                 })
@@ -149,13 +158,14 @@ case class DieselMsg(
 object DieselTarget {
   final val DEFAULT = "default"
 
+  /** the environment settings - most common target */
   def ENV_SETTINGS(realm: String) = SpecRef("", realm + ".Spec:EnvironmentSettings", realm)
 
-  /** the environment settings - most common target */
+  /** specific list of specs to use */
   def from(realm: String, env: String, specs: List[TSpecRef], stories: List[TSpecRef]) =
     new DieselTargetList(realm, env, specs, stories)
 
-  /** the environment settings - most common target */
+  /** all specs in a realm */
   def ENV (realm:String, env:String=DEFAULT) =
     new DieselTarget(realm, env) {
       override def specs = {

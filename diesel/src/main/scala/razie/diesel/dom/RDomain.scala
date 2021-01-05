@@ -122,15 +122,51 @@ class RDomain(
     )
   }
 
-  def needsOwner(name: String) = false
+  /** aEnds that I link TO as role */
+  def assocsWhereTheyHaveRole(cat: String, role: String): List[String] =
+    this.assocs.filter(t => t.z == cat && t.aRole == role).map(_.a) :::
+        this.assocs.filter(t => t.a == cat && t.zRole == role).map(_.z)
 
-  def needsParent(name: String) = false
+  /** aEnds that I link TO as role */
+  def assocsWhereIHaveRole(cat: String, role: String) =
+    this.assocs.filter(t => t.z == cat && t.zRole == role).map(_.a) :::
+        this.assocs.filter(t => t.a == cat && t.aRole == role).map(_.z)
+
+  /** aEnds that I link TO as role */
+  def aEnds(zEnd: String, zRole: String) =
+    this.assocs.filter(t => t.z == zEnd && t.zRole == zRole).map(_.a)
+
+  /** zEnds that link to ME and I have role */
+  def zEnds(aEnd: String, zRole: String) =
+    this.assocs.filter(t => t.a == aEnd && t.zRole == zRole).map(_.z)
+
+  def needsOwner(cat: String) =
+    this.assocs.exists(t => t.a == cat && t.z == "User" && t.zRole == "Owner")
+
+  def prop(cat: String, name: String): Option[String] =
+    this.classes.get(cat).flatMap(_.props.find(_.name == name).map(_.currentStringValue))
+
+  def needsParent(cat: String) =
+    this.assocs.filter(t => t.a == cat && t.zRole == "Parent" && !Array("User", "Person").contains(t.z)).map(_.z)
+
+  /** basic subtype check
+    *
+    * @param what possible parent type
+    * @param cat  subtype to check
+    * @return
+    */
+  def isA(what: String, cat: String): Boolean =
+    what.length > 0 &&
+        cat.length > 0 && (
+        what == cat ||
+            this.classes.get(cat).toList.flatMap(_.base).foldLeft(false)((a, b) => a || isA(what, b))
+        )
 
   override def toString = razie.js.tojsons(tojmap)
 
-  def mkCompiler(lang:String) : RCompiler = {
-    if(lang == "js") new RJSCompiler(this)
-    else throw new IllegalArgumentException("can't comile to language "+lang)
+  def mkCompiler(lang: String): RCompiler = {
+    if (lang == "js") new RJSCompiler(this)
+    else throw new IllegalArgumentException("can't comile to language " + lang)
   }
 
 }

@@ -144,6 +144,26 @@ case class BCMP2(a: Expr, op: String, b: Expr)
             p.ttype.name == WTypes.NUMBER || p.value.exists(_.cType.name == WTypes.NUMBER)
           }
 
+          def checkIS = { // is number or is date or is string etc
+            /* x is TYPE (single id, not a value) */
+            if (b.isInstanceOf[AExprIdent] &&
+                b.asInstanceOf[AExprIdent].rest.isEmpty &&
+                ctx.get(b.asInstanceOf[AExprIdent].start).isEmpty) /* not a known value */ {
+              val bs = b.asInstanceOf[AExprIdent].expr
+
+              WTypes.isSubtypeOf(a.getType, bs) ||
+                  WTypes.isSubtypeOf(ap.calculatedTypedValue.contentType, bs) ||
+                  WTypes.isSubtypeOf(as, bp.calculatedValue) ||
+                  (a.getType.name == WTypes.JSON || a.getType.name == WTypes.OBJECT) &&
+                      ctx.root.domain.exists(_.isA(bs, a.getType.schema))
+            }
+            else {
+              /* if type expr not known, then behave like equals */
+              val bs = b.applyTyped(in).calculatedValue
+              as == bs
+            }
+          }
+
           val cmpop = op match {
             case "?=" | "==" | "!=" | "~=" | "~path" | "like" | "<=" | ">=" | "<" | ">" => true
             case _ => false
@@ -296,26 +316,9 @@ case class BCMP2(a: Expr, op: String, b: Expr)
             case "notIn" if bp.ttype == WTypes.wt.ARRAY => !isin(ap, bp)
             case "not in" if bp.ttype == WTypes.wt.ARRAY => !isin(ap, bp)
 
-            case "is" => { // is number or is date or is string etc
-              /* x is TYPE (single id, not a value) */
-              if (b.isInstanceOf[AExprIdent] &&
-                  b.asInstanceOf[AExprIdent].rest.isEmpty &&
-                  ctx.get(b.asInstanceOf[AExprIdent].start).isEmpty)
-                (
-                    WTypes.isSubtypeOf(a.getType, b.asInstanceOf[AExprIdent].expr) ||
-                        WTypes.isSubtypeOf(ap.calculatedTypedValue.contentType, b.asInstanceOf[AExprIdent].expr) ||
-                        WTypes.isSubtypeOf(as, bp.calculatedValue)
-                    )
-              else {
-                /* if type expr not known, then behave like equals */
-                val bs = b.applyTyped(in).calculatedValue
-                as == bs
-              }
-            }
+            case "is" => checkIS
+            case "xNot" => !checkIS
 
-
-            // also should be
-            // todo why also should be ???
             case "not" => a(in).toString.length > 0 && a(in) != b(in)
 
             case "==" => a(in) == b(in)

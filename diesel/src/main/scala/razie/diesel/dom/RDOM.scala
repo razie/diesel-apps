@@ -75,30 +75,36 @@ object RDOM {
 
     def this(name: String) = this(name, "", "", Nil, "")
 
-    override def toString = fullHtml
+    override def toString = fullHtml(None)
 
-    def fullHtml = {
+    def fullHtml(inv: Option[DomInventory]) = {
+      // todo optimize/cache
+      val invname = inv.map(_.name).mkString
+      val conn = inv.map(_.conn).mkString
       span("class::") + classLink(name) +
           smap(typeParam)(" [" + _ + "]") +
           smap(archetype)(" &lt;" + _ + "&gt;") +
           smap(stereotypes)(" &lt;" + _ + "&gt;") +
           (if (base.exists(_.size > 0)) "extends " else "") + base.map(classLink).mkString +
           mksAttrs(parms, Some({ p: P =>
-            "<small>" + qspan("", p.name) + "</small> " + p.toHtml
+            "<small>" + qspan(invname, conn, p.name) + "</small> " + p.toHtml
           })) +
           mks(methods, "{<br><hr>", "<br>", "<br><hr>}", "&nbsp;&nbsp;") +
           mks(props, " PROPS(", ", ", ") ", "&nbsp;&nbsp;")
     }
 
-    def qspan(s: String, p:String, k: String = "default") = {
-      def mkref: String = s"weDomQuery('d365odata', 'default', '$name', '$p');"
-      s"""<span onclick="$mkref" style="cursor:pointer" class="label label-$k"><i class="glyphicon glyphicon-search" style="font-size:1"></i></span>&nbsp;"""
+    // the query magnif glass
+    def qspan(inv: String, conn: String, p: String, k: String = "default") = {
+      def mkref: String = s"weDomQuery('$inv', '$conn', '$name', '$p');"
+
+      s"""<span onclick="$mkref" style="cursor:pointer" class="label label-$k"><i class="glyphicon glyphicon-search"
+         |style="font-size:1"></i></span>&nbsp;""".stripMargin
     }
 
     /** combine two partial defs of the same thing */
-    def plus (b:C) = {
-      def combine (a:String, b:String) = {
-        val res = a+","+b
+    def plus(b: C) = {
+      def combine(a: String, b: String) = {
+        val res = a + "," + b
         res.replaceFirst("^,", "").replaceFirst(",$", "")
       }
 
@@ -146,7 +152,11 @@ object RDOM {
     def asObject : collection.Map[String,Any] = asJson
 
     def asJson : collection.Map[String,Any] = {
-      if (value.isInstanceOf[String]) razie.js.parse(value.toString)
+      if (value.isInstanceOf[String]) {
+        var v = value.toString
+        if (v.trim.length == 0) v = "{}"
+        razie.js.parse(v)
+      }
       else value.asInstanceOf[collection.Map[String, Any]]
     }
 
@@ -289,27 +299,37 @@ object RDOM {
       }
 
       // assert expected type if given
-      if(expectedType != WTypes.UNKNOWN && expectedType != "" && res.ttype != expectedType)
+      if (expectedType != WTypes.UNKNOWN && expectedType != "" && res.ttype != expectedType)
         throw new DieselExprException(s"$name of type ${res.ttype} not of expected type $expectedType")
 
       res
     }
 
     /** value recognized as simple type? */
-    def isSimpleType (value:Any):Boolean = {
+    def isSimpleType(value: Any): Boolean = {
+      val res = isSimpleNonStringType(value) || (value match {
+        case s: String => true
+        case s: PValue[_] => isSimpleType(s.value)
+        case _ => false
+      })
+
+      res
+    }
+
+    /** value recognized as simple type? */
+    def isSimpleNonStringType(value: Any): Boolean = {
       val res = value match {
-        case i: Boolean =>     true
-        case i: Int =>         true
-        case i: Long =>        true
-        case f: Float =>       true
-        case d: Double =>      true
+        case i: Boolean => true
+        case i: Int => true
+        case i: Long => true
+        case f: Float => true
+        case d: Double => true
         case i: java.lang.Integer => true
         case i: java.lang.Boolean => true
         case i: java.lang.Float => true
         case i: java.lang.Double => true
         case i: java.lang.Long => true
-        case s: String => true
-        case s: PValue[_] => isSimpleType(s.value)
+        case s: PValue[_] => isSimpleNonStringType(s.value)
         case _ => false
       }
 
@@ -328,7 +348,20 @@ object RDOM {
               (if (r.end == scala.Int.MaxValue) "" else r.end.toString)
         }
         case s: collection.Map[_, _] => if (s.isEmpty) "{}" else js.tojsons(s, 2).trim
-        case s: collection.Seq[_] => js.tojsons(s, 0).trim
+        case s: collection.Seq[_] => {
+          // special if it contains Ps, just extract their values
+          if (s.size > 0 && s.head.isInstanceOf[P]) {
+            val news = s.map(p =>
+              p.asInstanceOf[P]
+                  .value
+                  .map(_.value)
+                  .getOrElse(p.asInstanceOf[P].dflt)
+            )
+            js.tojsons(news, 0).trim
+          } else {
+            js.tojsons(s, 0).trim
+          }
+        }
         case s: JSONObject => if (s.length() == 0) "{}" else s.toString(2).trim
         case s: JSONArray => if (s.length() == 0) "[]" else s.toString.trim
         case s: Array[Byte] => new String(s)
@@ -375,26 +408,32 @@ object RDOM {
                 var value:Option[PValue[_]] = None
                ) extends CM with CanHtml {
 
-    def withValue[T](va:T, ctype:WType = WTypes.wt.UNKNOWN) = {
-      this.copy(ttype=ctype, value=Some(PValue[T](va, ctype)))
+    def withValue[T](va: T, ctype: WType = WTypes.wt.UNKNOWN) = {
+      this.copy(ttype = ctype, value = Some(PValue[T](va, ctype)))
     }
 
-    def withCachedValue[T](va:T, ctype:WType, cached:String) = {
-      this.copy(ttype=ctype, value=Some(PValue[T](va, ctype).withStringCache(cached)))
+    def withCachedValue[T](va: T, ctype: WType, cached: String) = {
+      this.copy(ttype = ctype, value = Some(PValue[T](va, ctype).withStringCache(cached)))
     }
 
     def isRef = ttype.isRef
 
     /** check if this value or def is of type t */
-    def isOfType(t:WType) = {
+    def isOfType(t: WType) = {
       value.map(x => WTypes.isSubtypeOf(t, x.cType)).getOrElse(WTypes.isSubtypeOf(t, ttype))
     }
 
+    /** is this really undefined? */
+    def isUndefined =
+      ttype == WTypes.UNDEFINED || (
+          dflt.isEmpty && expr.isEmpty && value.isEmpty
+          )
+
     /** proper way to get the value */
-    def calculatedValue(implicit ctx: ECtx) : String =
-      // important to avoid toString JSONS all the time...
-      if(value.isDefined) value.get.asString // this will cache the string
-      else if(dflt.nonEmpty || expr.isEmpty) dflt else {
+    def calculatedValue(implicit ctx: ECtx): String =
+    // important to avoid toString JSONS all the time...
+      if (value.isDefined) value.get.asString // this will cache the string
+      else if (dflt.nonEmpty || expr.isEmpty) dflt else {
         calculatedTypedValue.asString
       }
 
@@ -436,21 +475,31 @@ object RDOM {
       )
 
     /** only if it was already calculated... */
-    def hasCurrentValue = value.isDefined || dflt.length > 0
+    def hasCurrentValue = value.isDefined || expr.exists(_.isInstanceOf[CExpr[_]]) || dflt.length > 0
 
     /** only if it was already calculated... */
     def currentValue =
-      value.map(v=> CExpr(v.value, v.cType)).getOrElse {
-        CExpr(dflt, ttype)
-      }
+      value.map(v => CExpr(v.value, v.cType))
+          .orElse(
+            // if CExpr, it's a constant, so ok to return here...
+            expr.filter(_.isInstanceOf[CExpr[_]]).map(_.asInstanceOf[CExpr[_]])
+          )
+          .getOrElse {
+            CExpr(dflt, ttype)
+          }
 
     /** only if it was already calculated... */
-    def currentStringValue =
+    def currentStringValue: String =
     // not looking at dflt - the value is cached as string too
 //      if(dflt.nonEmpty) dflt
-      value.map(_.asString).getOrElse {
-        dflt
-      }
+      value.map(_.asString)
+          .orElse(
+            // if CExpr, it's a constant, so ok to return here...
+            expr.filter(_.isInstanceOf[CExpr[_]]).map(_.expr)
+          )
+          .getOrElse {
+            dflt
+          }
 
     /** current calculated value if any or the expression */
     def valExpr =
@@ -477,7 +526,7 @@ object RDOM {
         smap(strimmedDflt) (s=> "=" + (if("Number" == ttype) s else quot(s))) +
         (if(dflt=="") expr.map(x=>smap(x.toString) ("=" + _)).mkString else "")
 
-    // todo refs for type, docs, position etc
+    // todo docs, position etc
     override def toHtml = toHtml(true)
 
     def toHtml (shorten:Boolean = true)=
@@ -489,7 +538,7 @@ object RDOM {
         } +
 //        (if(dflt.length > 60) "<span class=\"label label-default\"><small>...</small></span>") +
         (if(shorten && currentStringValue.length > 60) "<b><small>...</small></b>" else "") +
-        (if(dflt=="") expr.map(x=>smap(x.toHtml) ("<-" + _)).mkString else "")
+          (if (dflt == "") expr.map(x => smap(x.toHtml)("=" + _)).mkString else "")
 
     private def typeHtml(s:WType) = {
       s.name.toLowerCase match {
@@ -647,23 +696,28 @@ object RDOM {
   case class O (name:String, base:String, parms:List[P]) {
     def toJson = parms.map { p => p.name -> p.calculatedTypedValue(ECtx.empty).value }.toMap
 
-    def fullHtml = {
+    def fullHtml(inv: Option[DomInventory]) = {
+      // todo optimize/cache
+      val invname = inv.map(_.name).mkString
+      val conn = inv.map(_.conn).getOrElse("default")
       span("object::") + " " + name + " : " + classLink(base) +
 //        smap(archetype) (" &lt;" + _ + "&gt;") +
 //        smap(stereotypes) (" &lt;" + _ + "&gt;") +
 //        (if(base.exists(_.size>0)) "extends " else "") + base.map("<b>" + _ + "</b>").mkString +
-        mksAttrs(parms, Some({p:P =>
-          p.toHtml(false) +
-            (
-              if(p.isRef)
-                s""" <small><a href="/diesel/objBrowserById/d365odata/default/${p.ttype}/${p.currentStringValue}">browse</a></small>"""
-              else
-                ""
-              )
-        })) +
+          mksAttrs(parms, Some({ p: P =>
+            p.toHtml(false) +
+                (
+                    if (p.isRef)
+                      s""" <small><a href="/diesel/objBrowserById/${invname}/${conn}/${p.ttype.getClassName}/${
+                        p.currentStringValue
+                      }">browse</a></small>"""
+                    else
+                      ""
+                    )
+          })) +
 //        mks(methods, "{<br><hr>", "<br>", "<br><hr>}", "&nbsp;&nbsp;") +
 //        mks(props, " PROPS(", ", ", ") ", "&nbsp;&nbsp;")
-      ""
+          ""
     }
 
     /** get a nice display name - this assumes you merged it with its class, see OdataCrmDomainPlugin.oFromJ */

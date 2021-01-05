@@ -58,7 +58,7 @@ trait ExprParser extends RegexParsers {
   private def opsCMP: Parser[String] =
     ">" | "<" | ">=" | "<=" | "==" | "!=" |
         "~=" | "~path" <~ ws |
-        "?=" | "is" <~ ws | "in" <~ ws | "not in" <~ ws | "notIn" <~ ws | "not" <~ ws |
+        "?=" | "is" <~ ws | "xNot" <~ ws | "in" <~ ws | "not in" <~ ws | "notIn" <~ ws | "not" <~ ws |
         "contains" <~ ws | "containsNot" <~ ws
 
   private def opsPLUS: Parser[String] = "+" | "-" | "||" | "|"
@@ -496,7 +496,7 @@ private def accessorIdent: Parser[RDOM.P] = "." ~> ident ^^ { case id => P("", i
     case a ~ l => foldAssocAexpr2(a, l, bcmp)
   }
 
-  def bterm1: Parser[BoolExpr] = bfactor1 ~ rep(ows ~> ("and" <~ ws) ~ ows ~ bfactor1 ) ^^ {
+  def bterm1: Parser[BoolExpr] = bfactor1 ~ rep(ows ~> ("and" <~ ws) ~ ows ~ bfactor1) ^^ {
     case a ~ l => foldAssocAexpr2(a, l, bcmp)
   }
 
@@ -506,11 +506,13 @@ private def accessorIdent: Parser[RDOM.P] = "." ~> ident ^^ { case id => P("", i
 
   def bfactor2: Parser[BoolExpr] = bConst | ibex(opsBool) | bvalue | condBlock
 
-  private def opsBool: Parser[String] = "==" | "is" | "in" | "not in" | "notIn" | "!=" | "not" <~ ws | "~=" | "matches" <~ ws | "<=" | ">=" | "<" | ">" | "containsNot" <~ ws | "contains" <~ ws
+  private def opsBool: Parser[String] = "==" | "xNot" | "is" | "in" | "not in" | "notIn" |
+      "!=" | "not" <~ ws | "~=" | "matches" <~ ws | "<=" | ">=" | "<" | ">" |
+      "containsNot" <~ ws | "contains" <~ ws
 
-  private def condBlock: Parser[BoolExpr] = ows ~> "(" ~> ows ~> cond <~ ows <~ ")" ^^ { BExprBlock }
+  private def condBlock: Parser[BoolExpr] = ows ~> "(" ~> ows ~> cond <~ ows <~ ")" ^^ {BExprBlock}
 
-  private def ibex(op: => Parser[String]) : Parser[BoolExpr] = expr ~ (ows ~> op <~ ows) ~ expr ^^ {
+  private def ibex(op: => Parser[String]): Parser[BoolExpr] = expr ~ (ows ~> op <~ ows) ~ expr ^^ {
     case a ~ s ~ b => BCMP2(a, s.trim, b)
   }
 

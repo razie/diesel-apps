@@ -133,7 +133,6 @@ object WTypes {
     t
   }
 
-  // todo is more fancy with types... schemas inherit
   /** check known static subtype hierarchies
     *
     * todo for dynamic hierarchies, based on DOM, use the RDomain
@@ -147,7 +146,10 @@ object WTypes {
     } || {
       (typeToCheck.name == JSON || typeToCheck.name == OBJECT) &&
           (subtype.name == JSON || subtype.name == OBJECT)
-      // todo check schemas if they're subtyped...
+    } || {
+      // check schemas if they're subtyped...
+      (typeToCheck.name == JSON || typeToCheck.name == OBJECT) &&
+          (typeToCheck.schema == subtype.name)
     }
   }
 
@@ -202,20 +204,26 @@ case class WType (name:String, schema:String = WTypes.UNKNOWN, wrappedType:Optio
 
   override def equals(obj: Any) = {
     obj match {
-      case wt:WType => this.name == wt.name && this.schema == wt.schema
-      case s:String => this.name == s
+      case wt: WType => this.name == wt.name && this.schema == wt.schema
+      case s: String => this.name == s
     }
   }
 
-  def withSchema (s:String) = copy(schema=s)
-  def hasSchema (s:String) = schema != "" && schema != WTypes.UNKNOWN
+  /** get class name: schema or name */
+  def getClassName = if (name == WTypes.JSON || name == WTypes.OBJECT) schema else name
 
-  def withMime (s:Option[String]) = copy(mime=s)
-  def withRef (b:Boolean) = copy(isRef=b)
+  def withSchema(s: String) = copy(schema = s)
+
+  def hasSchema = schema != "" && schema != WTypes.UNKNOWN
+
+  def withMime(s: Option[String]) = copy(mime = s)
+
+  def withRef(b: Boolean) = copy(isRef = b)
 
   override def toString = WTypes.mkString(this, identity)
 
   def isEmpty = name.isEmpty
+
   def nonEmpty = name.nonEmpty
 }
 

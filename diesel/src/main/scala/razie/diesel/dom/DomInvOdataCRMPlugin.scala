@@ -21,7 +21,7 @@ import scala.collection.mutable
 import scala.util.Try
 
 /** ODATA CRM domain plugin */
-class OdataCRMDomInventory(
+class DomInvOdataCRMPlugin(
   override val name: String = "d365odata",
   var props: Map[String, String] = Map.empty
 ) extends DomInventory {
@@ -64,7 +64,7 @@ class OdataCRMDomInventory(
         .flatMap(x => specInv.flatMap(_.findSpec(props)))
         .toList
         .map { wprops =>
-          val ret = new OdataCRMDomInventory(newName, iprops ++ wprops.allProps)
+          val ret = new DomInvOdataCRMPlugin(newName, iprops ++ wprops.allProps)
           ret.realm = realm
           ret.specInv = this.specInv
           ret.iprops = this.iprops
@@ -76,38 +76,47 @@ class OdataCRMDomInventory(
     // todo design mechanism for wiki changes propagating and objects changing state
   }
 
+  def configuredAccessToken = props.getOrElse("odata.accessToken", "")
+
   def authUrl = props.getOrElse("odata.authUrl", "")
+
   def authClient = props.getOrElse("odata.authClient", "")
+
   def authSecret = props.getOrElse("odata.authSecret", "")
+
   def URL = props.getOrElse("odata.url", "")
 
 
   def accessToken = iAccessToken.getOrElse {
-    val j = Snakk.json(
-      url (
-        authUrl,
-        Map("Content-type" -> "application/x-www-form-urlencoded")
-      ).form(
-        Map(
-          "grant_type" -> "client_credentials",
-          "client_id" -> authClient,
-          "client_secret" -> (authSecret),
-          "resource" -> URL
-        ) ++ {
-          // todo ugliest hack - when using backend, put the sud/iss sequence as authClient
-          if(authClient.contains("iss=Omniware"))
-            authClient.split("&").filter(_.contains("=")).map {a=>
-              val x = a.split("=")
-              (x(0), Sec.decUrl(x(1)))
-            }.toList.toMap
-          else
-            Map.empty[String,String]
-        }
+    if (configuredAccessToken.length > 10) {
+      iAccessToken = Some(configuredAccessToken)
+    } else {
+      val j = Snakk.json(
+        url(
+          authUrl,
+          Map("Content-type" -> "application/x-www-form-urlencoded")
+        ).form(
+          Map(
+            "grant_type" -> "client_credentials",
+            "client_id" -> authClient,
+            "client_secret" -> (authSecret),
+            "resource" -> URL
+          ) ++ {
+            // todo ugliest hack - when using backend, put the sud/iss sequence as authClient
+            if (authClient.contains("iss=Omniware"))
+              authClient.split("&").filter(_.contains("=")).map { a =>
+                val x = a.split("=")
+                (x(0), Sec.decUrl(x(1)))
+              }.toList.toMap
+            else
+              Map.empty[String, String]
+          }
+        )
       )
-    )
 
-    clog << "oauth reply: " + j
-    iAccessToken = Some(j \@ "access_token")
+      clog << "oauth reply: " + j
+      iAccessToken = Some(j \@ "access_token")
+    }
     iAccessToken.get
   }
 
@@ -170,11 +179,16 @@ class OdataCRMDomInventory(
         case _ => throw new NotImplementedError(s"doAction $action - $completeUri - $epath")
       }
     } catch {
-      case e:Throwable =>
-        // protection against stale tokens
-        this.iAccessToken = None
+      case e: Throwable =>
+        resetOnError(e)
         throw e
     }
+  }
+
+  /** reset oauth tokens etc on error */
+  override def resetOnError(error: Throwable) = {
+    // protection against stale tokens
+    this.iAccessToken = None
   }
 
   /** html for the supported actions */
@@ -410,7 +424,7 @@ class OdataCRMDomInventory(
   }
 
   /** turn a json value into a nice object, merge with class def and mark refs etc */
-  def oFromJ (name:String, j:JSONObject, c:C) = {
+  def oFromJ(key: String, j: JSONObject, c: C) = {
     // see DomInventories.oFromJ - but this one needs more filtering
 
     // move parms containing name/desc to the top of the list
@@ -449,7 +463,7 @@ class OdataCRMDomInventory(
           }
         }
 
-    O(name, c.name, parms)
+    O(key, c.name, parms)
   }
 
   def crmJson(url:String) = {
@@ -516,37 +530,39 @@ class OdataCRMDomInventory(
     * if the field and id is null, then no filter
     */
   override def findByQuery(dom: RDomain, ref: FullSpecRef, epath: String, collectRefs: Option[mutable.HashMap[String,
-      String]] = None): List[DieselAsset[_]] = {
+      String]] = None): Either[List[DieselAsset[_]], EMsg] = {
     val host = new URI(completeUri).getHost
-    val PAT = """([^/]+)/(.+)/(.+)""".r
+    val PAT = DomInventories.CLS_FIELD_VALUE
     val PAT(cls, field, id) = epath
 
-    dom.classes.get(cls).toList.flatMap { classDef =>
-      val oname = classOname(classDef)
+    Left(
+      dom.classes.get(cls).toList.flatMap { classDef =>
+        val oname = classOname(classDef)
 
-      // the idiots use an englishly-correct plural
-      val plural = if (oname endsWith "y") oname.take(oname.length - 1) + "ies" else oname + "s"
+        // the idiots use an englishly-correct plural
+        val plural = if (oname endsWith "y") oname.take(oname.length - 1) + "ies" else oname + "s"
 
-      val filter = {
-        if (id == "" || id == "*" || id == "'*'")
-          s"$$top=50"
-        else
-          s"$$filter=" + Sec.encUrl(s"$field eq $id")
-      }
+        val filter = {
+          if (id == "" || id == "*" || id == "'*'")
+            s"$$top=50"
+          else
+            s"$$filter=" + Sec.encUrl(s"$field eq $id")
+        }
 
-      val u = URL + s"/api/data/v8.2/$plural?" + filter
+        val u = URL + s"/api/data/v8.2/$plural?" + filter
 
-      val b = crmJson(u)
+        val b = crmJson(u)
 
-      val v = b \ "value"
+        val v = b \ "value"
 
-      v.nodes.toList.map {n=>
-        val jo = n.j.asInstanceOf[JSONObject]
-        val key = if(jo.has(oname+"id")) jo.get(oname+"id").toString else epath
-        val o = oFromJ(key, jo, classDef)
-        new DieselAsset[O](SpecRef.make(ref.realm, name, conn, classDef.name, key), o)
-      }
+        v.nodes.toList.map { n =>
+          val jo = n.j.asInstanceOf[JSONObject]
+          val key = if (jo.has(oname + "id")) jo.get(oname + "id").toString else epath
+          val o = oFromJ(key, jo, classDef)
+          new DieselAsset[O](SpecRef.make(ref.realm, name, conn, classDef.name, key), o)
+        }
     }
+    )
   }
 
   /**
