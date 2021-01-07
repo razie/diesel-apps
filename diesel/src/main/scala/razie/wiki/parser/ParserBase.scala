@@ -23,7 +23,8 @@ trait ParserCommons extends RegexParsers {
   type PS2 = Parser[List[List[String]]]
   type PS1 = Parser[List[String]]
 
-  def CRLF1: P = CRLF2 <~ "RKHABIBIKU" <~ not("""[^a-zA-Z0-9-]""".r) ^^ { case ho => ho + "<br>" } // hack: eol followed by a line - DISABLED
+  def CRLF1: P = CRLF2 <~ "RKHABIBIKU" <~ not(
+    """[^a-zA-Z0-9-]""".r) ^^ { case ho => ho + "<br>" } // hack: eol followed by a line - DISABLED
   def CRLF2: P = ("\r\n" | "\n") // normal eol
   def CRLF3: P = CRLF2 ~ """[ \t]*""".r ~ CRLF2 ^^ { case a ~ _ ~ b => a + b } // an empty line = two eol
   def NADA: P = ""
@@ -33,7 +34,9 @@ trait ParserCommons extends RegexParsers {
   // TODO optimize this - perhaps overkill by character, eh?
   // todo this version still creates issues with [xx](yy) and boxed errors (stack)
 //  def static: P = (""".""".r) ^^ { case b => b.mkString }
-  def oneStatic: P = not("{{") ~> not("[[") ~> not("}}") ~> not("[http:") ~> not("""http:""".r) ~> ( """"http""" | """.""".r ) ^^ { case a => a }
+  def oneStatic: P = not("{{") ~> not("[[") ~> not("}}") ~> not("[http:") ~> not(
+    """http:""".r) ~> (""""http""" | """.""".r) ^^ { case a => a }
+
   def static: P = oneStatic ~ rep(not("""[{}\[\]`\r\n]""".r) ~> oneStatic) ^^ { case a ~ b => a + b.mkString }
   // todo this version eats all sequences like http://xxx as soon as a line starts
 //  def static: P = not("{{") ~> not("[[") ~> not("}}") ~> not("[http") ~> (""".""".r) ~ ("""[^{}\[\]`\r\n]""".r*) ^^ { case a ~ b => a + b.mkString }
@@ -95,15 +98,27 @@ trait ParserBase extends ParserCommons {
 
   //=========================== basic parsing rules
 
+
   def xCRLF1: PS = CRLF1 ^^ { case x => x }
+
   def xCRLF2: PS = CRLF2 ^^ { case x => x }
+
   def xCRLF3: PS = CRLF3 ^^ { case x => x }
+
   def xNADA: PS = NADA ^^ { case x => x }
+
   def xstatic: PS = static ^^ { case x => x }
+
   def escaped: PS = "`" ~ opt(""".[^`]*""".r) ~ "`" ^^ { case a ~ b ~ c => a + b.mkString + c }
+
   def escaped1: PS = "``" ~ opt(""".*""".r) ~ "``" ^^ { case a ~ b ~ c => a + b.mkString + c }
-  //  def escaped2: PS = "```" ~ opt("js"|"scala"|"xml"|"html"|"diesel"|"sh"|"java") ~ opt(CRLF1 | CRLF3 | CRLF2) ~ """(?s)[^`]*""".r ~ "```" ^^ {
-  def escaped2: PS = "```" ~ opt("js"|"scala"|"xml"|"html"|"diesel"|"sh"|"java") ~ opt(CRLF1 | CRLF3 | CRLF2) ~ """(?s).*?```""".r  ^^ {
+  //  def escaped2: PS = "```" ~ opt("js"|"scala"|"xml"|"html"|"diesel"|"sh"|"java") ~ opt(CRLF1 | CRLF3 | CRLF2) ~
+  //  """(?s)[^`]*""".r ~ "```" ^^ {
+
+  // ``` blocks
+  def escaped2: PS = "```" ~ opt("js" | "scala" | "xml" | "html" | "diesel" | "sh" | "java") ~
+      opt(CRLF1 | CRLF3 | CRLF2) ~ """(?s).*?```""".r ^^ {
+
     case a ~ name ~ _ ~ bb => {
       val b = bb.replaceFirst("```", "")
 

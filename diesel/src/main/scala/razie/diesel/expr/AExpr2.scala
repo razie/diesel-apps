@@ -181,7 +181,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
         a match {
           case aei:AExprIdent =>
             aei.tryApplyTyped("")
-                .filter(x => !x.isUndefined)
+                .filter(x => !x.isUndefinedOrEmpty)
                 .map(_.calculatedTypedValue)
                 .getOrElse(
                   b.applyTyped(v).calculatedTypedValue

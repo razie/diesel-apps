@@ -42,23 +42,33 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
 
   def wiki: PS = lines | line | xCRLF2 | xNADA
 
-  def line: PS = opt(hr | lists) ~ rep(escaped2 | escaped1 | escaped | badHtml | badHtml2 | wiki3 | wiki2 | link2 | link1 | wikiProps | lastLine | linkUrl | xstatic) ^^ {
+  def line: PS = opt(hr | lists) ~ rep(
+    escaped2 | escaped1 | escaped | badHtml | badHtml2 |
+        wiki3 | wiki2 | link2 | link1 | wikiProps | lastLine |
+        linkUrl | xstatic) ^^ {
     case ol ~ l => ol.toList ::: l
   }
 
-  def optline: PS = opt(escaped2 | dotProps | videoUrlOnaLine | line) ^^ { case o => o.map(identity).getOrElse(StrAstNode.EMPTY) }
-
-  private def TSNB : PS = "^THISSHALTNOTBE$" ^^ { case x => StrAstNode(x) }
-  private def blocks : PS = moreBlocks.fold(TSNB)((x,y) => x | y)
-
-  def lines: PS = rep((blocks ~ CRLF2) | (optline ~ (CRLF1 | CRLF3 | CRLF2))) ~ opt(escaped2 | dotProps | videoUrlOnaLine | line) ^^ {
-    case l ~ c =>
-      l.map(t => t._1 match {
-        // just optimizing to reduce the number of resulting elements
-        //        case ss:SState => ss.copy(s = ss.s+t._2)
-        case _ => TriAstNode("", t._1, t._2)
-      }) ::: c.toList
+  def optline: PS = opt(escaped2 | dotProps | videoUrlOnaLine | line) ^^ { case o => o.map(identity).getOrElse(
+    StrAstNode.EMPTY)
   }
+
+  private def TSNB: PS = "^THISSHALTNOTBE$" ^^ { case x => StrAstNode(x) }
+
+  private def blocks: PS = moreBlocks.fold(TSNB)((x, y) => x | y)
+
+  def lines: PS =
+    rep((blocks ~ (CRLF2)) |
+        (optline ~ (CRLF1 | CRLF3 | CRLF2))) ~
+        opt(escaped2 | blocks | dotProps | videoUrlOnaLine | line) ^^ {
+
+      case l ~ c =>
+        l.map(t => t._1 match {
+          // just optimizing to reduce the number of resulting elements
+          //        case ss:SState => ss.copy(s = ss.s+t._2)
+          case _ => TriAstNode("", t._1, t._2)
+        }) ::: c.toList
+    }
 
   def wiki3: PS = "[[[" ~ """[^]]*""".r ~ "]]]" ^^ {
     case "[[[" ~ name ~ "]]]" => """<a href="http://en.wikipedia.org/wiki/%s"><i>%s</i></a>""".format(name, name)

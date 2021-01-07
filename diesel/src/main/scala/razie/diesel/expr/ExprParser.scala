@@ -393,20 +393,19 @@ private def accessorIdent: Parser[RDOM.P] = "." ~> ident ^^ { case id => P("", i
       opt(" *\\?(?!=) *".r) ~  // negative lookahead to not match optional with value
       opt(ows ~> OPSM1 ~ ows ~ expr) <~
       optComment ^^ {
-    case name ~ t ~ o ~ e => {
-      var optional = o.mkString.trim
+    case name ~ ttype ~ oper ~ e => {
+      var optional = oper.mkString.trim
 
       val (dflt, ex) = e match {
-        //        case Some(CExpr(ee, "String")) => (ee, None)
-        // todo good optimization but I no longer know if some parm is erased like (a="a", a="").
+        // we don't use dflt at all now, some parms are interpolated etc
         case Some(op ~ _ ~ expr) => {
-          optional = if(op.contains("?=")) "?" else ""
+          optional = if (op.contains("?=")) "?" else ""
           ("", Some(expr))
         }
         case None => ("", None)
       }
 
-      t match {
+      ttype match {
         // k - kind is [String] etc
         case WTypes.wt.EMPTY => // infer type from expr
           P(name, dflt, ex.map(_.getType).getOrElse(WTypes.wt.EMPTY), ex, optional)
