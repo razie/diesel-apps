@@ -355,7 +355,7 @@ object RDOM {
               p.asInstanceOf[P]
                   .value
                   .map(_.value)
-                  .getOrElse(p.asInstanceOf[P].dflt)
+                  .getOrElse(p.asInstanceOf[P].currentStringValue)
             )
             js.tojsons(news, 0).trim
           } else {
@@ -423,6 +423,8 @@ object RDOM {
       value.map(x => WTypes.isSubtypeOf(t, x.cType)).getOrElse(WTypes.isSubtypeOf(t, ttype))
     }
 
+    def isUndefined = ttype == WTypes.UNDEFINED
+
     def isUndefinedOrEmpty =
       ttype == WTypes.UNDEFINED || (
           dflt.isEmpty && expr.isEmpty && value.isEmpty
@@ -439,7 +441,7 @@ object RDOM {
     /** proper way to get the value */
     def calculatedTypedValue(implicit ctx: ECtx) : PValue[_] =
       value.getOrElse(
-        if(dflt.nonEmpty || expr.isEmpty) {
+        if (expr.isEmpty) {
           PValue(currentStringValue, ttype) // someone already calculated a value, maybe a ttype as well...
         } else {
           val v = expr.get.applyTyped("")
@@ -448,27 +450,32 @@ object RDOM {
         }
       )
 
+    /** interpolate type */
+    private def calcType(v: P, expr: Option[Expr])(implicit ctx: ECtx): WType = {
+      // interpolate type
+      if (v.ttype.nonEmpty) v.ttype else expr match {
+        // expression type known?
+        case Some(CExpr(_, WTypes.wt.STRING)) => WTypes.wt.STRING
+        case Some(CExpr(_, WTypes.wt.NUMBER)) => WTypes.wt.NUMBER
+        case _ => {
+          if (!expr.exists(_.getType != "") &&
+              (v.value.exists(x => x.value.isInstanceOf[Int] || x.value.isInstanceOf[Float])))
+            WTypes.wt.NUMBER
+          else
+            WType(expr.map(_.getType).mkString)
+        }
+      }
+    }
+
     /** me if calculated, otherwise another P, calculated */
-    def calculatedP(implicit ctx: ECtx) : P =
-      value.map(x=> this).getOrElse(
-        if(dflt.nonEmpty || expr.isEmpty) this else {
+    def calculatedP(implicit ctx: ECtx): P =
+      value.map(x => this).getOrElse(
+        if (dflt.nonEmpty || expr.isEmpty) this else {
           val v = expr.get.applyTyped("")
           v.copy(
-            name=this.name,
-
+            name = this.name,
             // interpolate type
-            ttype = if(v.ttype.nonEmpty) v.ttype else expr match {
-            // expression type known?
-            case Some(CExpr(_, WTypes.wt.STRING)) => WTypes.wt.STRING
-            case Some(CExpr(_, WTypes.wt.NUMBER)) => WTypes.wt.NUMBER
-            case _ => {
-              if (!expr.exists(_.getType != "") &&
-                  (v.value.exists(x => x.value.isInstanceOf[Int] || x.value.isInstanceOf[Float])))
-                WTypes.wt.NUMBER
-              else
-                WType(expr.map(_.getType).mkString)
-            }
-            }
+            ttype = calcType(v, expr)
           )
         }
       )
@@ -504,8 +511,6 @@ object RDOM {
 
     /** only if it was already calculated... */
     def currentStringValue: String =
-    // not looking at dflt - the value is cached as string too
-//      if(dflt.nonEmpty) dflt
       value.map(_.asString)
           .orElse(
             trulyConstantExpr.map(_.expr)
@@ -563,11 +568,11 @@ object RDOM {
 
   /** represents a parameter match expression
     *
-    * @param ident  name to match
-    * @param ttype  optional type to match
-    * @param op     operation to amtch with
-    * @param dflt   value to match
-    * @param expr   expression to match
+    * @param ident name to match
+    * @param ttype optional type to match
+    * @param op    operation to amtch with
+    * @param dflt  value to match
+    * @param expr  expression to match
     */
   case class PM (ident:AExprIdent, ttype:WType, op:String,
                  dflt:String, expr:Option[Expr] = None, optional:String = "") extends CM with CanHtml {

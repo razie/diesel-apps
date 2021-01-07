@@ -189,7 +189,7 @@ trait DomRoot {
 
             DomAst(err.withPos(x.pos), AstKinds.ERROR).withSpec(x) :: Nil
           } getOrElse {
-            DomAst(EError(p.dflt) withPos (x.pos), AstKinds.ERROR).withSpec(x) :: Nil
+            DomAst(EError(p.currentStringValue) withPos (x.pos), AstKinds.ERROR).withSpec(x) :: Nil
           }
         } else {
           val newa = DomAst(EVal(p) withPos (x.pos), kind).withSpec(x)
@@ -204,9 +204,9 @@ trait DomRoot {
   private def handleError (p:P, v:PValue[_]) = {
     val err = if(v.value.isInstanceOf[javax.script.ScriptException]) {
       // special handling of Script exceptions - no point showing stack trace
-      EError("ScriptException: " + p.dflt + v.asThrowable.getMessage)
+      EError("ScriptException: " + p.currentStringValue + v.asThrowable.getMessage)
     } else {
-      new EError(p.dflt, v.asThrowable)
+      new EError(p.currentStringValue, v.asThrowable)
     }
 
     err
@@ -221,7 +221,7 @@ trait DomRoot {
 
           DomAst(err.withPos(x.pos), AstKinds.ERROR).withSpec(x)
         } getOrElse {
-          DomAst(EError(p.dflt) withPos (x.pos), AstKinds.ERROR).withSpec(x)
+          DomAst(EError(p.currentStringValue) withPos (x.pos), AstKinds.ERROR).withSpec(x)
         }
       } else {
         DomAst(EVal(p) withPos (x.pos), kind).withSpec(x)
