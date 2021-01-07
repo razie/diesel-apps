@@ -423,8 +423,7 @@ object RDOM {
       value.map(x => WTypes.isSubtypeOf(t, x.cType)).getOrElse(WTypes.isSubtypeOf(t, ttype))
     }
 
-    /** is this really undefined? */
-    def isUndefined =
+    def isUndefinedOrEmpty =
       ttype == WTypes.UNDEFINED || (
           dflt.isEmpty && expr.isEmpty && value.isEmpty
           )
@@ -464,25 +463,40 @@ object RDOM {
             case Some(CExpr(_, WTypes.wt.NUMBER)) => WTypes.wt.NUMBER
             case _ => {
               if (!expr.exists(_.getType != "") &&
-                (v.value.exists(x=> x.value.isInstanceOf[Int] || x.value.isInstanceOf[Float])))
+                  (v.value.exists(x => x.value.isInstanceOf[Int] || x.value.isInstanceOf[Float])))
                 WTypes.wt.NUMBER
               else
                 WType(expr.map(_.getType).mkString)
             }
-          }
+            }
           )
         }
       )
 
-    /** only if it was already calculated... */
-    def hasCurrentValue = value.isDefined || expr.exists(_.isInstanceOf[CExpr[_]]) || dflt.length > 0
+    // CEpr not all safe, due to string interpolation
+    private def trulyConstantExpr: Option[CExpr[_]] = {
+      expr
+          .filter(_.isInstanceOf[CExpr[_]])
+          .filter { e =>
+            val ce = e.asInstanceOf[CExpr[_]]
+            ce.ttype != WTypes.wt.STRING ||
+                !ce.ee.toString.contains("${")
+          }
+          .map(_.asInstanceOf[CExpr[_]])
+    }
 
     /** only if it was already calculated... */
-    def currentValue =
+    def hasCurrentValue = {
+      value.isDefined ||
+          dflt.length > 0 ||
+          trulyConstantExpr.isDefined
+    }
+
+    /** only if it was already calculated... */
+    def currentValue: CExpr[_] =
       value.map(v => CExpr(v.value, v.cType))
           .orElse(
-            // if CExpr, it's a constant, so ok to return here...
-            expr.filter(_.isInstanceOf[CExpr[_]]).map(_.asInstanceOf[CExpr[_]])
+            trulyConstantExpr
           )
           .getOrElse {
             CExpr(dflt, ttype)
@@ -494,8 +508,7 @@ object RDOM {
 //      if(dflt.nonEmpty) dflt
       value.map(_.asString)
           .orElse(
-            // if CExpr, it's a constant, so ok to return here...
-            expr.filter(_.isInstanceOf[CExpr[_]]).map(_.expr)
+            trulyConstantExpr.map(_.expr)
           )
           .getOrElse {
             dflt

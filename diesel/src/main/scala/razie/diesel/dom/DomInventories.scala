@@ -12,6 +12,7 @@ import razie.diesel.engine.DieselException
 import razie.diesel.engine.nodes.{EMsg, flattenJson}
 import razie.diesel.expr.{DieselExprException, ECtx}
 import razie.diesel.model.{DieselMsg, DieselTarget}
+import razie.diesel.samples.DomEngineUtils
 import razie.tconf.{DSpecInventory, FullSpecRef, SpecRef}
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
@@ -233,7 +234,8 @@ object DomInventories extends razie.Logging {
     // resolve EMrg's parameters in an empty context and run it and await?
     e.fold(
       p => p,
-      m => runMsg("n/a", m).getOrElse(P.undefined(Diesel.PAYLOAD))
+      m => DomEngineUtils.runMsgSync(new DieselMsg(m, DieselTarget.ENV("n/a")))
+          .getOrElse(P.undefined(Diesel.PAYLOAD))
     )
   }
 
@@ -245,31 +247,6 @@ object DomInventories extends razie.Logging {
         m => Right(m)
       )
     ).headOption
-  }
-
-  /**
-    * run message sync
-    */
-  private def runMsg(msg: DieselMsg): Option[P] = {
-    val fut = msg.toMsgString.startMsg
-
-    // get timeout max from realm settings: paid gets more etc
-    val res = Await.result(fut, Duration.create(30, "seconds"))
-    res.get(Diesel.PAYLOAD).map(_.asInstanceOf[P])
-  }
-
-  /**
-    * run message sync
-    */
-  private def runMsg(realm: String, m: EMsg): Option[P] = {
-    runMsg(new DieselMsg(m, DieselTarget.ENV(realm)))
-  }
-
-  /**
-    * run message sync
-    */
-  private def runMsg(realm: String, e: String, a: String, parms: Map[String, Any]): Option[P] = {
-    runMsg(DieselMsg(e, a, parms, DieselTarget.ENV(realm)))
   }
 
   /** json map to DieselAsset */
@@ -316,7 +293,8 @@ object DomInventories extends razie.Logging {
     e.fold(
       p => p,
       m => {
-        val p = runMsg(realm, m)
+        val p = DomEngineUtils.runMsgSync(new DieselMsg(m, DieselTarget.ENV(realm)))
+
         if (p.isEmpty || !p.get.isOfType(WTypes.wt.JSON) && !p.get.isOfType(WTypes.wt.ARRAY)) {
           log("sub-flow return nothing or not a list - so no asset found!")
           Nil

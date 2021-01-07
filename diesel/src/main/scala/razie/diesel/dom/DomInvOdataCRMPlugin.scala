@@ -56,8 +56,8 @@ class DomInvOdataCRMPlugin(
   }
 
   private def reset(iprops: Map[String, String], newName: String): List[DomInventory] = {
-    val pspec = SpecRef("", realm + ".ReactorMod:ODataCrmDomainPlugin", realm)
-    val props = SpecRef("", realm + ".Form:ODataCrmDomainProps", realm)
+    val pspec = SpecRef(realm, realm + ".ReactorMod:ODataCrmDomainPlugin", "ODataCrmDomainPlugin")
+    val props = SpecRef(realm, realm + ".Form:ODataCrmDomainProps", "ODataCrmDomainProps")
 
     specInv
         .flatMap(_.findSpec(pspec))

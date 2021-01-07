@@ -6,21 +6,17 @@
   */
 package razie.diesel.dom
 
-import com.razie.pub.comms.{CommRtException, Comms}
-import java.net.{HttpURLConnection, URI}
-import org.json.JSONObject
 import razie.diesel.dom.RDOM.P.asString
 import razie.diesel.dom.RDOM._
 import razie.diesel.engine.nodes.EMsg
 import razie.diesel.expr.ECtx
-import razie.tconf.{DSpecInventory, FullSpecRef, SpecRef}
-import razie.wiki.Sec
-import razie.{Snakk, clog, js}
+import razie.tconf.{DSpecInventory, FullSpecRef}
+import razie.{Snakk, js}
 import scala.collection.mutable
 
 /** based on diesel rules domain plugin */
 class DieselRulesInventory(
-  override val name:String = "diesel",
+  override val name: String = "diesel",
   var props: Map[String, String] = Map.empty
 ) extends DomInventory {
 
@@ -152,11 +148,11 @@ class DieselRulesInventory(
       case c: C => {
         val oname = classOname(c)
 
-        def mkListAll = s"""<a href="/diesel/dom/$name/$conn/${c.name}/listAll">listAll</a>"""
+        def mkListAll2 = s"""<a href="/diesel/list2/${c.name}">listAll</a>"""
 
-        def mkListAll2 = s"""<a href="/diesel/list2/${c.name}">list</a>"""
+//        def mkListAll = s"""<a href="/diesel/dom/$name/$conn/${c.name}/listAll"><small>list(deprecated)</small></a>"""
 
-        s"$mkListAll | $mkListAll2 "
+        s"$mkListAll2 "
       }
 
       case _ => "n/a"
