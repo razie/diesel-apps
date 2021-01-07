@@ -463,8 +463,8 @@ private def accessorIdent: Parser[RDOM.P] = "." ~> ident ^^ { case id => P("", i
   }
 
   // json object - sequence of nvp assignemnts separated with commas
-  def jobj: Parser[Expr] = opt("new" ~ whiteSpace ~ qident) ~ ows ~ "{" ~ ows ~ repsep(jnvp <~ ows,
-    ",") <~ ows ~ "}" ^^ {
+  def jobj: Parser[Expr] = opt("new" ~ whiteSpace ~ qident) ~ ows ~
+      "{" ~ ows ~ repsep(jnvp <~ ows, ",\\s*".r) <~ ows ~ "}" ^^ {
     case None ~ _ ~ _ ~ _ ~ li => JBlockExpr(li)
     case Some(a ~ _ ~ b) ~ _ ~ _ ~ _ ~ li => JBlockExpr(li, Some(b))
   }

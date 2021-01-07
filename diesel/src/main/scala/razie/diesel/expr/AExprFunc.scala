@@ -6,6 +6,7 @@
 package razie.diesel.expr
 
 import java.net.URLEncoder
+import razie.diesel.Diesel
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
 import razie.diesel.engine.exec.EEFunc
@@ -101,24 +102,27 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
 
 
           // parse second parm as aexprident
-          parms.drop(1).headOption.flatMap { p =>
-            val pv = if (p.dflt.isEmpty && p.expr.isEmpty) {
-              P("", p.name)
-            } else {
-              // nope - it's just a normal parm=expr
-              p.calculatedP // need to do this to not affect the original with cached value
-            }
+          secondParm
+              .orElse {
+                throw new DieselExprException(s"No second argument for $expr")
+              }
+              .flatMap { p =>
+                val pv = if (p.dflt.isEmpty && p.expr.isEmpty) {
+                  P("", p.name)
+                } else {
+                  // nope - it's just a normal parm=expr
+                  p.calculatedP // need to do this to not affect the original with cached value
+                }
 
-            val p1 = pv.calculatedValue
-            val pa =
-              (new SimpleExprParser).parseIdent(p1).flatMap(_.tryApplyTypedFrom(Some(pStart)))
-
-            pa
-          }.getOrElse(
-            throw new DieselExprException(s"No arguments for $expr")
+                val p1 = pv.calculatedValue
+                val pa =
+                  (new SimpleExprParser).parseIdent(p1).flatMap(_.tryApplyTypedFrom(Some(pStart)))
+                pa
+              }.getOrElse(
+            P.undefined(Diesel.PAYLOAD)
           )
         }.getOrElse(
-          throw new DieselExprException(s"No arguments for $expr")
+          throw new DieselExprException(s"No first argument for $expr")
         )
       }
 
