@@ -389,12 +389,19 @@ object WID {
 
   final val empty = WID("-", "-")
 
-  implicit class WidSpecPath (wid:WID) extends TSpecRef {
-    def source:String = ""
-    def wpath:String = wid.wpath
-    def realm:String = wid.getRealm
-    def ver:Option[String] = None
-    def draft:Option[String] = None
+  implicit class WidSpecPath(val wid: WID) extends TSpecRef {
+    def source: String = ""
+
+    def wpath: String = wid.wpath
+
+    def key: String = wid.name
+
+    def realm: String = wid.getRealm
+
+    def ver: Option[String] = None
+
+    def draft: Option[String] = None
+
     def ahref: Option[String] = Some(wid.ahref)
 
     def category: String = wid.cat

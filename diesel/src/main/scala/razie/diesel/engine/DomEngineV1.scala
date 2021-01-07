@@ -305,7 +305,8 @@ class DomEngineV1(
           .filter(_.e.testEA(n))
           .filter(x => x.e.testAttrCond(a, n) || {
             // add debug
-            newNodes = newNodes ::: DomAst(EInfo("rule skipped", x.e.toString + "\n" + x.pos).withPos(x.pos),
+            newNodes = newNodes ::: DomAst(
+              EInfo("rule skipped: " + x.e.toString, x.e.toString + "\n" + x.pos).withPos(x.pos),
               AstKinds.TRACE) :: Nil
             false
           })
@@ -320,7 +321,8 @@ class DomEngineV1(
                 .filter(_.e.testEA(n, None, true))
                 .filter(x => x.e.testAttrCond(a, n, None, true) || {
                   // add debug
-                  newNodes = newNodes ::: DomAst(EInfo("rule skipped", x.e.toString + "\n" + x.pos).withPos(x.pos),
+                  newNodes = newNodes ::: DomAst(
+                    EInfo("rule skipped: " + x.e.toString, x.e.toString + "\n" + x.pos).withPos(x.pos),
                     AstKinds.TRACE) :: Nil
                   false
                 })
@@ -622,12 +624,6 @@ class DomEngineV1(
   private def expandEngineEMsg(a: DomAst, in: EMsg)(implicit ctx: ECtx): Boolean = {
     val ea = in.ea
 
-    if (ea == DieselMsg.ENGINE.DIESEL_PING) {
-      val p = EVal(P.fromSmartTypedValue(Diesel.PAYLOAD, GlobalData.toMap()))
-      evAppChildren(a, DomAst(p, AstKinds.TRACE))
-      ctx.put(p.p)
-      true
-
 //    } else if (ea == DieselMsg.ENGINE.DIESEL_EXIT) {
 //      Audit.logdb("DIESEL_EXIT", s"user ${settings.userId}")
 //
@@ -646,7 +642,7 @@ class DomEngineV1(
 //
 //      true
 
-    } else if (ea == DieselMsg.ENGINE.DIESEL_RETURN) {
+    if (ea == DieselMsg.ENGINE.DIESEL_RETURN) {
       // expand all spec vals
       in.attrs.map(_.calculatedP).foreach { p =>
         evAppChildren(a, DomAst(EVal(p)))

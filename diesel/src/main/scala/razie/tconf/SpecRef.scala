@@ -14,7 +14,8 @@ package razie.tconf
   * wpath could include a section Id, like "realm.class:id#section"
   *
   * @param source - the source system: inventory understands and delegates to (preferably URL)
-  * @param wpath  - unique id of the spec
+  * @param wpath  - unique long id of the spec
+  * @param key    - unique short id of the spec (within realm/cat)
   * @param realm  - optionally identify a realm within the source (multi-tenancy)
   * @param ver    - optionally identify a version of the spec
   * @param draft  - optionally identify a certain temporary variant (i.e. autosaved by username)
@@ -23,6 +24,8 @@ trait TSpecRef {
   def source: String
 
   def wpath: String
+
+  def key: String
 
   def realm: String
 
@@ -49,11 +52,13 @@ trait TSpecRef {
 }
 
 /** basic implmentation */
-case class SpecRef(source: String,
-                   wpath: String,
-                   realm: String,
-                   ver: Option[String] = None,
-                   draft: Option[String] = None)
+case class SpecRef(
+  realm: String,
+  wpath: String,
+  key: String,
+  source: String = "",
+  ver: Option[String] = None,
+  draft: Option[String] = None)
     extends TSpecRef {
 
   def ahref: Option[String] = None

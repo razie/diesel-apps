@@ -112,7 +112,7 @@ trait DSpecInventory {
 
 /** most specifications are made of a text content, which is parsed */
 class BaseTextSpec(val name: String, val text: String, val tags: Seq[String] = Seq()) extends DSpec {
-  def specRef: TSpecRef = new SpecRef("local", name, "")
+  def specRef: TSpecRef = new SpecRef("", name, name)
 
   def findSection(name: String, tags: String = ""): Option[DTemplate] = None
 

@@ -100,7 +100,7 @@ case class WikiEntry(
   override def cat = category
   // from DSpec
   override def specRef =
-    new SpecRef("local", this.wid.wpath, this.realm) {
+    new SpecRef(this.realm, this.wid.wpath, this.name) {
       override def ahref: Option[String] = Some(wid.ahref)
     }
 
@@ -464,9 +464,12 @@ case class WikiDTemplate (t:WikiSection) extends DTemplate {
   def stype : String = t.stype
   def content : String = t.content
   def tags : String = t.signature
-  def parms : Map[String,String] = t.args ++ Map("signature" -> t.signature)
-  def specRef = SpecRef("local", t.wid.wpath, t.wid.getRealm)
-  def pos : EPos = EPos(t.wid.copy(section = None).wpath, t.line, t.col)
+
+  def parms: Map[String, String] = t.args ++ Map("signature" -> t.signature)
+
+  def specRef = SpecRef(t.wid.getRealm, t.wid.wpath, t.wid.name)
+
+  def pos: EPos = EPos(t.wid.copy(section = None).wpath, t.line, t.col)
 
 }
 
