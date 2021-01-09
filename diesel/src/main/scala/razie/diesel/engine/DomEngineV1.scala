@@ -840,6 +840,17 @@ class DomEngineV1(
 
       true
 
+    } else if (ea == DieselMsg.ENGINE.DIESEL_WARNINGS) {
+
+      // expand all domain warnings
+      dom.moreElements.collect {
+        case v: EWarning => {
+          evAppChildren(a, DomAst(v, AstKinds.DEBUG))
+        }
+      }
+
+      true
+
     } else if (ea == DieselMsg.ENGINE.DIESEL_SYNC) {
 
       // turn the engine sync

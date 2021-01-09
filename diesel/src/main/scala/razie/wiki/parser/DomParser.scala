@@ -6,6 +6,7 @@
   **/
 package razie.wiki.parser
 
+import razie.diesel.Diesel
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.exec.EESnakk
@@ -521,12 +522,26 @@ trait DomParser extends ParserBase with ExprParser {
   def pval: PS = keyw("[.$]val".r) ~ ows ~ pattr ^^ {
     case k ~ _ ~ a => {
       lazys { (current, ctx) =>
-        val v = EVal(a).withPos(pos(k))
+
+        val v = EVal(a).withPos(pos(k, ctx))
         collectDom(v, ctx.we)
+
+        // common warning for payload assigned, can cause issues
+        if (a.name == Diesel.PAYLOAD &&
+            !a.expr.exists(e => e.isInstanceOf[CExprNull])
+        ) {
+          val v = EWarning(
+            "Assigning payload in a $val can cause side effects!",
+            "If you have unexpected results from /diesel/react or /diesel/wreact, this may be the culprit!"
+          ).withPos(pos(k, ctx))
+
+          collectDom(v, ctx.we)
+        }
         StrAstNode(v.toHtml)
       }
     }
   }
+
 
   case class Keyw(s: String) extends Positional
 
@@ -540,10 +555,6 @@ trait DomParser extends ParserBase with ExprParser {
 
   def pos (k:Keyw, ctx:FoldingContext[DSpec,DUser]) = {
     Some(EPos(ctx.we.map(_.specRef.wpath).mkString, k.pos.line, k.pos.column))
-  }
-
-  def pos (k:Keyw) = {
-    Some(EPos("", k.pos.line, k.pos.column))
   }
 
   private def lastMsg(we: Option[DSpec]) = {
@@ -743,7 +754,9 @@ trait DomParser extends ParserBase with ExprParser {
     keyw(" *\\$?def *".r) ~ ident ~ optAttrs ~ optType ~ " *".r ~ optBlock ^^ {
       case k ~ name ~ a ~ t ~ _ ~ b => {
         val f = new F(name, a, t, "def", "", b)
-        f.withPos(pos(k)) // todo add spec
+        // todo add spec
+        val p = Some(EPos("", k.pos.line, k.pos.column))
+        f.withPos(p)
         f
       }
     }

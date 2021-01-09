@@ -274,6 +274,7 @@ object DieselMsg {
     final val DIESEL_EXIT = "diesel.pleaseexit"
     final val DIESEL_CRASHAKKA = "diesel.crashakka"
     final val DIESEL_VALS = "diesel.vals"
+    final val DIESEL_WARNINGS = "diesel.warnings"
     final val DIESEL_BEFORE = "diesel.before"
     final val DIESEL_AFTER = "diesel.after"
     final val DIESEL_LEVELS = "diesel.levels"

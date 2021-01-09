@@ -408,6 +408,7 @@ abstract class DomEngine(
     * */
   protected def prepRoot(l: ListBuffer[DomAst]): ListBuffer[DomAst] = {
     val vals = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_VALS), AstKinds.TRACE)
+    val warns = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_WARNINGS), AstKinds.TRACE)
     val before = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_BEFORE), AstKinds.TRACE)
     val after = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_AFTER), AstKinds.TRACE)
     val desc = DomAst(EInfo(
@@ -419,6 +420,7 @@ abstract class DomEngine(
     after.prereq = l.map(_.id).toList
     l.append(after)
     l.foreach(x => x.prereq = before.id :: x.prereq)
+    l.prepend(warns)
     l.prepend(before)
     l.prepend(vals)
     l.prepend(desc)

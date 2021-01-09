@@ -64,13 +64,14 @@ case class EError(msg: String, details: String = "", code:String = "ERROR") exte
   override def toHtml = {
     val getErrClass = if (handled) "warn" else "err"
     val color = if (handled) CanHtml.COLOR_WARN else CanHtml.COLOR_DANGER
+    val spos = if (pos.isDefined) kspan("pos") else ""
 
     kspan(getErrClass, "default") +
         (
             if (details.length > 0)
-              spanClick("fail-error::", color, details) + msg
+              spanClick("fail-error::", color, details) + spos + msg
             else
-              span("fail-error::", color, details) + " " + msg
+              span("fail-error::", color, details) + spos + " " + msg
             )
   }
 
@@ -88,18 +89,21 @@ case class EWarning(msg: String, details: String = "", code:String = "WARNING") 
   var pos: Option[EPos] = None
 
   def withPos(p: Option[EPos]) = {
-    this.pos = p; this
+    this.pos = p;
+    this
   }
 
   def withCode(code: String) = {
     this.copy(code = code)
   }
 
-  override def toHtml =
+  override def toHtml = {
+    val spos = if (pos.isDefined) kspan("pos") else ""
     if (details.length > 0)
-      spanClick("warn::", "warning", details) + msg.replace("\n", "")
+      spanClick("warn::", "warning", details) + spos + msg.replace("\n", "")
     else
-      span("warn::", "warning", details) + " " + msg.replace("\n", "")
+      span("warn::", "warning", details) + spos + " " + msg.replace("\n", "")
+  }
 
   override def toString = "fail-warn::" + msg
 }
@@ -129,17 +133,19 @@ case class EInfo(msg: String, details: String = "") extends CanHtml with HasPosi
     this
   }
 
-  override def toHtml =
+  override def toHtml = {
+    val spos = if (pos.isDefined) kspan("pos") else ""
     if (details.length > 0) {
       spanClick(
         "info::",
         "info",
         details,
-        msg.replace("\n", "")
+        msg.replace("\n", "") + spos
       )
     } else {
-      span("info::", "info", details) + " " + msg
+      span("info::", "info", details) + spos + " " + msg
     }
+  }
 
   override def toString = "info::" + msg
 }

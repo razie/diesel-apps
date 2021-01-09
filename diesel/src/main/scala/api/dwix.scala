@@ -26,8 +26,8 @@ object dwix {
     */
   def dieselEnvFor (realm:String, ou:Option[DUser]):String = {
     ou
-        .flatMap( _.realmPrefs(realm).get("dieselEnv"))
-        .orElse(  Website.getRealmProp(realm, "diesel.env"))
+        .flatMap(_.realmPrefs(realm).get("dieselEnv"))
+        .orElse(Website.getRealmProp(realm, "diesel.env"))
         .orElse(
           if(DieselAppContext.simpleMode) None
           else {
