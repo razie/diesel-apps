@@ -82,14 +82,15 @@ case class WikiEntry(
   content: String,
   by: ObjectId,
   tags: Seq[String] = Seq(),
-  realm:String = Wikis.RK,
+  realm: String = Wikis.RK,
   ver: Int = 1,
   parent: Option[ObjectId] = None,
   props: Map[String, String] = Map.empty, // properties - can be supplemented in the content
-  likes: List[String]=List.empty,         // list of usernames that liked it
-  dislikes: List[String]=List.empty,      // list of usernames that liked it
-  likeCount: Int=0,                       // list of usernames that liked it
-  dislikeCount: Int=0,                    // list of usernames that liked it
+  likes: List[String] = List.empty,         // list of usernames that liked it
+  dislikes: List[String] = List.empty,      // list of usernames that liked it
+  dislikeReasons: List[String] = List.empty,// list of usernames that liked it
+  likeCount: Int = 0,                       // list of usernames that liked it
+  dislikeCount: Int = 0,                    // list of usernames that liked it
   crDtm: DateTime = DateTime.now,
   updDtm: DateTime = DateTime.now,
   _id: ObjectId = new ObjectId()) extends WikiPage with DSpec {
