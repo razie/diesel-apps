@@ -43,10 +43,10 @@ class EESnakk extends EExecutor("snakk") with Logging {
     m.ea == "snakk.json" ||
         m.ea == "snakk.xml" ||
         m.ea == "snakk.text" ||
-    m.ea == "snakk.telnet"    ||
-    m.ea == "snakk.ffd"       ||
-    m.ea == "snakk.fdFormat"  ||
-    m.ea == "snakk.parse.xml"   ||
+        m.ea == "snakk.telnet" ||
+        m.ea == "snakk.ffd" ||
+        m.ea == "snakk.ffdFormat" ||
+        m.ea == "snakk.parse.xml"   ||
     m.ea == "snakk.parse.json"  ||
     m.ea == "snakk.parse.regex" ||
     // and also if the stypes are known and there are templates for them

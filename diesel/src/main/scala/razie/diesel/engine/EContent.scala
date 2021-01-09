@@ -99,9 +99,11 @@ class EContent(
 
   // todo don't like this
   def getp(name: String): Option[P] = {
-    (r \@@ name).toOption.filter(_.length > 0).map {v=>
-      P.fromSmartTypedValue(name, v)
-    }
+    if (body.length > 0) {
+      (r \@@ name).toOption.filter(_.length > 0).map { v =>
+        P.fromSmartTypedValue(name, v)
+      }
+    } else None
   }
 
   /** name, default, expr

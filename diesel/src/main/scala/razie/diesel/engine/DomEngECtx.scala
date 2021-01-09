@@ -41,7 +41,9 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
   override def apply(name: String): String =
     overwritten
         .map(_.apply(name))
-        .orElse(ps(name).map(_.currentStringValue))
+        // todo not call ps to parse random payloads
+        // have a separate expression for body access or are we adding each in ctx ?
+//        .orElse(ps(name).map(_.currentStringValue))
         .orElse(pu(name).map(_.currentStringValue))
         .getOrElse(super.apply(name))
 
@@ -49,7 +51,9 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
     if(name.length > 0)
       overwritten
           .flatMap(_.getp(name))
-          .orElse(ps(name))
+          // todo not call ps to parse random payloads
+          // have a separate expression for body access or are we adding each in ctx ?
+//          .orElse(ps(name))
           .orElse(pu(name))
           .orElse(super.getp(name))
     else None
@@ -119,11 +123,12 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
   def dieselEnv(ctx:ECtx) = {
     val settings = ctx.root.engine.map(_.settings)
     val au = settings
-      .flatMap(_.userId)
-      .map(new ObjectId(_))
-      .flatMap(DUsers.impl.findUserById)
+        .flatMap(_.userId)
+        .map(new ObjectId(_))
+        .flatMap(DUsers.impl.findUserById)
 
-    dwix.dieselEnvFor(settings.flatMap(_.realm).mkString, au)
+    val ret = dwix.dieselEnvFor(settings.flatMap(_.realm).mkString, au)
+    ret
   }
 
   // user id if any
@@ -137,10 +142,10 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
   }
 
   /** source from settings - only if there's some value... otherwise base won't cascade */
-  private def ps(name:String) : Option[P] =
-    settings.postedContent.flatMap(_.getp(name))
+  private def ps(name: String): Option[P] =
+    settings.postedContent.filter(_.body.length > 0).flatMap(_.getp(name))
 
-  /** used for instance when perssisting a context - will overwrite the defautl */
+  /** used for instance when persisting a context - will overwrite the default */
   def overwrite(ctx: ECtx): Unit =
     if (this != ctx)
       overwritten = Some(ctx)
