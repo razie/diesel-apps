@@ -194,37 +194,55 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
       }
 
       case "as" => {
-        val bs = b.toString.toLowerCase
-        val ap = av.calculatedP
-        val avv = av.calculatedTypedValue
-        val avalue = avv.asString
+
+        def doAsWith(b: Expr, bu: String, bs: String, lastTime: Boolean): PValue[_] = {
+          val ap = av.calculatedP
+          val avv = av.calculatedTypedValue
+          val avalue = avv.asString
 
           b match {
+
+            // known types
+
             case _ if bs == "boolean" || bs == "bool" =>
               P.fromTypedValue("", avalue, WTypes.BOOLEAN).calculatedTypedValue
 
             case _ if bs == "number" =>
-            P.fromTypedValue("", avalue, WTypes.NUMBER).calculatedTypedValue
+              P.fromTypedValue("", avalue, WTypes.NUMBER).calculatedTypedValue
 
-          case _ if bs == "string" =>
-            P.fromTypedValue("", avalue, WTypes.STRING).calculatedTypedValue
+            case _ if bs == "string" =>
+              P.fromTypedValue("", avalue, WTypes.STRING).calculatedTypedValue
 
-          case _ if bs == "json" || bs == "object" =>
-            P.fromTypedValue("", avalue, WTypes.JSON).calculatedTypedValue
+            case _ if bs == "json" || bs == "object" =>
+              P.fromTypedValue("", avalue, WTypes.JSON).calculatedTypedValue
 
-          case _ if bs == "array" =>
-            P.fromTypedValue("", avalue, WTypes.ARRAY).calculatedTypedValue
+            case _ if bs == "array" =>
+              P.fromTypedValue("", avalue, WTypes.ARRAY).calculatedTypedValue
 
-          case t : CExpr[String] => // x as "application/pdf"
-            // todo smarter, like "asdf" as Student etc - implicit constructors, typecasts etc
-            if(av.value.isDefined)
+            case c if ctx.root.domain.exists(_.classes.contains(bu)) => {
+              // domain class, base must be json
+              assert(ap.isOfType(WTypes.wt.JSON))
+              avv.copy(cType = avv.cType.copy(schema = bs))
+            }
+
+            case t: CExpr[String] => // x as "application/pdf"
+              // todo smarter, like "asdf" as Student etc - implicit constructors, typecasts etc
+              if (av.value.isDefined)
               // todo should we only change theP type not the PVAlue type? like pdf which is a bitstream?
-              P("", av.calculatedValue, WType(t.ee)).withValue(avv.value, WType(t.ee)).calculatedTypedValue
-            else
-              P("", avalue, WType(t.ee)).calculatedTypedValue
+                P("", av.calculatedValue, WType(t.ee)).withValue(avv.value, WType(t.ee)).calculatedTypedValue
+              else
+                P("", avalue, WType(t.ee)).calculatedTypedValue
 
-          case _ => throw new DieselExprException("Can't typecast to: " + b.toString + " from: " + av)
+            case _ if !lastTime => {
+              val bp = b.applyTyped(v)
+              doAsWith(bp.currentValue, bp.currentStringValue, b.toString.toLowerCase, true)
+            }
+
+            case _ if lastTime => throw new DieselExprException("Can't typecast to: " + b.toString + " from: " + av)
+          }
         }
+
+        doAsWith(b, b.toString, b.toString.toLowerCase, false)
       }
 
       case "map" => {
