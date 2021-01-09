@@ -93,10 +93,10 @@ class DieselRulesInventory(
       List(
         P("inventory", this.name),
         P("connection", this.conn),
-        P("class", ref.cls),
+        P("className", ref.cls),
         P("key", ref.key),
         P.fromSmartTypedValue("assetRef", ref.toJson),
-        asset.getValueP.copy(name="entity")
+        asset.getValueP.copy(name = "entity")
       ))
     )
   }
@@ -112,7 +112,7 @@ class DieselRulesInventory(
         List(
           P("inventory", this.name),
           P("connection", this.conn),
-          P("class", ref.cls),
+          P("className", ref.cls),
           P.fromSmartTypedValue("ref", ref.toJson)
         ))
     )
@@ -130,7 +130,7 @@ class DieselRulesInventory(
         List(
           P("inventory", this.name),
           P("connection", this.conn),
-          P("class", ref.cls),
+          P("className", ref.cls),
           P.fromSmartTypedValue("ref", ref.toJson)
         ))
     )
@@ -235,19 +235,26 @@ class DieselRulesInventory(
     *
     * if the field and id is null, then no filter
     */
-  override def findByQuery(dom: RDomain, ref: FullSpecRef, epath: String, collectRefs: Option[mutable.HashMap[String,
-      String]] = None): Either[List[DieselAsset[_]], EMsg] = {
+  override def findByQuery(dom: RDomain, ref: FullSpecRef, epath: Either[String, collection.Map[String, Any]],
+                           from: Long = 0, size: Long = 100,
+                           collectRefs: Option[mutable.HashMap[String, String]] = None):
+  Either[List[DieselAsset[_]], EMsg] = {
 
-    val PAT = DomInventories.CLS_FIELD_VALUE
-    val PAT(cls, field, id) = epath
+    val attrs = epath.fold(
+      s => {
+        // query by path
+        val PAT = DomInventories.CLS_FIELD_VALUE
+        val PAT(cls, field, id) = epath.left.get
 
-    val filter = {
-      if (id == "" || id == "*" || id == "'*'")
-        P.fromSmartTypedValue(field, Map())
-//        Nil // no query means all
-      else
-        P.fromSmartTypedValue(field, Map(field -> id))
-    }
+        {
+          if (id == "" || id == "*" || id == "'*'")
+            P.fromSmartTypedValue(field, Map())
+          else
+            P.fromSmartTypedValue(field, Map(field -> id))
+        }
+      },
+      m => P.fromSmartTypedValue("query", m)
+    )
 
     Right(
       new EMsg(
@@ -256,11 +263,8 @@ class DieselRulesInventory(
         List(
           P("inventory", this.name),
           P("connection", this.conn),
-          P("class", ref.cls),
-          P.fromSmartTypedValue(
-            "query",
-            filter
-          )
+          P("className", ref.cls),
+          attrs
         ))
     )
   }
@@ -278,7 +282,7 @@ class DieselRulesInventory(
         List(
           P("inventory", this.name),
           P("connection", this.conn),
-          P("class", ref.cls),
+          P("className", ref.cls),
           P.fromSmartTypedValue("ref", ref.toJson)
         ))
     )

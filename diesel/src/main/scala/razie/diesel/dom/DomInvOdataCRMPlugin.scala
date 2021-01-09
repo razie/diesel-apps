@@ -529,11 +529,15 @@ class DomInvOdataCRMPlugin(
     *
     * if the field and id is null, then no filter
     */
-  override def findByQuery(dom: RDomain, ref: FullSpecRef, epath: String, collectRefs: Option[mutable.HashMap[String,
-      String]] = None): Either[List[DieselAsset[_]], EMsg] = {
+  override def findByQuery(dom: RDomain, ref: FullSpecRef, epath: Either[String, collection.Map[String, Any]],
+                           from: Long = 0, size: Long = 100,
+                           collectRefs: Option[mutable.HashMap[String, String]] = None):
+  Either[List[DieselAsset[_]], EMsg] = {
+
     val host = new URI(completeUri).getHost
     val PAT = DomInventories.CLS_FIELD_VALUE
-    val PAT(cls, field, id) = epath
+    // only support by path
+    val PAT(cls, field, id) = epath.left.get
 
     Left(
       dom.classes.get(cls).toList.flatMap { classDef =>
@@ -557,7 +561,7 @@ class DomInvOdataCRMPlugin(
 
         v.nodes.toList.map { n =>
           val jo = n.j.asInstanceOf[JSONObject]
-          val key = if (jo.has(oname + "id")) jo.get(oname + "id").toString else epath
+          val key = if (jo.has(oname + "id")) jo.get(oname + "id").toString else epath.left.get
           val o = oFromJ(key, jo, classDef)
           new DieselAsset[O](SpecRef.make(ref.realm, name, conn, classDef.name, key), o)
         }

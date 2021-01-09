@@ -92,9 +92,20 @@ trait DomInventory {
   def findByRef(dom: RDomain, ref: FullSpecRef, collectRefs: Option[mutable.HashMap[String, String]] = None)
   : Either[Option[DieselAsset[_]], EMsg] = ???
 
-  /** find an element by query */
-  def findByQuery(dom: RDomain, ref: FullSpecRef, epath: String, collectRefs: Option[mutable.HashMap[String, String]]
-  = None): Either[List[DieselAsset[_]], EMsg] = ???
+  /** find an element by query
+    *
+    * @param dom   current domain
+    * @param ref   reference with basic info
+    * @param epath either a query, query path or list of attributes with AND
+    * @param from
+    * @param size
+    * @param collectRefs
+    * @return
+    */
+  def findByQuery(dom: RDomain, ref: FullSpecRef, epath: Either[String, collection.Map[String, Any]],
+                  from: Long = 0, size: Long = 100,
+                  collectRefs: Option[mutable.HashMap[String, String]] = None):
+  Either[List[DieselAsset[_]], EMsg] = ???
 
   /** remove an element by ref */
   def remove(dom: RDomain, ref: FullSpecRef)

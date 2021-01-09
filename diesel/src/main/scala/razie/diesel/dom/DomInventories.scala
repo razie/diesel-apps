@@ -26,6 +26,7 @@ object DomInventories extends razie.Logging {
     "inventory",
     "connection",
     "class",
+    "className",
     "key",
     "section"
   )
@@ -108,14 +109,16 @@ object DomInventories extends razie.Logging {
     * @param collectRefs
     * @return
     */
-  def findByQuery(ref: FullSpecRef, epath: String, collectRefs: Option[mutable.HashMap[String, String]]
-  = None): List[DieselAsset[_]] = {
+  def findByQuery(ref: FullSpecRef, epath: Either[String, collection.Map[String, Any]],
+                  start: Long = 0, size: Long = 100,
+                  collectRefs: Option[mutable.HashMap[String, String]] = None)
+  : List[DieselAsset[_]] = {
     val dom = WikiDomain(ref.realm)
     val p = dom.findPlugins(ref.inventory).headOption
     val o = p.toList.flatMap(inv =>
       resolve(
         ref.realm,
-        inv.findByQuery(dom.rdom, ref, epath, collectRefs)
+        inv.findByQuery(dom.rdom, ref, epath, start, size, collectRefs)
       )
     )
     o
@@ -325,7 +328,17 @@ object DomInventories extends razie.Logging {
               else
                 jToA(o, j, realm)
             }
-            case _ => throw new DieselExprException("??type??")
+//            case j: Map[String, Any] => {
+//              val c = WikiDomain(realm).rdom.classes.get(p.get.ttype.schema)
+//
+//              if (c.isDefined) {
+//                val o = oFromJMap("keytodo", j.toMap, c.get, c.get.name, Array.empty)
+//                new DieselAsset[O](SpecRef.make(realm, "", "", o.base, o.name), o)
+//              }
+//              else
+//                jToA(o, j, realm)
+//            }
+            case x@_ => throw new DieselExprException("Unknown type for: " + x)
           }.toList
         }
       }

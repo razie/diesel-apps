@@ -8,9 +8,10 @@ package razie.diesel.model
 
 import razie.audit.Audit
 import razie.diesel.dom.RDOM.P.asString
-import razie.diesel.engine.DomEngineSettings
+import razie.diesel.engine.{DomEngine, DomEngineSettings}
 import razie.diesel.engine.nodes.EMsg
 import razie.diesel.samples.DomEngineUtils
+import razie.diesel.samples.DomEngineUtils.extractResult
 import razie.tconf.{SpecRef, TSpecRef, TagQuery}
 import razie.wiki.model.{WID, WikiSearch}
 import razie.{clog, cout}
@@ -38,42 +39,50 @@ case class DieselMsgString(msg: String,
 
   def withContext(p: Map[String, String]) = this.copy(ctxParms = ctxParms ++ p)
 
-  def startMsg = {
-    val m=this
+  def mkEngine = {
+    val m = this
     // todo auth/auth
     cout << "======== DIESEL MSG: " + m
     val settings = osettings.getOrElse(new DomEngineSettings())
     settings.realm = Some(target.realm)
     // important to use None here, to let the engines use the envList setting otherwise
-    settings.env = if(target.env == DieselTarget.DEFAULT) None else Some(target.env)
+    settings.env = if (target.env == DieselTarget.DEFAULT) None else Some(target.env)
 
     val ms = m.mkMsgString
 
     import scala.concurrent.ExecutionContext.Implicits.global
     DomEngineUtils
-        .runDom(ms, target.specs, target.stories, settings, Some(this))
-        .map { res =>
-          // don't audit these frequent ones
-          if(
-            m.msg.startsWith(DieselMsg.WIKI_UPDATED) ||
-                m.msg.startsWith(DieselMsg.CRON_TICK) ||
-                m.msg.startsWith(DieselMsg.GUARDIAN_POLL) ||
-                false//        m.msg.startsWith(DieselMsg.REALM_LOADED)
-          ) {
-            clog << "DIESEL_MSG: " + m + " : RESULT: " + res.get("value").mkString.take(500)
-          } else {
-            val id = res.get("engineId").mkString
-            // this will also clog it - no need to clog it
-            Audit.logdb(
-              "DIESEL_MSG",
-              m.toString,
-              s"[[DieselEngine:$id]]",
-              "result-length: "+res.get("value").mkString.length,
-              res.get("value").mkString.take(500)
-            )
-          }
-          res
-        }
+        .createEngine(ms, target.specs, target.stories, settings, Some(this))
+  }
+
+  def postEngine(res: Map[String, Any]) = {
+    // don't audit these frequent ones
+    if (
+      this.msg.startsWith(DieselMsg.WIKI_UPDATED) ||
+          this.msg.startsWith(DieselMsg.CRON_TICK) ||
+          this.msg.startsWith(DieselMsg.GUARDIAN_POLL) ||
+          false//        m.msg.startsWith(DieselMsg.REALM_LOADED)
+    ) {
+      clog << "DIESEL_MSG: " + this + " : RESULT: " + res.get("value").mkString.take(500)
+    } else {
+      val id = res.get("engineId").mkString
+      // this will also clog it - no need to clog it
+      Audit.logdb(
+        "DIESEL_MSG",
+        this.toString,
+        s"[[DieselEngine:$id]]",
+        "result-length: " + res.get("value").mkString.length,
+        res.get("value").mkString.take(500)
+      )
+    }
+    res
+  }
+
+  def startMsg = {
+    import scala.concurrent.ExecutionContext.Implicits.global
+    mkEngine.process.map { engine =>
+      extractResult(msg, None, engine)
+    }.map(postEngine)
   }
 }
 
@@ -159,7 +168,7 @@ object DieselTarget {
   final val DEFAULT = "default"
 
   /** the environment settings - most common target */
-  def ENV_SETTINGS(realm: String) = SpecRef("", realm + ".Spec:EnvironmentSettings", realm)
+  def ENV_SETTINGS(realm: String) = SpecRef(realm, realm + ".Spec:EnvironmentSettings", "EnvironmentSettings")
 
   /** specific list of specs to use */
   def from(realm: String, env: String, specs: List[TSpecRef], stories: List[TSpecRef]) =
