@@ -188,13 +188,13 @@ object Realm extends RazController with Logging {
             ).copy(realms=au.realms+name)
           )
         } else {
-          controllers.Wikie.applyStagedLinks(mainPage.wid,
+          WikiUtil.applyStagedLinks(mainPage.wid,
             mainPage).create // create first, before using the reactor just below
         }
         cleanAuth(request.au)
         Services ! WikiAudit("CREATE_FROM_TEMPLATE", mainPage.wid.wpath, Some(au._id))
         pages foreach {p=>
-          controllers.Wikie.applyStagedLinks(p.wid, p).create
+          WikiUtil.applyStagedLinks(p.wid, p).create
         }
       }
 

@@ -33,7 +33,6 @@ case class UserTask(
 
 object UserTasks {
   final val START_REGISTRATION = "startRegistration"
-  final val APPROVE_VOL = "approveVolunteerHours"
 
   def userNameChgDenied(u: User) = UserTask(u._id, "userNameChgDenied")
   def changePass(u: User) = UserTask(u._id, "changePass")
@@ -41,7 +40,6 @@ object UserTasks {
   def chooseTheme(u: User) = UserTask(u._id, "chooseTheme")
   def setupRegistration(u: User) = UserTask(u._id, "setupRegistration")
   def setupCalendars(u: User) = UserTask(u._id, "setupCalendars")
-  def approveVolunteerHours(uid: ObjectId) = UserTask(uid, APPROVE_VOL)
 
   def some(u: User, what:String) = UserTask(u._id, what)
 
@@ -50,7 +48,6 @@ object UserTasks {
       case START_REGISTRATION => "Start registration for "+ut.args.get("club").mkString
       case "setupRegistration" => "Setup registration and forms"
       case "setupCalendars" => "Setup club calendars"
-      case APPROVE_VOL => "Approve volunteer hours"
       case _ => "?"
     }
   }
