@@ -1,0 +1,7 @@
+@**************
+Used for wiki fragments internal to the website - no title, ads, menus etc
+**************@
+@(wid:String, user:Option[model.User])(implicit stok:controllers.StateOk)
+
+@razie.wiki.model.WID.fromPath(wid).map(wiki.wikiFrag(_,None,true,None))
+

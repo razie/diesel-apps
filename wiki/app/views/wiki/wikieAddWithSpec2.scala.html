@@ -1,0 +1,153 @@
+@****************
+create new page given a template
+****************@
+@(cat:String, name:String, formWid:razie.wiki.model.WID, formPage:Option[razie.wiki.model.WikiEntry], torspec:String, errors:Map[String,String])(implicit stok:controllers.StateOk)
+@import controllers.IgnoreErrors
+@import razie.diesel.dom.WikiDomain
+@import razie.wiki.model.Wikis
+
+@stok.title("Create new with template")
+
+<h3>Creating a new
+  <em>@Html({if(cat == "Reactor") "Project (<small>Reactor</small>)" else cat})</em>
+  , with <em>@formWid.name</em></h3>
+
+<p>Fill in the required attributes below.</p>
+
+@helper.form(
+  action=routes.Wikie.addWithSpec(cat, name, formWid.wpath, torspec:String, stok.realm),
+  'id->"curForm",
+  'class->"alert alert-info col-sm-12") {
+
+  @** you can override the entire form in your template *@
+  @if(!formPage.exists(_.form.fields.contains("name"))) {
+    @WikiDomain(stok.realm).prop(cat, "label.createWithTemplate").getOrElse {
+      @if(cat == "Reactor") {
+
+        The project name is made of three parts: environment (dev/qa/prod), application name and organization name
+        <hr>
+
+        <div class="form-group">
+          <label for="app" class="control-label">Application (Use a simple punchy single word, like "<b>mysite</b>" &nbsp;&nbsp;<code class="pull-right">$${{app}}</code></label>
+          <input type="text" id="app" class="input-lg" name="app" placeholder="App"  onchange="updName()" value="app">
+        </div> @* form-group *@
+
+        <div class="form-group">
+          <label for="kind" class="control-label">Kind &nbsp;&nbsp;<code class="pull-right">$${{kind}}</code></label>
+          <select id="kind" name="kind" onchange="updName()">
+            <option value="dev">Development</option>
+            <option value="qa">QA / UAT</option>
+            <option value="prod">Production</option>
+          </select>
+        </div> @* form-group *@
+
+        <div class="form-group">
+          <label for="org" class="control-label">Organization: (company or client) &nbsp;&nbsp;<code class="pull-right">$${{org}}</code></label>
+          <input type="text" id="org" class="input-lg" name="org" placeholder="Org" onchange="updName()" value="@stok.au.flatMap(_.organization.map(_.replaceAll("[^a-zA-Z0-9]", ""))).getOrElse("org")">
+        </div> @* form-group *@
+
+        <hr>
+
+        <div class="alert alert-warning">
+        Your new project website will be
+          available at <b><small>http://<span id="siteName">mysite</span>.dieselapps.com</small></b>
+
+        <div class="form-group">
+          <label for="name" class="control-label">Name:</label>
+          <input type="text" id="name" class="input-lg" name="name" placeholder="Name" value="@name" disabled>
+        </div> @* form-group *@
+        </div>
+
+          <p></p>
+          <hr>
+          <div class="form-group">
+            <label for="access" class="control-label">Default access:</label>
+            <select name="access">
+              <option value="Member">Members only - only members can see content</option>
+              <option value="Public">Public - anyone can see content</option>
+            </select>
+          </div> @* form-group *@
+
+      } else {
+
+        Give it a name...
+
+        <div class="form-group">
+          <label for="name" class="control-label">Name:</label>
+          <input type="text" id="name" class="input-lg" name="name" placeholder="Name" value="@name">
+        </div> @* form-group *@
+
+      }
+    }
+
+    <p></p><p>
+
+    <hr>
+    <p>More particulars:</p>
+  }
+
+  @wiki.wikiFormInt(formWid, Some(name), formPage, errors, false, false, true)
+<hr>
+  <span>
+    <input type="checkbox" id="accept" name="accept"> I accept the <a href="/wiki/rk.Terms of Service">Terms of Service</a>
+  </span>
+  <br>
+  <br>
+
+}
+  <button class="btn btn-primary" type="submit" form="curForm">Create Now!</button>
+
+<hr>
+
+  @if(cat == "Reactor") {
+    <script>
+        var updName = function () {
+          withJquery(function ($) {
+            var k = $('#kind').val();
+            var a = $('#app').val();
+            var o = $('#org').val();
+            var n = (k === "prod" ? "" : k) + a + o;
+            n = n.toLowerCase();
+
+            $('#name').val(n);
+            $('#siteName').text(n);
+          });
+        };
+
+        withJquery(
+            function ($) {
+
+              $('#kind,#app,#org').bind('input', function () {
+                updName();
+              });
+
+              $('#curForm').submit(
+                  function (event) {
+                    var n = $('#name').val();
+
+                    if (n.length > 25 || n.length < 3) {
+                      popupError("Name too short(<3) or too long (>25)...");
+                      event.preventDefault();
+                    } else if (!n.match(/^[A-Za-z][A-Za-z0-9-_]+[A-Za-z0-9]$/)) {
+                      popupError("Name cannot contain special characters (!#$%^...)");
+                      event.preventDefault();
+                    } else if($("input[name='accept']").prop("checked") != true) {
+                      popupError("You need to accept the terms and conditions to continue...");
+                      event.preventDefault();
+                    } else {
+                      $("#name").prop('disabled', false);
+                    }
+
+                  }
+              );
+            }
+        );
+
+        updName();
+
+    </script>
+  }
+
+
+@util.oneModal()
+

@@ -1,0 +1,42 @@
+@(wid:razie.wiki.model.WID, myForm:Form[controllers.WikiUtil.ReportWiki])(implicit stok: controllers.StateOk)
+
+@stok.title("Reporting page: "+wid.wpath)
+
+      <!-- Main hero unit for a primary marketing message or call to action -->
+      <div class="well">
+          <h2>Opa! Need to report @wid!</h2>
+          <p>
+      </div>
+
+<div >
+@import helper.twitterBootstrap._
+@import play.api.Play.current
+@import play.api.i18n.Messages.Implicits._
+
+@helper.form(action=routes.Wikie.reported(wid), 'class->"well") {
+  @helper.textarea(
+    myForm("reason"),
+    '_label -> "Reason",
+    '_showConstraints -> false,
+    'rows->10)
+
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">Report it!</button>
+      <a href="@controllers.WikiUtil.w(wid)" class="btn btn-default">Nah</a>
+  </div>
+
+  @myForm.globalError.map { err=>
+     <p style="color:red;font-weight:bold">@err.message</p>
+  }
+
+  <br><small>By updating this page, you agree to the <a href="@controllers.WikiUtil.w("Terms of Service")">Terms of Service</a></small>
+}
+</div>
+
+@formFix()
+
+<div class="well">
+  @wiki.wikiFrag(wid)
+</div>
+
+

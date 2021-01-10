@@ -1,0 +1,115 @@
+@**
+link a user to a wiki: club membership etc
+**@
+@(from:razie.wiki.model.WID, to:razie.wiki.model.WID, myForm:Form[controllers.WikiUtil.LinkWiki], withComment:Boolean)(implicit stok:controllers.StateOk)
+@import razie.wiki.model.Wikis
+@import helper.twitterBootstrap._
+@import play.api.Play.current
+@import play.api.i18n.Messages.Implicits._
+@import model.UW
+@import razie.diesel.dom.WikiDomain
+
+@how() = @{
+  // can override roles in page or in category
+  val h = to.page.flatMap(_.contentProps.get("roles:"+from.cat)) match {
+      case Some(s) => {
+        s.split(",").toList
+      }
+      case None => {
+        WikiDomain(to.getRealm).roles(to.cat, from.cat)
+        // Wikis(to.getRealm).category(to.cat).flatMap(_.contentProps.get("roles:"+from.cat)) match
+      }
+  }
+
+  if(h.isEmpty) Seq("Enjoy")
+  else h.filter(x => ! Array("Owner","Admin").contains(x)).toSeq
+}
+
+      @if("User" == from.cat) {
+          <h2>Cool! So you want to @to.label("LinkTo", "follow") @to.cat:@to.name!</h2>
+          <b>@to.label("LinkTo.Desc", "You will be notified of new activity") !</b>
+          } else {
+          <h2>Cool! So you want to link @from.cat:@from.name to @to.cat:@to.name!</h2>
+          }
+          <p>
+
+    <div class="row">
+      <div class="col-sm-4">
+
+@helper.form(action=routes.Wikil.linked(from,to,withComment), 'class->"well alert alert-info") {
+  @helper.select(
+    myForm("how"),
+      how().map(x=>(x,x)).toSeq,
+    '_label -> "Select a role",
+    '_showConstraints -> false)
+
+  @helper.select(
+    myForm("notif"),
+     Seq(UW.EMAIL_EACH -> "email each", UW.NOEMAIL->"no email"),
+    '_label -> "Notification of new activity",
+    '_showConstraints -> false)
+
+    @if(withComment) {
+  @helper.select(
+    myForm("markup"),
+     Wikis.markups.list,
+    '_label -> "Markkup language",
+    '_showConstraints -> false)
+  @helper.textarea(
+    myForm("comment"),
+    '_label -> "Comment",
+    '_showConstraints -> false,
+    'cols->100,
+    'rows->10)
+    } else {
+     <input type="hidden" name="markup" value="md">
+     <input type="hidden" name="comment" value="">
+    }
+
+    @myForm.globalError.map { err=>
+     <p style="color:red;font-weight:bold">@err.message</p>
+  }
+
+    <div class="actions">
+      <button type="submit" class="btn btn-success">Ok</button>
+      <a href="@controllers.WikiUtil.w(to)" class="btn btn-danger">Nah-Cancel</a>
+    @if(withComment) {
+      <a href="@routes.Wikil.linkUser(to,false)" class="btn btn-default">Remove the note!</a>
+    } else {
+      @if(false && "Club" != to.cat) {
+        <a href="@routes.Wikil.linkUser(to,true)" class="btn btn-default">Add a note!</a>
+      }
+    }
+    </div>
+}
+  </div>
+
+<div class="col-sm-6">
+      @if("User" == from.cat && "Club" == to.cat) {
+      <p>Select the role that best describes you.
+      <ul><small>
+      <li><b>Racer</b> - you are a racer in this club's programs
+      <li><b>Member</b> - member/parent/volunteer
+      <li><b>Coach</b> - you will coach for this club
+      <li><b>Fan</b> - for former members or anyone who wants to keep tabs on this club
+      </li>
+      </small></ul>
+       }
+      <p>Notification options:
+      <ul><small>
+      <li><b>email each</b> - if you want to be notified by email for every new post
+      <li><b>no email</b> - no notifications for new activity - you can always check what's new later...
+      </li>
+      </small></ul>
+      </div>
+  </div>
+
+@Wikil.moderatorOf(to).map {mu=>
+  <div class="alert alert-warn">
+  <strong>Note</strong>
+    that the @to.cat.toLowerCase is moderated
+  @*by <a href="@controllers.Wiki.w("User", mu, to.getRealm)">@mu</a> - *@
+    - we'll ask for permission!
+  </div>
+}
+

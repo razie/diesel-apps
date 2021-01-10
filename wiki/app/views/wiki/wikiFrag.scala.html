@@ -1,0 +1,320 @@
+@**************
+wiki fragment, used in another page
+**************@
+@(wid:razie.wiki.model.WID, altContent:Option[String]=None, simple:Boolean = false, page:Option[razie.wiki.model.WikiEntry]=None, iname:Option[String]=None, noTitle:Boolean=false, ads:Boolean=true, canEdit:Boolean=false, print:Boolean=false)(implicit stok: controllers.StateOk)
+@import controllers.IgnoreErrors
+@import razie.wiki.model.{Wikis, WID, WikiEntry}
+@import _root_.razie.wiki.Services
+@import razie.diesel.dom.WikiDomain
+@import razie.tconf.Visibility
+
+@nicename() = @{ iname.getOrElse(wid.name) }
+@rss = @{page.flatMap(_.contentProps.get("rss")).getOrElse(controllers.WikiUtil.w(wid)+"/rss.xml")}
+
+@canComment() = @{
+    stok.au.isDefined &&
+    !page.exists(_.isReserved) &&
+    stok.au.get.canHasProfile &&
+    !page.flatMap(_.contentProps.get("noComments")).isDefined
+}
+
+  @favoriteCat = @{ "Topic" }
+
+  @w(c:String) = @{
+    if(page.isDefined) page
+    else controllers.WikiUtil.cachedPage(wid, stok.au)//wid.page
+  }
+
+  @prepend(l:List[String], c:String) = @{ c :: l }
+
+  @ww() = @{ Wikis(wid.getRealm).findAny(wid.name) }
+
+  @label()=@{ page.flatMap(_.contentProps.get("label")).orElse(page.map(_.label)).getOrElse(Wikis(wid.getRealm).label(wid)) }
+
+@visColor()=@{page.map(_.visibility) match {
+  case Some(Visibility.PUBLIC) => "success"
+  case Some(Visibility.MEMBER) => "info"
+  case Some(Visibility.BASIC) => "info"
+  case Some(Visibility.GOLD) => "default"
+  case Some(Visibility.PLATINUM) => "danger"
+  case Some(Visibility.UNOBTANIUM) => "danger"
+  case _ => "warning"
+}
+}
+
+@visLabel()=@{page.map(_.visibility) match {
+  case Some(Visibility.PUBLIC) => "Public"
+  case Some(Visibility.MEMBER) => "members with free accounts"
+  case Some(Visibility.BASIC) => "basic/blue members"
+  case Some(Visibility.GOLD) => "gold/black/expert members"
+  case Some(Visibility.PLATINUM) => "racing/platinum members"
+  case Some(Visibility.UNOBTANIUM) => "unobtanium members"
+  case _ => "warning"
+}
+}
+
+  @url() = @{
+    val u = wid.url
+    if(u startsWith "http") u else  s"http://${Services.config.hostport}$u"
+  }
+
+  @ccc(wid:WID, we:WikiEntry)= @{
+//    razie.cdebug << "D"
+    // this will use the preprocessed cache and just do MD format
+    val x = Wikis.format(wid, we.markup, altContent.getOrElse(null), Some(we), stok.au)
+    var y = try {
+      if(x contains "CANNOT PARSE") {
+        val PAT = """(?s).*PARSE\]\] \[([0-9]+)\.([0-9]+)\].*""".r
+        val PAT(line, col) = x
+        val id = System.currentTimeMillis().toString
+        s"""<div style="color:red;font-weight:bold;" title="Problem with your content: $x">
+          <small>[[Check content below at Line:$line Position:$col]]
+            <p>Sorry, dumb program here! The content is not lost: try editing this topic... also, please open a support issue and copy/paste there the content.
+          </small></div><p></p>""".stripMargin + s"""
+            <textarea id="$id" readonly="true" style="width:90%; margin-right:40px" rows="15">${we.included.lines.zipWithIndex.map(t=>f"${t._2+1}%3s> ${t._1}").mkString("\n")}</textarea>
+            <script>
+            var tarea = document.getElementById('$id');
+            selectTextareaLine(tarea,$line);
+            var textarea = $$('#$id');
+            var cursorPosition = textarea.prop("selectionStart");
+            textarea.scrollTop(tarea.selectionStart);
+            </script>
+  <script>
+    // todo I don't think this is needed - using ACE now, for errors, right?
+function selectTextareaLine(tarea,lineNum) {
+  lineNum--; // array starts at 0
+  var lines = tarea.value.split("\n");
+
+  // calculate start/end
+  var startPos = 0, endPos = tarea.value.length;
+  for(var x = 0; x < lines.length; x++) {
+    if(x == lineNum) {
+      break;
+    }
+    startPos += (lines[x].length+1);
+  }
+
+  var endPos = lines[lineNum].length+startPos;
+
+  // do selection
+  // Chrome / Firefox
+
+  if(typeof(tarea.selectionStart) != "undefined") {
+    tarea.focus();
+    tarea.selectionStart = startPos;
+    tarea.selectionEnd = endPos;
+    return true;
+  }
+
+  // IE
+  if (document.selection && document.selection.createRange) {
+    tarea.focus();
+    tarea.select();
+    var range = document.selection.createRange();
+    range.collapse(true);
+    range.moveEnd("character", endPos);
+    range.moveStart("character", startPos);
+    range.select();
+    return true;
+  }
+
+  return false;
+}
+</script>
+         """.stripMargin
+        s"""<div style="color:red;font-weight:bold;" title="Problem with your content: $x">
+          <small>[[Check content below at Line:$line Position:$col]]
+            <p>Sorry, dumb program here! The content is not lost: try editing this topic... also, please open a support issue and copy/paste there the content.
+          </small></div><p></p>""".stripMargin + s"""
+            <pre id="$id" readonly="true" style="height:300px">${we.included}</pre>
+<script src="/assets/ace-builds/src/ace.js" type="text/javascript" charset="utf-8"></script>
+<script>
+  var langTools = ace.require("ace/ext/language_tools");
+  var editor1 = ace.edit("$id");
+  editor1.setTheme ( "ace/theme/crimson_editor" ) ;
+  editor1.setOptions({
+    readOnly: true
+  });
+  setTimeout(function(){
+    var line = $line;
+    var Range = ace.require('ace/range').Range;
+    editor1.scrollToLine(line, true, true, function () {});
+      //editor1.gotoLine(line, 10, true);
+    editor1.session.addMarker(new Range(line-1, 0, line-1, 100), "ace-primaryline", "fullLine");
+  }, 100);
+</script>
+         """.stripMargin
+      } else {
+        Wikis.divLater(x)
+      }
+    } catch {
+      case e : Throwable => x+" Exception! ["+e.getClass + "]["+e.getMessage+"]"
+    }
+//    razie.cdebug << "E"
+
+    y = razie.wiki.mods.WikiMods.modPostHtml(we, y)
+    if(!altContent.getOrElse(we.content).contains(".wiki.noTemplate")) {
+      y = Wikis(wid.getRealm).applyTemplates(wid, y, "html")
+    }
+//    razie.cdebug << "F"
+    y
+  }
+
+  @one(page:Option[WikiEntry]) = {
+  @page match {
+    case Some(we) => {
+      @if(!simple && !noTitle) {
+        @wid.cat match {
+          case "any" => {
+            <h2>@wid.name</h2>
+          }
+          case "Category" => {
+            <h2>@label()
+              (Category)</h2>
+          }
+          case _ => {
+            @if(page.exists(_.contentProps.contains("noTitle"))) {
+            } else {
+            <h2>@label()
+              @if(stok.au.isEmpty && "Blog" == wid.cat) {
+                <a class="btn btn-info" title="Subscribe to updates via email" href="@routes.Wikil.linkFollower1(wid)"><i class="icon-envelope icon-white"></i> Subscribe</a>
+              } else {
+                @if(stok.au.isEmpty && wid.parentWid.exists(_.cat == "Blog")) {
+                  <a class="btn btn-info" title="Subscribe to updates via email" href="@routes.Wikil.linkFollower1(wid.parentWid.get)"><i class="icon-envelope icon-white"></i> Subscribe</a>
+                }
+              }
+
+              @** page info **@
+              @** @if(stok.au.exists(_.isMod)) { **@
+                <span style="font-size: small; margin-top:8px" class="pull-right label label-@visColor()" title="Visible to: @visLabel()">
+                  <i class="glyphicon glyphicon-lock"></i> @page.get.visibility.substring(0,3)
+                </span>
+              @** } **@
+
+              @if(!(Seq("WikiLink", "Form").contains(wid.cat) ||
+                  page.exists(_.contentProps.contains("noSocial")))) {
+                <br>
+                <div class="addthis_inline_share_toolbox" style="display: inline-block"></div>
+                @*<a class="btn btn-xs btn-info" href="@routes.Wiki.social(label().toString, url())">Share <span class="glyphicon glyphicon-thumbs-up icon-white"></span></a>*@
+
+                @if(Seq("Blog", "Forum").contains(wid.cat)) {
+                  <a class="btn btn-spanxs btn-info" href="@rss">Feed (RSS) <span class="glyphicon glyphicon-star icon-white"></span></a>
+                }
+
+                @defining(if(Services.config.isLocalhost) "" else "http://www.snowproapp.com") { host =>
+                  @if(Seq("Club", "Pro", "School").contains(wid.cat)) {
+                    @if(stok.au.isDefined) {
+                      <a class="btn btn-xs btn-success" href="@host/wikie/linkuser/@wid.wpath?wc=0">
+                        Connect with <span class="glyphicon glyphicon-star icon-white"></span></a>
+                    } else {
+                      <a class="btn btn-xs btn-success" href="@host/doe/join?club=@wid.wpath">
+                        Connect with <span class="glyphicon glyphicon-star icon-white"></span></a>
+                    }
+                  }
+                }
+              }
+
+            </h2>
+            }
+          }
+        }
+      }
+
+      @if(!simple && Seq("Item").contains(wid.cat)) {
+        @if(canComment) {
+          <a href="@routes.CommentControl.startComment(we._id.toString, "Wiki", {new com.mongodb.casbah.Imports.ObjectId().toString}, "text")" class="btn btn-lg btn-success"><span style="color:orange">+</span>Reply/comment</a>
+        }
+        @if(stok.au.exists(x=> x.canHasProfile &&
+            (we.isOwner(x.id) ||
+             Club.canAdmin(we.wid, x)
+            ))) {
+          <a href="@routes.Wikie.wikieDelete1(wid)" class="btn btn-lg btn-danger"><span style="color:orange">+</span>Delete item</a>
+        }
+
+        @if(!canComment) {
+          <div title="NEED to login to reply/comment" >
+            <button class="btn btn-lg btn-success" disabled><span style="color:orange">+</span>Reply/comment</button>
+          </div>
+        }
+      }
+
+      <p id="wikiFragP1"></p>
+
+      @if(Array(Wikis.TEXT, Wikis.JSON, Wikis.XML) contains we.markup) {
+        <pre id="wikiFragPre" style="word-wrap:normal; white-space:pre-wrap">@ccc(wid, we)</pre>
+      } else {
+        @Html(ccc(wid, we))
+      }
+
+      <p id="wikiFragP2"></p>
+
+      @wikiFragExtras(stok.au,page)
+
+      @if(!simple && !print) {
+        <p>
+      } <!-- /simple -->
+    }
+
+    case None => {
+      @if("any" != wid.cat && !wid.cat.isEmpty) {
+        @if(Wikis.isEvent(wid.cat)) {
+          <p><strong><span style="color:red">Note: </span></strong>A <strong>@wid.cat</strong> doesn't need its own page unless there you have some specific information about it... so, if you have some photos, videos or comments about it, create it below and share it with your mates!
+        <hr>
+        }
+        No entry for a <strong>@wid.cat</strong> named <strong>@nicename</strong> ... <a href="@routes.Wikie.wikieEdit(wid.copy(name=nicename))">create one</a></b>
+      } else {
+        @if("Name" equals wid.name) {
+          <strong>Edit the name below and choose a category <br>
+            <small>(Topic is the most common wiki category)</small></strong>
+        } else {
+          <strong>No entry for @wid.name ... you could create one:</strong>
+        }
+
+        <br><br>
+        <form action="@routes.Wikie.edit2" method="GET" class="well form-inline">
+          <input type="text" name="name" id="name" value="@nicename">
+          <select id="cat" name="cat" class="input-small">
+
+          @prepend(razie.diesel.dom.WikiDomain.rootCats(wid.getRealm).filter(_ != favoriteCat).sortWith(_ < _), favoriteCat).map{x=>
+            <option value="@x" >@x</option>
+          }
+          </select>
+
+          <button type="submit" class="btn btn-primary">Create</button>
+        </form>
+      }
+    }
+  }
+
+    @*for preview, the page is fake*@
+    @if(page.exists(_.fields.size > 0)) {
+      @formFix(page.toList.flatMap(_.form.fields.values.filter(_.attributes.get("type").exists(_ == "date"))).map(_.name).toSeq)
+    }
+
+  }
+
+  @many() = {
+    Multiple options:
+    <ul>
+    @ww.map { we =>
+      <li><a href="@controllers.WikiUtil.w(we.wid)">@we.category @we.name</a></li>
+    }
+    </ul>
+  }
+
+@{
+  page match {
+    case Some(x) => {
+        one(w(x.category))
+    }
+    case None => wid.cat match {
+      case "any" => {
+        if(ww.size >= 1) many
+        else if(ww.size == 1) ww.map ( x=> one(w(x.category)) )
+        else one(None)
+      }
+      case _ => one(w(wid.cat))
+    }
+  }
+}
+

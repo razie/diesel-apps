@@ -1,0 +1,279 @@
+@**************
+debug a wiki page
+**************@
+@import razie.wiki.model.Perm
+@(wid:razie.wiki.model.WID, iname:Option[String], page:Option[razie.wiki.model.WikiEntry])(implicit stok: controllers.StateOk)
+@import razie.wiki.model.{WikiEntry, WID, Wikis, WikiLink, WikiEntryOld}
+@import model.{User}
+@import razie.db.{ROne, RMany, RUpdate}
+@import razie.hosting.Website
+@import razie.wiki.model.features.WikiCount
+
+@stok.title("WikiDebug: "+wid.cat +":"+ wid.name)
+
+@if(stok.au.exists(_.hasPerm(Perm.adminDb))) {
+<p>
+  <a href="@routes.Wiki.wikieDebug(wid)"><em>debug</em></a>
+  | <a href="@routes.Wiki.wikieUsage(wid)"><em>usage</em></a>
+  | <a href="@routes.Wiki.wikieReferences(wid)"><em>references</em></a>
+</p>
+}
+
+      @*<div class="well">*@
+          @*@wiki.wikiFrag(wid,None,false,page, iname)*@
+      @*</div>*@
+
+        <div class="well">
+            <ul>Settings
+              <li>version: @page.map(_.ver)</li>
+                <li>current realm: @stok.realm</li>
+                <li>page realm: @page.map(_.realm)</li>
+                <li>wid.realm: @wid.realm</li>
+                <li>getHost: @Website.getHost(stok.request.get)</li>
+                <li>Website: @Website.apply(stok.request.get).map(_.name)</li>
+                <li>request.headers: @stok.request.get.headers</li>
+            </ul>
+        </div>
+
+        <div class="well">
+        <ul>tags
+        @page.get.tags.map { p=>
+          <li>@p</li>
+        }
+       </ul>
+      </div>
+
+  <div class="well">
+    json:<p></p>
+    @page.get.grated.toString
+  </div>
+
+  <div class="well">
+    <ul>props
+      @page.get.props.map { p=>
+        <li>@p</li>
+      }
+    </ul>
+  </div>
+
+      <div class="well">
+        <ul>contentTags
+        @page.get.contentProps.map { p=>
+          <li>@p</li>
+        }
+       </ul>
+      </div>
+
+      <div class="well">
+        <ul>ilinks
+        @page.get.ilinks.map { p=>
+          <li>@p</li>
+        }
+       </ul>
+      </div>
+
+@followers = @{
+  model.Users.findUserLinksTo(page.get.uwid).toList
+}
+      <div class="well">
+        <ul>followers: userWikis @followers.size
+        @followers.map { uw=>
+          <li>@model.Users.findUserById(uw.userId).map(_.userName).getOrElse(uw.userId) , @uw.role</li>
+        }
+       </ul>
+        <p>Remove all followers: <a class="btn btn-default" href="@routes.Club.doeDelAllFollowers(page.get.wid)">REMOVE ALL</a>
+        </p>
+      </div>
+
+      <div class="well">
+        Add all club members as followers (by club WID) :
+        @helper.form(action=routes.Club.doeAddClubFollowers(page.get.wid), 'class->"well form-inline") {
+          <input type="text" class="input-large" name="newvalue" value="">
+          <button type="submit" class="btn btn-default">ADD followers</button>
+        }
+      </div>
+
+      <div class="well">
+        Remove all club members as followers (by club WID) :
+      @helper.form(action=routes.Club.doeDelClubFollowers(page.get.wid), 'class->"well form-inline") {
+        <input type="text" class="input-large" name="newvalue" value="">
+        <button type="submit" class="btn btn-default">REMOVE followers</button>
+      }
+      </div>
+
+      <div class="well">
+        <ul>external followers
+        @model.Users.findFollowerLinksTo(page.get.uwid).toList.map{fw=>
+          @fw.follower.map{f=>
+            <li>@razie.wiki.Enc.unapply(f.email) -
+            @if(stok.au.exists(_.isAdmin)) {
+              <a href="@routes.Wikil.unlinkExtFollower(fw._id.toString)">delete</a>
+            }
+            </li>
+          }
+        }
+       </ul>
+      </div>
+
+        <div class="well">
+        @helper.form(action=routes.WikieDebug.update("realm", page.get.wid), 'class->"well form-inline") {
+            <input type="text" class="input-large" name="newvalue" value="@page.map(_.realm)">
+            <button type="submit" class="btn btn-default">Update realm</button>
+        }
+        </div>
+
+        <div class="well">
+        @helper.form(action=routes.WikieDebug.update("realmALL", page.get.wid), 'class->"well form-inline") {
+            <input type="text" class="input-large" name="newvalue" value="@page.map(_.realm)">
+            <button type="submit" class="btn btn-default">Update realm ALL kids</button>
+            <p>please reboot server to reload indexes after this...</p>
+        }
+        </div>
+
+      <div class="well">
+      @helper.form(action=routes.WikieDebug.update("owner", page.get.wid), 'class->"well form-inline") {
+        <input type="text" class="input-large" name="newvalue" placeholder="@page.map(_.owner)">
+        <button type="submit" class="btn btn-default">Update Owner</button>
+      }
+      </div>
+
+      <div class="well">
+      @helper.form(action=routes.WikieDebug.update("counter", page.get.wid), 'class->"well form-inline") {
+        <input type="text" class="input-large" name="newvalue" placeholder="@page.map(_._id).flatMap(WikiCount.findOne).map(_.count)">
+        <button type="submit" class="btn btn-default">Update Counter</button>
+      }
+      </div>
+
+        <div class="well">
+            You can move all the posts/items, if this is a blog/forum/something to another. Careful - no checking done, heh.
+            @helper.form(action=routes.WikieDebug.movePosts(page.get.wid), 'class->"well form-inline") {
+                <input type="text" class="input-large" name="newWid">
+                <button type="submit" class="btn btn-default">Move Now!</button>
+            }
+        </div>
+
+      <div class="well">
+       Set parent. Careful - no checking done, heh. WikiLinks updated... maintaining the date of publishing as well. Use n/a to remove parent.
+      @helper.form(action=routes.WikieDebug.setParent(page.get.wid), 'class->"well form-inline") {
+        <input type="text" class="input-large" name="newWid">
+        <button type="submit" class="btn btn-default">Move Now!</button>
+      }
+      </div>
+
+@linksFrom = @{
+  RMany[WikiLink]("from.id" -> page.get.uwid.id).toList
+}
+@linksTo = @{
+  RMany[WikiLink]("to.id" -> page.get.uwid.id).toList
+}
+@pages = @{
+  RMany[WikiEntry]("parent" -> Some(page.get.uwid.id)).toList
+}
+
+      <div class="well">
+        <ul>children (pages with parent=me) @pages.size
+          @pages.map{ p=>
+            <li>@controllers.WikiUtil.w(p.wid)</li>
+          }
+        </ul>
+      </div>
+
+      <div class="well">
+        <ul>links TO me (pages linked WikiLink to=me) @linksTo.size
+          @linksTo.sortBy(_.to.wid.get.name).map{ p=>
+            <li>@p.how @p.from.wid.map(_.wpath) @p._id</li>
+          }
+        </ul>
+        Duplicates:
+        <ul>
+        @linksTo.groupBy(_.from.wid.get.name).filter(_._2.size > 1).map{ t=>
+          <li>@t._1 <br>@t._2.map{wl=> <br>@wl }</li>
+        }
+      </div>
+
+      <div class="well">
+        <ul>links FROM me (pages linked WikiLink from=me) @linksFrom.size
+          @linksFrom.sortBy(_.to.wid.get.name).map{ p=>
+            <li>@p.how @p.to.wid.map(_.wpath) @p._id</li>
+          }
+        </ul>
+        Duplicates:
+        <ul>
+          @linksFrom.groupBy(_.to.wid.get.name).filter(_._2.size > 1).map{ t=>
+            <li>@t._1 @t._2.map{wl=> <br>@wl }</li>
+          }
+      </div>
+
+      <div class="well">
+        <ul>sections
+        @page.get.sections.map { p=>
+          <li>@p</li>
+        }
+       </ul>
+      </div>
+
+      <div class="well">
+        <ul>fields
+          @page.get.fields.map { p=>
+            <li>@p</li>
+          }
+        </ul>
+        <p>
+        @page.get.fields.map { p=>
+          @p._1,
+        }
+      </div>
+
+      <div class="well">
+        <ul>cache
+        @page.get.collector.map { p=>
+          <li>@p.toString</li>
+        }
+       </ul>
+      </div>
+
+      <div class="well">
+        <ul>cp
+@ClassLoader.getSystemClassLoader.asInstanceOf[java.net.URLClassLoader].getURLs.map { p=>
+  <br>
+@p.getFile
+}
+       </ul>
+      </div>
+
+      @versions()= @{
+        RMany[WikiEntryOld]("entry._id" -> page.get._id).toList //include this for topics that changed category
+      }
+
+      <div class="well">
+      Versions:<p>
+      <table class="table table-striped table-condensed">
+         <thead><th>ver</th><th>content</th><th> date </th><th> User </th></thead>
+        @versions().distinct.map{ p=>
+         <tr>
+           <td> <a href="/wikie/ver/@p.entry.ver/@page.get.wid.wpath">@p.entry.ver</a> </td>
+           <td> <a href="/wikie/content/ver/@p.entry.ver/@page.get.wid.wpath">@p.entry.ver</a> </td>
+           <td> @p.entry.updDtm </td>
+           <td> @ROne[User]("_id" -> p.entry.by).map(_.ename).getOrElse(p.entry.by.toString) </td>
+         </tr>
+         }
+       </table>
+      </div>
+
+Json:
+      <div class="well">
+        @page.map{ p=>@p.toString }
+       </ul>
+      </div>
+
+Html:
+      <div class="well">
+      @razie.wiki.model.Wikis.format(wid, "md", page.get.content, page, stok.au)
+       </ul>
+      </div>
+
+AST:
+      <div class="well">
+      @Html(razie.wiki.model.Wikis.preprocess(wid, page.get.markup, Wikis.noBadWords(page.get.content), page)._1.printHtml(1))
+       </ul>
+      </div>

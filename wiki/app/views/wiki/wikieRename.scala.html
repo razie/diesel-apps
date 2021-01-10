@@ -1,0 +1,46 @@
+@(wid:razie.wiki.model.WID, myForm:Form[_], au:Option[model.User])(implicit stok: controllers.StateOk)
+
+@stok.title("Renaming "+wid.wpath)
+
+<div class="well">
+  <h2>Renaming a topic!</h2>
+  <p><strong>Warning</strong> - currently references are not renamed so if any other topic has a reference to this one, the reference will not work anymore!
+</div>
+
+<div >
+@import helper.twitterBootstrap._
+@import play.api.Play.current
+@import play.api.i18n.Messages.Implicits._
+
+@helper.form(action=routes.Wikie.wikieRename2(wid), 'class->"well") {
+  @helper.inputText(
+    myForm("oldlabel"),
+    '_class -> "input-xlarge disabled",
+    '_label -> "Out with the old",
+    'readonly -> "yes",
+    '_showConstraints -> false)
+  @helper.inputText(
+    myForm("newlabel"),
+    '_class -> "input-xlarge",
+    '_label -> "In with the new",
+    '_showConstraints -> false)
+
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">Rename it!</button>
+      <a href="@wid.w" class="btn btn-default">Nah</a>
+  </div>
+
+  @myForm.globalError.map { err=>
+     <p style="color:red;font-weight:bold">@err.message</p>
+  }
+
+  <br><small>By updating this page, you agree to the <a href="@controllers.WikiUtil.w("Terms of Service")Wiki.w("Terms of Service")">Terms of Service</a></small>
+}
+</div>
+
+      <div class="well">
+          @wiki.wikiFrag(wid)
+      </div>
+
+  @formFix()
+

@@ -1,0 +1,288 @@
+@**************
+edit a wiki page
+**************@
+@import razie.wiki.model.Perm
+@(wid:razie.wiki.model.WID,
+    q:Map[String,String],
+    myForm:Form[controllers.WikiUtil.EditWiki])(implicit stok: controllers.StateOk)
+@import razie.wiki.model.{Wikis, WID, WikiEntry}
+@import razie.hosting.{WikiReactors}
+
+@stok.requireJs(false)
+
+  @**** FIDDLE STUFF ******@
+
+@id() = @{"1"}
+@content() = @{myForm.apply("content").value.mkString}
+@lang() = @{myForm.apply("markup").value.mkString}
+
+
+@tos(s:String) = @{
+  s.replaceAll("\r", "").replaceAll("\n", "\\\\n'\n+'")
+}
+
+@encscr(s:String) = @{
+  s.replaceAll("'","%27").replaceAll("script","scrRAZipt")
+  //.replace(/'/g,'%27')););
+}
+
+<script>
+var razuri = function(s) {
+   return encodeURI(s.replace(/;/g,'%3B').replace(/\+/g,'%2B').replace(/script/g,'scrRAZipt'));
+}
+
+var encscr = function(s) {
+   return s.replace(/'/g,'%27'); }
+
+var decscr = function (s) {
+  return s.replace(/%27/g,'\'');
+}
+</script>
+
+
+  @**** FIDDLE STUFF ******@
+
+
+
+@v(name:String) = @{
+  myForm(name).value.getOrElse("?")
+}
+
+@wvis() = @{
+  WikiReactors(wid.getRealm).wiki.visibilityFor(wid.cat, "wvis") ++ (if(stok.au.exists(_.isAdmin)) Seq("Admin") else Nil)
+}
+
+@reserved(page:Option[WikiEntry]) = {
+  @page match {
+    case Some(we) => {
+      @if(we.isReserved) {
+        YES <a href="@routes.Wikie.reserve(wid,false)">Unreserve it</a>
+      } else {
+        NO <a href="@routes.Wikie.reserve(wid,true)">Reserve it</a>
+      }
+    }
+    case None => {
+      <b>new page</b>
+    }
+  }
+}
+
+@whtmlHeadBar("Editing "+wid.cat+":"+ wid.name, stok.realm)(stok.au,stok.request.get)
+
+<div class="container">
+  <div class="row">
+    <div class="col-sm-9">
+
+<div >
+@import helper.twitterBootstrap._
+@import play.api.Play.current
+@import play.api.i18n.Messages.Implicits._
+
+  @helper.form(action=routes.Wikie.save(wid.formatted), 'class->"well") {
+<div class="row">
+@*******
+PROBLEM: many places use label as name... via Wikis.formatName
+**********@
+  <div class="form-group col-sm-9">
+  @helper.inputText(
+    myForm("label"),
+    'class -> "form-control col-sm-12",
+    '_label -> "Label (don't change)",
+    '_showConstraints -> false)
+
+
+@**
+  @helper.textarea(
+    myForm("content"),
+    '_label -> "Content",
+    '_showConstraints -> false,
+    'class -> "form-control col-sm-12",
+    'rows->20)
+**@
+
+<textarea id="content_@id" name="content"></textarea>
+
+<a title="Works only on Chrome and Firefox" class="btn btn-danger btn-xs" href="javascript:runpill_@{id}('@{id}')">Run &raquo;</a>
+
+<div style="display:inline-block; width:100%; height:250px; overflow-y:auto;">
+<pre id="pre3_@id" style="display:inline-block; width:100%; height:228px; margin-bottom:0">
+<code id="code_@id">@content</code></pre>
+</div>
+<div class="well" title="Results of running the scripts...">
+  @if(stok.css.contains("light")) {
+    <iframe id="iframe_@id" name="iframe_@id" style="width:100%; height:49px; border:0;"></iframe>
+  } else {
+    <iframe id="iframe_@id" name="iframe_@id" style="width:100%; height:49px; border:0; background-color:gray;"></iframe>
+  }
+</div>
+
+<small>Errors in code:</small><br>
+
+<div style="display:inline-block; width:100%; height:130px; overflow-y:auto;">
+<pre id="pre3b_@id" style="display:inline-block; width:92%; height:119px; margin-bottom:0; padding:0px; border:0;"><code id="codeb_@id">
+</code></pre>
+</div>
+
+
+
+  @helper.inputText(
+    myForm("tags"),
+    'class -> "form-control col-sm-12",
+    '_label -> "Tags (separated with ,)",
+    '_showConstraints -> false)
+  </div>
+  <div class="form-group col-sm-3">
+  @helper.select(
+    myForm("markup"),
+    razie.wiki.model.Wikis.markups.list,
+    '_label -> "Markup Language",
+    'class -> "input-small",
+    '_showConstraints -> false)
+
+  @helper.select(
+    myForm("visibility"),
+    WikiReactors(wid.getRealm).wiki.visibilityFor(wid.cat).map(x=>(x,x)),
+    '_label -> "Visibility",
+    'class -> "input-small",
+    '_showConstraints -> false)
+
+  @helper.select(
+    myForm("wvis"),
+    wvis().map(x=>(x,x)),
+    '_label -> "EditBy",
+    'class -> "input-small",
+    '_showConstraints -> false)
+
+  @helper.select(
+    myForm("draft"),
+    Seq("Notify"->"Notify", "Draft" -> "Draft", "Silent" -> "Silent"),
+    'class -> "input-small",
+    '_label -> "Notify followers",
+    '_showConstraints -> false)
+
+  @if(stok.au.get.hasPerm(Perm.adminDb)) {
+    <p>Reserved: @reserved(Wikis(wid.getRealm).find(wid.cat,wid.name))
+    @if(Wikis(wid.getRealm).find(wid.cat,wid.name).isDefined) {
+      <p><a href="@routes.Wikie.wikieDelete1(wid)">Delete it</a>
+    }
+  }
+
+</div>
+</div>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">Save</button>
+      <a href="@wid.w" class="btn btn-default">Cancel</a>
+  </div>
+
+  @myForm.globalError.map { err=>
+     <p style="color:red;font-weight:bold">@err.message</p>
+  }
+
+  <p><small>See the <a href="/wiki/Admin/Quick Guide">quick guide</a>.</small>
+  <br><small>By updating this page, you agree to the <a href="@controllers.WikiUtil.w("Terms of Service")">Terms of Service</a></small>
+  <br><small>Please do not replicate information already contained in other reference places like
+      Wikipedia, just link to them. Use [[[Main_Page]]] to link to wikipedia.</small>
+}
+</div>
+
+@Wikis(wid.getRealm).find(wid).map{we=>
+  <div class="well">
+    @wiki.wikiFrag(wid,None, false, Some(we))
+  </div>
+}
+
+
+      @**** FIDDLE STUFF ******@
+
+
+      <div id="sform_@id">
+        <form id="ssform_@id" name="ssform_@id" method="post" target="iframe_@id">
+          <textarea id="l_@id" name="l"></textarea>
+          <textarea id="j_@id" name="j" ></textarea>
+        </form>
+      </div>
+
+<script>
+razOnLoad(function() {
+  $('#sform_' +@id).hide();
+  $('#content_' +@id).hide();
+
+  var runpill_@id = function (id) {
+    $('#l_' + id)[0].value = "@lang";
+    $('#j_' + id)[0].value = editor.getValue();
+    $('#ssform_' + id)[0].target = 'iframe_' + id;
+    $('#ssform_' + id)[0].action = "/sfiddle/sfiddle2/" + id + "?@mod.diesel.controllers.SFiddles.qtourl(q)";
+    $('#ssform_' + id)[0].submit();
+  }
+});
+
+</script>
+
+<script type="text/javascript" src="@routes.Assets.at("vendor/jshint.js")"></script>
+<script>
+var jsh = function(code) {
+  JSHINT(code);
+  var ret = JSHINT.data();
+
+  var er = 'Line\tReason\n';
+
+  document.getElementById('pre3b_@id').innerText = "";
+
+  if(JSHINT.data().errors) {
+    JSHINT.data().errors.forEach(function(e){
+      er = er+e.line + '\t\t'+e.reason+'\n';
+    })
+  }
+
+  document.getElementById('pre3b_@id').innerText = er;
+}
+</script>
+
+<script src="@routes.Assets.at("ace-builds/src/ace.js")" type="text/javascript" charset="utf-8"></script>
+<script>
+  var editor = ace.edit("pre3_@id");
+  @if(stok.css.contains("light")) {
+  editor.setTheme ( "ace/theme/crimson_editor" ) ;
+} else {
+  editor.setTheme ( "ace/theme/twilight" ) ;
+}
+  editor.getSession().setMode("ace/mode/javascript");
+
+  //jsh(editor.getValue());
+
+  var razChanged=true;
+
+  editor.getSession().on('change', function(e) {
+    razChanged=true;
+    //var j=editor.getValue();
+    //jsh(j);
+  });
+
+setInterval(function(){
+   if(razChanged) {
+     var j=editor.getValue();
+     jsh(j);
+     $('#content_'+@id)[0].value= editor.getValue();
+     razChanged=false;
+     }
+},500);
+
+</script>
+
+
+
+      @**** FIDDLE STUFF ******@
+
+
+      <hr>
+      @htmlFooter(false, stok.realm)
+    </div> <!-- /col-sm-9 -->
+
+    <div class="col-sm-3">
+    @wiki.wikiFrag(razie.wiki.model.WID("Admin","Right"),None,true)
+    </div>
+  </div> <!-- row -->
+</div> <!-- /container -->
+
+@htmlBottom(stok.request)
+

@@ -1,0 +1,138 @@
+@(myForm:Form[_], tags:Boolean)(implicit stok:controllers.RazRequest)
+
+@htmlHeadBar("")
+
+<div class="container">
+    <h2>Replace!
+    <small>
+    | it's a regexp, so escape special chars?
+    </small>
+    </h2>
+
+@import helper.twitterBootstrap._
+
+@repl(p:String, s:String, q:String, r:String, suf:String) = @{
+  val s1 = (p+s+suf).replaceAll(q,r).substring(p.length)
+  s1.substring(0,s1.length - suf.length)
+}
+
+@import helper.twitterBootstrap._
+@import play.api.Play.current
+@import play.api.i18n.Messages.Implicits._
+
+
+  <b>Replace text:</b>
+@helper.form(action=routes.Wikie.replaceAll3(), 'class->"alert alert-success", 'id -> "formtext") {
+  @helper.inputText(
+    myForm("realm"),
+    '_class -> "input-xlarge disabled",
+    '_label -> "Realm - if empty, it's ALL REALMS !!!",
+    '_showConstraints -> false)
+
+  <small>
+@md {
+i.e. `(?m)^blog=` for multiline
+}
+  </small>
+
+  @helper.inputText(
+    myForm("old"),
+    '_class -> "input-xlarge disabled",
+    '_label -> "Out with the old",
+    '_showConstraints -> false)
+  @helper.inputText(
+    myForm("new"),
+    '_class -> "input-xlarge",
+    '_label -> "In with the new",
+    '_showConstraints -> false)
+
+  <div class="actions">
+    <button type="submit" class="btn btn-primary" name="action" value="preview">Preview</button>
+    <button type="submit" class="btn btn-danger" name="action" value="replace">Replace it!</button>
+ALERT: you can't undo this!
+  </div>
+
+  @myForm.globalError.map { err=>
+     <p style="color:red;font-weight:bold">@err.message</p>
+  }
+
+}
+
+
+@if(! tags) {
+  @defining(controllers.WikiUtil.searchAll(myForm("old").value.mkString, myForm("realm").value.mkString)) {results=>
+    <div class="well">
+      @results.size results:
+
+    <table class="table table-striped">
+    @results.map {t=>
+      <tr>
+        <td>@Html(t._1.wid.ahrefRelative(""))</td>
+        <td>@t._2 <span style="color : red ; font-weight : bold">@t._3</span> @t._4</td>
+        <td>@t._2 <span style="color : red ; font-weight : bold">@repl(t._2.toString, t._3, myForm("old").value.mkString, myForm("new").value.mkString, t._4.toString)</span> @t._4</td>
+      </tr>
+    }
+    </table>
+
+    </div>
+    Note that yes, you can use groups, as in (\d) and $1 in new string...
+    <hr>
+}
+} else {
+  @defining(controllers.WikiUtil.searchAllTag(myForm("old").value.mkString, myForm("realm").value.mkString)) {results=>
+    <div class="well">
+      @results.size results:
+
+    <table class="table table-striped">
+    @results.map {t=>
+      <tr>
+        <td>@Html(t._1.wid.ahref)</td>
+        <td>@t._2 <span style="color : red ; font-weight : bold">@t._3</span> @t._4</td>
+        <td>@t._2 <span style="color : red ; font-weight : bold">@repl(t._2.toString, t._3, myForm("old").value.mkString, myForm("new").value.mkString, t._4.toString)</span> @t._4</td>
+      </tr>
+    }
+    </table>
+
+    </div>
+  Note that yes, you can use groups, as in (\d) and $1 in new string...
+    <hr>
+
+  }
+
+  @htmlFooter()
+
+</div> <!-- /container -->
+}
+
+
+  <b>Replace tags:</b>
+  @helper.form(action=routes.Wikie.replaceAllTag3(), 'class->"alert alert-danger", 'id -> "formtags") {
+    @helper.inputText(
+      myForm("realm"),
+      '_class -> "input-xlarge disabled",
+      '_label -> "Realm - if empty, it's ALL REALMS !!!",
+      '_showConstraints -> false)
+    @helper.inputText(
+      myForm("old"),
+      '_class -> "input-xlarge disabled",
+      '_label -> "Out with the old",
+      '_showConstraints -> false)
+    @helper.inputText(
+      myForm("new"),
+      '_class -> "input-xlarge",
+      '_label -> "In with the new",
+      '_showConstraints -> false)
+
+    <div class="actions">
+      <button type="submit" class="btn btn-primary" name="action" value="preview">Preview</button>
+      <button type="submit" class="btn btn-danger" name="action" value="replace">Replace it!</button>
+      ALERT: you can't undo this!
+    </div>
+
+    @myForm.globalError.map { err=>
+      <p style="color:red;font-weight:bold">@err.message</p>
+    }
+
+  }
+
+

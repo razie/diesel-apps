@@ -1,0 +1,85 @@
+@***
+comments - edit
+***@
+@import razie.wiki.model.Wikis
+@import razie.wiki.model.WID
+@(pid:String, role:String, cid:String, kind:String, myForm:Form[_])(implicit stok:controllers.StateOk)
+
+@stok.title("Editing comment")
+
+@import helper.twitterBootstrap._
+@import play.api.Play.current
+@import play.api.i18n.Messages.Implicits._
+
+@Wikis.findSimple(WID("Admin", "CommentEdit").r(stok.realm)).map { we =>
+<small>
+@md{
+  @we.content
+}
+</small>
+}
+
+@helper.form(action=routes.CommentControl.save(pid, role, cid, kind), 'class->"well form-inline") {
+
+  @if(Array("video","photo","slideshow").contains(kind)) {
+
+    @kind match {
+      case "video" => { Video: paste the link to the youtube video below }
+      case "photo" => { Photo: paste the link to the photo below }
+      case "slideshow" => { Slideshow: paste the link to the slideshow below }
+      }
+
+    @helper.textarea(
+      myForm("link"),
+      '_label -> "Edit link",
+      '_showConstraints -> false,
+      'class -> "col-sm-12",
+      'rows->5)
+
+    @helper.textarea(
+      myForm("content"),
+      '_label -> "Edit comment",
+      '_showConstraints -> false,
+      'class -> "col-sm-12",
+      'rows-> 5)
+
+  } else {
+     <input type="hidden" name="link" value="">
+
+    @helper.textarea(
+      myForm("content"),
+      '_label -> "Edit comment",
+      '_showConstraints -> false,
+      'class -> "col-sm-12",
+      'rows-> 15)
+  }
+
+  @myForm.globalError.map {err=>
+     <p style="color:red;font-weight:bold">@err.message</p>
+  }
+
+  <button type="submit" class="btn btn-primary" onclick="$(this).addClass('disabled');">Save/update</button>
+<p>
+    @kind match {
+      case "video" => {
+You have to upload the video to youtube and then find the link and paste it above.
+Some of the advantages of youtube include converting between different formats, lower and higher resolutions, availability on many devices, rating system, integration with facebook etc...
+}
+      case "photo" => {
+Find and paste here the link to the photo - make sure it is NOT a link to any page (should end in .jpg or like that).
+It's best if the respective site has a "share" menu which can give you a link or a share code - just paste that here.
+You cannot share photos from facebook unfortunately, they don't allow that.
+}
+      case "slideshow" => {
+Find and paste here the link to the slideshow.
+It's best if the respective site has a "share" menu which can give you a link or a share code - just paste that here.
+You cannot share photos from facebook unfortunately, they don't allow that.
+}
+
+      case _ => {
+}
+      }
+
+}
+
+

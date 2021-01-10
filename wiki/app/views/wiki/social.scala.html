@@ -1,0 +1,44 @@
+@**************
+social buttons for web pages
+**************@
+@(label:String, url:String)(implicit stok:controllers.StateOk)
+
+@stok.title("Share "+label)
+@stok.meta("description", "Share a page on social networks.")
+
+<div class="well">
+
+<h2>Share <a href="@url">@label</a></h2>
+
+<ul class="like-buttons">
+<li class="twitter-like"><a href="https://twitter.com/share" class="twitter-share-button" data-url="@url" data-via="@stok.website.twitter" data-text="@label">Tweet</a>&nbsp;&nbsp;</li>
+<li class="g-like"><div class="g-plusone" data-size="medium" data-href="@url"></div></li>
+<li class="fb-like" data-href="@url" data-send="true" data-layout="button_count" data-width="450" data-show-faces="true"></li>
+</ul>
+
+<p>
+<a href="https://twitter.com/share" class="twitter-share-button" data-url="@url" data-via="@stok.website.twitter" data-size="large" data-text="@label">Tweet</a>
+<script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0],p=/^http:/.test(d.location)?'http':'https';if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src=p+'://platform.twitter.com/widgets.js';fjs.parentNode.insertBefore(js,fjs);}}(document, 'script', 'twitter-wjs');</script>
+
+<script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");</script>
+
+<div id="fb-root"></div>
+<script>(function(d, s, id) {
+  var js, fjs = d.getElementsByTagName(s)[0];
+  if (d.getElementById(id)) return;
+  js = d.createElement(s); js.id = id;
+  js.src = "//connect.facebook.net/en_US/all.js#xfbml=1";
+  fjs.parentNode.insertBefore(js, fjs);
+}(document, 'script', 'facebook-jssdk'));</script>
+
+<!-- Place this tag after the last +1 button tag. -->
+<script type="text/javascript">
+  (function() {
+    var po = document.createElement('script'); po.type = 'text/javascript'; po.async = true;
+    po.src = 'https://apis.google.com/js/plusone.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(po, s);
+  })();
+</script>
+
+</div>
+

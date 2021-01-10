@@ -1,0 +1,26 @@
+@****************
+select a template for new page
+****************@
+@(cat:String, name:String, torspec:String, tcat:String, realm:String)(implicit stok:controllers.StateOk)
+@import model._
+  @import razie.wiki.model.WID
+
+@stok.title("Create new with template")
+
+<b>To create a <em>@cat</em>, you need to select an existing <em>@torspec</em>:</b>
+
+  <hr>
+
+@razie.wiki.model.Wikis(realm).pages(tcat).map {we =>
+  <a href="@routes.Wikie.addWithSpec2(cat, name, we.wid.wpath, torspec, realm)" style="text-decoration:none">
+  <div class="alert alert-cool">
+    <h2><span style="color:#FF7519">@we.label</span>
+    @we.contentProps.get("title").map{t=><small>| @t</small>}
+    </h2>
+    <p>@we.contentProps.getOrElse("description", "Needs description>")</p>
+  </div>
+  </a>
+}
+
+<hr>
+

@@ -1,0 +1,102 @@
+@** botom of html,
+**@
+@(orequest:Option[Request[_]] = None, site:Option[razie.hosting.Website] = None)(implicit stok:controllers.StateOk)
+@import _root_.razie.wiki.Services
+
+@web()=@{(site orElse orequest.orElse(stok.request).flatMap(r=>razie.hosting.Website(r))) getOrElse razie.hosting.Website.dflt}
+
+<footer id="weFooter">
+
+@if(stok.isLight) {
+  <div style="background-color:#4E4D4D">
+  } else {
+  <div style="background-color:#4E4D4D">
+  }
+
+@Html(web().footer.flatMap(_.page).map(razie.wiki.model.Wikis.format(_, stok.au)).mkString)
+
+  <div align="center">
+  <table>
+    <tr>
+      @** bottom.More.hide=true **@
+    @if(!web().bottomMenu("More").exists(_._1.trim == "hide")) {
+      <td style="width:200px;vertical-align: top">
+        <strong class="razbots">More</strong> <br>
+        <a class="razbot" href="/">Home</a> <br>
+        @if(web().about.isDefined) {
+          <a class="razbot" href="@web().about.getOrElse("/wiki/Admin:About")">About</a> <br>
+        }
+        @web().bottomMenu("More").filter(x=>x._1 != "About" && x._2 != "").map{t=>
+          <a class="razbot" href="@t._2">@t._1</a><br>
+        }
+      </td>
+    }
+      @** bottom.Support.hide=true **@
+      @if(!web().bottomMenu("Support").exists(_._1.trim == "hide")) {
+      <td style="width:200px;vertical-align: top">
+        <strong class="razbots">Support</strong> <br>
+        <a class="razbot" href="@web().supportUrl">Support</a> <br>
+        @if(web().tos.length > 0) {
+          <a class="razbot" href="@web().tos">Terms of Service</a> <br>
+        }
+        @if(web().privacy.length > 0) {
+          <a class="razbot" href="@web().privacy">Privacy Policy</a> <br>
+        }
+        @web().bottomMenu("Support").filter(x=>x._1 != "Support" && x._2 != "").map{t=>
+          <a class="razbot" href="@t._2">@t._1</a><br>
+        }
+      </td>
+      }
+
+      @** bottom.Connect.hide=true **@
+      @if(!web().bottomMenu("Connect").exists(_._1.trim == "hide")) {
+      <td style="width:200px;vertical-align: top">
+        <strong class="razbots">Connect</strong><br>
+        @web().bottomMenu("Connect").filter(_._2 != "").map{t=>
+          <a class="razbot" href="@t._2">@t._1</a><br>
+        }
+      </td>
+      }
+
+      @** if all 3 sections hidden, add something to get a thicker bar... *@
+      @if(web().bottomMenu("More").exists(_._1.trim == "hide") &&
+      web().bottomMenu("Support").exists(_._1.trim == "hide") &&
+      web().bottomMenu("Connect").exists(_._1.trim == "hide")) {
+        <td style="width:200px;vertical-align: top">
+          <br><br><br>
+        </td>
+      }
+    </tr>
+  </table>
+  <div style="height:20px"></div>
+</div>
+</div>
+
+</footer>
+
+    <!-- Placed at the end of the document so the pages load faster -->
+
+@** google sign-in
+    <!-- Place this asynchronous JavaScript just before your </body> tag -->
+**@
+
+  @if(true) {
+    <script type="text/javascript">
+        (function () {
+          var po = document.createElement('script');
+          po.type = 'text/javascript';
+          po.async = true;
+          po.src = 'https://apis.google.com/js/client:plusone.js';
+          var s = document.getElementsByTagName('script')[0];
+          s.parentNode.insertBefore(po, s);
+        })();
+    </script>
+  }
+
+@if(true) {
+  <script type="text/javascript" src="//s7.addthis.com/js/300/addthis_widget.js#pubid=ra-580596d37f1273ee" async></script>
+}
+
+  </body>
+</html>
+

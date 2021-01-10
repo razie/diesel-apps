@@ -1,0 +1,235 @@
+@**************
+wiki fragment, used in another page
+**************@
+@(we: razie.wiki.model.WikiEntry, simple: Boolean = false, canEdit: Boolean = false, print: Boolean = false)(implicit stok: controllers.StateOk)
+@import razie.wiki.model.Perm
+@import controllers.IgnoreErrors
+@import razie.wiki.model.{Wikis, WID, WikiEntry}
+@import _root_.razie.wiki.Services
+@import razie.clog
+@import razie.wiki.model.features.WikiCount
+
+@page=@{Option(we)}
+@wid=@{we.wid}
+
+@wikiForm()=@{
+  page.get.attr("wiki.form") orElse
+  Wikis(wid.getRealm).category(wid.cat).flatMap(_.attr("inst.form"))
+}
+
+@rss = @{
+  page.flatMap(_.contentProps.get("rss")).getOrElse(controllers.WikiUtil.w(wid) + "/rss.xml")
+}
+
+@prepend(l: List[String], c: String) = @{
+  c :: l
+}
+
+@ww() = @{
+  Wikis(wid.getRealm).findAny(wid.name)
+}
+
+@url() = @{
+  val u = wid.url
+  if(u startsWith "http") u else s"http://${Services.config.hostport}$u"
+}
+
+<!-- debug simple=@simple print=@print canEdit=@canEdit -->
+
+@if(!simple && !print && !we.contentProps.get("noBottom").isDefined) {
+  <div id="wikiBy">
+    <hr>
+    @******* likes *******@
+    <div id="voteLike" class="label label-info" style="padding: 10px">
+    <b>Was this useful? &nbsp;
+      @if(!stok.au.exists(_.isActive) || page.exists(p => !(p.likes contains stok.au.get._id.toString))) {
+        <a href="javascript:likeWikiFunc(1)" class="glyphicon glyphicon-thumbs-up btn " style="font-size: large" title="This topic is helpful"></a>
+      } else {
+        <span class="glyphicon glyphicon-thumbs-up" title="You already rated this topic"></span>
+      }
+
+      @if(stok.au.exists(_.isMod)) {
+        @if(page.exists(w => w.likes.size > 0 || w.likeCount > 0)) {
+          <span style="font-size: x-small">@{page.get.likes.size+page.get.likeCount}</span>
+        }
+      }
+
+        &nbsp;
+      @if(!stok.au.exists(_.isActive) || page.exists(p => !(p.dislikes contains stok.au.get._id.toString))) {
+        <a href="javascript:likeWikiFunc(0)" class="glyphicon glyphicon-thumbs-down btn " style="font-size: large" title="This topic is not helpful"></a>
+      } else {
+        <span class="glyphicon glyphicon-thumbs-down" title="You already rated this topic"></span>
+      }
+
+      @if(stok.au.exists(_.isMod)) {
+        @if(page.exists(w=> w.dislikes.size > 0 || w.dislikeCount>0)) {
+          <span style="font-size: x-small">@{page.get.dislikes.size+page.get.dislikeCount}</span>
+        }
+      }
+        </b>
+      <span class="voteLikeThanks label label-default" style="display:none"><small>Thank you!</small></span>
+    </div>
+      <br>
+
+    <small>
+        <em>By</em>:
+        @**todo use separate page for missing users **@
+        <a href="/user/@model.Users.nameOf(page.get.by)">@model.Users.nameOf(page.get.by)</a>
+        | <small>
+          @page.get.crDtm.toLocalDate().toString
+          @if(page.get.updDtm.toLocalDate != page.get.crDtm.toLocalDate) { .. @page.get.updDtm.toLocalDate().toString}
+        </small>
+
+      @******* tags *******@
+
+      @** todo tag-based browsing **@
+      @if(page.exists(_.tags.size > 0)) {
+        | <em>Tags</em>:
+        @page.get.tags.map { t =>
+          @Html(controllers.WikiUtil.hrefTag(stok.realm, wid, t, t)) @if(t != page.get.tags.last) {,}
+        }
+      }
+    </small>
+
+    @if(stok.au.exists(_.isAdmin)) {
+      <br>
+      <small>
+        Admin-stats: @page.map(_.wordCount) words
+      </small>
+    }
+
+  </div>
+  </p>
+
+  @wid.parentWid.map { pwid =>
+    <hr>
+  See more in: <strong><a href="@pwid.w">@pwid.getLabel</a> </strong>
+  @if(stok.au.isEmpty && pwid.cat == "Blog") {
+    <a class="btn btn-info" title="Subscribe to updates via email" href="@routes.Wikil.linkFollower1(pwid)"><i class="icon-envelope icon-white"></i>
+      Subscribe</a>
+  }
+  }
+
+  <div id="wikiBottomMenu">
+    <hr>
+
+    @page.flatMap(x => WikiCount.findOne(x._id)).map { pw =>
+      <p><small>Viewed <strong>@pw.count</strong> times</small>
+    }
+
+<!-- debug errCollector:
+@stok.errCollector.mkString
+-->
+    <small>
+      (
+      @if(canEdit || stok.au.exists(_.isAdmin)) {
+        @if(wid.cat != "Form" || stok.au.exists(_.isAdmin)) {
+          @if(wikiForm().isDefined) {
+            <a href="@routes.Forms.doeFormEdit(page.get.wid)">Edit</a>
+            @if(stok.au.exists(_.isAdmin)) {
+              | <a href="@routes.Wikie.wikieEdit(page.get.wid)">Edit/c</a>
+            }
+          } else {
+            <a href="@routes.Wikie.wikieEdit(page.get.wid)">Edit</a>
+          }
+        }
+      }
+      @stok.au.map { u =>
+        | <a href="" onclick="weToggleBrowser();return false;">Browse</a>
+        | <a href="@routes.Wikie.report(wid)">Report</a>
+      }
+      | <a href="@routes.Wiki.printWid(WID.cmdfromPath(wid.wpath).get, wid.getRealm)">Print</a>
+      @if(stok.au.exists(_.isDev)) {
+        | <a href="@routes.Wiki.wikieDebug(wid)"><em>debug</em></a>
+        | <a href="@routes.Wiki.wikieUsage(wid)"><em>usage</em></a>
+      }
+      @if(!(Array("WikiLink", "Category", "Form") contains wid.cat)) {
+        @if(canEdit) {
+          | <a href="@routes.Wikie.wikieRename1(wid)">Rename</a>
+        }
+
+        @if(stok.au.isDefined && stok.au.get.isActive) {
+
+          @defining(stok.au.get.isLinkedTo(we.uwid)) { isLinked =>
+
+            @if(isLinked) {
+              | <a href="@routes.Wikil.unlinkUser(wid)">@wid.label("Unlike", "Unfollow")</a>
+            } else {
+              | <a href="@routes.Wikil.linkUser(wid, false)">@wid.label("Like", "Follow")</a>
+            }
+
+            @if(isLinked && we.parent.isDefined) {
+              | <a href="@routes.WikieDebug.wikieMove1(we._id.toString)">@wid.label("Move", "Move")</a>
+            }
+
+            @if(we.isOwner(stok.au.get.id) || stok.au.exists(_.hasPerm(Perm.adminDb)) ||
+                we.owner.exists(o => o.asInstanceOf[model.User].isClub &&
+                    Club.findForUser(o.asInstanceOf[model.User]).flatMap(_.uregAdmin).exists(_._id == stok.au.get._id))) {
+              | <a href="@routes.WikieDebug.manage(we._id.toString)">Manage</a>
+            }
+          }
+        }
+
+        @if(stok.au.isEmpty && "Blog" == wid.cat) {
+          | <a href="@routes.Wikil.linkFollower1(wid)"><span style="color : red">Subscribe</span></a>
+          }
+
+      }
+      ) this page.
+
+      <div id="wikiBottomCopyright">
+      @wid.cat match {
+        case "WikiLink" if (wid.name.startsWith("User:")) => {
+          <br>This link page connects you to ??? TODO ???
+          @**
+          <a href="/wiki/@razie.wiki.model.Wikis.linkFromName(wid.name).to.toString">@razie.wiki.model.Wikis.linkFromName(wid.name).to.name</a>
+          : you can add some notes by <a href="@routes.Wikie.wikieEdit(page.get.wid)">editing</a> it.
+          **@
+        }
+        case "Category" => {
+          <br>You cannot edit categories.
+        }
+        case _ => {
+      @*<br>*@
+        }
+      }
+      </div>
+    </small></p>
+  </div>
+} <!-- /simple -->
+
+  <script>
+      // simple protection for multiple clickskA
+      // DO NOT move this function - rrequires wid
+      function likeWikiFunc (how) {
+        require(['jquery'], function($){
+          var reason = how == 0 ? prompt ("Please give us some feedback to improve this topic...", "") : "";
+          if( !wikiVoted && (reason == 1 || reason.length > 1) ) {
+            $.ajax(
+                "@routes.Wikie.like(wid)", {
+                  type: 'POST',
+                  data: $.param({
+                    how : ''+how,
+                    reason : reason
+                  }),
+                  contentType: 'application/x-www-form-urlencoded',
+                  success: function(data) {
+                    // update data.likesCount and datadislikesCount
+                  },
+                  error  : function(x) {
+                    console.log( "ERR "+JSON.stringify(x));
+                  }
+                });
+            $(".voteLikeThanks").text("Thank you!");
+            $(".voteLikeThanks").show(2000);
+            $(".voteLikeThanks").hide(2000);
+            wikiVoted=true;
+          } else {
+            $(".voteLikeThanks").text("Already voted!");
+            $(".voteLikeThanks").show(2000);
+            $(".voteLikeThanks").hide(2000);
+          }
+        });
+      };
+
+  </script>

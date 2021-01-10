@@ -1,0 +1,117 @@
+@********
+special handlng of forms
+
+registration and form sets are handled here.
+
+the actual form contents are in wikiFormInt
+*********@
+@(wid:razie.wiki.model.WID, iname:Option[String], page:Option[razie.wiki.model.WikiEntry], au:Option[model.User], errors:Map[String,String], canEdit:Boolean, print:Boolean=false)(implicit stok: controllers.StateOk)
+@import razie.wiki.model.WID
+@import model.User
+@import mod.snow.Reg
+
+@label()=@{ page.flatMap(_.contentProps.get("label")).orElse(page.map(_.label)).getOrElse(razie.wiki.model.Wikis(wid.getRealm).label(wid)) }
+
+@htmlHead(page.flatMap(_.contentProps.get("title")).getOrElse(wid.cat +": "+ page.map(_.label).getOrElse(razie.wiki.model.Wikis.label(wid))))(Map.empty, stok.au, stok.request)
+
+@if(!print) {@navbar(stok.au, wid.getRealm)}
+
+@regs=@{
+  mod.snow.Regs.findWid(wid).toList.headOption
+}
+
+@isClubAdmin(u: User) = @{
+  page.flatMap(_.owner).exists(controllers.RazWikiAuthorization.isClubAdmin(u, _))
+}
+
+@*********
+for registration sequences - show prev/next
+*********@
+@prevNext(wids:Seq[WID], reg:Option[Reg]) = {
+  @wids.splitAt(wids.indexOf(wid))._1.lastOption.map{x=>
+    <a href="@controllers.WikiUtil.w(x)" class="btn btn-xs"><font style="color:orange">&laquo;</font> PREVIOUS</a>
+    }.getOrElse {
+    <a href="#" class="btn btn-xs disabled"><font style="color:orange">&laquo;</font> PREVIOUS</a>
+    }
+  form (@(wids.indexOf(wid)+1) of @wids.size):
+  @wids.splitAt(wids.indexOf(wid))._2.tail.headOption.map{x=>
+  <a href="@controllers.WikiUtil.w(x)" class="btn btn-xs"><b>NEXT</b> <font style="color:orange">&raquo;</font></a>
+    }.getOrElse {
+      @reg.map{r=>
+      <a href="@routes.Club.doeClubUserReg(r._id.toString)" class="btn btn-xs"><b>NEXT <small>(to payment)</small></b> <font style="color : orange">&raquo;</font></a>
+      }.getOrElse{
+        <a href="#" class="btn btn-xs disabled">NEXT <font style="color : orange">&raquo;</font></a>
+      }
+    }
+&nbsp;
+@reg.map{r=>
+<a href="@routes.Club.doeClubUserReg(r._id.toString)" class="btn btn-xs">(See ALL)</a>
+}
+}
+
+<div class="container">
+  <div class="row">
+    <div class="col-sm-9">
+      <div class="well">
+
+@defining(regs) {reg=>
+
+@if(!print) {
+  @reg.map(_.deprecatedWids).map {wids=>
+      <div class="alert alert-info">
+      <strong>Registration forms:</strong>  @prevNext(wids, reg)
+      </div>
+      }
+} @*** print ***@
+
+<h2>@label()</h2>
+
+@wiki.wikiFormSimple(wid, iname, page, errors, canEdit, print)
+
+@if(!print) {
+
+@reg.map(_.deprecatedWids).map {wids=>
+  <hr>
+  <p><div class="alert alert-info">
+  <strong>Registration forms:</strong>  @prevNext(wids, reg)
+
+  @wids.lastOption.map{x=>
+  }
+
+  @if(wids.size > 1) {
+        @club.userFormList(wids, true, Some(wid))
+    }
+    </div>
+  }
+} @*** print ***@
+}
+
+</div>
+
+@if(!print) {
+      @wiki.wikiAddMore(wid, page)
+
+  @wid.page.map {we =>
+    @wiki.wikiFragBottom(we, false, canEdit, print)
+  }
+
+      @wiki.wikiPageComments(wid, page, au)
+
+      <hr>
+      @htmlFooter(ads=stok.showBottomAds(None))
+}
+    </div> <!-- /col-sm-9 -->
+
+    <div class="col-sm-3">
+@if(!print) {
+    @wiki.wikiFrag(WID("Admin","Right"),None,true)
+}
+    </div>
+
+  </div> <!-- row -->
+</div> <!-- /container -->
+
+@if(!print) {
+  @htmlBottom()
+}
+

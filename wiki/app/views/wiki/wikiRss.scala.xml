@@ -1,0 +1,26 @@
+@(page:razie.wiki.model.WikiEntry, items:List[razie.wiki.model.UWID])<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+    <channel>
+        <title>@page.getLabel</title>
+        <link>@page.wid.url</link>
+        <atom:link href="@{page.contentProps.get("rss").getOrElse(page.wid.url+"/rss.xml")}" rel="self" type="application/rss+xml" />
+        <description>@page.getDescription</description>
+
+        @defining(org.joda.time.format.DateTimeFormat.forPattern("EEE, dd MMM yyyy HH:mm:ss Z")) {fmt=>
+
+          @** sorting with the page's create date time, no the link's create datetime - is that fair? *@
+        @**items.flatMap(_.page).sortWith(_.crDtm isAfter _.crDtm).filter(! _.props.contains("draft")).take(50).map {we=> **@
+
+          @items.flatMap(_.page).sortWith(_.crDtm isAfter _.crDtm).filter(! _.props.contains("draft")).map {we=>
+            <item>
+              <title>@we.getLabel</title>
+              <link>@we.wid.url</link>
+              <pubDate>@fmt.print(we.crDtm)</pubDate>
+              <guid>@we.wid.url</guid>
+              <description>@we.getDescription</description>
+            </item>
+          }
+        }
+    </channel>
+</rss>
+

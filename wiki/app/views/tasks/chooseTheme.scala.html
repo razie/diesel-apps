@@ -1,0 +1,40 @@
+@(pForm: Form[String])(implicit stok: controllers.RazRequest)
+
+@htmlHeadBar("Choosing theme")
+
+<div class="container"> <div class="jumbotron">
+
+  <div class="row">
+    <div class="col-sm-6">
+
+      <p>Please choose how you would like to experience the site: <strong>light</strong> or <strong>dark</strong>
+        , to proceed:
+    <p>
+        &nbsp;&nbsp;&nbsp;
+      <p>
+        <a href="/doe/harry?css=dark">
+          <img src="@routes.Assets.at("images/rk-dark.jpg")" class="img-rounded" /></a>
+          &nbsp;&nbsp;&nbsp;
+        <a href="/doe/harry?css=light">
+          <img src="@routes.Assets.at("images/rk-light.jpg")" class="img-rounded" /></a>
+    <p>
+      To get back to this screen, simply sign-out by clicking on your name on the top-right.
+
+
+    </div>
+
+    <div class="col-sm-4">
+    </div>
+  </div>
+
+</div>
+
+    <!-- Example row of columns -->
+
+  <hr>
+
+  @htmlFooter()
+
+</div> <!-- /container -->
+
+

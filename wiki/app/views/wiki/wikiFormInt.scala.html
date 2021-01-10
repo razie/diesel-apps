@@ -1,0 +1,46 @@
+@********
+print form body - no header/footer - reuse in other screens
+*********@
+@(wid: razie.wiki.model.WID, iname: Option[String], page: Option[razie.wiki.model.WikiEntry], errors: Map[String, String], canEdit: Boolean, print: Boolean = false, simple: Boolean = false)(implicit stok: controllers.StateOk)
+@import model._
+
+@fid()=@{page.map(_._id).mkString}
+
+  @if(!errors.isEmpty) {
+    <div class="alert alert-danger">
+      <span style="color : red"><strong>Form has errors</strong> (was not saved):</span>
+      <span style="color : red">
+        <ul>
+        @errors.map { err =>
+          <li><b>@err._1</b>  => @err._2 </li>
+        }
+        </ul>
+      </span>
+    </div>
+  }
+
+  @wiki.wikiFrag(wid, None, simple, page, iname, true, false, canEdit, print)
+
+  @if(!errors.isEmpty) {
+    <hr>
+    <div class="alert alert-danger">
+      <strong><a id="errors">Errors:</a></strong>
+      <span style="color : red">
+        <ul>
+        @errors.map { err =>
+          <li><b>@err._1</b>  => @err._2 </li>
+        }
+        </ul>
+      </span>
+    </div>
+  }
+
+<script>
+withJquery(function($) {
+  $("input, select").change(function(){
+    if(typeof weUpdateForm != "undefined") weUpdateForm('wikiForm-@fid');
+  });
+});
+</script>
+
+@util.popupNote()

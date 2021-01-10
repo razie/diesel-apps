@@ -1,0 +1,114 @@
+@****************
+fragment: add more stuff to the current topic, including children, sub-topics etc
+****************@
+@import razie.wiki.model.UWID
+@import razie.wiki.model.WikiLink
+@import model.User
+@import razie.diesel.utils.DieselData
+@import razie.db.RazMongo
+@import razie.wiki.admin.Autosave
+@(uwid: UWID)
+
+@import controllers.IgnoreErrors
+@import razie.wiki.model.{Comment, CommentStream, Comments, WID, WikiEntry, WikiLink, Wikis}
+@import model.UserWiki
+@import razie.wiki.model.UWID
+@import razie.db.RMany
+
+
+@show(uwid: UWID) = {
+
+  DELETE forever <b>@uwid.wid.get.wpath</b> - are you sure? TODO Wikientry.parent==me etc
+
+  <small>
+  @defining(RMany[WikiLink]("to.id" -> uwid.id)) { x =>
+Links from others :
+    @if(x.isEmpty) { None } else {
+<ul>
+    @x.map { wl =>
+<li>@wl.from.findWid.map(_.wpath).getOrElse(wl.from.nameOrId) | @wl.how</li>
+    }
+</ul>
+  }
+  }
+  </small>
+
+  <small>
+  @defining(RMany[WikiLink]("from.id" -> uwid.id)) { x =>
+<p>Links to others :
+      @if(x.isEmpty) { None} else {
+<ul>
+@x.map { wl => <li>@wl.to.findWid.map(_.wpath).getOrElse(wl.to.nameOrId) | @wl.how</li> }
+</ul>
+  }
+  }
+  </small>
+
+  <small>
+  @defining(RMany[UserWiki]("uwid" -> uwid.grated)) { x =>
+<p>Users:
+      @if(x.isEmpty) { None} else {
+<ul>
+@x.map { uw => <li>@uw.user.map(_.userName).getOrElse("???") | @uw.role</li> }
+</ul>
+  }
+  }
+  </small>
+
+  <small>
+  @defining(Comments.findForWiki(uwid.id)) { x =>
+<p>Comments: @x.map(_.comments.size)
+  }
+  </small>
+
+@*if name != realm it's a mistake...*@
+
+  @*------------------------- REACTOR -------------------------- *@
+
+@if(uwid.cat == "Reactor" && uwid.findWid.exists(x=> x.getRealm == x.name)) {
+  <h2>It is a reactor, here are the topics to delete:</h2>
+
+  <small>
+    Autosave: @RMany[Autosave]("realm" -> uwid.wid.get.name).size <br>
+    DieselSettings: @RMany[DieselSettings]("realm" -> uwid.wid.get.name).size <br>
+    DieselData: @RMany[DieselData]("realm" -> uwid.wid.get.name).size <br>
+    DieselDb:   @RazMongo("DieselDb").find(Map("realm" -> uwid.wid.get.name)).size <br>
+<br>
+    @defining(RMany[User]().filter(_.realms.contains(uwid.wid.get.name))) { x =>
+<p>Users: @x.size
+<ul>
+@x.map { u => <li>@u.userName | @u.role</li> }
+</ul>
+}
+  </small>
+
+  <small>
+  @defining(RMany[WikiEntry]("realm" -> uwid.wid.get.name)) { x =>
+<p>Topics:
+      @if(x.isEmpty) { None} else {
+<ul>
+@x.map { uw => <li>@uw.wid.wpath</li> }
+</ul>
+  }
+  }
+  </small>
+} else {
+  @defining(RMany[WikiLink]("to.id" -> uwid.id, "how" -> "Child")) { x =>
+@if(x.isEmpty) {
+No children
+} else {
+<h2>Here are the Children to delete:</h2>
+<ul>
+@x.map { wl =>
+<li>@wl.from.findWid.map(_.wpath).mkString</li>
+@show(wl.from)
+      }
+</ul>
+    }
+  }
+}
+
+}
+
+@show(uwid)
+

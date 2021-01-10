@@ -1,0 +1,73 @@
+@**************
+render a regular wiki page - site pages are rendered with wikiSite.scala.html
+**************@
+@(wid:razie.wiki.model.WID, iname:Option[String], page:Option[razie.wiki.model.WikiEntry], canEdit:Boolean, print:Boolean=false)(implicit stok: controllers.StateOk)
+@import razie.wiki.model._
+@label()=@{ page.map(_.label).getOrElse(razie.wiki.model.Wikis(wid.getRealm).label(wid)) }
+@web()=@{stok.website}
+@layout=@{page.flatMap(_.contentProps.get("layout")) getOrElse web().layout}
+@if(page.exists(_.attr("diesel.requireJs").exists(_ == "false"))) {
+  @stok.requireJs(false)
+}
+
+<script>
+var curWpath = '@wid.wpathFull';
+</script>
+
+@htmlHead(page.flatMap(_.contentProps.get("title")).getOrElse(/*wid.cat + ": "+*/ label), Some(stok), page)(Map.empty, stok.au, stok.request)
+
+@if(!print) {@navbar(stok.au, wid.getRealm)}
+
+@{
+  layout.trim match {
+    case "Play:wiki.layout.div12"         => wiki.layout.div12(wid, iname, page, canEdit, print)
+    case "Play:wiki.layout.div12FullPage" => wiki.layout.div12FullPage(wid, iname, page, canEdit, print)
+    case "Play:wiki.layout.div12Cool"     => wiki.layout.div12Cool(wid, iname, page, canEdit, print)(stok)
+    case "Play:wiki.layout.div12Plain"    => wiki.layout.div12Plain(wid, iname, page, canEdit, print)(stok)
+    case "Play:wiki.layout.div9Plain"     => wiki.layout.div9Plain(wid, iname, page, canEdit, print)
+    case "Play:wiki.layout.div9Ad"        => wiki.layout.div9Ad(wid, iname, page, canEdit, print)(stok)
+    case _ => wiki.layout.classic(wid, iname, page, canEdit, print)(stok)
+  }
+}
+
+@if(!print) {
+  @htmlBottom(stok.request)
+}
+
+@if(
+  page.exists(_.attr("mod.popup").exists(_ != "false")) ||
+  page.exists(_.content.contains("{{template"))
+) {
+  @util.oneModal()
+}
+
+<script>
+function escapeHtml(unsafe) {
+  return unsafe
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+}
+
+function weShowSection(wpath) {
+    // popupUrl('/wikie/content/'+encodeURIComponent(wpath));
+    $.ajax(
+        '/wikie/content/'+encodeURIComponent(wpath), {
+          type: 'GET',
+          success: function (data) {
+            popupContent('<pre>'+escapeHtml(data)+'</pre>');
+          },
+          error: function (x) {
+            try {
+              alert('xOOPS - Some Error occurred - please send us this info\n' + JSON.stringify(x));
+            } catch (err) {
+              console.log("ERR x=" + JSON.stringify(x));
+              console.log("ERR err=" + JSON.stringify(err));
+              alert('yOOPS - Some Error occurred - please send us this info\n'+JSON.stringify(x));
+            }
+          }
+        });
+  }
+</script>

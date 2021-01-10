@@ -1,0 +1,51 @@
+@**************
+eh
+**************@
+@(wid:razie.wiki.model.WID, iname:Option[String], page:Option[razie.wiki.model.WikiEntry], canEdit:Boolean, print:Boolean=false)(implicit stok: controllers.StateOk)
+
+@label()=@{ page.map(_.label).getOrElse(razie.wiki.model.Wikis(wid.getRealm).label(wid)) }
+
+  <!-- layout div9Plain -->
+<div class="container">
+  <div class="row">
+
+    <div class="col-sm-9">
+
+      @wiki.layout.draft(page)
+
+      @modules.diesel.wBrowser(stok.realm, page, "top")
+
+      @wiki.wikiFrag(wid,None,false,page, iname, false, true, canEdit)
+
+      @modules.diesel.wBrowser(stok.realm, page, "bottom")
+
+      @if(page.isDefined && !print) {
+        @wiki.wikiAddMore(wid, page)
+
+        @wid.page.map {we =>
+          @wiki.wikiFragBottom(we, false, canEdit, print)
+        }
+
+        @wiki.wikiPageComments(wid, page, stok.au)
+      }
+
+      <hr>
+
+    </div> <!-- /col-sm-9 -->
+    @if(!print) {
+      <div class="col-sm-3">
+        @stok.website.rightTop.map { rt =>
+          @wiki.wikiFrag(rt, None, simple = true)
+        }
+      }
+
+      </div>
+
+  </div> <!-- row -->
+    @if(!print) {
+        @htmlFooter(ads = stok.showBottomAds(page),
+            wid.getRealm,
+            stok.request)
+    }
+</div> <!-- /container -->
+
