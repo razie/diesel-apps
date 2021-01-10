@@ -24,6 +24,8 @@ object Perm {
   val uProfile = Perm("uProfile")
   val eVerified = Perm("eVerified")
   val apiCall = Perm("apiCall") // special users that can make api calls
+
+  // these two mean developer
   val domFiddle = Perm("domFiddle") // can create services in eithe scala or JS
   val codeMaster = Perm("codeMaster") // can create services in eithe scala or JS
 
@@ -48,34 +50,40 @@ object Perm {
 /** basic user concept - you have to provide your own implementation */
 abstract class WikiUser extends DUser {
   override def userName: String
+
   override def id: String = _id.toString
+
   override def ename: String // make up a nice name: either first name or email or something
 
   def email: String
+
   def _id: ObjectId
 
   /** pages of category that I linked to. Use wildcard '*' for all realms and all cats */
-  def myPages (realm:String, cat: String) : List[Any]
+  def myPages(realm: String, cat: String): List[Any]
 
-  def css : Option[String] // "dark" vs "light" if there is a preference
+  def css: Option[String] // "dark" vs "light" if there is a preference
 
   /** check if the user has the given membership level.
     *
     * @param s suggested levels are: Member, Basic, Gold, Platinum
     * @return
     */
-  def hasMembershipLevel(s:String) : Boolean
-  def membershipLevel : String
+  def hasMembershipLevel(s: String): Boolean
 
-  def hasPerm(p: Perm) : Boolean
+  def membershipLevel: String
 
-  def isActive : Boolean
-  def isSuspended : Boolean
+  def hasPerm(p: Perm): Boolean
+
+  def isActive: Boolean
+
+  def isSuspended: Boolean
 
   // users can be, in order of access: mods, devs or admins
   def isMod = hasPerm(Perm.Moderator) || isAdmin
 
-  def isDev = isAdmin || hasPerm(Perm.codeMaster)
+  def isDev = isMod || hasPerm(Perm.codeMaster) || hasPerm(Perm.domFiddle)
+
   def isAdmin = hasPerm(Perm.adminDb) || hasPerm(Perm.adminWiki)
 }
 
