@@ -83,8 +83,9 @@ abstract class WikiConfig {
   final val forcephone  = prop("wiki.forcephone").toBoolean
 
   final val mongodb     = prop("wiki.mongodb")
-  final val mongohost   = prop("wiki.mongohost")
-  final val mongouser   = prop("wiki.mongouser")
+  final val mongohost = prop("wiki.mongohost")
+  final val mongoport = prop("wiki.mongoport", "27017").toInt
+  final val mongouser = prop("wiki.mongouser")
   final val mongopass   = prop("wiki.mongopass")
 
   final val cacheWikis  = prop("wiki.cachewikis", "false").toBoolean
