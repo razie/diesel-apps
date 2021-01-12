@@ -216,8 +216,21 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
             case _ if bs == "json" || bs == "object" =>
               P.fromTypedValue("", avalue, WTypes.JSON).calculatedTypedValue
 
-            case _ if bs == "array" =>
-              P.fromTypedValue("", avalue, WTypes.ARRAY).calculatedTypedValue
+            case _ if bs == "array" => {
+              if (avv.cType.name == WTypes.JSON || avv.cType.name == WTypes.OBJECT) {
+                // map to array
+                val arr = avv.asJson
+
+                val resArr = arr.map { x =>
+                  val xj = P.fromSmartTypedValue("x", Map("key" -> x._1, "value" -> x._2))
+                  xj
+                }
+                P.fromTypedValue("", resArr.toList, WTypes.ARRAY).calculatedTypedValue
+              } else {
+                // maybe string to array
+                P.fromTypedValue("", avalue, WTypes.ARRAY).calculatedTypedValue
+              }
+            }
 
             case c if ctx.root.domain.exists(_.classes.contains(bu)) => {
               // domain class, base must be json
@@ -252,11 +265,11 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
 
             val arr = av.calculatedTypedValue.asArray
 
-            val resArr = arr.map {x=>
-              val res = if(b.isInstanceOf[LambdaFuncExpr]) {
+            val resArr = arr.map { x =>
+              val res = if (b.isInstanceOf[LambdaFuncExpr]) {
                 val res = b.applyTyped(x)
                 res
-              } else if(b.isInstanceOf[BlockExpr] && b.asInstanceOf[BlockExpr].ex.isInstanceOf[LambdaFuncExpr]) {
+              } else if (b.isInstanceOf[BlockExpr] && b.asInstanceOf[BlockExpr].ex.isInstanceOf[LambdaFuncExpr]) {
                 // common case, no need to go through context, Block passes through to Lambda
                 val res = b.applyTyped(x)
                 res
@@ -273,7 +286,66 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
             PValue(finalArr, WTypes.wt.ARRAY)
           }
 
+          case WTypes.JSON => {
+            val elementType = av.calculatedTypedValue.cType.getClassName
+
+            val arr = av.calculatedTypedValue.asJson
+
+            val resArr = arr.map { x =>
+              val xj = P.fromSmartTypedValue("x", Map("key" -> x._1, "value" -> x._2))
+
+              val res = if (b.isInstanceOf[LambdaFuncExpr]) {
+                // arr map x => f
+                val res = b.applyTyped(xj)
+                res
+              } else if (b.isInstanceOf[BlockExpr] && b.asInstanceOf[BlockExpr].ex.isInstanceOf[LambdaFuncExpr]) {
+                // arr map (x => f)
+                // common case, no need to go through context, Block passes through to Lambda
+                val res = b.applyTyped(xj)
+                res
+              } else {
+                // we populate an "x" or should it be "elem" ?
+                val sctx = new StaticECtx(List(P.fromTypedValue("x", x)), Some(ctx))
+                val res = b.applyTyped(xj)(sctx)
+                res
+              }
+              res
+            }
+
+            val finalArr = resArr.map(_.calculatedTypedValue.value)
+            PValue(finalArr, WTypes.wt.ARRAY)
+          }
+
           case _ => throw new DieselExprException("Can't do map on: " + av)
+        }
+      }
+
+      case "mkString" => {
+
+        av.calculatedTypedValue.cType.name match {
+          case WTypes.ARRAY => {
+            val elementType = av.calculatedTypedValue.cType.wrappedType
+
+            val arr = av.calculatedTypedValue.asArray
+
+            val resArr = arr.map { x =>
+              if (x.isInstanceOf[P]) {
+                x.asInstanceOf[P].currentStringValue
+              } else if (x.isInstanceOf[Expr]) {
+                x.asInstanceOf[Expr].applyTyped(v).currentStringValue
+              } else if (x.isInstanceOf[PValue[_]]) {
+                x.asInstanceOf[PValue[_]].asString
+              } else {
+                x.toString
+              }
+            }
+
+            val res = resArr.mkString(b.applyTyped("").currentStringValue)
+
+            PValue(res, WTypes.wt.STRING)
+          }
+
+          case _ => throw new DieselExprException("Can't do mkString on: " + av)
         }
       }
 

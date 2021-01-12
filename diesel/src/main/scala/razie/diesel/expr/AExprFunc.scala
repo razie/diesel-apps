@@ -127,6 +127,9 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
       }
 
       case "flatten" => {
+
+        // the flat part of flatmap
+
         firstParm.map { p =>
           val av = p.calculatedP
           p.calculatedTypedValue.cType.name match {
