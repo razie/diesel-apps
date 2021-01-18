@@ -38,7 +38,7 @@ abstract class EMap extends CanHtml with HasPosition {
   def indent(indentLevel:Int, s:String = "&nbsp;&nbsp;") = Range(0, indentLevel+1).map(x=> s).mkString
 }
 
-/** special case of map, just assigning exprs, no message decomp
+/** => (expr = expr) special case of map, just assigning exprs, no message decomp
   *
   * @param attrs
   * @param arrow
@@ -73,7 +73,6 @@ case class EMapPas(attrs: List[PAS], arrow:String="=>", cond: Option[EIf] = None
     List(e)
   }
 
-  //  override def toHtml = "<b>=&gt;</b> " + ea(cls, met) + " " + attrs.map(_.toHtml).mkString("(", ",", ")")
   override def toHtml = indent(indentLevel) + """<span class="glyphicon glyphicon-arrow-right"></span> """ + cond.map(_.toHtml+" ").mkString + ea("", "") + " " + toHtmlPAttrs(attrs)
 
   override def toString = indent(indentLevel, " ") + "=> " + cond.map(_.toHtml+" ").mkString + ". " + attrs.mkString("(", ",", ")")
@@ -131,10 +130,10 @@ case class EMapCls(cls: String, met: String, attrs: Attrs, arrow:String="=>", co
 
 object EMap {
 
-  /** soure the attributes for a message
+  /** soure the attributes for a message - look at spec and try to source all inputs from available context
     *
-    * @param parent message
-    * @param spec specification attributes of current message (to source)
+    * @param parent   message
+    * @param spec     specification attributes of current message (to source)
     * @param destSpec destination spec, if any
     * @param deferEvaluation
     * @param ctx
@@ -159,35 +158,44 @@ object EMap {
     }
 
     val out1 = if (spec.nonEmpty) spec.flatMap { p =>
-      if(deferEvaluation)
+      if (deferEvaluation)
         List(p)
+
       // flattening objects first
-      else if(p.expr.exists{e=>
+      else if (p.expr.exists { e => // a.asAttr
+
         e.isInstanceOf[AExprIdent] &&
             e.asInstanceOf[AExprIdent].rest.size > 0 &&
             e.asInstanceOf[AExprIdent].rest.last.name.equals("asAttrs")
       }) {
         p :: flattenJson(p)
-      } else if(p.name.endsWith(".asAttrs")) {
+
+      } else if (p.name.endsWith(".asAttrs")) {
+
         // we have to resolve the expression here
         val ap = new SimpleExprParser().parseIdent(p.name).map(_.dropLast) // without .asAttrs
         // and flatten it
-        p :: flattenJson(p.copy(expr = ap).calculatedP)
+        flattenJson(p.copy(expr = ap).calculatedP)
+
+        // don't add p anymore or it will be evaluated again later, likely in different context...
+        //p :: flattenJson(p.copy(expr = ap).calculatedP)
+
       } else {
-          // do evaluation now
+
+        // do evaluation now
         // sourcing has expr, overrules
         val v =
-          if(p.hasCurrentValue)
-            Some(p)
-            // do not recalculate expressions like diesel.msg.ea - these will produce a different value
-            // important: if a parm is inherited with expression and expression is diesel.msg.ea, it would produce a
-            // different value if evaluated AGAIN for the child
-          else if(p.expr.nonEmpty) Some(expr(p)) // a=x
-          else
-          // this is why we can't override values in a message decomp
+        if (p.hasCurrentValue)
+          Some(p)
+        // do not recalculate expressions like diesel.msg.ea - these will produce a different value
+        // important: if a parm is inherited with expression and expression is diesel.msg.ea, it would produce a
+        // different value if evaluated AGAIN for the child
+        else if (p.expr.nonEmpty) Some(expr(p)) // a=x
+        else
+        // this is why we can't override values in a message decomp
 //        parent.attrs.find(_.name == p.name).orElse( // just by name: no dflt, no expr
-          // ctx contains in.attrs but with overwrite
-            ctx.getp(p.name)
+        // ctx contains in.attrs but with overwrite
+          ctx.getp(p.name)
 //        )
 
         val tt =

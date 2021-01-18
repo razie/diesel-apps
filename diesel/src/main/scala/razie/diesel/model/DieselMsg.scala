@@ -257,6 +257,8 @@ object DieselMsg {
     final val ENTITY = "diesel.scope"
     final val DIESEL_PUSH = "diesel.scope.push"
     final val DIESEL_POP = "diesel.scope.pop"
+    final val RULE_PUSH = "diesel.scope.rule.push"
+    final val RULE_POP = "diesel.scope.rule.pop"
   }
 
   object STREAMS {

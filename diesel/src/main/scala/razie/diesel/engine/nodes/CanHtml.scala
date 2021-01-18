@@ -55,22 +55,23 @@ trait CanHtml {
   /** format an html keyword span
     *
     * @param s     the keyword
-    * @param k     the color code
+    * @param k     the color code or empty for no label class
     * @param title optional hover title
     * @param extra optional other attrs
     * @return
     */
   def span(s: String, k: String = "default", title: String = "", extra: String = "") = {
     val t = CanHtml.prepTitle(title)
-    s"""<span class="label label-$k" $t $extra>$s</span>"""
+    val cls = if (k.length > 0) s"""label label-$k""" else ""
+    s"""<span class="$cls" $t $extra>$s</span>"""
   }
 
   /** format a clickable span, which dumps content
     *
     * @param s     the keyword
-    * @param k     the color code
+    * @param k     the color code or empty for no label class
     * @param title optional hover title
-    * @param extra optional other attrs
+    * @param extra optional other attrs - shown on popup
     * @return
     */
   def spanClick(s: String, k: String = "default", title: String = "", extra: String = "") = {
@@ -108,5 +109,14 @@ trait CanHtml {
     "<code>" + token(s, "value", """ class="string" """) + "</code>"
 
   def toHtml: String
+
+  /** shorten string */
+  def shorten(s: String, len: Int = 100) = {
+    if (s.length > len) {
+      s.take(len) + "..."
+    } else {
+      s
+    }
+  }
 }
 

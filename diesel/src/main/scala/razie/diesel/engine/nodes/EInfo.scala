@@ -140,14 +140,14 @@ case class EInfo(msg: String, details: String = "") extends CanHtml with HasPosi
         "info::",
         "info",
         details,
-        msg.replace("\n", "") + spos
+        spos + msg.replace("\n", "")
       )
     } else {
       span("info::", "info", details) + spos + " " + msg
     }
   }
 
-  override def toString = "info::" + msg
+  override def toString = "info::" + shorten(msg, 200)
 }
 
 /** a simple wrapper */
