@@ -71,7 +71,8 @@ class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Optio
   override def exists(f: scala.Function1[P, scala.Boolean]): scala.Boolean =
     overwritten
         .map(_.exists(f))
-        .orElse(settings.postedContent.map(_.exists(f)))
+        // todo remove use of postedContent - what the heck, see ps() as well
+//        .orElse(settings.postedContent.map(_.exists(f)))
         .getOrElse(super.exists(f))
 
   // uniques
