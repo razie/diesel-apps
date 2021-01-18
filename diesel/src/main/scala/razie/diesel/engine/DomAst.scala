@@ -46,11 +46,43 @@ case class DomAst(
 
   //=========== runtime data
 
+  var parent: Option[DomAst] = None
+
   // todo the nodes should remember the context they had, so we can see the values at that point, later
   // todo most likely clone the environment, when processing done?
   private var imyCtx: Option[ECtx] = None
 
-  def myCtx: Option[ECtx] = imyCtx
+  /** get the closest enclosing context */
+  def getCtx: Option[ECtx] = imyCtx orElse parent.flatMap(_.getCtx)
+
+  /** get my context if any, no parent fallbacks */
+  def getNodeCtx: Option[ECtx] = imyCtx
+
+  def resetParent(f: => DomAst) = {
+    this.parent = Option.apply(f)
+  }
+
+  def withParent(f: => DomAst) = {
+    if (!this.parent.isDefined) {
+      this.parent = Some(f)
+    }
+    else
+      throw new IllegalStateException("Ast already has a parent...")
+  }
+
+  def replaceCtx(f: => ECtx) = {
+    this.imyCtx = Some(f)
+    this.imyCtx.get
+  }
+
+  def withCtx(f: => ECtx) = {
+    if (!this.imyCtx.isDefined) {
+      this.imyCtx = Some(f)
+      this.imyCtx.get
+    }
+    else
+      throw new IllegalStateException("Ast already has a context...")
+  }
 
   def orWithCtx(f: => Option[ECtx]) = {
     if (!this.imyCtx.isDefined) {
@@ -73,6 +105,25 @@ case class DomAst(
   var tend: Long = System.currentTimeMillis()
   /** execution sequence number - an engine is a single sequence */
   var seqNo: Long = -1
+
+  /** SPECIAL: NO EVENTS generated - use carefully */
+  def prependAllNoEvents(other: List[DomAst]): Unit = {
+    this.childrenCol.prependAll(other)
+    other.foreach(_.withParent(this))
+  }
+
+  /** SPECIAL: NO EVENTS generated - use carefully */
+  def appendAllNoEvents(other: List[DomAst]): Unit = {
+    this.childrenCol.appendAll(other)
+    other.foreach(_.withParent(this))
+  }
+
+  /** SPECIAL: NO EVENTS generated - use carefully */
+  def moveAllNoEvents(from: DomAst)(implicit engine: DomEngineState): Unit = {
+    this.childrenCol.appendAll(from.children)
+    from.children.foreach(_.resetParent(this))
+    from.childrenCol.clear() // need to remove them from parent, or they will be duplos and create problems
+  }
 
   /** will force updates to go through a DES */
   def appendAll(other: List[DomAst])(implicit engine: DomEngineState): Unit = {

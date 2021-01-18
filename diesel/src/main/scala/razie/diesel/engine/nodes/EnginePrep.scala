@@ -7,10 +7,12 @@ package razie.diesel.engine.nodes
 
 import org.bson.types.ObjectId
 import razie.Logging
-import razie.diesel.dom.RDOM.O
+import razie.diesel.dom.RDOM.{O, P}
 import razie.diesel.dom.RDomain.DOM_LIST
 import razie.diesel.dom.{RDomain, WikiDomain}
 import razie.diesel.engine._
+import razie.diesel.expr.ScopeECtx
+import razie.diesel.model.DieselMsg
 import razie.diesel.utils.{DomUtils, SpecCache}
 import razie.tconf.{DSpec, TSpecRef, TagQuery}
 import razie.wiki.admin.Autosave
@@ -72,15 +74,18 @@ object EnginePrep extends Logging {
   /** all pages of category
     * - inherit ALL specs from mixins
     */
-  def catPages (cat:String, realm:String): List[WikiEntry] = {
-    if("Spec" == cat) {
+  def catPages(cat: String, realm: String, overwriteTopics: Boolean = false): List[WikiEntry] = {
+    if ("Spec" == cat) {
       val w = Wikis(realm)
       val l = (w.pages(cat).toList ::: w.mixins.flattened.flatMap(_.pages(cat).toList))
       // distinct in order - so I overwrite mixins
       val b = ListBuffer[WikiEntry]()
       val seen = mutable.HashSet[WikiEntry]()
       for (x <- l) {
-        if (!seen.exists(y=>y.category == x.category && y.name == x.name)) {
+        if (!seen.exists(
+          y => (overwriteTopics || !overwriteTopics && y.realm == x.realm) &&
+              y.category == x.category &&
+              y.name == x.name)) {
           b append x
           seen += x
         }
@@ -182,25 +187,23 @@ object EnginePrep extends Logging {
 
     val root = iroot.getOrElse(DomAst("root", "root"))
 
+    // start processing all elements
+    val engine = DieselAppContext.mkEngine(dom, root, settings, ipage :: pages map WikiDomain.spec, description)
+
     val stories = if (!useTheseStories.isEmpty) useTheseStories else List(ipage)
     startStory.map { we =>
-      logger.debug("PrepEngine globalStory:\n"+we.content)
+      logger.debug("PrepEngine globalStory:\n" + we.content)
       // main story adds to root, no scope wrappers - this is globals
-      addStoryWithFiddlesToAst(root, List(we), false, false, false)
+      addStoryWithFiddlesToAst(engine, List(we), false, false, false)
     }
 
-    addStoryWithFiddlesToAst(root, stories, justTests, false, addFiddles)
+    addStoryWithFiddlesToAst(engine, stories, justTests, false, addFiddles)
 
     endStory.map { we =>
       logger.debug("PrepEngine endStory:\n"+we.content)
       // main story adds to root, no scope wrappers - this is globals
-      addStoryWithFiddlesToAst(root, List(we), false, false, false)
+      addStoryWithFiddlesToAst(engine, List(we), false, false, false)
     }
-
-    // start processing all elements
-    val engine = DieselAppContext.mkEngine(dom, root, settings, ipage :: pages map WikiDomain.spec, description )
-    //    engine.ctx._hostname = settings.node
-    //    setHostname(engine.ctx)
 
     engine
   }
@@ -239,11 +242,12 @@ object EnginePrep extends Logging {
   }
 
   /* extract more nodes to run from the story - add them to root */
-  def addStoryWithFiddlesToAst(root: DomAst, stories: List[WikiEntry], justTests: Boolean = false, justMocks: Boolean = false, addFiddles: Boolean = false) = {
+  def addStoryWithFiddlesToAst(engine: DomEngine, stories: List[WikiEntry], justTests: Boolean = false,
+                               justMocks: Boolean = false, addFiddles: Boolean = false) = {
 
     val allStories = listStoriesWithFiddles(stories, addFiddles)
 
-    addStoriesToAst(root, allStories, justTests, justMocks, addFiddles)
+    addStoriesToAst(engine, allStories, justTests, justMocks, addFiddles)
   }
 
   /** nice links to stories in AST trees */
@@ -265,11 +269,13 @@ object EnginePrep extends Logging {
     *
     *  todo when are expressions evaluated?
     */
-  def addStoriesToAst(root: DomAst, stories: List[DSpec], justTests: Boolean = false, justMocks: Boolean = false, addFiddles:Boolean=false) = {
+  def addStoriesToAst(engine: DomEngine, stories: List[DSpec], justTests: Boolean = false, justMocks: Boolean =
+  false, addFiddles: Boolean = false) = {
     var lastMsg: Option[EMsg] = None
     var lastMsgAst: Option[DomAst] = None
     var lastAst: List[DomAst] = Nil
     var inSequence = true
+    val root = engine.root
 
     def addMsg(v: EMsg) = {
       lastMsg = Some(v);
@@ -312,10 +318,10 @@ object EnginePrep extends Logging {
       if(stories.size > 1) root.childrenCol appendAll addMsg(EMsg("diesel.scope", "push"))
 
       // markup all constructs - make sure there are no unparsed elements:
-      if(
+      if (
         !hasFiddleStories(story) &&
-        !story.tags.contains(FIDDLE) &&
-        story.contentPreProcessed.contains("$expect")) {
+            !story.tags.contains(FIDDLE) &&
+            story.contentPreProcessed.contains("$expect")) {
 
         // optimized to only do this expensive part for test stories, not regular messages
         // expect for fiddles (line numbers are very off)
@@ -334,10 +340,10 @@ object EnginePrep extends Logging {
         root.childrenCol appendAll story.contentPreProcessed.lines.map(_.trim).zipWithIndex.filter(
           _._1.startsWith("$expect")).collect {
 
-          case (line, row) if !findElemLine(row+1) =>
+          case (line, row) if !findElemLine(row + 1) =>
             DomAst(EError(s"Unparsed line #$row: " + line, story.specRef.wpath), AstKinds.ERROR).withStatus(
               DomState.SKIPPED)
-        }
+        }.toList
       }
 
       // add the actual elements
@@ -369,7 +375,7 @@ object EnginePrep extends Logging {
           lastAst = List(DomAst(
             e
                 .withGuard(lastMsg.map(_.asMatch))
-                .withTarget(lastMsgAst), "test").withPrereq(lastAst.map(_.id)
+                .withTarget(lastMsgAst), AstKinds.TEST).withPrereq(lastAst.map(_.id)
           ))
           lastAst
         }
@@ -379,7 +385,7 @@ object EnginePrep extends Logging {
           lastAst = List(DomAst(
             e
                 .withGuard(lastMsg.map(_.asMatch))
-                .withTarget(lastMsgAst), "test").withPrereq(lastAst.map(_.id)
+                .withTarget(lastMsgAst), AstKinds.TEST).withPrereq(lastAst.map(_.id)
           ))
           lastAst
         }
@@ -389,7 +395,7 @@ object EnginePrep extends Logging {
           lastAst = List(DomAst(
             e
                 .withGuard(lastMsg.map(_.asMatch))
-                .withTarget(lastMsgAst), "test").withPrereq(lastAst.map(_.id)
+                .withTarget(lastMsgAst), AstKinds.TEST).withPrereq(lastAst.map(_.id)
           ))
           lastAst
         }

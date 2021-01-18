@@ -53,13 +53,10 @@ $msg home.guest_arrived(name="Jane")
     // 2. create the process instance / root node
     val root = DomAst("root", AstKinds.ROOT)
 
-    // 3. add the entry points / triggers to the process
-    EnginePrep.addStoriesToAst(root, List(story))
-
-    // 4. rules configuration
-
-    // 5. start processing
     val engine = DieselAppContext.mkEngine(dom, root, settings, story :: specs, "simpleFlow")
+
+    // 3. add the entry points / triggers to the process
+    EnginePrep.addStoriesToAst(engine, List(story))
 
     // 6. when done...
     val future = engine.process

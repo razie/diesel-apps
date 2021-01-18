@@ -47,13 +47,10 @@ object DomEngineUtils {
     // 2. create the process instance / root node
     val root = DomAst("root", AstKinds.ROOT)
 
-    // 3. add the entry points / triggers to the process
-    EnginePrep.addStoriesToAst(root, stories)
-
-    // 4. rules configuration
-
-    // 5. start processing
     val engine = DieselAppContext.mkEngine(dom, root, settings, stories ::: specs, "simpleFlow")
+
+    // 3. add the entry points / triggers to the process
+    EnginePrep.addStoriesToAst(engine, stories)
 
     engine
   }
@@ -134,7 +131,6 @@ object DomEngineUtils {
     var res = ""
 
     val root = DomAst("root", "root")
-    EnginePrep.addStoriesToAst(root, List(ipage))
 
     // start processing all elements
     val engine = DieselAppContext.mkEngine(
@@ -143,6 +139,8 @@ object DomEngineUtils {
       settings,
       ipage :: pages map WikiDomain.spec,
       DieselMsg.runDom + msg)
+
+    EnginePrep.addStoriesToAst(engine, List(ipage))
 
     engine
   }
