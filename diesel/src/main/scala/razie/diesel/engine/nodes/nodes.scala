@@ -36,10 +36,13 @@ package object nodes {
   /** prep for display */
   def htmlValue(s:String) = Enc.escapeHtml(s.take(100))
 
+  /** p to array of p: each key-value becomes a p */
   def flattenJson (p: P)(implicit ctx: ECtx) : Attrs = {
     val pv = p.calculatedP
     val v = p.calculatedTypedValue
+
     assert(p.ttype == WTypes.wt.JSON || p.isUndefinedOrEmpty, "input needs to be JSON, but it's: " + pv)
+
     v.asJson.map { t =>
       P.fromTypedValue(t._1, t._2)
     }.toList

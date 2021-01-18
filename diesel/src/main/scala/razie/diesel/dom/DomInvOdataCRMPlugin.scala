@@ -161,9 +161,10 @@ class DomInvOdataCRMPlugin(
       reset(iprops, name)
 
       this.completeUri = completeUri
+      val ref = new FullSpecRef(this.name, conn, epath, "", "", realm)
 
       action match {
-        case "testConnection" => DomInventories.resolve(testConnection(dom, epath)).currentStringValue
+        case "testConnection" => DomInventories.resolve(ref, testConnection(dom, epath)).currentStringValue
         case "findByRef" => findByRefs(dom, epath)
         case "findByQuery" => findByQuerys(dom, epath)
         case "listAll" => xlistAll(dom, epath)
@@ -550,10 +551,12 @@ class DomInvOdataCRMPlugin(
           if (id == "" || id == "*" || id == "'*'")
             s"$$top=50"
           else
-            s"$$filter=" + Sec.encUrl(s"$field eq $id")
+//            s"$$filter=" + Sec.encUrl(s"${field} eq $id")
+            s"$$filter=" + Sec.encUrl(s"_${field}_value eq $id")
         }
 
-        val u = URL + s"/api/data/v8.2/$plural?" + filter
+        //        val u = URL + s"/api/data/v8.2/$plural?" + filter
+        val u = URL + s"/api/data/v8.2/$plural?" + s"_${filter}_value"
 
         val b = crmJson(u)
 

@@ -95,6 +95,7 @@ object DomInventories extends razie.Logging {
     val o = p.flatMap(inv =>
       resolve(
         ref.realm,
+        ref,
         inv.findByRef(dom.rdom, ref, collectRefs)
       )
     )
@@ -118,6 +119,7 @@ object DomInventories extends razie.Logging {
     val o = p.toList.flatMap(inv =>
       resolve(
         ref.realm,
+        ref,
         inv.findByQuery(dom.rdom, ref, epath, start, size, collectRefs)
       )
     )
@@ -138,6 +140,7 @@ object DomInventories extends razie.Logging {
     val o = p.toList.flatMap(inv =>
       resolve(
         ref.realm,
+        ref,
         inv.listAll(dom.rdom, ref, start, limit, collectRefs)
       )
     )
@@ -233,7 +236,7 @@ object DomInventories extends razie.Logging {
   val CLS_FIELD_VALUE = """([^/]+)/(.+)/(.+)""".r
 
   /** for synchornous people */
-  def resolve(e: Either[P, EMsg]): P = {
+  def resolve(ref: FullSpecRef, e: Either[P, EMsg]): P = {
     // resolve EMrg's parameters in an empty context and run it and await?
     e.fold(
       p => p,
@@ -243,13 +246,47 @@ object DomInventories extends razie.Logging {
   }
 
   // resolve for messages that return an option not a list - reuse the list one
-  def resolve(realm: String, e: Either[Option[DieselAsset[_]], EMsg]): Option[DieselAsset[_]] = {
+  def resolve(realm: String, ref: FullSpecRef, e: Either[Option[DieselAsset[_]], EMsg]): Option[DieselAsset[_]] = {
     resolve(realm,
+      ref,
       e.fold(
         p => Left(p.toList),
         m => Right(m)
       )
     ).headOption
+  }
+
+  /** O to DieselAsset */
+  def oToA(o: O, ref: FullSpecRef, j: collection.Map[String, Any], realm: String) = {
+    var r = j.get("assetRef")
+        .filter(_.isInstanceOf[collection.Map[String, _]])
+        .map(_.asInstanceOf[collection.Map[String, _]])
+        .map(_.toMap)
+        .map(SpecRef.fromJson)
+    val key = r.map(_.key).orElse(j.get("key")).mkString
+
+    if (r.exists(_.cls.isEmpty)) {
+      r = r.map(_.copy(cls = o.base))
+    }
+
+    val dom = WikiDomain(realm)
+    val inv = dom.rdom.classes.get(o.base).flatMap(c => dom.findPluginsForClass(c).headOption)
+
+    new DieselAsset[O](SpecRef.make(realm, "", "", o.base, o.name), o)
+    new DieselAsset[O](
+      ref = r.getOrElse(new FullSpecRef(
+        inv.map(_.name).getOrElse("n/a"),
+        inv.map(_.conn).getOrElse("n/a"),
+        o.base,
+        key,
+        "",
+        ""
+      )
+      ),
+//      DomInventories.oFromJ(name, j, c, classOname(c), filterAttrs)
+      value = o,
+      valueO = Some(o)
+    )
   }
 
   /** json map to DieselAsset */
@@ -291,7 +328,7 @@ object DomInventories extends razie.Logging {
   }
 
   /** for synchornous people */
-  def resolve(realm: String, e: Either[List[DieselAsset[_]], EMsg]): List[DieselAsset[_]] = {
+  def resolve(realm: String, ref: FullSpecRef, e: Either[List[DieselAsset[_]], EMsg]): List[DieselAsset[_]] = {
     // resolve EMrg's parameters in an empty context and run it and await?
     e.fold(
       p => p,
@@ -306,8 +343,9 @@ object DomInventories extends razie.Logging {
           val c = WikiDomain(realm).rdom.classes.get(p.get.ttype.schema)
 
           if (c.isDefined) {
-            val o = oFromJMap("keytodo", j.toMap, c.get, c.get.name, Array.empty)
-            List(new DieselAsset[O](SpecRef.make(realm, "", "", o.base, o.name), o))
+            val k = j.toMap.get("key").getOrElse(j.toMap.get("ref").mkString).toString
+            val o = oFromJMap(k, j.toMap, c.get, c.get.name, Array.empty)
+            List(oToA(o, ref, j.toMap, realm))
           }
           else
             List(jToA(p.get, j, realm))
@@ -322,22 +360,30 @@ object DomInventories extends razie.Logging {
               val c = WikiDomain(realm).rdom.classes.get(p.get.ttype.schema)
 
               if (c.isDefined) {
-                val o = oFromJMap("keytodo", j.toMap, c.get, c.get.name, Array.empty)
-                new DieselAsset[O](SpecRef.make(realm, "", "", o.base, o.name), o)
+                val k = j.toMap.get("key").getOrElse(j.toMap.get("ref").mkString).toString
+                val o = oFromJMap(k, j.toMap, c.get, c.get.name, Array.empty)
+                oToA(o, ref, j.toMap, realm)
               }
               else
                 jToA(o, j, realm)
             }
-//            case j: Map[String, Any] => {
-//              val c = WikiDomain(realm).rdom.classes.get(p.get.ttype.schema)
-//
-//              if (c.isDefined) {
-//                val o = oFromJMap("keytodo", j.toMap, c.get, c.get.name, Array.empty)
-//                new DieselAsset[O](SpecRef.make(realm, "", "", o.base, o.name), o)
-//              }
-//              else
-//                jToA(o, j, realm)
-//            }
+            case j: collection.Map[String, Any] => {
+              val c = {
+                WikiDomain(realm).rdom.classes.get(p.get.ttype.schema)
+                    .orElse(
+                      WikiDomain(realm).rdom.classes.get(ref.cls) // assume it's of the type we were looking for
+                    )
+              }
+
+              if (c.isDefined) {
+                val k = j.toMap.get("key").getOrElse(j.toMap.get("ref").mkString).toString
+                val o = oFromJMap(k, j.toMap, c.get, c.get.name,
+                  Array.empty)
+                oToA(o, ref, j.toMap, realm)
+              }
+              else
+                jToA(P.fromSmartTypedValue(Diesel.PAYLOAD, j), j, realm)
+            }
             case x@_ => throw new DieselExprException("Unknown type for: " + x)
           }.toList
         }

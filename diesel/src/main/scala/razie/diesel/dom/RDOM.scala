@@ -412,6 +412,13 @@ object RDOM {
       this.copy(ttype = ctype, value = Some(PValue[T](va, ctype)))
     }
 
+    def withStringValue(va: String) = {
+      this.copy(
+        ttype = WTypes.wt.STRING,
+        value = Some(PValue[String](va, WTypes.wt.STRING).withStringCache(va))
+      )
+    }
+
     def withCachedValue[T](va: T, ctype: WType, cached: String) = {
       this.copy(ttype = ctype, value = Some(PValue[T](va, ctype).withStringCache(cached)))
     }
@@ -533,32 +540,42 @@ object RDOM {
 
     def htrimmedDflt = {
       val d = currentStringValue
-      if(d.size > 80) d.replaceAll("\n", "").take(60)
+      if (d.size > 20) d.replaceAll("\n", "").take(20)
       else d
     }
 
     override def toString =
       s"$name" +
-        ttype +
-        optional +
-        smap(strimmedDflt) (s=> "=" + (if("Number" == ttype) s else quot(s))) +
-        (if(dflt=="") expr.map(x=>smap(x.toString) ("=" + _)).mkString else "")
+          ttype +
+          optional +
+          smap(strimmedDflt)(s => "=" + (if ("Number" == ttype) s else quot(s))) +
+          (if (dflt == "") expr.map(x => smap(x.toString)("=" + _)).mkString else "")
 
     // todo docs, position etc
     override def toHtml = toHtml(true)
 
-    def toHtml (shorten:Boolean = true)=
-      s"<b>$name</b>" +
-        (if(ttype.name.toLowerCase != "string") typeHtml(ttype) else "") +
-    optional +
-        smap(Enc.escapeHtml(if(shorten) htrimmedDflt else currentStringValue)) {s=>
-          "=" + tokenValue(if("Number" == ttype) s else escapeHtml(quot(s)))
-        } +
-//        (if(dflt.length > 60) "<span class=\"label label-default\"><small>...</small></span>") +
-        (if(shorten && currentStringValue.length > 60) "<b><small>...</small></b>" else "") +
+    def nameHtml(shorten: Boolean) = {
+      val d = currentStringValue
+      if (d.length > 20) spanClick(
+        name,
+        "",
+        currentStringValue,
+        ""
+      )
+      else name
+    }
+
+    def toHtml(shorten: Boolean = true) =
+      s"<b>${nameHtml(shorten)}</b>" +
+          (if (ttype.name.toLowerCase != "string") typeHtml(ttype) else "") +
+          optional +
+          smap(Enc.escapeHtml(if (shorten) htrimmedDflt else currentStringValue)) { s =>
+            "=" + tokenValue(if ("Number" == ttype) s else escapeHtml(quot(s)))
+          } +
+          (if (shorten && currentStringValue.length > 20) "<b><small>...</small></b>" else "") +
           (if (dflt == "") expr.map(x => smap(x.toHtml)("=" + _)).mkString else "")
 
-    private def typeHtml(s:WType) = {
+    private def typeHtml(s: WType) = {
       s.name.toLowerCase match {
         case "string" | "number" | "date" => s"<b>$s</b>"
         case _ => WTypes.mkString(s, classLink)

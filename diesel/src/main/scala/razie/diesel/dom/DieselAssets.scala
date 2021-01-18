@@ -69,7 +69,7 @@ object DieselAssets {
   : Option[DieselAsset[_]] = {
     val dom = WikiDomain(ref.realm)
     val p = dom.findPlugins(ref.inventory).headOption
-    val o = p.flatMap(x => DomInventories.resolve(ref.realm, x.findByRef(dom.rdom, ref, collectRefs)))
+    val o = p.flatMap(x => DomInventories.resolve(ref.realm, ref, x.findByRef(dom.rdom, ref, collectRefs)))
     o
   }
 

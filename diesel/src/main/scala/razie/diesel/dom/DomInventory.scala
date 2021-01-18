@@ -51,12 +51,12 @@ trait DomInventory {
   def importDomain: RDomain = ???
 
   /** test this connection */
-  def testConnection(dom: RDomain, epath:String): Either[P,EMsg] = ???
+  def testConnection(dom: RDomain, epath: String): Either[P, EMsg] = ???
 
-  def connect(dom:RDomain, env:String): Either[P,EMsg] = ???
+  def connect(dom: RDomain, env: String): Either[P, EMsg] = ???
 
   /** create an element */
-  def upsert(dom: RDomain, ref: FullSpecRef, asset:DieselAsset[_]) : Either[Option[DieselAsset[_]], EMsg] = ???
+  def upsert(dom: RDomain, ref: FullSpecRef, asset: DieselAsset[_]): Either[Option[DieselAsset[_]], EMsg] = ???
 
   /** list all elements of class */
   def listAll(dom: RDomain, ref: FullSpecRef, start: Long, limit: Long, collectRefs: Option[mutable.HashMap[String,

@@ -171,16 +171,21 @@ class DieselRulesInventory(
   def doAction(dom: RDomain, conn: String, action: String, completeUri: String, epath: String): String = {
     try {
       this.completeUri = completeUri
+      val ref = new FullSpecRef(this.name, conn, epath, "", "", realm)
 
       action match {
-        case "testConnection" => DomInventories.resolve(testConnection(dom, epath)).currentStringValue
-        case "listAll" =>
+        case "testConnection" => {
+          DomInventories.resolve(ref, testConnection(dom, epath)).currentStringValue
+        }
+        case "listAll" => {
           DomInventories.resolve(
             dom.name,
-            listAll(dom, new FullSpecRef(this.name, conn, epath, "", "", realm), 0, 100)
+            ref,
+            listAll(dom, ref, 0, 100)
           ).map { da =>
             asString(da.getValueP)
           }.mkString("\n")
+        }
         case _ => throw new NotImplementedError(s"doAction $action - $completeUri - $epath")
       }
     } catch {
@@ -248,9 +253,9 @@ class DieselRulesInventory(
 
         {
           if (id == "" || id == "*" || id == "'*'")
-            P.fromSmartTypedValue(field, Map())
+            P.fromSmartTypedValue("query", Map())
           else
-            P.fromSmartTypedValue(field, Map(field -> id))
+            P.fromSmartTypedValue("query", Map(field -> id))
         }
       },
       m => P.fromSmartTypedValue("query", m)
