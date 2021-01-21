@@ -10,6 +10,7 @@ import javax.script.ScriptEngineManager
 import jdk.nashorn.api.scripting.{ClassFilter, NashornScriptEngineFactory, ScriptObjectMirror}
 import org.bson.types.ObjectId
 import razie.audit.Audit
+import razie.diesel.dom.RDOM.P
 import razie.diesel.expr.ECtx
 import razie.tconf.DUsers
 import razie.{CSTimer, Logging, js}
@@ -87,8 +88,12 @@ object DieselScripster extends Logging {
                 m.exists(_.isInstanceOf[collection.Map[_, _]])) {
               val ms = js.tojsons(m, 0)
               expressions = expressions + s"${t._1} = $ms ;\n"
-            } else
+            } else if (m.exists(_.isInstanceOf[P])) {
+              // skipping  -
+              // todo should error
+            } else {
               bindings.put(t._1, js.toJava(m))
+            }
           }
           else
             bindings.put(t._1, v)
