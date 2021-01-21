@@ -160,17 +160,18 @@ object RDExt extends Logging {
       case u: EMsg if u.entity == entity && u.met == met => List(
         ("$msg", u.ea, u.pos.orElse(u.rulePos), u.toCAString, ""))
       case u: ERule => usagesInRule(u, entity, met)
+      case u: EMock => usagesInRule(u.rule, entity, met, true)
     }).flatten
 
   /** unpack usage in a rule
     *
     * @return (what, ea, pos, line, parent)
     */
-  def usagesInRule(u: ERule, entity: String, met: String)(implicit ctx: ECtx)
+  def usagesInRule(u: ERule, entity: String, met: String, ismock: Boolean = false)(implicit ctx: ECtx)
   : List[(String, String, Option[EPos], String, String)] =
     (
         if (u.e.cls == entity && u.e.met == met)
-          List(("$when", u.e.cls + "." + u.e.met, u.pos, u.e.toString, ""))
+          List(((if (ismock) "$mock" else "$when"), u.e.cls + "." + u.e.met, u.pos, u.e.toString, ""))
         else Nil
         ) :::
         u.i.collect {
