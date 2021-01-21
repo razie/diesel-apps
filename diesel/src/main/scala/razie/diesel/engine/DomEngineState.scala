@@ -43,7 +43,7 @@ case class DADepyEv (prereq:String, depy:String, dtm:DateTime=DateTime.now) exte
 trait DomEngineState {
 
   var maxLevels = 45
-  final val maxExpands = 10000
+  var maxExpands = 10000
   var curExpands = 0
 
   var status = DomState.INIT

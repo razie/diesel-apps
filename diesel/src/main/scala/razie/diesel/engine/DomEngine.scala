@@ -299,7 +299,7 @@ abstract class DomEngine(
         case t: Throwable => {
           razie.Log.log("Exception wile decompose()", t)
           val err = DEError(this.id, t.toString)
-          val ast = DomAst(new EError("Exception", t)).withStatus(DomState.DONE)
+          val ast = DomAst(new EError("Exception " + t.getMessage, t)).withStatus(DomState.DONE)
 
           evAppChildren(a, ast)
           err :: nodeDone(ast, level + 1)

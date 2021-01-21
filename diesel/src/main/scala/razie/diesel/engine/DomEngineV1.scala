@@ -56,13 +56,14 @@ class DomEngineV1(
     var msgs : List[DEMsg] = Nil // continuations from this cycle
 
     if (level >= maxLevels) {
-      evAppChildren(a, DomAst(TestResult("fail: Max-Recurse!", "You have a recursive rule generating this branch..."), "error"))
+      evAppChildren(a,
+        DomAst(TestResult("fail: maxLevels!", "You have a recursive rule generating this branch..."), "error"))
       return Nil
     }
 
     if(this.curExpands > maxExpands) {
       // THIS IS OK: append direct to children
-      a append DomAst(TestResult("fail: Max-Expand!", s"You have expanded too many nodes (>$maxExpands)..."), "error")
+      a append DomAst(TestResult("fail: maxExpands!", s"You have expanded too many nodes (>$maxExpands)..."), "error")
       return Nil //stopNow
     }
     // link the spec - some messages get here without a spec, because the DOM is not available when created
@@ -432,7 +433,7 @@ class DomEngineV1(
             razie.Log.alarmThis("wtf", e)
             val p = EVal(P(Diesel.PAYLOAD, e.getMessage, WTypes.wt.EXCEPTION).withValue(e, WTypes.wt.EXCEPTION))
             ctx.put(p.p)
-            List(DomAst(new EError("Exception:", e.getClass.getSimpleName), AstKinds.ERROR), DomAst(p, AstKinds.ERROR))
+            List(DomAst(new EError("Exception: ", e.getClass.getSimpleName), AstKinds.ERROR), DomAst(p, AstKinds.ERROR))
         }
 
         /* make any generated activities dependent so they run in sequence
@@ -903,6 +904,14 @@ class DomEngineV1(
 
           case "diesel.engine.settings.collectGroup" | "collectGroup" => {
             this.settings.collectGroup = Option(v)
+          }
+
+          case "diesel.engine.maxLevels" | "maxLevels" => {
+            engine.maxLevels = v.toInt
+          }
+
+          case "diesel.engine.maxExpands" | "maxExpands" => {
+            engine.maxExpands = v.toInt
           }
         }
       }

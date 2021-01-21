@@ -61,10 +61,10 @@ case class DomEngineSettings
 
   /** is this supposed to use a user cfg */
   def configUserId = {
-    configTag.map(x=>
-      if(ObjectId.isValid(x)) Some(new ObjectId(x))
+    configTag.flatMap(x =>
+      if (ObjectId.isValid(x)) Some(new ObjectId(x))
       else None
-    )
+    ).orElse(userId.map(new ObjectId(_)))
   }
 
   def toJson : Map[String,String] = {

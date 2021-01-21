@@ -12,7 +12,7 @@ import play.libs.Akka
 import razie.wiki.admin.Autosave
 import razie.wiki.model.WID
 
-/** an autosave request
+/** an autosave wrapper/request
   *
   * @param what
   * @param realm
@@ -22,15 +22,19 @@ import razie.wiki.model.WID
   * @param editorMsec if passed, it will be used as the updDtm - use it to detect stale - see uses
   */
 case class AutosaveSet(what:String, realm:String, name:String, userId: ObjectId, c:Map[String,String], editorMsec:Option[DateTime] = None) {
+
+  /** set the contents */
   def set() = {
     Autosave.set(what, WID("", name).defaultRealmTo(realm), userId, c, editorMsec)
   }
 
+  /** retrieve the contents */
   def rec = {
     val wid = WID("", name).defaultRealmTo(realm)
     Autosave.rec(what, wid.getRealm, wid.wpath, userId)
   }
 
+  /** find the contents, if any */
   def find = {
     Autosave.find(what, WID("", name).defaultRealmTo(realm), userId)
   }

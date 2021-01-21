@@ -112,10 +112,12 @@ object EnginePrep extends Logging {
                  useTheseStories: List[WikiEntry] = Nil,
                  endStory:Option[WikiEntry]=None,
                  addFiddles: Boolean = false) : DomEngine = {
-    val uid = au.map(_._id).getOrElse(new ObjectId())
+    val uid = au.map(_._id)
+        .orElse(settings.configUserId)
+        .getOrElse(new ObjectId())
 
     // is there a current fiddle in this reactor/user?
-    val wids = Autosave.OR("DomFidPath", WID("","").r(reactor), uid, Map(
+    val wids = Autosave.OR("DomFidPath", WID("", "").r(reactor), uid, Map(
       "specWpath" -> """""",
       "storyWpath" -> """"""
     ))
@@ -142,7 +144,6 @@ object EnginePrep extends Logging {
         val d = catPages("Spec", reactor).toList.map { p =>
           //         if draft mode, find the auto-saved version if any
           if (settings.draftMode) {
-            // todo uid here is always anonymous - do we use the reactor owner as default?
             val a = Autosave.find("wikie", p.wid.defaultRealmTo(reactor), uid)
             val c = a.flatMap(_.get("content")).mkString
             if (c.length > 0) p.copy(content = c)
@@ -151,7 +152,7 @@ object EnginePrep extends Logging {
         }
         d
       } else {
-        var specWpath = wids("specWpath")
+        val specWpath = wids("specWpath")
         val spw = WID.fromPath(specWpath).flatMap(_.page).map(_.content).getOrElse(DomUtils.SAMPLE_SPEC)
         val specName = WID.fromPath(specWpath).map(_.name).getOrElse("fiddle")
         val spec = Autosave.OR("wikie", WID.fromPathWithRealm(specWpath,reactor).get, uid, Map(
