@@ -6,6 +6,9 @@
 package razie.diesel.expr
 
 import java.net.URLEncoder
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.util.TimeZone
 import razie.diesel.Diesel
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
@@ -50,6 +53,15 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
 
     // is it built-in or generic?
     expr match {
+
+      case "now" => {
+        // todo singleton
+        val tsFmtr = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+        val nw = LocalDateTime.now
+        val ts = tsFmtr.format(nw)
+
+        P.fromTypedValue("", ts, WTypes.wt.STRING)
+      }
 
       case "sizeOf" => {
         firstParm.map { p =>

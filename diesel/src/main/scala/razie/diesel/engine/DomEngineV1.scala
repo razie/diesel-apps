@@ -420,7 +420,8 @@ class DomEngineV1(
                   DomAst(x,
                     (
                         if (x.isInstanceOf[EInfo]) AstKinds.DEBUG
-                        else if (x.isInstanceOf[EDuration]) AstKinds.DEBUG
+                        else if (x.isInstanceOf[ETrace]) AstKinds.TRACE
+                        else if (x.isInstanceOf[EDuration]) AstKinds.TRACE
                         else if (x.isInstanceOf[EVal]) x.asInstanceOf[EVal].kind.getOrElse(AstKinds.GENERATED)
                         else if (x.isInstanceOf[EError]) AstKinds.ERROR
                         else AstKinds.GENERATED

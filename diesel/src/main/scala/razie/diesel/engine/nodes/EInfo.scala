@@ -125,6 +125,32 @@ case class ELink(msg: String, url: String = "") extends CanHtml with HasPosition
 }
 
 /** a simple info node with a message and details - details are displayed as a popup */
+case class ETrace(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {
+  var pos: Option[EPos] = None
+
+  def withPos(p: Option[EPos]) = {
+    this.pos = p;
+    this
+  }
+
+  override def toHtml = {
+    val spos = if (pos.isDefined) kspan("pos") else ""
+    if (details.length > 0) {
+      spanClick(
+        "info::",
+        "info",
+        details,
+        spos + msg.replace("\n", "")
+      )
+    } else {
+      span("info::", "info", details) + spos + " " + msg
+    }
+  }
+
+  override def toString = "info::" + shorten(msg, 200)
+}
+
+/** a simple info node with a message and details - details are displayed as a popup */
 case class EInfo(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {
   var pos: Option[EPos] = None
 
