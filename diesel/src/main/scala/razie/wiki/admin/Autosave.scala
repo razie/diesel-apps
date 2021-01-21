@@ -32,6 +32,7 @@ case class Autosave(
 object Autosave {
   implicit val txn: Txn=tx.auto
 
+  /** find one record */
   def rec(what: String, realm: String, name: String, userId: ObjectId) = {
     ROne[Autosave]("what" -> what, "realm" -> realm, "name" -> name, "userId" -> userId)
   }
