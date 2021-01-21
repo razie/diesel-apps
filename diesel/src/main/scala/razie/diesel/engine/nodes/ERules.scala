@@ -439,13 +439,14 @@ case class EMock(rule: ERule) extends CanHtml with HasPosition {
 }
 
 /** a typed variable */
-case class EVal(p: RDOM.P) extends CanHtml with HasPosition {
+case class EVal(p: RDOM.P) extends CanHtml with HasPosition with HasKind {
   def this(name: String, value: String) = this(P(name, value))
 
   var pos: Option[EPos] = None
 
   def withPos(p: Option[EPos]) = {
-    this.pos = p; this
+    this.pos = p;
+    this
   }
 
   // overwrite default, so some values don't show in info view

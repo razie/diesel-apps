@@ -150,7 +150,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
 
           response = sc.telnet(host, port, sc.postContent, Some(eres))
 
-          eres += EInfo("Response", Enc.escapeHtml(trimmed(response)))
+          eres += ETrace("Response", Enc.escapeHtml(trimmed(response)))
           // todo error codes for telnet?
           val content = new EContent(response, sc.iContentType.getOrElse(""), 200, sc.iHeaders.getOrElse(Map.empty))
           content
@@ -214,7 +214,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
           }.get
 
           content.warnings.foreach(eres.append)
-          eres += EInfo("Response", html(content.toString))
+          eres += ETrace("Response", html(content.toString))
           content
         }
 
@@ -353,7 +353,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
         durationMillis = System.currentTimeMillis() - startMillis
         eres += EDuration(durationMillis)
 
-        eres += EInfo("Response", html(content.toString))
+        eres += ETrace("Response", html(content.toString))
 
         // 2. extract values
         val x = if (in.ret.nonEmpty) in.ret else spec(in).toList.flatMap(_.ret)
@@ -366,9 +366,9 @@ class EESnakk extends EExecutor("snakk") with Logging {
           ctx.put(x)
           EVal(x).withPos(pos)
         } :::
-            new EVal(SNAKK_RESPONSE, content.body).withKind(AstKinds.DEBUG) ::
-            new EVal(content.httpCodep).withKind(AstKinds.DEBUG) ::
-            new EVal(content.headersp).withKind(AstKinds.DEBUG) ::
+            new EVal(SNAKK_RESPONSE, content.body).withKind(AstKinds.TRACE) ::
+            new EVal(content.httpCodep).withKind(AstKinds.TRACE) ::
+            new EVal(content.headersp).withKind(AstKinds.TRACE) ::
             // todo here's where i would add the response headers - make the snakk.response an object?
             new EVal(PAYLOAD, content.body) ::
             Nil
@@ -819,7 +819,7 @@ object EESnakk {
     val durationMillis = System.currentTimeMillis() - startMillis
     eres += EDuration(durationMillis)
 
-    eres += EInfo("Response: ", html(response)) :: Nil
+    eres += ETrace("Response: ", html(response)) :: Nil
 
     if(code > 0) eres += EVal(P.fromTypedValue(EESnakk.SNAKK_HTTP_CODE, code)) :: Nil
     if(errContent.length > 0) eres += EVal(P.fromTypedValue(EESnakk.SNAKK_HTTP_RESPONSE, errContent)) :: Nil

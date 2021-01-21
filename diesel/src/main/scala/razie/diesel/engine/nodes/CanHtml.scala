@@ -8,6 +8,11 @@ package razie.diesel.engine.nodes
 import razie.tconf.EPos
 import razie.wiki.Enc
 
+/** some elements have a desired kind */
+trait HasKind {
+  def kind: Option[String]
+}
+
 /** elements that have a position in a spec - we can link to the spec line:col */
 trait HasPosition {
   def pos: Option[EPos]
