@@ -13,7 +13,7 @@ import razie.diesel.engine.nodes.EMsg
 import razie.diesel.samples.DomEngineUtils
 import razie.diesel.samples.DomEngineUtils.extractResult
 import razie.tconf.{SpecRef, TSpecRef, TagQuery}
-import razie.wiki.model.{WID, WikiSearch}
+import razie.wiki.model.{WID, WikiSearch, Wikis}
 import razie.{clog, cout}
 
 /** a message string - send these to Services to have them executed
@@ -174,12 +174,20 @@ object DieselTarget {
   def from(realm: String, env: String, specs: List[TSpecRef], stories: List[TSpecRef]) =
     new DieselTargetList(realm, env, specs, stories)
 
-  /** all specs in a realm */
+  /** all specs in a realm and mixins */
   def ENV (realm:String, env:String=DEFAULT) =
     new DieselTarget(realm, env) {
       override def specs = {
         val tq = new TagQuery("")
-        val irdom = WikiSearch.getList(realm, "", "", tq.and("spec").tags)
+
+        // this and mixins
+        val w = Wikis(realm)
+        val irdom = (
+            WikiSearch.getList(realm, "", "", tq.and("spec").tags) :::
+                w.mixins.flattened.flatMap(r =>
+                  WikiSearch.getList(r.realm, "", "", tq.and("spec").tags)
+                )
+            )
 
         ENV_SETTINGS(realm) :: irdom.map(_.wid.toSpecPath)
       }
