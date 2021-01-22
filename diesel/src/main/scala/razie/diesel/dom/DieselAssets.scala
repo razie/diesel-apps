@@ -5,6 +5,7 @@
   */
 package razie.diesel.dom
 
+import java.net.URI
 import razie.tconf.{FullSpecRef, TSpecRef}
 import razie.wiki.model.WID
 import scala.collection.mutable
@@ -55,7 +56,9 @@ object DieselAssets {
     w.cat match {
       case "DieselEngine" => {
         // todo what's diff /diesel/engine/view vs /diesel/viewAst
-        val h = w.sourceUrl.mkString
+        var h = w.sourceUrl.mkString
+        if (h.startsWith("localhost")) h = ""
+        else if (h.length > 0 && !h.startsWith("http://")) h = "http://" + h
         s"""<a href="$h/diesel/engine/view/${w.name}">${w.name}</a>"""
       }
       case _ => s"""wiki/$path"""
