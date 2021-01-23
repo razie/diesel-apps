@@ -260,6 +260,8 @@ class DomEngineV1(
 
     // PRE - did it already have some children, decomposed by someone else?
     newNodes = a.children
+    // reset parents
+    newNodes.foreach(_.resetParent(null))
     a.childrenCol.clear() // remove them so we don't have duplicates in tree - they will be processed later
 
     // 1. engine message?

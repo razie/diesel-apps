@@ -477,10 +477,14 @@ abstract class DomEngine(
       this.status = DomState.STARTED
       root.start(seq())
 
+      // tricky - skipping all nodes but the test nodes before prepping the engine
+      root
+          .childrenCol
+          .filter(_.kind != AstKinds.TEST)
+          .foreach(_.withStatus(DomState.SKIPPED))
+
       prepRoot(
-        root
-            .childrenCol
-            .filter(_.kind == "test")
+        root.childrenCol
       ).foreach(expand(_, recurse = true, 1))
 
       this
