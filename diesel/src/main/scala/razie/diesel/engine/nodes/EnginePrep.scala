@@ -338,7 +338,8 @@ object EnginePrep extends Logging {
         }
 
         // we could do all, but don't care much about other elements, just the tests...
-        storyAst appendAllNoEvents story.contentPreProcessed.lines.map(_.trim).zipWithIndex.filter(
+        root appendAllNoEvents story.contentPreProcessed.lines.map(_.trim).zipWithIndex.filter(
+//        storyAst appendAllNoEvents story.contentPreProcessed.lines.map(_.trim).zipWithIndex.filter(
           _._1.startsWith("$expect")).collect {
 
           case (line, row) if !findElemLine(row + 1) =>
