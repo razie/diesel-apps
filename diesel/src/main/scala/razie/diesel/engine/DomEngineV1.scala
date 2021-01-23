@@ -1108,9 +1108,11 @@ class DomEngineV1(
             "fail",
             "",
             label("found", "warning") + " " +
-            cole.highestMatching.map(_.diffs.values.map(_._1).toList.map(x => s"""<span style="color:red">$x</span>""").mkString(",")).mkString
-          ).withPos(e.pos),
-          AstKinds.TEST
+                cole.highestMatching.map(
+                  _.diffs.values.map(_._1).toList.map(x => s"""<span style="color:red">$x</span>""").mkString(
+                    ",")).mkString
+          ).withTarget(e),
+          AstKinds.TRACE
         ).withSpec(e))
       }
     }
@@ -1127,7 +1129,7 @@ class DomEngineV1(
           "",
           cole.toHtml
         ),
-        AstKinds.TEST
+        AstKinds.TRACE
       ).withSpec(e))
 
       evAppChildren(a, DomAst(new EError("Exception", t), AstKinds.ERROR).withStatus(DomState.DONE))
@@ -1179,27 +1181,27 @@ class DomEngineV1(
         if (!aTarget.value.isInstanceOf[EMsg]) {
           // wtf did we just target?
           a append DomAst(
-            TestResult("fail", "Target not a message - did something run?").withPos(e.pos),
-            AstKinds.TEST
+            TestResult("fail", "Target not a message - did something run?").withTarget(e),
+            AstKinds.TRACE
           ).withSpec(e)
         } else if (vvals.size > 0 && !e.applicable(a, values)(newctx)) {
           // n/a - had a guard and guard not met
           a append DomAst(
-            TestResult("n/a").withPos(e.pos),
-            AstKinds.TEST
+            TestResult("n/a").withTarget(e),
+            AstKinds.TRACE
           ).withSpec(e)
         } else if (vvals.size > 0 && e.test(a, values, Some(cole), vvals)(newctx)) {
           // test ok
           a append DomAst(
-            TestResult("ok").withPos(e.pos),
-            AstKinds.TEST
+            TestResult("ok").withTarget(e),
+            AstKinds.TRACE
           ).withSpec(e)
         } else if (vvals.size == 0 && e.test(a, Nil, Some(cole), vvals)(newctx)) {
           // targeted tree generated no values, so this is a global state condition
 
           a append DomAst(
-            TestResult("ok").withPos(e.pos),
-            AstKinds.TEST
+            TestResult("ok").withTarget(e),
+            AstKinds.TRACE
           ).withSpec(e)
         } else
         //if no rules succeeded and there were vals, collect the misses
@@ -1244,8 +1246,9 @@ class DomEngineV1(
             "fail",
             "",
             label("found", "warning") + " " +
-            cole.highestMatching.map(_.diffs.values.map(_._1).toList.map(x => s"""<span style="color:red">${htmlValue(x.toString)}</span>""").mkString(",")).mkString
-          ).withPos(e.pos),
+                cole.highestMatching.map(_.diffs.values.map(_._1).toList.map(
+                  x => s"""<span style="color:red">${htmlValue(x.toString)}</span>""").mkString(",")).mkString
+          ).withTarget(e),
           AstKinds.TEST
         ).withSpec(e)
       }

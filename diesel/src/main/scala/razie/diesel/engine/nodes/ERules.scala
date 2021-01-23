@@ -29,8 +29,12 @@ trait EConditioned {
   }
 }
 
+trait HasTestResult {
+  var testResult: Option[String] = None
+}
+
 /** test - expect a message m. optional guard */
-case class ExpectM(not: Boolean, m: EMatch) extends CanHtml with HasPosition {
+case class ExpectM(not: Boolean, m: EMatch) extends CanHtml with HasPosition with HasTestResult {
   var when: Option[EMatch] = None
   var pos: Option[EPos] = None
   var target: Option[DomAst] = None // if target then applies only in that sub-tree, otherwise guessing scope
@@ -38,7 +42,8 @@ case class ExpectM(not: Boolean, m: EMatch) extends CanHtml with HasPosition {
   // todo implement the cond
 
   def withPos(p: Option[EPos]) = {
-    this.pos = p; this
+    this.pos = p;
+    this
   }
 
   // clone because the original is a spec, reused in many stories
@@ -74,13 +79,15 @@ case class ExpectM(not: Boolean, m: EMatch) extends CanHtml with HasPosition {
 
 // todo use a EMatch and combine with ExpectM - empty e/a
 /** test - expect a value or more. optional guard */
-case class ExpectV(not: Boolean, pm: MatchAttrs, cond: Option[EIf] = None) extends CanHtml with HasPosition {
+case class ExpectV(not: Boolean, pm: MatchAttrs, cond: Option[EIf] = None) extends CanHtml with HasPosition with
+    HasTestResult {
   var when: Option[EMatch] = None
   var pos: Option[EPos] = None
   var target: Option[DomAst] = None // if target then applies only in that sub-tree, otherwise guessing scope
 
   def withPos(p: Option[EPos]) = {
-    this.pos = p; this
+    this.pos = p;
+    this
   }
 
   // clone because the original is a spec, reused in many stories
@@ -92,14 +99,25 @@ case class ExpectV(not: Boolean, pm: MatchAttrs, cond: Option[EIf] = None) exten
     x
   }
 
+  def restoHtml = testResult.map { value =>
+    (if (value == "ok")
+      kspan(value, "success")
+    else if (value startsWith "fail")
+      kspan(value, "danger", Some(EPos.EMPTY), None, Some("error"))
+    else
+      kspan(value, "warning")
+        )
+  }.mkString
+
   override def toHtml =
-    kspan("expect::") + (if(not) "NOT" else "") + " " + toHtmlMAttrs(pm) + cond.map(_.toHtml).mkString
+    restoHtml + kspan("expect::") + (if (not) "NOT" else "") + " " + toHtmlMAttrs(pm) + cond.map(_.toHtml).mkString
 
   override def toString =
-    "expect:: " + (if(not) "NOT" else "") + " " + pm.mkString("(", ",", ")") + cond.map(_.toHtml).mkString
+    "expect:: " + (if (not) "NOT" else "") + " " + pm.mkString("(", ",", ")") + cond.map(_.toHtml).mkString
 
   def withGuard(guard: Option[EMatch]) = {
-    this.when = guard; this
+    this.when = guard;
+    this
   }
 
   /** check to match the arguments */

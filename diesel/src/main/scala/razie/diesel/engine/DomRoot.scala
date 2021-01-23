@@ -123,7 +123,7 @@ trait DomRoot {
         calc
       } else {
         // more complex left expr = right value
-        a append DomAst(EInfo(pas.toString).withPos(x.pos), AstKinds.DEBUG)
+        // a append DomAst(EInfo("xx" + pas.toString).withPos(x.pos), AstKinds.DEBUG)
 
         val p = pas.right.applyTyped("")
 
@@ -193,8 +193,11 @@ trait DomRoot {
           }
         } else {
           val newa = DomAst(EVal(p) withPos (x.pos), kind).withSpec(x)
-          newa ::
-              DomAst(EInfo(p.toHtml, p.calculatedTypedValue.asNiceString).withPos(x.pos), AstKinds.DEBUG) :: Nil
+          newa :: Nil
+
+          // this added a new info node
+          // DomAst(EInfo("yy" + p.toHtml, p.calculatedTypedValue.asNiceString).withPos(x.pos), AstKinds.DEBUG)
+          // :: Nil
         }
       }
 

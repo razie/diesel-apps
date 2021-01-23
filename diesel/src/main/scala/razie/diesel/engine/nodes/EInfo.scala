@@ -195,4 +195,3 @@ case class EDuration(millis:Long, msg: String="") extends CanHtml with InfoNode 
   override def toString = "info::" + s" $millis ms - $msg"
 }
 
-

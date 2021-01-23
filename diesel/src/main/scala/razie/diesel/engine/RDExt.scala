@@ -329,17 +329,33 @@ object RDExt extends Logging {
 
   /** record a test result
     *
-    * @param value "ok" for good, otherwise is failed
-    * @param more - an escaped value
+    * domAST kind should be TRACE if target exists or TEST otherwise
+    *
+    * @param value    "ok" for good, otherwise is failed
+    * @param more     - an escaped value
     * @param moreHtml - unescaped html
     */
   case class TestResult(value: String, more: String = "", moreHtml:String="") extends CanHtml with HasPosition {
-    var pos : Option[EPos] = None
-    def withPos(p:Option[EPos]) = {this.pos = p; this}
+    private var ipos: Option[EPos] = None
+
+    def pos: Option[EPos] = ipos.orElse(target.flatMap(_.pos))
+
+    def withPos(p: Option[EPos]) = {
+      this.ipos = p;
+      this
+    }
+
+    var target: Option[HasTestResult with HasPosition] = None
+
+    def withTarget(p: HasTestResult with HasPosition) = {
+      this.target = Some(p);
+      p.testResult = Some(value)
+      this
+    }
 
     override def toHtml = {
       def htrimmedDflt =
-        if(more.size > 80) more.take(60)
+        if (more.size > 80) more.take(60)
         else more
 
       val hmore = Enc.escapeHtml(htrimmedDflt) + " " + moreHtml
