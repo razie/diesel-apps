@@ -71,7 +71,7 @@ abstract class DomEngine(
       .withHostname(settings.node)
 
   /** myself */
-  def href (format:String="") = s"/diesel/engine/view/$id?format=$format"
+  def href(format: String = "") = s"/diesel/engine/view/$id?format=$format"
 
   val rules = dom.moreElements.collect {
     case e: ERule => e
@@ -79,6 +79,15 @@ abstract class DomEngine(
 
   val flows = dom.moreElements.collect {
     case e: EFlow => e
+  }
+
+  // collecting warnings
+  protected var warnings: Option[DomAst] = None
+
+  /** collect warnings */
+  def warning(warning: InfoNode) = {
+    warnings.foreach(w =>
+      evAppChildren(w, List(DomAst(warning, AstKinds.ERROR).withStatus(DomState.SKIPPED))))
   }
 
   //==========================
@@ -579,10 +588,13 @@ abstract class DomEngine(
       }
 
       case DEAddChildren(eid, aid, r, l, results) => {
+        // add more children to a node (used for async prcs, like stream consumption)
         require(eid == this.id) // todo logical error not a fault
         val target = n(aid)
+
         // don't trust them, find level
         val level = Try {findLevel(target)}.getOrElse(l)
+
         later(
           this.rep(target, true, level + 1, results)
         )

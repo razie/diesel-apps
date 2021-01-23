@@ -187,6 +187,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       case "setVal" => {
+        // setVal takes the name in a variable
         val n = in.attrs.find(_.name == "name").map(_.currentStringValue)
         val v = in.attrs.find(_.name == "value")
 
@@ -212,8 +213,9 @@ class EECtx extends EExecutor(EECtx.CTX) {
           v.map(_.calculatedP) // just v - copy it
         }.toList
 
+        // ctx.set goes to the enclosing scope
         res.collect {
-          case ev: EVal => ctx.put(ev.p)
+          case ev: EVal => DomRoot.setValueInScopeContext(ctx, ev.p)
         }
 
         res
@@ -236,19 +238,21 @@ class EECtx extends EExecutor(EECtx.CTX) {
           }
         }.filter(_.isDefined).map(_.get)
 
-        res.foreach(v=> ctx.put(v.p))
+        // ctx.set goes to the enclosing scope
+        res.foreach(v => DomRoot.setValueInScopeContext(ctx, v.p))
         res
       }
 
       case "setAll" => {
         // input is json - set all fields as ctx vals
-        val res = in.attrs.map(_.calculatedP).filter(_.ttype == WTypes.JSON).flatMap {p=>
-            p.calculatedTypedValue.asJson.map {t=>
-              new EVal(P.fromTypedValue(t._1, t._2))
-            }
+        val res = in.attrs.map(_.calculatedP).filter(_.ttype == WTypes.JSON).flatMap { p =>
+          p.calculatedTypedValue.asJson.map { t =>
+            new EVal(P.fromTypedValue(t._1, t._2))
+          }
         }
 
-        res.foreach(v=> ctx.put(v.p))
+        // ctx.set goes to the enclosing scope
+        res.foreach(v => DomRoot.setValueInScopeContext(ctx, v.p))
         res
       }
 
@@ -575,7 +579,9 @@ class EECtx extends EExecutor(EECtx.CTX) {
             "4fdb5d410cf247dd26c2a784" // an inactive account: Harry
           )
 
+      // put straight in context - bypass trace nodes visible to users...
       ctx.put(P(DIESEL_USER_ID, uid))
+
       new EInfo("User is now auth ") :: Nil
     } else
       new EInfo("User was already auth ") :: Nil

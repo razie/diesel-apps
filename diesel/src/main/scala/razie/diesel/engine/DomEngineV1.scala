@@ -120,7 +120,7 @@ class DomEngineV1(
 
         // start new engine/process - evaluate this message as the root of new engine
         // todo should find settings for target service  ?
-        val spawnedNodes = ListBuffer(DomAst(next.evaluateMsg))
+        val spawnedNodes = ListBuffer(DomAst(next.evaluateMsgCall))
         var correlationId = this.id
 
         if ("<=>" == arrow) {
@@ -159,12 +159,11 @@ class DomEngineV1(
           a)
 
         if (n1.test(a)) {
-          val newmsg = n1.evaluateMsg
+          val newmsg = n1.evaluateMsgCall
           val newnode = DomAst(newmsg, AstKinds.kindOf(newmsg.arch))
 
           // old node may have had children already
-          newnode.childrenCol.appendAll(a.children)
-          a.childrenCol.clear() // need to remove them from parent, or they will be duplos and create problems
+          newnode.moveAllNoEvents(a)
 
           msgs = rep(a, recurse, level, List(newnode))
         }
@@ -197,7 +196,7 @@ class DomEngineV1(
 
       case x: EMsg if x.entity == "" && x.met == "" => {
         // just expressions, generate values from each attribute
-        appendVals (a, x, x.attrs, ctx, AstKinds.kindOf(x.arch))
+        appendVals(a, x.pos, Some(x), x.attrs, ctx, AstKinds.kindOf(x.arch))
       }
 
       case in: EMsg => {
@@ -211,22 +210,23 @@ class DomEngineV1(
         // $val defined in scope
         val p = n.p.calculatedP // only calculate if not already calculated =likely in a different context=
         a append DomAst(EVal(p).withPos(n.pos), AstKinds.TRACE)
-        ctx.put(p)
+        setValueInContext(a, ctx, p)
       }
 
-      case e: ExpectM => if(!settings.simMode) expandExpectM(a, e)
+      case e: ExpectM => if (!settings.simMode) expandExpectM(a, e)
 
-      case e: ExpectV => if(!settings.simMode) expandExpectV(a, e)
+      case e: ExpectV => if (!settings.simMode) expandExpectV(a, e)
 
-      case e: ExpectAssert => if(!settings.simMode) expandExpectAssert(a, e)
+      case e: ExpectAssert => if (!settings.simMode) expandExpectAssert(a, e)
 
       case e:InfoNode =>  // ignore
       case e:EVal =>  // ignore
 
       // todo should execute
-      case s: EApplicable =>  {
+      case s: EApplicable => {
         clog << "EXEC KNOWN: " + s.toString
-        evAppChildren(a, DomAst(EError("Can't EApplicable KNOWN - " + s.getClass.getSimpleName, s.toString), AstKinds.ERROR))
+        evAppChildren(a,
+          DomAst(EError("Can't EApplicable KNOWN - " + s.getClass.getSimpleName, s.toString), AstKinds.ERROR))
       }
 
       case s@_ => {
@@ -409,15 +409,13 @@ class DomEngineV1(
           yy.collect{
             // collect resulting values in the context as well
             case v@EVal(p) => {
-              ctx.put(p)
+              setValueInContext(a, ctx, p)
               v
             }
             case p:P => {
-              val v = EVal(p)
-              ctx.put(p)
-              v
+              setValueInContext(a, ctx, p)
+              EVal(p)
             }
-//            case l@List => e
             case e@_ => e
           }.map{x =>
             // and now wrap in AST
@@ -439,10 +437,11 @@ class DomEngineV1(
           }
         } catch {
           case e: Throwable =>
-            razie.Log.alarmThis("wtf", e)
+            razie.Log.alarmThis("Exception from Executor:", e)
             val p = EVal(P(Diesel.PAYLOAD, e.getMessage, WTypes.wt.EXCEPTION).withValue(e, WTypes.wt.EXCEPTION))
-            ctx.put(p.p)
-            List(DomAst(new EError("Exception: ", e.getClass.getSimpleName), AstKinds.ERROR), DomAst(p, AstKinds.ERROR))
+
+            setValueInContext(a, ctx, p.p)
+            List(DomAst(new EError("Exception:", e), AstKinds.ERROR), DomAst(p, AstKinds.ERROR))
         }
 
         /* make any generated activities dependent so they run in sequence
@@ -549,11 +548,11 @@ class DomEngineV1(
       val ast = DomAst(x, AstKinds.NEXT).withSpec(r)
       parents.put(level, ast)
 
-      if(level == 0) Some(ast)
-      else if(level > 0) {
+      if (level == 0) Some(ast)
+      else if (level > 0) {
         val parent = findParent(level - 1)
-        parent.childrenCol.append(ast) // todo I'm not creating events for persist for this
-        None//child was consumed
+        parent.appendAllNoEvents(List(ast)) // todo I'm not creating events for persist for this
+        None //child was consumed
       } else {
         throw new DieselExprException("child level negative in ruleDecomp")
       }
@@ -656,7 +655,7 @@ class DomEngineV1(
       // expand all spec vals
       in.attrs.map(_.calculatedP).foreach { p =>
         evAppChildren(a, DomAst(EVal(p)))
-        this.ctx.put(p)
+        setValueInContext(a, this.ctx, p)
       }
 
       // stop other children
@@ -685,7 +684,7 @@ class DomEngineV1(
       // expand all spec vals
       in.attrs.map(_.calculatedP).foreach { p =>
         evAppChildren(a, DomAst(EVal(p)))
-        this.ctx.put(p)
+        setValueInContext(a, this.ctx, p)
         if (p.name == Diesel.PAYLOAD || p.name == "msg") {
           msg = p.currentStringValue
         } else if (p.name == DieselMsg.HTTP.STATUS) {
@@ -719,7 +718,7 @@ class DomEngineV1(
       // todo then set payload to exception
       val ex = new DieselException(msg, code)
       val p = EVal(P(Diesel.PAYLOAD, msg, WTypes.wt.EXCEPTION).withValue(ex, WTypes.wt.EXCEPTION))
-      ctx.put(p.p)
+      setValueInContext(a, ctx, p.p)
       val newD = DomAst(new EError("Exception:", ex), AstKinds.ERROR)
       evAppChildren(a, newD)
 
@@ -844,7 +843,7 @@ class DomEngineV1(
         case v: EVal => {
           evAppChildren(a, DomAst(v, AstKinds.TRACE))
           // do not calculate here - keep them more like exprs .calculatedP)
-          this.ctx.put(v.p)
+          setValueInContext(a, this.ctx, v.p)
         }
       }
 
@@ -1016,7 +1015,7 @@ class DomEngineV1(
       dom.moreElements.collect {
         case v: EVal => {
           evAppChildren(a, DomAst(v, AstKinds.TRACE))
-          this.ctx.put(v.p)
+          setValueInContext(a, this.ctx, v.p)
         }
       }
 

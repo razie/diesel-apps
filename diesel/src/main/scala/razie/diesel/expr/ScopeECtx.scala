@@ -8,7 +8,7 @@ package razie.diesel.expr
 import razie.diesel.dom.RDOM.P
 import razie.diesel.engine.DomAst
 
-/** context for an internal scope - parent is scope or Eng
+/** context for an internal scope - parent is scope or Eng. does not cascade updates to base
   *
   * todo when saving a context, do I save children too?
   *

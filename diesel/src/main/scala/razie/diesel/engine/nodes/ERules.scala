@@ -329,7 +329,7 @@ case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred: B
   // todo match also the object parms if any and method parms if any
 
   /** apply - evaluate the message if not already */
-  def evaluateMsg(implicit ctx: ECtx) = {
+  def evaluateMsgCall(implicit ctx: ECtx) = {
     // if evaluation was deferred, do it
     val m = if (deferred) {
       parent.map { parent =>

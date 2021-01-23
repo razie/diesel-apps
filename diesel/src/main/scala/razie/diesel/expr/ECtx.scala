@@ -67,7 +67,16 @@ trait ECtx extends ParmSource {
     p.get
   }
 
-  def curNode : Option[DomAst]
+  /** return the closest enclosing scope, if any */
+  def getScopeCtx = {
+    var sc: Option[ECtx] = Some(this)
+    while (sc.isDefined && !sc.exists(p => p.isInstanceOf[ScopeECtx] || p.isInstanceOf[DomEngECtx])) {
+      sc = sc.get.base
+    }
+    sc.getOrElse(root)
+  }
+
+  def curNode: Option[DomAst]
 }
 
 object ECtx {

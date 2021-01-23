@@ -106,9 +106,8 @@ trait DomRoot {
           if (paJ.isInstanceOf[HashMap[String, Any]])
             paJ.asInstanceOf[HashMap[String, Any]].put(av.asString, vcalc.calculatedTypedValue.value)
 
-          // no need to set dflt, use p.currentStringValue
           // todo need to recurse on parent, not just hardcode ctx
-          ctx.put(pa)
+          setValueInContext(a, ctx, pa)
         }
 
         case Some(x) => {
@@ -120,8 +119,11 @@ trait DomRoot {
     }
 
     val calc = attrs.flatMap { pas =>
+
       if (pas.left.rest.isEmpty) {
+
         // simple expression with unqualified left side p=e
+
         val calcp = P(pas.left.start, "").copy(expr = Some(pas.right)).calculatedP
         val calc = List(calcp)
         calc
@@ -169,9 +171,39 @@ trait DomRoot {
               pa.value = Some(newv)
             }
           }
+
         } else if (pas.left.start == "ctx") {
+
+          // todo where is this used?
           setp(ctx, "ctx", pas.left.rest.head, p)
+
+        } else if (pas.left.start == "dieselScope" || pas.left.start == "return") {
+
+          // scope vars are set in the closest enclosing ScopeECtx or EngCtx
+          // the idea is to bypass the enclosing RuleScopeECtx
+          setp(ctx.getScopeCtx, "dieselScope", pas.left.rest.head, p)
+
+        } else if (pas.left.start == "dieselRoot") {
+
+          // root context
+          // the idea is to bypass the enclosing RuleScopeECtx
+          var sc = ctx.root
+          setp(sc, "dieselRoot", pas.left.rest.head, p)
+
+        } else if (pas.left.start == "dieselRealm") {
+
+          // root context
+          // the idea is to bypass the enclosing RuleScopeECtx
+          var sc = ctx.root
+          val r = sc.settings.realm
+//          if (r.isEmpty) evAppChildren(a, DomAst(EError("realm not defined...???"), AstKinds.ERROR))
+//          else {
+          r.foreach(Website.putRealmProps(_, pas.left.rest.head.name, p))
+          r.flatMap(Website.forRealm).map(_.put(pas.left.rest.head.name, p.currentStringValue))
+//          }
+
         } else {
+
           val parent = pas.left.getp(pas.left.start)
           // a append DomAst(EInfo("parent: "+parent.mkString).withPos(x.pos), AstKinds.TRACE)
           // a append DomAst(EInfo("selector: "+pas.left.rest.head.calculatedTypedValue.toString).withPos(x.pos),
@@ -223,22 +255,24 @@ trait DomRoot {
   }
 
   /** an assignment message */
-  protected def appendVals (a:DomAst, x:EMsg, attrs:Attrs, appendToCtx:ECtx, kind:String=AstKinds.GENERATED) = {
-    a appendAll attrs.map{p =>
-      if(p.ttype == WTypes.EXCEPTION) {
-        p.value.map {v=>
-          val err = handleError (p, v)
+  protected def appendVals(a: DomAst, pos: Option[EPos], spec: Option[EMsg], attrs: Attrs, appendToCtx: ECtx,
+                           kind: String = AstKinds.GENERATED) = {
+    a appendAll attrs.map { p =>
+      val res = if (p.ttype == WTypes.EXCEPTION) {
+        p.value.map { v =>
+          val err = handleError(p, v)
 
-          DomAst(err.withPos(x.pos), AstKinds.ERROR).withSpec(x)
+          DomAst(err.withPos(pos), AstKinds.ERROR)
         } getOrElse {
-          DomAst(EError(p.currentStringValue) withPos (x.pos), AstKinds.ERROR).withSpec(x)
+          DomAst(EError(p.currentStringValue) withPos (pos), AstKinds.ERROR)
         }
       } else {
-        DomAst(EVal(p) withPos (x.pos), kind).withSpec(x)
+        DomAst(EVal(p) withPos (pos), kind)
       }
+      spec.map(res.withSpec).getOrElse(res)
     }
 
-    appendToCtx putAll attrs
+    attrs.foreach(setValueInContext(a, ctx, _))
 
     if(appendToCtx.isInstanceOf[StaticECtx]) {
       a appendAll attrs.flatMap { p =>
@@ -249,5 +283,26 @@ trait DomRoot {
     }
   }
 
+  /** only place to set a value in context, following all conventions
+    *
+    * note - this will not deal with sub-objects etc, that's only for PAS
+    *
+    * @param a
+    * @param ctx
+    * @param p
+    */
+  protected def setValueInContext(a: DomAst, ctx: ECtx, p: P) {
+    ctx.put(p)
+  }
 }
 
+object DomRoot {
+
+  /** setting in the closest scope ctx */
+  def setValueInScopeContext(ctx: ECtx, p: P) {
+    ctx.getScopeCtx.put(p)
+    ctx.put(p)
+  }
+
+
+}
