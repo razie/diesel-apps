@@ -85,7 +85,6 @@ class EESnakk extends EExecutor("snakk") with Logging {
         else
           new EError(x.dflt, x.value.get.asInstanceOf[Throwable]).withPos(in.pos)
       } else {
-        ctx.put(x)
         EVal(x).withPos(in.pos)
       }
     }
@@ -256,7 +255,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
           else
             new EError(x.dflt, x.value.get.asInstanceOf[Throwable]).withPos(pos)
         } else {
-          ctx.put(x)
+//          ctx.getScopeCtx.put(x)  // todo should we propagate securely the snakk parms?
           EVal(x).withPos(pos)
         }
       }
@@ -363,7 +362,6 @@ class EESnakk extends EExecutor("snakk") with Logging {
 
         // add the resulting values
         eres.eres ::: strs.map(t => new P(t._1, t._2)).map { x =>
-          ctx.put(x)
           EVal(x).withPos(pos)
         } :::
             new EVal(SNAKK_RESPONSE, content.body).withKind(AstKinds.TRACE) ::

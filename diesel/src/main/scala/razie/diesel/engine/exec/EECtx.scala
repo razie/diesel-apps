@@ -89,11 +89,13 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       case "clear" => {
+        ctx.getScopeCtx.clear
         ctx.clear
         Nil
       }
 
       case "reset" => {
+        ctx.getScopeCtx.clear
         ctx.clear
         Nil
       }
@@ -221,7 +223,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         res
       }
 
-      case "set" => {
+      case "set" | "export" => {
         // set all parms passed in - return EVals and make sure they're set in context
         // important to know how the scope contexts work
         val res = in.attrs.map { p =>
@@ -645,5 +647,6 @@ class EECtx extends EExecutor(EECtx.CTX) {
         EMsg(CTX, "json") ::
         EMsg(CTX, "csv") ::
         EMsg(CTX, "mkString") ::
+        EMsg(CTX, "export") ::
         Nil
 }
