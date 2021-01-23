@@ -19,23 +19,32 @@ import scala.collection.mutable.HashMap
 trait DomRoot {
 
   def root: DomAst
-  implicit def ctx : ECtx
+
+  implicit def ctx: ECtx
+
   implicit def engine: DomEngineState
 
   def failedTestCount = DomEngineView.failedTestCount(root)
+
   def errorCount = DomEngineView.errorCount(root)
+
   def successTestCount = DomEngineView.successTestCount(root)
+
   def totalTestCount = DomEngineView.totalTestedCount(root)
-  def progress:String = DomEngineView.failedTestCount(root) + "/" + DomEngineView.totalTestedCount(root) + "/" + DomEngineView.todoTestCount(root)
+
+  def progress: String = DomEngineView.failedTestCount(root) + "/" + DomEngineView.totalTestedCount(
+    root) + "/" + DomEngineView.todoTestCount(root)
+
   def totalCount = DomEngineView.totalTestedCount(root)
 
   /** find a node */
-  def n(id:String):DomAst = root.find(id).get
+  def n(id: String): DomAst = root.find(id).get
 
   /** collect generated values */
   def resultingValues() = root.collect {
     // todo see in Api.irunDom, trying to match them to the message sent in...
-    case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.currentStringValue)
+    case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _,
+    _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.currentStringValue)
   }
 
   /** collect the last generated value OR empty string */
@@ -49,10 +58,17 @@ trait DomRoot {
       case v if (f.isDefinedAt(v.value)) => f(v.value)
     }
 
+  /** find the direct parent of this node */
   def findParent(node: DomAst): Option[DomAst] =
     root.collect {
       case a if a.children.exists(_.id == node.id) => a
     }.headOption
+
+  /** find the direct parent of this node that meets the condition */
+  def findParentWith(node: DomAst, predicate: (DomAst => Boolean)): Option[DomAst] = {
+    val p = findParent(node)
+    p.filter(predicate).orElse(p.flatMap(findParentWith(_, predicate)))
+  }
 
   def findScope(node: DomAst): DomAst =
     findParent(node).collectFirst {
@@ -70,7 +86,7 @@ trait DomRoot {
       throw new IllegalArgumentException("Can't find level for " + node)
     }
 
-  /** an assignment message */
+  /** an assignment message - execute now */
   protected def appendValsPas (a:DomAst, x:EMsgPas, attrs:List[PAS], appendToCtx:ECtx, kind:String=AstKinds.GENERATED) = {
     implicit val ctx = appendToCtx
 
