@@ -576,7 +576,7 @@ class DomEngineV1(
         //
         case x: EMsg if x.entity == "" && x.met == "" && r.i.size == 1 => {
           // these go into the ctx as well
-          appendVals(a, x, x.attrs, ctx, KIND)
+          appendVals(a, x.pos, Some(x), x.attrs, ctx, KIND)
           None
         }
 
