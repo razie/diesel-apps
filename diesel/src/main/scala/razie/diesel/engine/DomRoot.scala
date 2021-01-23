@@ -100,7 +100,7 @@ trait DomRoot {
         case c: ECtx => {
           // parent is context = just set value
           // accessor must be string
-          if (av.contentType != WTypes.STRING)
+          if (av.contentType != WTypes.STRING && av.contentType.length > 0)
             throw new DieselExprException(s"ctx. accessor must be string - we got: ${av.value}")
           c.put(vcalc.copy(name = av.asString))
         }
