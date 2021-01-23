@@ -157,13 +157,14 @@ case class ExpectV(not: Boolean, pm: MatchAttrs, cond: Option[EIf] = None) exten
 }
 
 /** test - expect a value or more. optional guard */
-case class ExpectAssert(not: Boolean, exprs: List[BoolExpr]) extends CanHtml with HasPosition {
+case class ExpectAssert(not: Boolean, exprs: List[BoolExpr]) extends CanHtml with HasPosition with HasTestResult {
   var when: Option[EMatch] = None
   var pos: Option[EPos] = None
   var target: Option[DomAst] = None // if target then applies only in that sub-tree, otherwise guessing scope
 
   def withPos(p: Option[EPos]) = {
-    this.pos = p; this
+    this.pos = p;
+    this
   }
 
   // clone because the original is a spec, reused in many stories

@@ -57,13 +57,18 @@ class DomEngineV1(
 
     if (level >= maxLevels) {
       evAppChildren(a,
-        DomAst(TestResult("fail: maxLevels!", "You have a recursive rule generating this branch..."), "error"))
+        DomAst(
+          TestResult(
+            "fail: maxLevels!", "You have a recursive rule generating this branch..."),
+          "error"))
       return Nil
     }
 
     if(this.curExpands > maxExpands) {
       // THIS IS OK: append direct to children
-      a append DomAst(TestResult("fail: maxExpands!", s"You have expanded too many nodes (>$maxExpands)..."), "error")
+      a append DomAst(
+        TestResult(
+          "fail: maxExpands!", s"You have expanded too many nodes (>$maxExpands)..."), "error")
       return Nil //stopNow
     }
     // link the spec - some messages get here without a spec, because the DOM is not available when created
@@ -1081,7 +1086,7 @@ class DomEngineV1(
         case d@DomAst(n: EMsg, k, _, _) if AstKinds.isGenerated(k) =>
           cole.newMatch(d)
           if (e.m.test(a, n, Some(cole)))
-            evAppChildren(a, DomAst(TestResult("ok").withPos(e.pos), "test").withSpec(e))
+            evAppChildren(a, DomAst(TestResult("ok").withTarget(e), AstKinds.TRACE).withSpec(e))
       }
 
       cole.done
@@ -1112,7 +1117,7 @@ class DomEngineV1(
                   _.diffs.values.map(_._1).toList.map(x => s"""<span style="color:red">$x</span>""").mkString(
                     ",")).mkString
           ).withTarget(e),
-          AstKinds.TRACE
+          AstKinds.TEST
         ).withSpec(e))
       }
     }
@@ -1128,8 +1133,8 @@ class DomEngineV1(
           "fail",
           "",
           cole.toHtml
-        ),
-        AstKinds.TRACE
+        ).withTarget(e),
+        AstKinds.TEST
       ).withSpec(e))
 
       evAppChildren(a, DomAst(new EError("Exception", t), AstKinds.ERROR).withStatus(DomState.DONE))
@@ -1182,13 +1187,13 @@ class DomEngineV1(
           // wtf did we just target?
           a append DomAst(
             TestResult("fail", "Target not a message - did something run?").withTarget(e),
-            AstKinds.TRACE
+            AstKinds.TEST
           ).withSpec(e)
         } else if (vvals.size > 0 && !e.applicable(a, values)(newctx)) {
           // n/a - had a guard and guard not met
           a append DomAst(
             TestResult("n/a").withTarget(e),
-            AstKinds.TRACE
+            AstKinds.TEST
           ).withSpec(e)
         } else if (vvals.size > 0 && e.test(a, values, Some(cole), vvals)(newctx)) {
           // test ok
@@ -1218,7 +1223,7 @@ class DomEngineV1(
             "fail",
             "",
             cole.toHtml
-          ),
+          ).withTarget(e),
           AstKinds.TEST
         ).withSpec(e)
       }
@@ -1265,7 +1270,7 @@ class DomEngineV1(
             "fail",
             "Exception: " + t.getClass.getSimpleName + ": " + t.getMessage,
             cole.toHtml
-          ),
+          ).withTarget(e),
           AstKinds.TEST
         ).withSpec(e)
 
@@ -1301,8 +1306,8 @@ class DomEngineV1(
 
         if (vvals.size > 0 && e.test(a, values, Some(cole), vvals)(newctx))
           a append DomAst(
-            TestResult("ok").withPos(e.pos),
-            AstKinds.TEST
+            TestResult("ok").withTarget(e),
+            AstKinds.TRACE
           ).withSpec(e)
         else
         //if no rules succeeded and there were vals, collect the misses
@@ -1318,7 +1323,7 @@ class DomEngineV1(
           TestResult(
             "fail",
             cole.toHtml
-          ),
+          ).withTarget(e),
           AstKinds.TEST
         ).withSpec(e)
       }
@@ -1330,8 +1335,9 @@ class DomEngineV1(
           TestResult(
             "fail",
             label("found", "warning") + " " +
-              cole.highestMatching.map(_.diffs.values.map(_._1).toList.map(x => s"""<span style="color:red">${htmlValue(x.toString)}</span>""").mkString(",")).mkString
-          ).withPos(e.pos),
+                cole.highestMatching.map(_.diffs.values.map(_._1).toList.map(
+                  x => s"""<span style="color:red">${htmlValue(x.toString)}</span>""").mkString(",")).mkString
+          ).withTarget(e),
           AstKinds.TEST
         ).withSpec(e))
       }
