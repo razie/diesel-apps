@@ -74,7 +74,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
     } else if(in.ea == "snakk.parse.json") {
         reply.asJsonPayload :: Nil
     } else {
-        P.fromSmartTypedValue("error", new IllegalArgumentException("Can't parse xml yet")) :: Nil //.withPos(pos)
+      P.fromSmartTypedValue(Diesel.PAYLOAD, new IllegalArgumentException("Can't parse xml yet")) :: Nil //.withPos(pos)
     }
 
     // add the resulting values
@@ -783,14 +783,15 @@ object EESnakk {
 
     val cause =
       if(t.getCause != null &&
-          (t.getCause.isInstanceOf[java.net.SocketTimeoutException] ||
-           t.getCause.isInstanceOf[java.net.ConnectException] ||
-           t.getCause.getClass.getCanonicalName.startsWith("java.net.")
+          (t.getCause.isInstanceOf[java.lang.IllegalArgumentException] ||
+              t.getCause.isInstanceOf[java.net.SocketTimeoutException] ||
+              t.getCause.isInstanceOf[java.net.ConnectException] ||
+              t.getCause.getClass.getCanonicalName.startsWith("java.net.")
               // why not all java.net ex - no point remembering the stack traces
-           )
+              )
       ) {
         razie.Log.log("error snakking: " + t.getClass.getName + " : " + t.getMessage + " cause: " + t.getCause.getMessage)
-        eres += new EError("Exception: ", t.getMessage) :: Nil
+        eres += new EError("Exception: ", t.getCause.getMessage) :: Nil
         t.getCause
       } else if( t.isInstanceOf[CommRtException] && t.asInstanceOf[CommRtException].httpCode > 0 ) {
         razie.Log.log("error snakking: " + t.getClass.getName + " : " + t.getMessage);
