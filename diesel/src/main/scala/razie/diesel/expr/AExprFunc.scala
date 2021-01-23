@@ -212,9 +212,9 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
             ast.kind = AstKinds.SUBTRACE
 
             // save the trace in the main tree
-            if(ctx.isInstanceOf[StaticECtx])
-              ctx.asInstanceOf[StaticECtx].curNode.foreach(_.childrenCol.append(
-                ast
+            if (ctx.isInstanceOf[StaticECtx])
+              ctx.asInstanceOf[StaticECtx].curNode.foreach(_.appendAllNoEvents(
+                List(ast)
               ))
 
             res

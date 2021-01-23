@@ -123,7 +123,7 @@ object DomEngineSettings {
   /** take the settings from either URL or body form or default */
   def fromJson(j:Map[String, String]) = {
     def fqhParm(name:String) =
-      j.get(name)
+      j.get(name).filter(_.trim.length > 0)
 
     def fqhoParm(name:String, dflt:String) =
       j.getOrElse(name, dflt)

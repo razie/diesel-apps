@@ -48,8 +48,9 @@ abstract class DomStream(
   def href(format: String = "") = s"/diesel/engine/view/$id?format=$format"
 
   var synchronous = false
-  private var targetId: Option[String] = None
+  private var targetId: Option[String] = None // target parent for consume nodes
 
+  /** specify target parent for the consume nodes */
   def withTargetId(id: String) = {
     this.targetId = Some(id)
     this
@@ -86,7 +87,9 @@ abstract class DomStream(
     // todo I send right away - should batch up with a timeout
 
     if (isConsumed) targetId.map { tid =>
+
       if (batch && batchSize > 0) {
+
         var pickedUp = 0
         val asts = list.toList
             .grouped(batchSize)
@@ -105,7 +108,11 @@ abstract class DomStream(
         list.remove(0, pickedUp)
         DieselAppContext ! DEAddChildren(owner.id, tid, recurse = true, -1, asts)
         trace(s" - DStream list size ${list.size} is: " + list.mkString)
+
       } else {
+
+        // no batch
+
         list.toList.map { data =>
           val ast = DomAst(EMsg(
             DieselMsg.STREAMS.STREAM_ONDATA,

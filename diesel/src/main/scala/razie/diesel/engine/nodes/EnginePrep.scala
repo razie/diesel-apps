@@ -34,11 +34,11 @@ object EnginePrep extends Logging {
             val tq = new TagQuery(tagQuery)
 
             // todo optimize
-            val wl = (if (tq.ltags.contains("Story"))
+            val wl = (if (tq.ltags.contains("Story") || tq.ltags.contains("story"))
               catPages("Story", reactor)
             else
               Wikis(reactor).pages("*")
-              )
+                )
 
             val x = wl.toList
 
@@ -261,14 +261,14 @@ object EnginePrep extends Logging {
   /* add a message */
   def addMsgToAst(root: DomAst, v : EMsg) = {
     val ast = DomAst(v, AstKinds.RECEIVED)
-    root.childrenCol append ast
+    root.appendAllNoEvents(List(ast))
     ast
   }
 
   /**
-    *  add all nodes from story and add them to root
+    * add all nodes from story and add them to root
     *
-    *  todo when are expressions evaluated?
+    * todo when are expressions evaluated?
     */
   def addStoriesToAst(engine: DomEngine, stories: List[DSpec], justTests: Boolean = false, justMocks: Boolean =
   false, addFiddles: Boolean = false) = {
@@ -338,7 +338,7 @@ object EnginePrep extends Logging {
         }
 
         // we could do all, but don't care much about other elements, just the tests...
-        root.childrenCol appendAll story.contentPreProcessed.lines.map(_.trim).zipWithIndex.filter(
+        storyAst appendAllNoEvents story.contentPreProcessed.lines.map(_.trim).zipWithIndex.filter(
           _._1.startsWith("$expect")).collect {
 
           case (line, row) if !findElemLine(row + 1) =>
@@ -348,7 +348,7 @@ object EnginePrep extends Logging {
       }
 
       // add the actual elements
-      root.childrenCol appendAll RDomain.domFilter(story) {
+      root appendAllNoEvents RDomain.domFilter(story) {
         case o: O if o.name != "context" => List(DomAst(o, AstKinds.RECEIVED))
 
         case v: EMsg if v.entity == "ctx" && v.met == "storySync" => {

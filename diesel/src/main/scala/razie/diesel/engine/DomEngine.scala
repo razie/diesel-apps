@@ -102,7 +102,7 @@ abstract class DomEngine(
     val newRoot = DomAst("root", AstKinds.ROOT).withDetails("(spawned)")
     /* can't use evAppChildren*/
 //    evAppChildren(newRoot, nodes)
-    newRoot.childrenCol appendAll nodes
+    newRoot.appendAllNoEvents(nodes)
     val engine = DieselAppContext.mkEngine(dom, newRoot, settings, pages, "engine:spawn", correlationId)
     engine.ctx.root._hostname = ctx.root._hostname
     engine
@@ -405,7 +405,9 @@ abstract class DomEngine(
     *
     * IT IS important that this be called just before starting execution, after all children were
     * added to the root
-    * */
+    *
+    * @param l children alredy added tothe root
+    */
   protected def prepRoot(l: ListBuffer[DomAst]): ListBuffer[DomAst] = {
     val vals = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_VALS), AstKinds.TRACE)
     val warns = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_WARNINGS), AstKinds.TRACE)
@@ -418,12 +420,12 @@ abstract class DomEngine(
 
     // create dependencies and add them to the list
     after.prereq = l.map(_.id).toList
-    l.append(after)
+    root.appendAllNoEvents(List(after))
     l.foreach(x => x.prereq = before.id :: x.prereq)
-    l.prepend(warns)
-    l.prepend(before)
-    l.prepend(vals)
-    l.prepend(desc)
+
+    root.prependAllNoEvents(List(desc, vals, before, warns))
+
+    warnings = Some(warns)
 
     //child engines notify parent if needed
     correlationId
@@ -441,13 +443,15 @@ abstract class DomEngine(
 
           // dead last node
           notifyParent.prereq = l.map(_.id).toList
-          l.append(notifyParent)
+          root.appendAllNoEvents(List(notifyParent))
         })
     l
   }
 
   /**
-    * process only the tests - in sequence
+    * process only the tests - in sequence, this is meant to validate a data from another engine
+    *
+    * we will remove all other nodes but the $expect from the story
     *
     * this will prep the root node, then start execution
     */
@@ -608,7 +612,7 @@ abstract class DomEngine(
   def addResponseInfo (code: Int, body:String, headers:Map[String, String]): Unit = {
     val h = headers.mkString("\n")
     val ast = new DomAst(EInfo(s"Response: ${code} BODY: ${body.take(500)}", s"HEADERS:\n$h"), AstKinds.TRACE)
-    this.root.childrenCol.append(ast)
+    this.root.appendAllNoEvents(List(ast))
   }
 
   /** extract the resulting value from this engine

@@ -106,7 +106,8 @@ trait DomEngineState {
 
       case DEventExpNode(parentId, children, _) => {
         // must add directly to children, to avoid recursing
-        n(parentId).childrenCol appendAll children
+        val parent = n(parentId)
+        parent.appendAllNoEvents(children)
 
         this.curExpands = curExpands + 1
       }

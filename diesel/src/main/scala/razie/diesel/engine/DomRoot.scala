@@ -5,10 +5,14 @@
  */
 package razie.diesel.engine
 
+import razie.diesel.Diesel
 import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.dom.{RDOM, WTypes}
 import razie.diesel.engine.nodes._
 import razie.diesel.expr._
+import razie.diesel.model.DieselMsg
+import razie.hosting.Website
+import razie.tconf.EPos
 import scala.collection.mutable.HashMap
 
 /** something that has a dom root tree - engines so far */
@@ -182,26 +186,29 @@ trait DomRoot {
       }
     }
 
-      a appendAll calc.flatMap{p =>
-        if(p.ttype == WTypes.EXCEPTION) {
-          p.value.map {v=>
-            val err = handleError (p, v)
+    // add EVals to the tree, for each value
 
-            DomAst(err.withPos(x.pos), AstKinds.ERROR).withSpec(x) :: Nil
-          } getOrElse {
-            DomAst(EError(p.currentStringValue) withPos (x.pos), AstKinds.ERROR).withSpec(x) :: Nil
-          }
-        } else {
-          val newa = DomAst(EVal(p) withPos (x.pos), kind).withSpec(x)
-          newa :: Nil
+    a appendAll calc.flatMap { p =>
+      if (p.ttype == WTypes.EXCEPTION) {
+        p.value.map { v =>
+          val err = handleError(p, v)
 
-          // this added a new info node
-          // DomAst(EInfo("yy" + p.toHtml, p.calculatedTypedValue.asNiceString).withPos(x.pos), AstKinds.DEBUG)
-          // :: Nil
+          DomAst(err.withPos(x.pos), AstKinds.ERROR).withSpec(x) :: Nil
+        } getOrElse {
+          DomAst(EError(p.currentStringValue) withPos (x.pos), AstKinds.ERROR).withSpec(x) :: Nil
         }
-      }
+      } else {
+        val newa = DomAst(EVal(p) withPos (x.pos), kind).withSpec(x)
+        newa :: Nil
 
-      appendToCtx putAll calc
+        // removed info from each val as now parm name pops up details
+        // DomAst(EInfo("yy" + p.toHtml, p.calculatedTypedValue.asNiceString).withPos(x.pos), AstKinds.DEBUG)
+        // :: Nil
+      }
+    }
+
+
+    appendToCtx putAll calc
   }
 
   private def handleError (p:P, v:PValue[_]) = {

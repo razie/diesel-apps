@@ -40,7 +40,15 @@ case class DERep(engineId: String, a: DomAst, recurse: Boolean, level: Int, resu
 case class DEComplete(engineId: String, targetId: String, recurse: Boolean, level: Int, results: List[DomAst])
     extends DEMsg
 
-/** like DEComplete but just expand, not done yet */
+/**
+  * like DEComplete but just expand, not done yet
+  *
+  * @param engineId engine this refers to
+  * @param targetId target parent node id
+  * @param recurse
+  * @param level
+  * @param results
+  */
 case class DEAddChildren(engineId: String, targetId: String, recurse: Boolean, level: Int, results: List[DomAst])
     extends DEMsg
 

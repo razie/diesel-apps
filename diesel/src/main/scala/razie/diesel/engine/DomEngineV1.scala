@@ -6,6 +6,7 @@
 package razie.diesel.engine
 
 import org.bson.types.ObjectId
+import razie.audit.Audit
 import razie.js
 import razie.clog
 import razie.diesel.Diesel
@@ -19,6 +20,7 @@ import razie.diesel.model.DieselMsg
 import razie.diesel.model.DieselMsg.ENGINE._
 import razie.hosting.Website
 import razie.tconf.DSpec
+import razie.wiki.Config
 import razie.wiki.admin.GlobalData
 import scala.Option.option2Iterable
 import scala.collection.mutable.{HashMap, ListBuffer}
@@ -50,7 +52,7 @@ class DomEngineV1(
     * @param a       node to decompose
     * @param recurse should recurse
     * @param level
-    * @return continuations
+    * @return continuations for this branch, if any
     */
   protected override def expand(a: DomAst, recurse: Boolean = true, level: Int): List[DEMsg] = {
     var msgs : List[DEMsg] = Nil // continuations from this cycle
@@ -71,6 +73,7 @@ class DomEngineV1(
           "fail: maxExpands!", s"You have expanded too many nodes (>$maxExpands)..."), "error")
       return Nil //stopNow
     }
+
     // link the spec - some messages get here without a spec, because the DOM is not available when created
     if(a.value.isInstanceOf[EMsg] && a.value.asInstanceOf[EMsg].spec.isEmpty) {
       val m = a.value.asInstanceOf[EMsg]

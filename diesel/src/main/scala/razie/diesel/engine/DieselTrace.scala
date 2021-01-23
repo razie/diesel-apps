@@ -42,7 +42,7 @@ case class DieselTrace (
 
   def toAst  = {
     val me = new DomAst (this, AstKinds.SUBTRACE)
-    me.childrenCol.append(root)
+    me.appendAllNoEvents(List(root))
     me
   }
 }
