@@ -290,10 +290,12 @@ trait DomRoot {
 
     attrs.foreach(setValueInContext(a, ctx, _))
 
-    if(appendToCtx.isInstanceOf[StaticECtx]) {
+    // if static context, create warnings for each possible overwrite
+    if (appendToCtx.isInstanceOf[StaticECtx]) {
       a appendAll attrs.flatMap { p =>
-        appendToCtx.asInstanceOf[StaticECtx].check(p).toList map {err=>
-          DomAst(err.withPos(x.pos), AstKinds.ERROR).withSpec(x)
+        appendToCtx.asInstanceOf[StaticECtx].check(p).toList map { err =>
+          val res = DomAst(err.withPos(pos), AstKinds.ERROR)
+          spec.map(res.withSpec).getOrElse(res)
         }
       }
     }
