@@ -26,6 +26,7 @@ trait AuditService extends Auditor with razie.Logging {
   /** audit creation of an entity */
   def create[T](entity: T): T = {
     audit(logdb(ENTITY_CREATE, entity.toString)); entity
+    entity
   }
   def createnoaudit[T](entity: T): T = {
     audit(ENTITY_CREATE + " " + entity.toString); entity

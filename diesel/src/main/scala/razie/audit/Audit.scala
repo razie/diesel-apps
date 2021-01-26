@@ -28,7 +28,7 @@ import razie.db._
 @RTable
 case class Audit(
   level: String,
-  msg: String, // free format message
+  msg: String, // audit code - use single constants like a text code
   details: String, // free form
   link: Option[String] = None, // optional link to the entity involved
   node: Option[String] = None, // will populate http of current node

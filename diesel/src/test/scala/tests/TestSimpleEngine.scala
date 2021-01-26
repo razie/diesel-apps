@@ -52,7 +52,10 @@ class TestSimpleEngine extends WordSpecLike with MustMatchers with OptionValues 
       // run it: create engine, run story and wait for result
       val engine = DomEngineUtils.execAndWait(
         DomEngineUtils.mkEngine(
-          new DomEngineSettings().copy(realm=Some("rk")),
+          new DomEngineSettings()
+              .copy(realm = Some("rk"))
+              .copy(mockMode = true)
+              .copy(blenderMode = true),
           List(spec),
           List(story)
         )

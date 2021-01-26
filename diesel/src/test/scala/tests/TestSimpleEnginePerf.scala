@@ -11,11 +11,9 @@ import com.typesafe.config.ConfigFactory
 import java.util.concurrent.atomic.AtomicInteger
 import org.scalatest.{MustMatchers, OptionValues, WordSpecLike}
 import razie.clog
-import razie.diesel.engine.{DieselAppContext, DomEngineSettings, RDExt}
+import razie.diesel.engine.{DieselAppContext, DomEngineSettings}
 import razie.diesel.samples.DomEngineUtils
 import razie.wiki.parser.{DieselTextSpec, DieselUrlTextSpec}
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{Success, Failure}
 
 /**
   * Created by raz on 2017-07-06.
@@ -23,8 +21,11 @@ import scala.util.{Success, Failure}
 class TestSimpleEnginePerf extends WordSpecLike with MustMatchers with OptionValues {
 
   val THREADS = 20
-  val CYCLES  = 1000
+  val CYCLES = 500
   val SLEEP = false
+
+  //  final val SERVER = "http://specs.razie.com"
+  final val SERVER = "http://localhost:9000"
 
   implicit val system = ActorSystem("testsystem", ConfigFactory.parseString(""" """))
   DieselAppContext
@@ -32,18 +33,18 @@ class TestSimpleEnginePerf extends WordSpecLike with MustMatchers with OptionVal
       .withActorSystem(system)
 
   // COMMENT THE REMOTE stories to get just a perf test measure
-  val rspecs  =
-    DieselUrlTextSpec("http://specs.dieselapps.com/wikie/content/Spec:expr_spec", "expr_spec") ::
-    DieselUrlTextSpec("http://specs.dieselapps.com/wikie/content/Spec:expr-json-spec", "expr-json-spec") ::
+  val rspecs =
+    DieselUrlTextSpec(SERVER + "/wikie/content/Spec:expr_spec", "expr_spec") ::
+//        DieselUrlTextSpec(SERVER + "/wikie/content/Spec:expr-json-spec", "expr-json-spec") ::
 //    DieselUrlTextSpec("http://specs.dieselapps.com/wikie/content/Spec:rest_spec", "rest-spec") ::
-    Nil
+        Nil
 
   // COMMENT THE REMOTE stories to get just a perf test measure
   val rstories =
-    DieselUrlTextSpec("http://specs.dieselapps.com/wikie/content/Story:expr_story", "expr_story") ::
-    DieselUrlTextSpec("http://specs.dieselapps.com/wikie/content/Story:expr-json-story", "expr-json-story") ::
-//      DieselUrlTextSpec("http://specs.dieselapps.com/wikie/content/Story:rest_story", "rest_story") ::
-      Nil
+    DieselUrlTextSpec(SERVER + "/wikie/content/Story:expr_story", "expr_story") ::
+//        DieselUrlTextSpec(SERVER + "/wikie/content/Story:expr-json-story", "expr-json-story") ::
+//      DieselUrlTextSpec(SERVER + "/wikie/content/Story:rest_story", "rest_story") ::
+        Nil
 
   val flowCount = new AtomicInteger(0)
   val testCount = new AtomicInteger(0)
@@ -77,7 +78,10 @@ class TestSimpleEnginePerf extends WordSpecLike with MustMatchers with OptionVal
 
       DomEngineUtils.execAndWait(
         DomEngineUtils.mkEngine(
-          new DomEngineSettings().copy(realm = Some("rk")),
+          new DomEngineSettings()
+              .copy(realm = Some("rk"))
+              .copy(mockMode = true)
+              .copy(blenderMode = true),
           List(sleepspec) ::: rspecs, // IMPORTANT: rspecs need warmup, see below
           List(story) ::: rstories    // IMPORTANT: rstories need warmup, see below
         )
@@ -105,7 +109,7 @@ class TestSimpleEnginePerf extends WordSpecLike with MustMatchers with OptionVal
 
     clog << s"-------------- starting $CYCLES cycles with $THREADS threads"
 
-    "run well in many threads " in {
+    s"run well in $THREADS threads with $CYCLES cycles" in {
 
       start = System.currentTimeMillis()
       razie.Threads.forkjoin(Range(0, THREADS)) { i =>
@@ -114,8 +118,11 @@ class TestSimpleEnginePerf extends WordSpecLike with MustMatchers with OptionVal
           // run it: create engine, run story and wait for result
           val engine = DomEngineUtils.execAndWait(
             DomEngineUtils.mkEngine(
-              new DomEngineSettings().copy(realm = Some("rk")),
-              (if(SLEEP) List(sleepspec) else Nil) ::: spec(i,j) :: rspecs,
+              new DomEngineSettings()
+                  .copy(realm = Some("rk"))
+                  .copy(mockMode = true)
+                  .copy(blenderMode = true),
+              (if (SLEEP) List(sleepspec) else Nil) ::: spec(i, j) :: rspecs,
               rstories ::: story :: Nil // i,j story at end, so it's the resultingValue
             ),
             1000 // a lot as some engines may take a while to complete

@@ -10,17 +10,16 @@ import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
 import org.scalatest.{MustMatchers, OptionValues, WordSpecLike}
 import razie.diesel.engine.exec.EExecutor
-import razie.diesel.engine.nodes.{EInfo, EMsg}
-import razie.diesel.engine.{DEMsg, DieselAppContext, DomAst, DomEngineSettings}
+import razie.diesel.engine.nodes.{EInfo, EMsg, MatchCollector}
+import razie.diesel.engine.{DieselAppContext, DomAst, DomEngineSettings}
 import razie.diesel.expr.ECtx
-import razie.diesel.engine.nodes.MatchCollector
 import razie.diesel.samples.DomEngineUtils
 import razie.wiki.parser.DieselTextSpec
 
 /* a sync executor */
 class EESyncExec extends EExecutor("testSync") {
   /** what messages do I apply to */
-  override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
+  override def test(ast: DomAst, m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
     m.entity == "sync"
   }
 
@@ -32,7 +31,7 @@ class EESyncExec extends EExecutor("testSync") {
 /* an async executor */
 class EEAsyncExec extends EExecutor("testAsync") {
   /** what messages do I apply to */
-  override def test(m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
+  override def test(ast: DomAst, m: EMsg, cole: Option[MatchCollector] = None)(implicit ctx: ECtx) = {
     m.entity == "async"
   }
 
