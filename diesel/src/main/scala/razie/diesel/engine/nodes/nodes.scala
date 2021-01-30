@@ -41,7 +41,10 @@ package object nodes {
     val pv = p.calculatedP
     val v = p.calculatedTypedValue
 
-    assert(p.ttype == WTypes.wt.JSON || p.isUndefinedOrEmpty, "input needs to be JSON, but it's: " + pv)
+    assert(pv.ttype.name == WTypes.JSON ||
+        pv.ttype.name == WTypes.OBJECT ||
+        p.isUndefinedOrEmpty, "input needs to be JSON, but it's: " + pv
+    )
 
     v.asJson.map { t =>
       P.fromTypedValue(t._1, t._2)
@@ -88,6 +91,9 @@ package object nodes {
         } else if (pm.isMatch && (pm.dflt.size > 0 || pm.expr.isDefined)) {
           // testing for name and value
           if (b._1.name.size > 0) {
+            // todo - not just check() if all the input parms for expression
+            // exist, then check both true AND false, don't go up looking for some
+            // happy path!
             res = in.exists(x => pm.check(x)) || ctx.exists(x => pm.check(x))
 
             if (!res && positive || res && !positive) in.find(_.name == pm.name).map { p =>

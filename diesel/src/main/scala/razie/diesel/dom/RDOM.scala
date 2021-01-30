@@ -269,23 +269,37 @@ object RDOM {
         case i: java.lang.Long =>
           P(name, asString(i), WTypes.wt.NUMBER).withValue(i.longValue, WTypes.wt.NUMBER)
 
-          // must be before Seq
-        case r: Range =>       P(name, asString(r), WTypes.wt.RANGE).withValue(r, WTypes.wt.RANGE)
+        // must be before Seq
+        case r: Range => P(name, asString(r), WTypes.wt.RANGE).withValue(r, WTypes.wt.RANGE)
         // the "" dflt will force usage of value
-        case s: collection.Map[_, _] =>         P(name, "", expOrElse(WTypes.wt.JSON)).withValue(s, expOrElse(WTypes.wt.JSON))
-        case s: collection.mutable.Map[_, _] => P(name, "", expOrElse(WTypes.wt.JSON)).withValue(s, expOrElse(WTypes.wt.JSON))
-        case s: collection.Seq[_] =>      P(name, "", expOrElse(WTypes.wt.ARRAY)).withValue(s, expOrElse(WTypes.wt.ARRAY))
-        case s: JSONObject =>  P(name, "", expOrElse(WTypes.wt.JSON)).withValue(js.fromObject(s), expOrElse(WTypes.wt.JSON))
-        case s: JSONArray =>   P(name, "", expOrElse(WTypes.wt.ARRAY)).withValue(js.fromArray(s), expOrElse(WTypes.wt.ARRAY))
 
-        case s: String =>      {
+        // first get the map
+        case s: collection.mutable.Map[_, _] => P(name, "", expOrElse(WTypes.wt.JSON)).withValue(s,
+          expOrElse(WTypes.wt.JSON))
+
+        case s: collection.Map[_, _] => {
+          // use mutable map so we can assign later
+          val hm = mapToMutable(s)
+          P(name, "", expOrElse(WTypes.wt.JSON)).withValue(hm, expOrElse(WTypes.wt.JSON))
+        }
+        case s: collection.Seq[_] => P(name, "", expOrElse(WTypes.wt.ARRAY)).withValue(s, expOrElse(WTypes.wt.ARRAY))
+        case s: JSONObject => P(name, "", expOrElse(WTypes.wt.JSON)).withValue(js.fromObject(s),
+          expOrElse(WTypes.wt.JSON))
+        case s: JSONArray => P(name, "", expOrElse(WTypes.wt.ARRAY)).withValue(js.fromArray(s),
+          expOrElse(WTypes.wt.ARRAY))
+
+        case s: String => {
           expectedType match {
-            case WType(WTypes.JSON,_,_,_, _)  => P(name, s, expectedType).withCachedValue(js.fromObject(new JSONObject(s)), expectedType, s)
-            case WType(WTypes.ARRAY,_,_,_, _) => P(name, s, expectedType).withCachedValue(js.fromArray(new JSONArray(s)), expectedType, s)
-            case WType(WTypes.BOOLEAN,_,_,_, _) => P(name, s, expectedType).withCachedValue(s.toBoolean, expectedType, s)
-            case WType(WTypes.NUMBER,_,_,_, _) => P(name, s, expectedType).withCachedValue(s.toFloat, expectedType, s)
-            case WType(WTypes.STRING,_,_,_, _) => P(name, s, expectedType).withCachedValue(s, expectedType, s)
-            case WType(WTypes.EXCEPTION,_,_,_, _) => P(name, s, expectedType)
+            case WType(WTypes.JSON, _, _, _, _) => P(name, s, expectedType).withCachedValue(
+              js.fromObject(new JSONObject(s)), expectedType, s)
+            case WType(WTypes.ARRAY, _, _, _, _) => P(name, s, expectedType).withCachedValue(
+              js.fromArray(new JSONArray(s)), expectedType, s)
+            case WType(WTypes.BOOLEAN, _, _, _, _) => P(name, s, expectedType).withCachedValue(s.toBoolean,
+              expectedType, s)
+            case WType(WTypes.NUMBER, _, _, _, _) => P(name, s, expectedType).withCachedValue(s.toFloat, expectedType,
+              s)
+            case WType(WTypes.STRING, _, _, _, _) => P(name, s, expectedType).withCachedValue(s, expectedType, s)
+            case WType(WTypes.EXCEPTION, _, _, _, _) => P(name, s, expectedType)
             case _ if expectedType.trim.length > 0 =>
               throw new DieselExprException(s"$expectedType is an unknown type")
             case _ => P(name, s, WTypes.wt.STRING).withCachedValue(s, WTypes.wt.STRING, s)
@@ -303,6 +317,15 @@ object RDOM {
         throw new DieselExprException(s"$name of type ${res.ttype} not of expected type $expectedType")
 
       res
+    }
+
+    def mapToMutable(s: collection.Map[_, _]): collection.mutable.HashMap[String, Any] = {
+      val hm = new collection.mutable.HashMap[String, Any]()
+      s.foreach(t => t._2 match {
+        case s: collection.Map[_, _] => hm.put(t._1.toString, mapToMutable(t._2.asInstanceOf[collection.Map[_, _]]))
+        case _ => hm.put(t._1.toString, t._2)
+      })
+      hm
     }
 
     /** value recognized as simple type? */
@@ -427,7 +450,11 @@ object RDOM {
 
     /** check if this value or def is of type t */
     def isOfType(t: WType) = {
-      value.map(x => WTypes.isSubtypeOf(t, x.cType)).getOrElse(WTypes.isSubtypeOf(t, ttype))
+      value.map(x => WTypes
+          .isSubtypeOf(t, x.cType))
+          .getOrElse(
+            WTypes.isSubtypeOf(t, ttype)
+          )
     }
 
     def isUndefined = ttype == WTypes.UNDEFINED

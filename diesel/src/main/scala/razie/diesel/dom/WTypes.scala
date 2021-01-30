@@ -145,11 +145,11 @@ object WTypes {
       typeToCheck.name.toLowerCase == EXCEPTION && subtype.name.toLowerCase == ERROR
     } || {
       (typeToCheck.name == JSON || typeToCheck.name == OBJECT) &&
-          (subtype.name == JSON || subtype.name == OBJECT)
-    } || {
-      // check schemas if they're subtyped...
-      (typeToCheck.name == JSON || typeToCheck.name == OBJECT) &&
-          (typeToCheck.schema == subtype.name)
+          (subtype.name == JSON || subtype.name == OBJECT) &&
+          (
+              // check schemas if they're subtyped...
+              subtype.schema == "" || typeToCheck.schema == subtype.name
+              )
     }
   }
 

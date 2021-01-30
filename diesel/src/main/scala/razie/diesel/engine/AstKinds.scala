@@ -27,14 +27,20 @@ object AstKinds {
   final val MOCKED = "mocked"
   final val NEXT = "next"
 
-  def isGenerated  (k:String) = GENERATED==k || SKETCHED==k || MOCKED==k || DEBUG==k || ERROR==k || TRACE==k
-  def shouldIgnore (k:String) = RULE==k || BUILTIN==k
-  def shouldSkip (k:String) = NEXT==k
-  def shouldRollup (k:String) = NEXT==k
-  def shouldPrune (k:String) = false
+  final val IGNORE = "ignore" // don't use these nodes
+
+  def isGenerated(k: String) = GENERATED == k || SKETCHED == k || MOCKED == k || DEBUG == k || ERROR == k || TRACE == k
+
+  def shouldIgnore(k: String) = RULE == k || BUILTIN == k
+
+  def shouldSkip(k: String) = NEXT == k
+
+  def shouldRollup(k: String) = NEXT == k
+
+  def shouldPrune(k: String) = false
 
   /** kind based on arch so you can specify <trace> and all kids become "trace" */
-  def kindOf (arch:String) = {
+  def kindOf(arch: String) = {
     val kind = arch match {
       case _ if arch contains "trace" => AstKinds.TRACE
       case _ if arch contains "debug" => AstKinds.DEBUG

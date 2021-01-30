@@ -7,7 +7,6 @@ package razie.wiki.admin
 
 import java.util._
 import java.util.concurrent.TimeUnit
-
 import javax.mail._
 import javax.mail.internet._
 import akka.actor.{Actor, Props}
@@ -16,8 +15,7 @@ import org.joda.time.DateTime
 import play.libs.Akka
 import razie.audit.Audit
 import razie.db._
-import razie.wiki.Services
-
+import razie.wiki.{Config, Services}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import razie.clog
@@ -427,12 +425,28 @@ object SendEmail extends razie.Logging {
             val t1 = System.currentTimeMillis()
             mailSession.send(message);
             var t2 = System.currentTimeMillis()
-            val dur = t2-t1
+            val dur = t2 - t1
 
-            Audit.logdb("EMAIL_SENT", state + " "+dur+"msec"+Seq(" to:" + e.to, "from:" + e.from, "subject:" + e.subject, "body:" + e.html).mkString("\n"))
+            val website = mailSession.realm.flatMap(Website.forRealm).getOrElse(Website.dflt)
+
+            val user = website.prop("mail.smtp.user").getOrElse(Config.SUPPORT)
+            val server = website.prop("mail.smtp.host")
+
+
+            Audit.logdb(
+              "EMAIL_SENT",
+              state + " " + dur + "msec" + Seq(
+                " to:" + e.to,
+                "from:" + e.from,
+                "server:" + server,
+                "acct:" + user,
+                "subject:" + e.subject,
+                "body:" + e.html
+              ).mkString("\n"))
+
             e.deleteNoAudit
 
-            if(dur > 30000) {
+            if (dur > 30000) {
               Audit.logdb("EMAIL_STATUS", "sending slowing down, closing connection")
               setState(STATE_BACKEDOFF)
               Akka.system.scheduler.scheduleOnce(
