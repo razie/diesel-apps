@@ -42,8 +42,10 @@ object EErrorUtils {
 }
 
 /** some error, with a message and details */
-case class EError(msg: String, details: String = "", code:String = "ERROR") extends CanHtml with HasPosition with InfoNode {
-  def this(msg:String, t:Throwable) =
+case class EError(msg: String, details: String = "", code: String = "ERROR")
+    extends CanHtml with HasPosition with InfoNode {
+
+  def this(msg: String, t: Throwable) =
     this(
       Enc.escapeHtml(msg + ": " + t.getClass.getSimpleName + ": " + t.getMessage),
       Enc.escapeHtml(EErrorUtils.ttos(t))

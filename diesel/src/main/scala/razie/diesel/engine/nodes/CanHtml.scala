@@ -5,6 +5,7 @@
  */
 package razie.diesel.engine.nodes
 
+import razie.diesel.engine.AstKinds
 import razie.tconf.EPos
 import razie.wiki.Enc
 
@@ -26,12 +27,13 @@ trait HasPosition {
 
     val t = title.map(CanHtml.prepTitle)
     val kin = kind.map(k => s"""kind="${k}"""").mkString
+    val cls = if (k.isEmpty) "" else s"label label-$k"
 
     actualPos.map(p =>
-      s"""<span $kin posw="${p.wpath}" posr="${p.line}" onclick="$mkref" style="cursor:pointer" class="label
-         |label-$k" ${t.mkString}>$s</span>&nbsp;""".stripMargin
+      s"""<span $kin posw="${p.wpath}" posr="${p.line}" onclick="$mkref" style="cursor:pointer" class="
+         |$cls" ${t.mkString}>$s</span>&nbsp;""".stripMargin
     ) getOrElse
-        s"""<span $kin class="label label-$k" ${t.mkString}>$s</span>&nbsp;"""
+        s"""<span $kin class="$cls" ${t.mkString}>$s</span>&nbsp;"""
   }
 }
 
@@ -94,11 +96,14 @@ trait CanHtml {
     *
     * wrap for EMsg where the kspan will wrap it anyways
     */
-  def ea(e: String, a: String, title: String = "", wrap: Boolean = true) = {
+  def ea(e: String, a: String, title: String = "", wrap: Boolean = true, kind: String) = {
     val t = CanHtml.prepTitle(title)
+    val c1 = if (kind == AstKinds.TRACE) "darkgray" else "moccasin"
+    val c2 = if (kind == AstKinds.TRACE) "darkgray" else "lightblue"
+
     (if (wrap) s"""<span class="label label-default" $t>""" else "") +
-        s"""<span style="font-weight:bold; color:moccasin">$e</span>.<span
-           |      class="" style="font-weight:bold; color:lightblue">$a</span>""".stripMargin +
+        s"""<span style="font-weight:bold; color:$c1">$e</span>.<span
+           |      class="" style="font-weight:bold; color:$c2">$a</span>""".stripMargin +
         (if (wrap) """ </span>""" else "")
   }
 
@@ -114,6 +119,9 @@ trait CanHtml {
     "<code>" + token(s, "value", """ class="string" """) + "</code>"
 
   def toHtml: String
+
+  /** to html using a kind: trace/debug etc */
+  def toHtml(kind: String): String = toHtml
 
   /** shorten string */
   def shorten(s: String, len: Int = 100) = {

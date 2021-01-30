@@ -73,7 +73,8 @@ case class EMapPas(attrs: List[PAS], arrow:String="=>", cond: Option[EIf] = None
     List(e)
   }
 
-  override def toHtml = indent(indentLevel) + """<span class="glyphicon glyphicon-arrow-right"></span> """ + cond.map(_.toHtml+" ").mkString + ea("", "") + " " + toHtmlPAttrs(attrs)
+  override def toHtml = indent(indentLevel) + """<span class="glyphicon glyphicon-arrow-right"></span> """ + cond.map(
+    _.toHtml + " ").mkString + ea("", "", "", true, AstKinds.GENERATED) + " " + toHtmlPAttrs(attrs)
 
   override def toString = indent(indentLevel, " ") + "=> " + cond.map(_.toHtml+" ").mkString + ". " + attrs.mkString("(", ",", ")")
   override def toCAString:String = cond.map(_.toString).toString + ". " + attrs.mkString("(", ",", ")")
@@ -122,7 +123,8 @@ case class EMapCls(cls: String, met: String, attrs: Attrs, arrow:String="=>", co
   })
 
   //  override def toHtml = "<b>=&gt;</b> " + ea(cls, met) + " " + attrs.map(_.toHtml).mkString("(", ",", ")")
-  override def toHtml = indent(indentLevel) + """<span class="glyphicon glyphicon-arrow-right"></span> """ + cond.map(_.toHtml+" ").mkString + ea(cls, met) + " " + toHtmlAttrs(attrs)
+  override def toHtml = indent(indentLevel) + """<span class="glyphicon glyphicon-arrow-right"></span> """ + cond.map(
+    _.toHtml + " ").mkString + ea(cls, met, "", true, AstKinds.GENERATED) + " " + toHtmlAttrs(attrs)
 
   override def toString = indent(indentLevel, " ") + "=> " + cond.map(_.toHtml+" ").mkString + cls + "." + met + " " + attrs.mkString("(", ",", ")")
   override def toCAString = cond.map(_.toString+" ").mkString + cls + "." + met + " " + attrs.mkString("(", ",", ")")

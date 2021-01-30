@@ -7,7 +7,7 @@ package razie.diesel.engine.nodes
 
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
-import razie.diesel.engine.DomAstInfo
+import razie.diesel.engine.{AstKinds, DomAstInfo}
 import razie.diesel.engine.exec.Executors
 import razie.diesel.expr.{AExprIdent, ECtx, StaticECtx}
 import razie.diesel.model.DieselMsg
@@ -127,16 +127,17 @@ case class EMsg(
       }.getOrElse(Map.empty)
 
   // if this was an instance and you know of a spec
-  private def first(instPos:Option[EPos]) : String =
+  private def first(instPos: Option[EPos], kind: String): String =
     spec
-      .filter(x=> !x.equals(this)) // avoid stackoverflow if self is spec
-      .map(_.first(instPos))
-      .getOrElse {
-        // clean visual stypes annotations
-        val stypeStr = stype.replaceAllLiterally(",prune", "").replaceAllLiterally(",warn", "")
-        kspan("msg", msgLabelColor, instPos) + span(stypeStr, "info") + (if (stypeStr.trim.length > 0) " " else "")
-        //    kspan("msg", msgLabelColor, spec.flatMap(_.pos)) + span(stypeStr, "info") + (if(stypeStr.trim.length > 0) " " else "")
-      }
+        .filter(x => !x.equals(this)) // avoid stackoverflow if self is spec
+        .map(_.first(instPos, kind))
+        .getOrElse {
+          // clean visual stypes annotations
+          val stypeStr = stype.replaceAllLiterally(",prune", "").replaceAllLiterally(",warn", "")
+          kspan("msg", msgLabelColor, instPos) + span(stypeStr, "info") + (if (stypeStr.trim.length > 0) " " else "")
+          //    kspan("msg", msgLabelColor, spec.flatMap(_.pos)) + span(stypeStr, "info") + (if(stypeStr.trim.length
+          //    > 0) " " else "")
+        }
 
   /** find the spec and get its pos */
   def specPos: Option[EPos] = {
@@ -164,24 +165,33 @@ case class EMsg(
     else "primary"
 
   /** extract a match from this message signature */
-  def asMatch = EMatch(entity, met, attrs.filter(p=> p.dflt != "" || p.expr.isDefined).map {p=>
-    PM (AExprIdent(p.name), p.ttype, "==", p.dflt, p.expr)
+  def asMatch = EMatch(entity, met, attrs.filter(p => p.dflt != "" || p.expr.isDefined).map { p =>
+    PM(AExprIdent(p.name), p.ttype, "==", p.dflt, p.expr)
   })
 
   /** message name as a nice link to spec as well */
-  private def eaHtml =
-    kspan(ea(entity,met, "", false), "default", specPos, spec.orElse(Some("no spec")).map(_.toString))
+  private def eaHtml(kind: String) =
+    kind match {
+      case AstKinds.TRACE =>
+        kspan(ea(entity, met, "", false, kind), "", specPos, spec.orElse(Some("no spec")).map(_.toString))
+      case _ =>
+        kspan(ea(entity, met, "", false, kind), "default", specPos,
+          spec.orElse(Some("no spec")).map(_.toString))
+    }
 
   /** this html works well in a diesel fiddle, use toHtmlInPage elsewhere */
-  override def toHtml = {
+  override def toHtml = toHtml(AstKinds.GENERATED)
+
+  /** to html using a kind: trace/debug etc */
+  override def toHtml(kind: String): String = {
     if (DieselMsg.ENGINE.DIESEL_STEP == ea) {
-      /*span(arch+"::")+*/ first(pos) + eaHtml + " " + span(attrs.head.currentStringValue, "primary")
+      /*span(arch+"::")+*/ first(pos, kind) + eaHtml(kind) + " " + span(attrs.head.currentStringValue, "primary")
     } else if (DieselMsg.ENGINE.DIESEL_TODO == ea) {
       val m = attrs.head.currentStringValue
 //      val color = if (m contains "!") "danger" else "warning"
-      /*span(arch+"::")+*/ first(pos) + eaHtml + " " + span(m, "warning")
+      /*span(arch+"::")+*/ first(pos, kind) + eaHtml(kind) + " " + span(m, "warning")
     } else {
-      /*span(arch+"::")+*/ first(pos) + eaHtml + " " + toHtmlAttrs(attrs)
+      /*span(arch+"::")+*/ first(pos, kind) + eaHtml(kind) + " " + toHtmlAttrs(attrs)
     }
   }
 
