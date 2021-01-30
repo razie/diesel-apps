@@ -297,8 +297,8 @@ class EESnakk extends EExecutor("snakk") with Logging {
         case x@_ => true
       } :::
           new EInfo(SNAKK_RESPONSE, reply.body) ::
-          new EVal(reply.httpCodep).withKind(AstKinds.DEBUG) ::
-          new EVal(reply.headersp).withKind(AstKinds.DEBUG) ::
+          new EVal(reply.httpCodep).withKind(AstKinds.TRACE) ::
+          new EVal(reply.headersp).withKind(AstKinds.TRACE) ::
           traceId :::
           eres.eres.collect {
             case v@EVal(p) if p.name == PAYLOAD => v
@@ -373,7 +373,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
       } getOrElse
           // need to create a val - otherwise DomApi.rest returns the last Val
           EError("no url attribute for RESTification - and no request template found") ::
-              EVal(P("snakk.error", "no url attribute for RESTification - and no request template found")) ::
+              EVal(P("snakkError", "no url attribute for RESTification - and no request template found")) ::
               Nil
     }
 
@@ -421,7 +421,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
 /** snakk REST and formatting/parsing utilities */
 object EESnakk {
 
-  final val SNAKK_RESPONSE = "snakk.response"
+  final val SNAKK_RESPONSE = "snakkResponse"
   final val SNAKK_HTTP_OPTIONS = "snakkHttpOptions"
   final val SNAKK_HTTP_CODE = "snakkHttpCode"
   final val SNAKK_HTTP_HEADERS = "snakkHttpHeaders"
@@ -820,17 +820,17 @@ object EESnakk {
 
     eres += ETrace("Response: ", html(response)) :: Nil
 
-    if(code > 0) eres += EVal(P.fromTypedValue(EESnakk.SNAKK_HTTP_CODE, code)) :: Nil
-    if(errContent.length > 0) eres += EVal(P.fromTypedValue(EESnakk.SNAKK_HTTP_RESPONSE, errContent)) :: Nil
+    if (code > 0) eres += EVal(P.fromTypedValue(EESnakk.SNAKK_HTTP_CODE, code)).withKind(AstKinds.TRACE) :: Nil
+    if (errContent.length > 0) eres += EVal(P.fromTypedValue(EESnakk.SNAKK_HTTP_RESPONSE, errContent)) :: Nil
 
     if(t.isInstanceOf[CommRtException]) {
       val uc = t.asInstanceOf[CommRtException].uc
       val x = uc.getHeaderFields.keySet().toArray.toList
       val headers = x.filter(_ != null).map(x => (x.toString, uc.getHeaderField(x.toString))).toMap
-      eres += EVal(EContent.headersp(headers)).withKind(AstKinds.DEBUG)
+      eres += EVal(EContent.headersp(headers)).withKind(AstKinds.TRACE)
     }
 
-    eres += new EVal(PAYLOAD, "")
+    eres += new EVal(P.undefined(PAYLOAD))
 
     eres +=
         // need to create a val - otherwise DomApi.rest returns the last Val
