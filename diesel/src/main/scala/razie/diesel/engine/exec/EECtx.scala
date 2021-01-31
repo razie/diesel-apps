@@ -223,7 +223,34 @@ class EECtx extends EExecutor(EECtx.CTX) {
         res
       }
 
-      case "set" | "export" => {
+      case "export" => {
+        // special export to scope - gets extra parm "toExpect"
+        val ex = in.attrs.find(_.name == "toExport").get
+
+        val res = in.attrs.filter(_.name != "toExport").map { p =>
+          if (p.hasCurrentValue) // calculated already
+            Some(new EVal(p))
+          else if (p.expr.isDefined) // calculate now
+            Some(new EVal(p.expr.get.applyTyped("").copy(name = p.name)))
+          else if (p.ttype != WTypes.wt.UNDEFINED)
+            Some(new EVal(p)) // set(x="") is not undefined...
+          else {
+            // clear it
+            ctx.getScopeCtx.remove(p.name)
+            None
+          }
+        }.filter(_.isDefined).map(_.get)
+
+        if (res.isEmpty) {
+          // parm was UNDEFINED and filtered out of attrs, remove it
+          ctx.getScopeCtx.remove(ex.currentStringValue)
+        }
+        // ctx.set goes to the enclosing scope
+        res.foreach(v => DomRoot.setValueInScopeContext(ctx, v.p))
+        res
+      }
+
+      case "set" => {
         // set all parms passed in - return EVals and make sure they're set in context
         // important to know how the scope contexts work
         val res = in.attrs.map { p =>
@@ -235,7 +262,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
             Some(new EVal(p)) // set(x="") is not undefined...
           else {
             // clear it
-            ctx.remove(p.name)
+            ctx.getScopeCtx.remove(p.name)
             None
           }
         }.filter(_.isDefined).map(_.get)

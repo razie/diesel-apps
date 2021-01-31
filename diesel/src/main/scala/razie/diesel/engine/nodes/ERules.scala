@@ -251,7 +251,8 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
     P(p.name, df, p.ttype)
   })
 
-  override def toHtml = ea(cls, met) + " " + toHtmlMAttrs(attrs) + cond.map(_.toHtml).mkString
+  override def toHtml = ea(cls, met, "", true, AstKinds.GENERATED) + " " + toHtmlMAttrs(attrs) + cond.map(
+    _.toHtml).mkString
 
   override def toString = cls + "." + met + " " + attrs.mkString("(", ",", ")") + cond.map(_.toString).mkString
 

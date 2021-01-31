@@ -56,7 +56,7 @@ case class DomAst(
   def getCtx: Option[ECtx] = imyCtx orElse parent.flatMap(_.getCtx)
 
   /** get my context if any, no parent fallbacks */
-  def getNodeCtx: Option[ECtx] = imyCtx
+  def getMyOwnCtx: Option[ECtx] = imyCtx
 
   def resetParent(f: => DomAst) = {
     this.parent = Option.apply(f)
@@ -66,13 +66,15 @@ case class DomAst(
     if (!this.parent.isDefined) {
       this.parent = Some(f)
     }
-    else
+    else {
       throw new IllegalStateException("Ast already has a parent...")
+    }
+    this
   }
 
+  /** use null to remove context */
   def replaceCtx(f: => ECtx) = {
-    this.imyCtx = Some(f)
-    this.imyCtx.get
+    this.imyCtx = Option(f)
   }
 
   def withCtx(f: => ECtx) = {
@@ -80,8 +82,9 @@ case class DomAst(
       this.imyCtx = Some(f)
       this.imyCtx.get
     }
-    else
+    else {
       throw new IllegalStateException("Ast already has a context...")
+    }
   }
 
   def orWithCtx(f: => Option[ECtx]) = {
@@ -163,7 +166,12 @@ case class DomAst(
 
   /** this node has a spec */
   def withSpec(s: Any) = {
-    specs = s :: specs
+    if (s.isInstanceOf[Option[_]]) {
+      s.asInstanceOf[Option[_]].foreach { x =>
+        specs = x :: specs
+      }
+    }
+    else specs = s :: specs
     this
   }
 
@@ -228,9 +236,17 @@ case class DomAst(
 
     def theKind = {
       val duration = tend - tstart
+
+      val (style, cls) = kind match {
+        case AstKinds.RECEIVED => ("font-weight:bold", "label label-warning")
+        case AstKinds.TEST => ("font-weight:bold", "label label-warning")
+        case AstKinds.TRACE => ("color:lightgray", "")
+        case _ => ("", "")
+      }
+
       if (html)
         s"""<span status="$status" seqNo="$seqNo" msec="$duration" id="$id" prereq="${prereq.mkString(",")}"
-           |title="$kind, $duration ms">${kind.take(3)}</span>""".stripMargin
+           |title="$kind, $duration ms" style="$style" class="$cls">${kind.take(3)}</span>""".stripMargin
       else kind
     }
 
@@ -244,12 +260,18 @@ case class DomAst(
       }
     }
 
-    (" " * level) +
+    // todo - this prints the context type and id, add it with popup for values?
+    val c = ""
+//    +
+//        this.getMyOwnCtx.map(_.getClass.getSimpleName).mkString.take(2) +
+//        this.getMyOwnCtx.map(_.hashCode().toString.reverse.take(3)).mkString
+
+    (c + " " * level) +
         theKind +
         "::" +
         theState + {
       value match {
-        case c: CanHtml if html => c.toHtml
+        case c: CanHtml if html => c.toHtml(kind)
         case x => x.toString
       }
     }.lines.map((" " * 1) + _).mkString("\n") + moreDetails

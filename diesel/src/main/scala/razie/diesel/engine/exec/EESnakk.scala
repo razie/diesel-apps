@@ -296,7 +296,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
         case v@EVal(p) if p.name == PAYLOAD => false
         case x@_ => true
       } :::
-          new EInfo(SNAKK_RESPONSE, reply.body) ::
+          new EInfo(SNAKK_RESPONSE + reply.body.take(25), reply.body) ::
           new EVal(reply.httpCodep).withKind(AstKinds.TRACE) ::
           new EVal(reply.headersp).withKind(AstKinds.TRACE) ::
           traceId :::
@@ -364,7 +364,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
         eres.eres ::: strs.map(t => new P(t._1, t._2)).map { x =>
           EVal(x).withPos(pos)
         } :::
-            new EVal(SNAKK_RESPONSE, content.body).withKind(AstKinds.TRACE) ::
+            new EVal(SNAKK_RESPONSE + content.body.take(25), content.body).withKind(AstKinds.TRACE) ::
             new EVal(content.httpCodep).withKind(AstKinds.TRACE) ::
             new EVal(content.headersp).withKind(AstKinds.TRACE) ::
             // todo here's where i would add the response headers - make the snakk.response an object?
