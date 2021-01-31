@@ -14,6 +14,7 @@ import razie.diesel.model.DieselMsg
 import razie.hosting.Website
 import razie.tconf.EPos
 import scala.collection.mutable.HashMap
+import scala.util.Try
 
 /** something that has a dom root tree - engines so far */
 trait DomRoot {
@@ -86,8 +87,54 @@ trait DomRoot {
       throw new IllegalArgumentException("Can't find level for " + node)
     }
 
+  protected def setSmartValueInContext(
+    a: DomAst,
+    appendToCtx: ECtx,
+    v: EVal
+  ) = {
+
+    val aei = (new SimpleExprParser).parseIdent(v.p.name)
+    if (aei.isEmpty) {
+      throw new DieselExprException("Left side not qualified ID:" + v.p.name)
+    }
+
+    appendValsPas(
+      a,
+      v.pos,
+      None,
+      List(PAS(aei.get, v.p.calculatedP.currentValue)),
+      appendToCtx,
+      AstKinds.IGNORE
+    )
+  }
+
+  protected def setSmartValueInContext(
+    a: DomAst,
+    appendToCtx: ECtx,
+    p: P
+  ) = {
+
+    val aei = (new SimpleExprParser).parseIdent(p.name)
+
+    appendValsPas(
+      a,
+      None,
+      None,
+      List(PAS(aei.get, p.calculatedP.currentValue)),
+      appendToCtx,
+      AstKinds.IGNORE
+    )
+  }
+
   /** an assignment message - execute now */
-  protected def appendValsPas (a:DomAst, x:EMsgPas, attrs:List[PAS], appendToCtx:ECtx, kind:String=AstKinds.GENERATED) = {
+  protected def appendValsPas(
+    a: DomAst,
+    pos: Option[EPos],
+    x: Option[EMsgPas],
+    attrs: List[PAS],
+    appendToCtx: ECtx,
+    kind: String = AstKinds.GENERATED) = {
+
     implicit val ctx = appendToCtx
 
     /** setting one value */
@@ -105,7 +152,7 @@ trait DomRoot {
           c.put(vcalc.copy(name = av.asString))
         }
         case None => {
-          throw new DieselExprException(s"Object container not found ($parentAccessor)")
+          throw new DieselExprException(s"Object container not found ($parentAccessor) for ${accessor}")
         }
 
         // parent is a map/json object
@@ -126,6 +173,12 @@ trait DomRoot {
           setValueInContext(a, ctx, pa)
         }
 
+        // the only source now is "diesel", so just set as long value
+        // these are handled inside the ECtx
+        case Some(pa: RDOM.P) if pa.isOfType(WTypes.wt.SOURCE) => {
+          setp(ctx.getScopeCtx, parentAccessor, P("", parentAccessor + "." + av.asString), v)
+        }
+
         case Some(x) => {
           throw new DieselExprException(s"Not an Object/JSON from left-side accessor: ${x.asInstanceOf[P].ttype} - $x")
         }
@@ -134,129 +187,171 @@ trait DomRoot {
       vcalc
     }
 
-    val calc = attrs.flatMap { pas =>
+    // list of pairs (left-create EVAls in tree, right - populate in curr context)
+    val calc = attrs.map { pas =>
 
       if (pas.left.rest.isEmpty) {
 
         // simple expression with unqualified left side p=e
 
         val calcp = P(pas.left.start, "").copy(expr = Some(pas.right)).calculatedP
-        val calc = List(calcp)
-        calc
+
+        if (pas.left.start == Diesel.PAYLOAD) {
+
+          // RAZ2 OLD - remove this
+          // setting in current context too
+
+          // payload must go to first scope, regardless of enclosing rule scopes
+          var sc: Option[ECtx] = Some(ctx)
+
+          while (sc.isDefined && !sc.exists(p => p.isInstanceOf[ScopeECtx] || p.isInstanceOf[DomEngECtx])) {
+            sc = sc.get.base
+          }
+
+          sc.foreach(c =>
+            // set it now in base scope
+            setValueInContext(a, c, calcp)
+          )
+
+          // don't propagate to current scope, it creates side effects when the parent is changed
+          (List(calcp), Nil) // also return it
+
+        } else { // not payload
+
+          // simple expression with unqualified left side p=e
+          val calc = List(calcp)
+          (calc, calc)
+        }
       } else {
         // more complex left expr = right value
         // a append DomAst(EInfo("xx" + pas.toString).withPos(x.pos), AstKinds.DEBUG)
 
-        val p = pas.right.applyTyped("")
+        val rightP = pas.right.applyTyped("")
 
-        val res = if (pas.left.rest.size > 1) { // [] accessors
-          val vvalue = p.calculatedTypedValue.value
-          val parentAccessor = pas.left.dropLast
-          val parentObject = parentAccessor.tryApplyTyped("")
-          val last = pas.left.last.get // I know size > 1
+        val rightValue = rightP.calculatedTypedValue.value
+        val parentAccessor = pas.left.dropLast
+        val parentObject = parentAccessor.tryApplyTyped("")
+        val last = pas.left.last.get // I know size > 1
 //          a append DomAst(EInfo("parentObject: "+parentObject.mkString).withPos(x.pos), AstKinds.TRACE)
 //          a append DomAst(EInfo("selector: "+pas.left.rest.head.calculatedTypedValue.toString).withPos(x.pos),
 //          AstKinds.TRACE)
 
-          parentObject.collect {
+        // found a potential parent, recurse inside
+        val res =
+          if (parentObject.isDefined) {
 
-            case pa: RDOM.P if pa.ttype == WTypes.wt.JSON => {
-              val av = last.copy(value = None).calculatedTypedValue.asString
-              val m = pa.calculatedTypedValue.asJson
+            // each branch to return the P
+            parentObject.collect {
 
-              if (m.isInstanceOf[HashMap[String, Any]])
-                m.asInstanceOf[HashMap[String, Any]].put(av, vvalue)
-              else {
-                a append DomAst(EError("Not mutable Map: " + parentObject.mkString).withPos(x.pos), AstKinds.ERROR)
+              case pa: RDOM.P if pa.isOfType(WTypes.wt.JSON) => {
+                val av = last.copy(value = None).calculatedTypedValue.asString
+                val m = pa.calculatedTypedValue.asJson
+
+                if (m.isInstanceOf[HashMap[String, Any]])
+                  m.asInstanceOf[HashMap[String, Any]].put(av, rightValue)
+                else {
+                  a append DomAst(EError("Not mutable Map: " + parentObject.mkString).withPos(pos), AstKinds.ERROR)
+                }
+
+                // no need, since we've set in hashmap - also it may have come from an Array, not an actual P so this
+                // does nothing
+
+                rightP.calculatedTypedValue.asNiceString
               }
 
-              val newv = PValue(
-                pa.calculatedTypedValue.asJson + (av -> vvalue),
-                WTypes.wt.JSON
-              )
-              pa.value = Some(newv)
-            }
+              case pa: RDOM.P if pa.isOfType(WTypes.wt.ARRAY) => {
+                val av = last.copy(value = None).calculatedTypedValue
+                val ai = av.asInt
+                val list = pa.calculatedTypedValue.asArray.toArray
+                list(ai) = rightP.calculatedTypedValue.value
 
-            case pa:RDOM.P if pa.ttype == WTypes.wt.ARRAY => {
-              val av = last.copy(value=None).calculatedTypedValue
-              val ai = av.asInt
-              val list = pa.calculatedTypedValue.asArray.toArray
-              list(ai) = p.calculatedTypedValue.value
+                val newv = PValue(list.toList, WTypes.wt.ARRAY)
+                pa.value = Some(newv)
+                rightP.calculatedTypedValue.asNiceString
+              }
+            }.mkString
 
-              val newv = PValue(list.toList, WTypes.wt.ARRAY)
-              pa.value = Some(newv)
+          } else if (pas.left.start == "ctx") {
+
+            // this is used with variables ctx[varx] = value, where varx holds the name to set
+            setp(ctx.getScopeCtx, "ctx", pas.left.restAsP, rightP)
+
+            // todo this should recurse with the rest I think?
+
+          } else if (pas.left.start == "dieselScope" || pas.left.start == "return") {
+
+            // scope vars are set in the closest enclosing ScopeECtx or EngCtx
+            // the idea is to bypass the enclosing RuleScopeECtx
+            setp(ctx.getScopeCtx, "dieselScope", pas.left.restAsP, rightP)
+
+            // todo this should recurse with the rest I think?
+
+          } else if (pas.left.start == "dieselRoot") {
+
+            // root context
+            // the idea is to bypass the enclosing RuleScopeECtx
+            // useful for returning values etc
+            setp(ctx.root, "dieselRoot", pas.left.restAsP, rightP)
+
+          } else if (pas.left.start == "dieselRealm") {
+
+            // root context
+            // the idea is to bypass the enclosing RuleScopeECtx
+            val r = ctx.root.settings.realm
+            r.foreach(Website.putRealmProps(_, pas.left.rest.head.name, rightP))
+            r.flatMap(Website.forRealm).map(_.put(pas.left.rest.head.name, rightP.currentStringValue))
+
+          } else {
+
+            val parent = pas.left.getp(pas.left.start)
+            // a append DomAst(EInfo("parent: "+parent.mkString).withPos(x.pos), AstKinds.TRACE)
+            // a append DomAst(EInfo("selector: "+pas.left.rest.head.calculatedTypedValue.toString).withPos(x.pos),
+            // AstKinds.TRACE)
+
+            // if parent defined, set inside, otherwise set as long parm
+            if (parent.isDefined) {
+              setp(parent, pas.left.start, pas.left.restAsP, rightP)
+            } else {
+              setp(ctx.getScopeCtx, pas.left.start, P(pas.left.exprDot, ""), rightP)
             }
           }
 
-        } else if (pas.left.start == "ctx") {
-
-          // todo where is this used?
-          setp(ctx, "ctx", pas.left.rest.head, p)
-
-        } else if (pas.left.start == "dieselScope" || pas.left.start == "return") {
-
-          // scope vars are set in the closest enclosing ScopeECtx or EngCtx
-          // the idea is to bypass the enclosing RuleScopeECtx
-          setp(ctx.getScopeCtx, "dieselScope", pas.left.rest.head, p)
-
-        } else if (pas.left.start == "dieselRoot") {
-
-          // root context
-          // the idea is to bypass the enclosing RuleScopeECtx
-          var sc = ctx.root
-          setp(sc, "dieselRoot", pas.left.rest.head, p)
-
-        } else if (pas.left.start == "dieselRealm") {
-
-          // root context
-          // the idea is to bypass the enclosing RuleScopeECtx
-          var sc = ctx.root
-          val r = sc.settings.realm
-//          if (r.isEmpty) evAppChildren(a, DomAst(EError("realm not defined...???"), AstKinds.ERROR))
-//          else {
-          r.foreach(Website.putRealmProps(_, pas.left.rest.head.name, p))
-          r.flatMap(Website.forRealm).map(_.put(pas.left.rest.head.name, p.currentStringValue))
-//          }
-
-        } else {
-
-          val parent = pas.left.getp(pas.left.start)
-          // a append DomAst(EInfo("parent: "+parent.mkString).withPos(x.pos), AstKinds.TRACE)
-          // a append DomAst(EInfo("selector: "+pas.left.rest.head.calculatedTypedValue.toString).withPos(x.pos),
-          // AstKinds.TRACE)
-          setp(parent, pas.left.start, pas.left.rest.head, p)
-        }
+        // create the assignment node
         a append DomAst(
-          EInfo(pas.left.toStringCalc + " = " + res, p.calculatedTypedValue.asString).withPos(x.pos),
+          EInfo(
+            pas.left.toStringCalc + " = " + res,
+            rightP.calculatedTypedValue.asString
+          ).withPos(pos),
           AstKinds.DEBUG
         )
-        Nil
+
+        (Nil, Nil)
       }
     }
 
-    // add EVals to the tree, for each value
+    // add EVals to the tree, for each left pair
 
-    a appendAll calc.flatMap { p =>
-      if (p.ttype == WTypes.EXCEPTION) {
-        p.value.map { v =>
-          val err = handleError(p, v)
+    if (AstKinds.IGNORE != kind)
+      a appendAll calc.flatMap(_._1).flatMap { p =>
+        if (p.ttype == WTypes.EXCEPTION) {
+          p.value.map { v =>
+            val err = handleError(p, v)
 
-          DomAst(err.withPos(x.pos), AstKinds.ERROR).withSpec(x) :: Nil
-        } getOrElse {
-          DomAst(EError(p.currentStringValue) withPos (x.pos), AstKinds.ERROR).withSpec(x) :: Nil
+            DomAst(err.withPos(pos), AstKinds.ERROR).withSpec(x) :: Nil
+          } getOrElse {
+            DomAst(EError(p.currentStringValue) withPos (pos), AstKinds.ERROR).withSpec(x) :: Nil
+          }
+        } else {
+          val newa = DomAst(EVal(p) withPos (pos), kind).withSpec(x)
+          newa :: Nil
+
+          // no info needed from each val as now parm name pops up details
         }
-      } else {
-        val newa = DomAst(EVal(p) withPos (x.pos), kind).withSpec(x)
-        newa :: Nil
-
-        // removed info from each val as now parm name pops up details
-        // DomAst(EInfo("yy" + p.toHtml, p.calculatedTypedValue.asNiceString).withPos(x.pos), AstKinds.DEBUG)
-        // :: Nil
       }
-    }
 
-
-    appendToCtx putAll calc
+    // put each right pair into current context
+    // we do not propagate locally values that went up
+    appendToCtx putAll calc.flatMap(_._2)
   }
 
   private def handleError (p:P, v:PValue[_]) = {
@@ -271,33 +366,25 @@ trait DomRoot {
   }
 
   /** an assignment message */
-  protected def appendVals(a: DomAst, pos: Option[EPos], spec: Option[EMsg], attrs: Attrs, appendToCtx: ECtx,
-                           kind: String = AstKinds.GENERATED) = {
-    a appendAll attrs.map { p =>
-      val res = if (p.ttype == WTypes.EXCEPTION) {
-        p.value.map { v =>
-          val err = handleError(p, v)
+  protected def appendVals(
+    a: DomAst,
+    pos: Option[EPos],
+    spec: Option[EMsg],
+    attrs: Attrs,
+    appendToCtx: ECtx,
+    kind: String = AstKinds.GENERATED) = {
 
-          DomAst(err.withPos(pos), AstKinds.ERROR)
-        } getOrElse {
-          DomAst(EError(p.currentStringValue) withPos (pos), AstKinds.ERROR)
-        }
-      } else {
-        DomAst(EVal(p) withPos (pos), kind)
-      }
-      spec.map(res.withSpec).getOrElse(res)
-    }
+    attrs.foreach { p =>
+      val aei = (new SimpleExprParser).parseIdent(p.name)
 
-    attrs.foreach(setValueInContext(a, ctx, _))
-
-    // if static context, create warnings for each possible overwrite
-    if (appendToCtx.isInstanceOf[StaticECtx]) {
-      a appendAll attrs.flatMap { p =>
-        appendToCtx.asInstanceOf[StaticECtx].check(p).toList map { err =>
-          val res = DomAst(err.withPos(pos), AstKinds.ERROR)
-          spec.map(res.withSpec).getOrElse(res)
-        }
-      }
+      appendValsPas(
+        a,
+        pos,
+        None,
+        List(PAS(aei.get, p.calculatedP.currentValue)),
+        appendToCtx,
+        kind
+      )
     }
   }
 
@@ -309,7 +396,7 @@ trait DomRoot {
     * @param ctx
     * @param p
     */
-  protected def setValueInContext(a: DomAst, ctx: ECtx, p: P) {
+  private def setValueInContext(a: DomAst, ctx: ECtx, p: P) {
     ctx.put(p)
   }
 }
@@ -319,7 +406,7 @@ object DomRoot {
   /** setting in the closest scope ctx */
   def setValueInScopeContext(ctx: ECtx, p: P) {
     ctx.getScopeCtx.put(p)
-    ctx.put(p)
+//    ctx.put(p)
   }
 
 

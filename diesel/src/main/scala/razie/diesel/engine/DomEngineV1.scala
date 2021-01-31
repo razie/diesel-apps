@@ -8,12 +8,12 @@ package razie.diesel.engine
 import org.bson.types.ObjectId
 import razie.audit.Audit
 import razie.js
-import razie.clog
 import razie.diesel.Diesel
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom.{RDomain, WTypes}
 import razie.diesel.engine.RDExt._
 import razie.diesel.engine.exec.{EApplicable, Executors}
+import razie.diesel.engine.nodes.StoryNode
 import razie.diesel.engine.nodes._
 import razie.diesel.expr._
 import razie.diesel.model.DieselMsg
@@ -21,7 +21,6 @@ import razie.diesel.model.DieselMsg.ENGINE._
 import razie.hosting.Website
 import razie.tconf.DSpec
 import razie.wiki.Config
-import razie.wiki.admin.GlobalData
 import scala.Option.option2Iterable
 import scala.collection.mutable.{HashMap, ListBuffer}
 import scala.util.Try
@@ -93,7 +92,6 @@ class DomEngineV1(
       case stop: EEngSuspend => {
         // suspend and wait for a continuation async
         evAppChildren(a, DomAst(EInfo(s"""Suspending engine $href""")))
-        //.withPos((m.get.pos)))
         try {
           stop.onSuspend.foreach(_.apply(this, a, level))
         } catch {
@@ -107,16 +105,16 @@ class DomEngineV1(
 
       case stop: EEngComplete => {
         evAppChildren(a, DomAst(EInfo(s"""Complete suspended node... """)))
-        //.withPos((m.get.pos)))
       }
 
       case next@ENext(m, arrow, cond, _, _) if "==>" == arrow || "<=>" == arrow => {
         // forking new engine / async branch
-        implicit val ctx = mkMsgContext(
+
+        implicit val ctx = a.withCtx(mkPassthroughMsgContext(
           next.parent,
           next.parent.map(_.attrs).getOrElse(Nil),
-          this.ctx,
-          a)
+          this.ctx, // todo probably use a.getCtx.get not this.ctx
+          a))
 
         // start new engine/process - evaluate this message as the root of new engine
         // todo should find settings for target service  ?
@@ -151,12 +149,14 @@ class DomEngineV1(
 
       case n1@ENext(m, ar, cond, _, _) if "-" == ar || "=>" == ar => {
         // message executed later
+
         // todo bubu: static parent parms overwrite side effects updated in this.ctx
-        implicit val ctx = mkMsgContext(
+
+        implicit val ctx = a.withCtx(mkPassthroughMsgContext(
           n1.parent,
           n1.parent.map(_.attrs).getOrElse(Nil),
-          this.ctx,
-          a)
+          a.getCtx.get, //RAZ2 this.ctx,
+          a))
 
         if (n1.test(a)) {
           val newmsg = n1.evaluateMsgCall
@@ -172,45 +172,50 @@ class DomEngineV1(
 
       // simple assignment
       case n1@ENextPas(m, ar, cond, _, _) if "-" == ar || "=>" == ar => {
-        implicit val ctx = mkMsgContext(
-          n1.parent,
-          n1.parent.map(_.attrs).getOrElse(Nil),
-          this.ctx,
-          a)
+
+        // ctx needed for the test below
+        implicit val ctx = a.getCtx.get
 
         if (n1.test(a)) {
-          appendValsPas(a, m, m.attrs, ctx)
+          // run in parent's context - no need for a local
+          appendValsPas(a, m.pos, Some(m), m.attrs, a.getCtx.get)
         }
       }
 
-      // simple assignment
+      // not so simple assignment
       case n1@EMsgPas(ar) => {
-        implicit val ctx = mkMsgContext(
-          None,
-          Nil,
-          this.ctx,
-          a)
 
-        appendValsPas (a, n1, n1.attrs, ctx)
+        // run in parent's context - no need for a local
+        appendValsPas(a, n1.pos, Some(n1), n1.attrs, a.getCtx.get)
       }
 
       case x: EMsg if x.entity == "" && x.met == "" => {
+        implicit val ctx = a.withCtx(mkPassthroughMsgContext(
+          None,
+          Nil,
+          a.getCtx.get, //RAZ2 this.ctx,
+          a))
+
         // just expressions, generate values from each attribute
         appendVals(a, x.pos, Some(x), x.attrs, ctx, AstKinds.kindOf(x.arch))
       }
 
       case in: EMsg => {
+
         // todo should collect all parent contexts from root to here...
         // todo problem right now: parent parms are not in context, so can't use in child messages
-//        implicit val parentCtx = new StaticECtx(in.attrs, Some(this.ctx), Some(a))
-        msgs = expandEMsgAndRep(a, in, recurse, level, this.ctx) ::: msgs
+
+        // node context created in expandEMsg
+        msgs = expandEMsgAndRep(a, in, recurse, level, a.getCtx.get) ::: msgs
       }
 
       case n: EVal if !AstKinds.isGenerated(a.kind) => {
-        // $val defined in scope
+
+        implicit val ctx = a.getCtx.get
+        // $val defined in scope in story, nit spec.
         val p = n.p.calculatedP // only calculate if not already calculated =likely in a different context=
-        a append DomAst(EVal(p).withPos(n.pos), AstKinds.TRACE)
-        setValueInContext(a, ctx, p)
+
+        appendVals(a, n.pos, None, List(p), a.getCtx.get, AstKinds.TRACE)
       }
 
       case e: ExpectM => if (!settings.simMode) expandExpectM(a, e)
@@ -219,17 +224,28 @@ class DomEngineV1(
 
       case e: ExpectAssert => if (!settings.simMode) expandExpectAssert(a, e)
 
-      case e:InfoNode =>  // ignore
-      case e:EVal =>  // ignore
+      case st: StoryNode => {
+
+        // re-add the story elements
+        val nodes = a.children
+        nodes.foreach(_.resetParent(null))
+        a.childrenCol.clear()
+        msgs = rep(a, recurse, level, nodes)
+      }
+
+      case e: InfoNode =>  // ignore
+      case e: EVal =>  // ignore - (a = b) are executed as EMsgPas / NextMsgPas - see appendValsPas
 
       // todo should execute
       case s: EApplicable => {
+
         clog << "EXEC KNOWN: " + s.toString
         evAppChildren(a,
           DomAst(EError("Can't EApplicable KNOWN - " + s.getClass.getSimpleName, s.toString), AstKinds.ERROR))
       }
 
       case s@_ => {
+
         clog << "NOT KNOWN: " + s.toString
         evAppChildren(a, DomAst(
           EWarning("NODE NOT KNOWN - " + s.getClass.getSimpleName, s.toString),
@@ -241,10 +257,10 @@ class DomEngineV1(
   }
 
   /** expand a single message */
-  protected override def expandEMsg(a: DomAst, in: EMsg, recurse: Boolean, level: Int, parentCtx:ECtx) : List[DomAst] = {
-    var newNodes : List[DomAst] = Nil // nodes generated this call collect here
+  protected override def expandEMsg(a: DomAst, in: EMsg, recurse: Boolean, level: Int, parentCtx: ECtx): List[DomAst]
+  = {
+    var newNodes: List[DomAst] = Nil // nodes generated this call collect here
 
-    // implicit var ctx = new StaticECtx(in.attrs, Some(parentCtx), Some(a))
     implicit var ctx = parentCtx
 
     // expand message expr if the message attrs were expressions, calculate their values
@@ -252,11 +268,27 @@ class DomEngineV1(
     // replace it so we see the calculated values
     a.value = n
 
+    //todo used to set kind to generated but parent makes more sense.getOrElse(AstKinds.GENERATED)
+    val parentKind = a.kind match {
+      case AstKinds.TRACE => a.kind
+      case _ => AstKinds.GENERATED
+    }
+
     // this is causing BIG WEIRD problems...
 //     a.children.append(DomAst(in, AstKinds.TRACE).withStatus(DomState.SKIPPED))
 //    a.children.append(DomAst(EInfoWrapper(in), AstKinds.TRACE).withStatus(DomState.SKIPPED))
 
-    ctx = mkMsgContext(Some(in), n.attrs, parentCtx, a)
+    // if node already has a context, just use it (stories wrapped in Scope for instance)
+    ctx = if (
+      a.getMyOwnCtx.exists(_.isInstanceOf[ScopeECtx]) ||
+          a.getMyOwnCtx.exists(_.isInstanceOf[DomEngECtx])) {
+
+      a.getMyOwnCtx.get
+    } else {
+      ctx = mkPassthroughMsgContext(Some(in), n.attrs, parentCtx, a)
+      a.withCtx(ctx)
+      ctx
+    }
 
     // PRE - did it already have some children, decomposed by someone else?
     newNodes = a.children
@@ -395,15 +427,14 @@ class DomEngineV1(
         mocked = true
 
         val news = try {
-          // need to use ctx not this.ctx, to respect scopes etc
-//          implicit val ctx = new StaticECtx(n.attrs, Some(this.ctx), Some(a))
 
+          // call the executor
           val xx = r.apply(n, None)
 
           // step 1: expand lists
-          val yy = xx.flatMap(x=> {
+          val yy = xx.flatMap(x => {
             x match {
-              case l:List[_] => l
+              case l: List[_] => l
               case e@_ => List(e)
             }
           })
@@ -411,12 +442,13 @@ class DomEngineV1(
           yy.collect{
             // collect resulting values in the context as well
             case v@EVal(p) => {
-              setValueInContext(a, ctx, p)
+              setSmartValueInContext(a, ctx, v)
               v
             }
             case p:P => {
-              setValueInContext(a, ctx, p)
-              EVal(p)
+              val v = EVal(p)
+              this.setSmartValueInContext(a, ctx, v)
+              v
             }
             case e@_ => e
           }.map{x =>
@@ -430,9 +462,9 @@ class DomEngineV1(
                         if (x.isInstanceOf[EInfo]) AstKinds.DEBUG
                         else if (x.isInstanceOf[ETrace]) AstKinds.TRACE
                         else if (x.isInstanceOf[EDuration]) AstKinds.TRACE
-                        else if (x.isInstanceOf[EVal]) x.asInstanceOf[EVal].kind.getOrElse(AstKinds.GENERATED)
+                        else if (x.isInstanceOf[EVal]) x.asInstanceOf[EVal].kind.getOrElse(parentKind)
                         else if (x.isInstanceOf[EError]) AstKinds.ERROR
-                        else AstKinds.GENERATED
+                        else parentKind
                         )
                   )
                 ).withSpec(r)
@@ -442,7 +474,7 @@ class DomEngineV1(
             razie.Log.alarmThis("Exception from Executor:", e)
             val p = EVal(P(Diesel.PAYLOAD, e.getMessage, WTypes.wt.EXCEPTION).withValue(e, WTypes.wt.EXCEPTION))
 
-            setValueInContext(a, ctx, p.p)
+            setSmartValueInContext(a, ctx, p.p)
             List(DomAst(new EError("Exception:", e), AstKinds.ERROR), DomAst(p, AstKinds.ERROR))
         }
 
@@ -475,7 +507,7 @@ class DomEngineV1(
           case x: EMsg if x.entity == e.m.cls && x.met == e.m.met => x
         }
 
-        val newctx = mkMsgContext(Some(n), n.attrs, ctx, a)
+        val newctx = mkLocalMsgContext(Some(n), n.attrs, ctx, a)
         val news = e.sketch(None)(newctx).map(x => DomAst(x, AstKinds.SKETCHED).withSpec(e))
         newNodes = newNodes ::: news
       }
@@ -535,18 +567,24 @@ class DomEngineV1(
 
   /** reused - execute a rule */
   private def ruleDecomp (a:DomAst, in:EMsg, r:ERule, parentCtx:ECtx) = {
-    var result : List[DomAst] = Nil
-    implicit val ctx : ECtx = new StaticECtx(in.attrs, Some(parentCtx), Some(a))
+    var result: List[DomAst] = Nil
+    implicit val ctx: ECtx = new StaticECtx(in.attrs, Some(parentCtx), Some(a))
 
     val parents = new collection.mutable.HashMap[Int, DomAst]()
 
-    def findParent(level:Int) : DomAst = {
-      if(level >= 0) parents.get(level).getOrElse(findParent(level - 1))
+    //todo used to set kind to generated but parent makes more sense.getOrElse(AstKinds.GENERATED)
+    val parentKind = a.kind match {
+      case AstKinds.TRACE => a.kind
+      case _ => AstKinds.GENERATED
+    }
+
+    def findParent(level: Int): DomAst = {
+      if (level >= 0) parents.get(level).getOrElse(findParent(level - 1))
       else throw new DieselExprException("can't find parent in ruleDecomp")
     }
 
     // used to build trees from flat list with levels
-    def addChild(x:Any, level:Int) = {
+    def addChild(x: Any, level: Int) = {
       val ast = DomAst(x, AstKinds.NEXT).withSpec(r)
       parents.put(level, ast)
 
@@ -560,18 +598,20 @@ class DomEngineV1(
       }
     }
 
+    var subRules = 0
+
     // generate each gen/map
     r.i.map { ri =>
       // find the spec of the generated message, to ref
       val spec = dom.moreElements.collectFirst {
         case x: EMsg if x.entity == ri.cls && x.met == ri.met => x
       }
-      val KIND = AstKinds.kindOf(r.arch)
+      val KIND = if (parentKind != AstKinds.TRACE) AstKinds.kindOf(r.arch) else parentKind
 
       val generated = ri.apply(in, spec, r.pos, r.i.size > 1, r.arch)
 
       // defer evaluation if multiple messages generated - if just one message, evaluate values now
-      var newMsgs = generated.collect {
+      val newMsgs = generated.collect {
         // hack: if only values then collect resulting values and dump message
         // only for size 1 because otherwise they may be in a sequence of messages and their value
         // may depend on previous messages and can't be evaluated now
@@ -589,6 +629,7 @@ class DomEngineV1(
 
         // else collect message
         case x: EMsg => {
+          subRules += 1
           if(r.i.size > 1)
             Some(DomAst(ENext(x, "=>"), AstKinds.NEXT).withSpec(r))
           else
@@ -596,6 +637,7 @@ class DomEngineV1(
         }
 
         case x: ENext => {
+          subRules += 1
           addChild(x, x.indentLevel)
         }
 
@@ -605,6 +647,7 @@ class DomEngineV1(
 
         case x @ _ => {
           // vals and whatever other things
+          subRules += 1
           Some(DomAst(x, KIND).withSpec(r))
         }
       }.filter(_.isDefined)
@@ -616,6 +659,36 @@ class DomEngineV1(
 
       result = result ::: newMsgs.flatMap(_.toList)
     }
+
+    // wrap in rule context push/pop
+    // comment this if to allow local vars to propagate...
+
+    // most likely got here with a LocalCtx ->
+    // replace parent context with scoped or passthrough if just one PAS
+    // this rule scope is just starting, so we have to decide what we'll use
+
+    // I was going to allow single sets to go up, but NAH, they make it too random behaviour - all sets behave the same
+
+    val oldCtx = a.getCtx.get.asInstanceOf[SimpleECtx]
+    val newParentCtx = a.getCtx.get.base
+    val replacementCtx = new RuleScopeECtx(oldCtx.cur, newParentCtx, Some(a)).replacing(oldCtx)
+    a.replaceCtx(replacementCtx)
+
+    // if has a spec and exports params, export them
+    in.spec.toList.filter(_.ret.size > 0).flatMap(_.ret).foreach { r =>
+      val x = EMsg(
+        "ctx.export",
+        List(
+          P("toExport", r.name, WTypes.wt.STRING),
+          P(r.name, "", WTypes.wt.EMPTY, Some(AExprIdent(r.name)))
+        )
+      )//, AstKinds.TRACE)
+      x.withPos(in.pos)
+      result = result ::: List(
+        DomAst(ENext(x, "=>"), AstKinds.NEXT).withSpec(r)
+      )
+    }
+
     /* if multiple results from a single map, default to sequence, i.e. make them dependent
 
       this one applies to those generated from this rule only
@@ -635,29 +708,31 @@ class DomEngineV1(
   private def expandEngineEMsg(a: DomAst, in: EMsg)(implicit ctx: ECtx): Boolean = {
     val ea = in.ea
 
-//    } else if (ea == DieselMsg.ENGINE.DIESEL_EXIT) {
-//      Audit.logdb("DIESEL_EXIT", s"user ${settings.userId}")
-//
-//      if (Config.isLocalhost) {
-//        System.exit(-1)
-//      }
-//
-//      true
+    if (ea == DieselMsg.ENGINE.DIESEL_EXIT) {
+      Audit.logdb("DIESEL_EXIT", s"user ${settings.userId}")
 
-//    } else if (ea == DieselMsg.ENGINE.DIESEL_CRASHAKKA) {
-//      Audit.logdb("DIESEL_CRASHAKKA", s"user ${settings.userId}")
-//
-//      if (Config.isLocalhost) {
-//        DieselAppContext.getActorSystem.terminate()
-//      }
-//
-//      true
+      if (Config.isLocalhost) {
+        System.exit(-1)
+      }
 
-    if (ea == DieselMsg.ENGINE.DIESEL_RETURN) {
+      true
+
+    } else if (ea == DieselMsg.ENGINE.DIESEL_CRASHAKKA) {
+      Audit.logdb("DIESEL_CRASHAKKA", s"user ${settings.userId}")
+
+      if (Config.isLocalhost) {
+        DieselAppContext.getActorSystem.terminate()
+      }
+
+      true
+
+    } else if (ea == DieselMsg.ENGINE.DIESEL_RETURN) {
       // expand all spec vals
       in.attrs.map(_.calculatedP).foreach { p =>
         evAppChildren(a, DomAst(EVal(p)))
-        setValueInContext(a, this.ctx, p)
+        // set into scope context, since we're finishing this scope
+        setSmartValueInContext(a, a.getCtx.get.getScopeCtx, p)
+//        setSmartValueInContext(a, a.getCtx.get.root, p) // set into root context, since we're returning
       }
 
       // stop other children
@@ -686,7 +761,8 @@ class DomEngineV1(
       // expand all spec vals
       in.attrs.map(_.calculatedP).foreach { p =>
         evAppChildren(a, DomAst(EVal(p)))
-        setValueInContext(a, this.ctx, p)
+        setSmartValueInContext(a, a.getCtx.get.getScopeCtx, p) // set to scope directly, as we're exiting the others
+
         if (p.name == Diesel.PAYLOAD || p.name == "msg") {
           msg = p.currentStringValue
         } else if (p.name == DieselMsg.HTTP.STATUS) {
@@ -719,8 +795,10 @@ class DomEngineV1(
 
       // todo then set payload to exception
       val ex = new DieselException(msg, code)
+
       val p = EVal(P(Diesel.PAYLOAD, msg, WTypes.wt.EXCEPTION).withValue(ex, WTypes.wt.EXCEPTION))
-      setValueInContext(a, ctx, p.p)
+      setSmartValueInContext(a, a.getCtx.get.getScopeCtx, p.p) // set straight to scope
+
       val newD = DomAst(new EError("Exception:", ex), AstKinds.ERROR)
       evAppChildren(a, newD)
 
@@ -744,13 +822,13 @@ class DomEngineV1(
       evAppChildren(a, newD)
       true
 
-//    } else if (ea == DieselMsg.ENGINE.DIESEL_LATER) {
+    } else if (ea == DieselMsg.ENGINE.DIESEL_LATER) {
 //      // send new message async later at the root level
 //      val EMsg.REGEX(e, m) = ctx.getRequired("msg")
 //      val nat = in.attrs.filter(e => !Array("msg").contains(e.name))
 //
 //      evAppChildren(findParent(findParent(a).get).get, DomAst(EMsg(e, m, nat), AstKinds.GENERATED))
-//      true
+      false
 
     } else if (ea == DieselMsg.ENGINE.DIESEL_LEVELS) {
       engine.maxLevels = ctx.getRequired("max").toInt
@@ -845,7 +923,13 @@ class DomEngineV1(
         case v: EVal => {
           evAppChildren(a, DomAst(v, AstKinds.TRACE))
           // do not calculate here - keep them more like exprs .calculatedP)
-          setValueInContext(a, this.ctx, v.p)
+
+          // todo this causes all kinds of weird issues
+
+//          setSmartValueInContext(a, this.ctx, v.p)
+
+//          this.engine.ctx.put(v.p) // do not calculate p, just set it at root level
+          a.getCtx.get.getScopeCtx.put(v.p) // do not calculate p, just set it at root level
         }
       }
 
@@ -876,11 +960,36 @@ class DomEngineV1(
 
     } else if (ea == DieselMsg.SCOPE.DIESEL_PUSH) {
 
-      this.ctx = new ScopeECtx(Nil, Some(this.ctx), Some(a))
+      // todo use the DomAst ctx now, not the current
+//      this.ctx = new ScopeECtx(Nil, Some(this.ctx), Some(a))
       true
 
-    } else if (ea == DieselMsg.SCOPE.DIESEL_POP && this.ctx.isInstanceOf[ScopeECtx]) {
+    } else if (ea == DieselMsg.SCOPE.DIESEL_POP) {
 
+      // todo use the DomAst ctx now, not the current
+      // find the closest scope and pop it
+//      var sc: Option[ECtx] = Some(this.ctx)
+//
+//      while (sc.isDefined && !sc.exists(p => p.isInstanceOf[ScopeECtx])) {
+//        sc = sc.get.base
+//      }
+//
+//      if (sc.isDefined) {
+//        this.ctx = this.ctx.base.get
+//      } else {
+//        evAppChildren(a, DomAst(EError("trying to pop a non-scope...", in.toString)))
+//      }
+
+      true
+
+    } else if (ea == DieselMsg.SCOPE.RULE_PUSH) {
+
+      this.ctx = new RuleScopeECtx(Nil, Some(this.ctx), Some(a))
+      true
+
+    } else if (ea == DieselMsg.SCOPE.RULE_POP) {
+
+      assert(this.ctx.isInstanceOf[RuleScopeECtx])
       this.ctx = this.ctx.base.get
       true
 
@@ -1017,7 +1126,7 @@ class DomEngineV1(
       dom.moreElements.collect {
         case v: EVal => {
           evAppChildren(a, DomAst(v, AstKinds.TRACE))
-          setValueInContext(a, this.ctx, v.p)
+          setSmartValueInContext(a, this.ctx, v.p)
         }
       }
 
@@ -1075,56 +1184,59 @@ class DomEngineV1(
   private def expandExpectM(a: DomAst, e: ExpectM) : Unit = {
     val cole = new MatchCollector()
 
+    implicit val ctx = a.getCtx.get
+
     Try {
 
-    var targets = e.target.map(List(_)).getOrElse(if (e.when.isDefined) {
-      // find generated messages that should be tested
-      root.collect {
-        case d@DomAst(n: EMsg, k, _, _) if e.when.exists(_.test(a, n)) => d
-      }
-    } else List(root))
+      var targets = e.target.map(List(_)).getOrElse(if (e.when.isDefined) {
+        // find generated messages that should be tested
+        root.collect {
+          case d@DomAst(n: EMsg, k, _, _) if e.when.exists(_.test(a, n)) => d
+        }
+      } else List(root))
 
-    if (targets.size > 0) {
-      // todo look at all possible targets - will need to create a matchCollector per etc
-      targets.head.collect {
-        case d@DomAst(n: EMsg, k, _, _) if AstKinds.isGenerated(k) =>
-          cole.newMatch(d)
-          if (e.m.test(a, n, Some(cole)))
-            evAppChildren(a, DomAst(TestResult("ok").withTarget(e), AstKinds.TRACE).withSpec(e))
-      }
+      if (targets.size > 0) {
+        // todo look at all possible targets - will need to create a matchCollector per etc
+        targets.head.collect {
+          case d@DomAst(n: EMsg, k, _, _) if AstKinds.isGenerated(k) =>
+            cole.newMatch(d)
+            if (e.m.test(a, n, Some(cole)))
+              evAppChildren(a, DomAst(TestResult("ok").withTarget(e), AstKinds.TRACE).withSpec(e))
+        }
 
-      cole.done
+        cole.done
 
-      // if it matched some Msg then highlight it there
-      if (cole.highestMatching.exists(c =>
-        c.score >= 2 &&
-          c.diffs.values.nonEmpty &&
-          c.x.isInstanceOf[DomAst] &&
-          c.x.asInstanceOf[DomAst].value.isInstanceOf[EMsg]
-      )) {
-        val c = cole.highestMatching.get
-        val d = c.x.asInstanceOf[DomAst]
-        val m = d.value.asInstanceOf[EMsg]
-        val s = c.diffs.values.map(_._2).toList.map(x => s"""<span style="color:red">${htmlValue(x.toString)}</span>""").mkString(",")
-        d.moreDetails = d.moreDetails + label("expected", "danger") + " " + s
-      }
+        // if it matched some Msg then highlight it there
+        if (cole.highestMatching.exists(c =>
+          c.score >= 2 &&
+              c.diffs.values.nonEmpty &&
+              c.x.isInstanceOf[DomAst] &&
+              c.x.asInstanceOf[DomAst].value.isInstanceOf[EMsg]
+        )) {
+          val c = cole.highestMatching.get
+          val d = c.x.asInstanceOf[DomAst]
+          val m = d.value.asInstanceOf[EMsg]
+          val s = c.diffs.values.map(_._2).toList.map(
+            x => s"""<span style="color:red">${htmlValue(x.toString)}</span>""").mkString(",")
+          d.moreDetails = d.moreDetails + label("expected", "danger") + " " + s
+        }
 
-      // did some rules succeed?
-      if (a.children.isEmpty) {
-        // oops - add test failure
-        evAppChildren(a, DomAst(
-          TestResult(
-            "fail",
-            "",
-            label("found", "warning") + " " +
-                cole.highestMatching.map(
-                  _.diffs.values.map(_._1).toList.map(x => s"""<span style="color:red">$x</span>""").mkString(
-                    ",")).mkString
-          ).withTarget(e),
-          AstKinds.TEST
-        ).withSpec(e))
+        // did some rules succeed?
+        if (a.children.isEmpty) {
+          // oops - add test failure
+          evAppChildren(a, DomAst(
+            TestResult(
+              "fail",
+              "",
+              label("found", "warning") + " " +
+                  cole.highestMatching.map(
+                    _.diffs.values.map(_._1).toList.map(x => s"""<span style="color:red">$x</span>""").mkString(
+                      ",")).mkString
+            ).withTarget(e),
+            AstKinds.TEST
+          ).withSpec(e))
+        }
       }
-    }
 
   }.recover {
     case t:Throwable => {
@@ -1183,7 +1295,27 @@ class DomEngineV1(
           throw new DieselExprException("$expect must follow a $send...")
         }
 
-        val newctx = new StaticECtx(values ::: aTarget.value.asInstanceOf[EMsg].attrs, Some(ctx), Some(aTarget))
+        // we base off the parent scope (story scope context)
+        // todo should we base off the target scope and include the target's internal parameters?
+//        val newctx = new StaticECtx(
+//          values ::: aTarget.value.asInstanceOf[EMsg].attrs.filter(b => !values.exists(a => a.name == b.name)),
+//          values ::: aTarget.value.asInstanceOf[EMsg].attrs,
+//          aTarget.getCtx,
+//          Some(aTarget))
+
+        // include target's attrs but not to overwrite context
+//        val newctx = new StaticECtx(
+//          values ::: aTarget.value.asInstanceOf[EMsg].attrs.filter(b => !values.exists(a => a.name == b.name)),
+//          aTarget.getCtx,
+//          Some(aTarget))
+
+        // include target's attrs but not to overwrite context
+        val newctx = new StaticECtx(
+          values ::: aTarget.value.asInstanceOf[EMsg].attrs.filter(b => !values.exists(a => a.name == b.name)),
+          Some(a.getCtx.get.getScopeCtx),
+//          a.getCtx,
+          Some(aTarget))
+
 
         // start checking now
 

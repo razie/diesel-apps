@@ -70,6 +70,9 @@ abstract class DomEngine(
       .withCredentials(settings.userId)
       .withHostname(settings.node)
 
+  // assign the root ctx, to have a backstop
+  root.withCtx(ctx)
+
   /** myself */
   def href(format: String = "") = s"/diesel/engine/view/$id?format=$format"
 
@@ -106,11 +109,37 @@ abstract class DomEngine(
       Some(a))
   }
 
+  /** local context for a rule - does not propagate values */
+  protected def mkLocalMsgContext(in: Option[EMsg], attrs: List[P], parentCtx: ECtx, a: DomAst) = {
+    new LocalECtx(
+      in.map(in => P.fromTypedValue(DIESEL_MSG_ENTITY, in.entity)).toList :::
+          in.map(in => P.fromTypedValue(DIESEL_MSG_ACTION, in.met)).toList :::
+          in.map(in => P.fromTypedValue(DIESEL_MSG_EA, in.ea)).toList :::
+          // todo avoid this every time - lazy parms ?
+          List(P.fromTypedValue(DIESEL_MSG_ATTRS,
+            attrs.map(p => (p.name, p.calculatedTypedValue(parentCtx).value)).toMap)) :::
+          attrs,
+      Some(parentCtx),
+      Some(a))
+  }
+
+  /** a passthrough context for PAS assignments - which always go up */
+  protected def mkPassthroughMsgContext(in: Option[EMsg], attrs: List[P], parentCtx: ECtx, a: DomAst) = {
+    new PassthroughECtx(
+      in.map(in => P.fromTypedValue(DIESEL_MSG_ENTITY, in.entity)).toList :::
+          in.map(in => P.fromTypedValue(DIESEL_MSG_ACTION, in.met)).toList :::
+          in.map(in => P.fromTypedValue(DIESEL_MSG_EA, in.ea)).toList :::
+          // todo avoid this every time - lazy parms ?
+          List(P.fromTypedValue(DIESEL_MSG_ATTRS,
+            attrs.map(p => (p.name, p.calculatedTypedValue(parentCtx).value)).toMap)) :::
+          attrs,
+      Some(parentCtx),
+      Some(a))
+  }
+
   /** spawn new engine */
   protected def spawn(nodes: List[DomAst], correlationId: Option[String]) = {
     val newRoot = DomAst("root", AstKinds.ROOT).withDetails("(spawned)")
-    /* can't use evAppChildren*/
-//    evAppChildren(newRoot, nodes)
     newRoot.appendAllNoEvents(nodes)
     val engine = DieselAppContext.mkEngine(dom, newRoot, settings, pages, "engine:spawn", correlationId)
     engine.ctx.root._hostname = ctx.root._hostname
@@ -158,7 +187,19 @@ abstract class DomEngine(
   def engineDone() = {
     clog << s"WF.STOP.$id"
     GlobalData.dieselEnginesActive.decrementAndGet()
+
     finishP.success(this)
+
+    // remove ctx references
+    try {
+      root.collect {
+        case x: DomAst => x.replaceCtx(null)
+      }
+    } catch {
+      case t: Exception =>
+        log("EXC when cleaning contexts: ", t)
+    }
+
     DomCollector.collectAst("engine", settings.realm.mkString, id, settings.userId, this)
 
     // stop owned streams
@@ -170,10 +211,12 @@ abstract class DomEngine(
 
   /** stop me now */
   def stopNow = {
-    status = DomState.CANCEL
-    trace("DomEng " + id + " stopNow")
-    engineDone()
-    DieselAppContext.stopActor(id)
+    if (!DomState.isDone(status)) {
+      status = DomState.CANCEL
+      trace("DomEng " + id + " stopNow")
+      engineDone()
+      DieselAppContext.stopActor(id)
+    }
   }
 
   /** completed a node - udpate stat
@@ -418,6 +461,7 @@ abstract class DomEngine(
     * @param l children alredy added tothe root
     */
   protected def prepRoot(l: ListBuffer[DomAst]): ListBuffer[DomAst] = {
+    // spec vals are expanded on exec of this VALS
     val vals = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_VALS), AstKinds.TRACE)
     val warns = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_WARNINGS), AstKinds.TRACE)
     val before = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_BEFORE), AstKinds.TRACE)
@@ -477,10 +521,12 @@ abstract class DomEngine(
       this.status = DomState.STARTED
       root.start(seq())
 
-      // tricky - skipping all nodes but the test nodes before prepping the engine
+      // tricky - skipping all nodes from root,
+      // but the test nodes before prepping the engine
       root
           .childrenCol
           .filter(_.kind != AstKinds.TEST)
+          .filter(_.kind != AstKinds.STORY)
           .foreach(_.withStatus(DomState.SKIPPED))
 
       prepRoot(
@@ -514,7 +560,6 @@ abstract class DomEngine(
       root.start(seq())
 
       // async start
-      //    val msgs = root.children.toList.map{x=>
       val msgs = findFront(root, prepRoot(root.childrenCol).toList).map { x =>
         x.status = DomState.LATER
         DEReq(id, x, recurse = true, 0)
@@ -528,15 +573,23 @@ abstract class DomEngine(
     finishF
   }
 
-  // todo is it really needed?
-  def execSync(ast:DomAst, level:Int, ctx: ECtx) : Option[P] = {
+  /** exec sync as a func call, used from AExprFunc
+    *
+    * @param ast   new root
+    * @param level starting level
+    * @param ctx   root context to use
+    * @return
+    */
+  def execSync(ast: DomAst, level: Int, ctx: ECtx): Option[P] = {
     // stop propagation of local vals to parent engine
-    var newCtx:ECtx = new ScopeECtx(Nil, Some(ctx), Some(ast))
+    var newCtx: ECtx = new ScopeECtx(Nil, Some(ctx), Some(ast))
     // include this messages' context
     newCtx = new StaticECtx(ast.value.asInstanceOf[EMsg].attrs, Some(newCtx), Some(ast))
 
     // inherit all context from parent engine
 //    this.ctx.root.overwrite(newCtx)
+
+    // todo clone the root context passed - if anyone goes to the root will find the other engine...
 
     val msgs = expandEMsg(ast, ast.value.asInstanceOf[EMsg], recurse = true, level, newCtx)
 
@@ -576,7 +629,6 @@ abstract class DomEngine(
         val level = Try {findLevel(target)}.getOrElse(l)
         if (target.status != DomState.DONE) {
           evAppChildren(target, toAdd)
-          //          val msgs = nodeDone(n(aid), level + 1)
           val msgs = nodeDone(completer, level + 1)
           checkState()
           later(msgs)
@@ -647,10 +699,6 @@ abstract class DomEngine(
     val oattrs = dom.moreElements.collectFirst {
       case n: EMsg if n.ea == ea => n
     }.toList.flatMap(_.ret)
-
-    //    if (oattrs.isEmpty) {
-    //      errors append s"Can't find the spec for $msg"
-    //    }
 
     // collect all values
     // todo this must be smarter - ignore diese.before values, don't look inside scopes etc?

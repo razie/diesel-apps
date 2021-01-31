@@ -6,7 +6,7 @@
 package razie.diesel.engine
 
 import razie.diesel.engine.RDExt.TestResult
-import razie.diesel.engine.nodes.EnginePrep.StoryNode
+import razie.diesel.engine.nodes.StoryNode
 import razie.diesel.engine.nodes.{EError, ExpectAssert, ExpectM, ExpectV}
 import razie.diesel.utils.DomHtml.quickBadge
 
@@ -21,42 +21,72 @@ import razie.diesel.utils.DomHtml.quickBadge
 object DomEngineView {
 
   /** story summary if this was a test story */
-  def storySummary (a:DomAst) = {
+  def storySummary(a: DomAst) = {
     val zip = a.children.zipWithIndex
     val stories = zip.filter(_._1.kind == "story")
 
     val resl = Range(0, stories.size).map { i =>
       val s = stories(i)
-      val nodes =
-        if(i < stories.size - 1) a.children.slice(s._2+1, stories(i+1)._2 - 1)
-        else a.children.slice(s._2+1, a.children.size - 1)
+      val nodes = s._1.children
+//        if(i < stories.size - 1) a.children.slice(s._2+1, stories(i+1)._2 - 1)
+//        else a.children.slice(s._2+1, a.children.size - 1)
 
       val failed = failedTestCount(nodes.toList)
       val total = totalTestedCount(nodes.toList)
 
       s"""<a href="#${s._1.value.asInstanceOf[StoryNode].path.wpath.replaceAll("^.*:", "")}">[details]</a>""" +
-      quickBadge(failed, total, -1, "") +
-        (s._1.value match {
+          quickBadge(failed, total, -1, "") +
+          (s._1.value match {
             // doing this to avoid getting the a name at the top and confuse the scrolling
-        case sn : StoryNode => s""" Story ${sn.path.ahref.mkString}"""
-        case _ => s._1.meTos(1, true)
-      })
+            case sn: StoryNode => s""" Story ${sn.path.ahref.mkString}"""
+            case _ => s._1.meTos(1, true)
+          })
     }
 
     resl.mkString("\n")
   }
 
+  /** story summary if this was a test story */
+  def storySummaryNice(a: DomAst) = {
+    val zip = a.children.zipWithIndex
+    val stories = zip.filter(_._1.kind == "story")
+
+    val resl = Range(0, stories.size).map { i =>
+      val s = stories(i)
+      val nodes = s._1.children
+//        if(i < stories.size - 1) a.children.slice(s._2+1, stories(i+1)._2 - 1)
+//        else a.children.slice(s._2+1, a.children.size - 1)
+
+      val failed = failedTestCount(nodes.toList)
+      val total = totalTestedCount(nodes.toList)
+
+      val n = s._1.value.asInstanceOf[StoryNode].path.wpath.replaceAll("^.*:", "")
+
+      (n, failed, total)
+    }
+
+    resl.toList
+  }
+
   // failed tests
-  def failedTestCount(a:DomAst): Int = failedTestCount(List(a))
+  def failedTestCount(a: DomAst): Int = failedTestCount(List(a))
+
+  def failedTestList(nodes: List[DomAst]): List[DomAst] = (nodes.flatMap(_.collect {
+    case d@DomAst(n: TestResult, _, _, _) if n.value.startsWith("fail") => d
+    case d@DomAst(n: EError, _, _, _) if !n.handled => d
+  })).toList
+
+  def failedTestListStr(nodes: List[DomAst]): List[String] =
+    failedTestList(nodes).map(_.meTos(1, true))
 
   // exceptions and errors other than failed tests
-  def errorCount(a:DomAst): Int = errorCount(List(a))
+  def errorCount(a: DomAst): Int = errorCount(List(a))
 
-  def successTestCount(a:DomAst) : Int = successTestCount(List(a))
+  def successTestCount(a: DomAst): Int = successTestCount(List(a))
 
-  def totalTestedCount(a:DomAst) : Int = totalTestedCount(List(a))
+  def totalTestedCount(a: DomAst): Int = totalTestedCount(List(a))
 
-  def todoTestCount(a:DomAst) : Int = todoTestCount(List(a))
+  def todoTestCount(a: DomAst): Int = todoTestCount(List(a))
 
   /** count test results */
   def totalTestedCount(nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {

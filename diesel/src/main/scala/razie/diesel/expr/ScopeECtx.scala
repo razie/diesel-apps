@@ -14,7 +14,12 @@ import razie.diesel.engine.DomAst
   *
   * todo when loading context, how do I reover active scope contexts
   */
-class ScopeECtx(cur: List[P] = Nil, base: Option[ECtx] = None, curNode:Option[DomAst]=None) extends SimpleECtx(cur, base, curNode) {
+class ScopeECtx(
+  cur: List[P] = Nil,
+  base: Option[ECtx] = None,
+  curNode: Option[DomAst] = None)
+    extends SimpleECtx(cur, base, curNode) {
+
   override def put(p: P): Unit =
     attrs = p :: attrs.filter(_.name != p.name)
 
@@ -28,5 +33,3 @@ class ScopeECtx(cur: List[P] = Nil, base: Option[ECtx] = None, curNode:Option[Do
 
   override def toString = this.getClass.getSimpleName + ":" + cur.mkString// + "\n base: " +base.toString
 }
-
-

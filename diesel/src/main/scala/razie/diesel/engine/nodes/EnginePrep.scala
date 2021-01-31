@@ -20,6 +20,14 @@ import razie.wiki.model._
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
+/** nice links to stories in AST trees */
+case class StoryNode(path: TSpecRef) extends CanHtml with InfoNode {
+  def x = s"""<a id="${path.wpath.replaceAll("^.*:", "")}"></a>""" // from wpath leave just name
+  override def toHtml = x + s"""Story ${path.ahref.mkString}"""
+
+  override def toString = "Story " + path.wpath
+}
+
 /** engine prep utilities: load stories, parse DOMs etc */
 object EnginePrep extends Logging {
 
@@ -45,7 +53,6 @@ object EnginePrep extends Logging {
             x.filter(w => tq.matches(w.tags))
           } getOrElse {
             // todo optimize
-            // Wikis(reactor).pages("Story").toList
             Wikis(reactor).pages("*").filter(w => w.tags.contains("story")).toList
           }
 
@@ -71,24 +78,31 @@ object EnginePrep extends Logging {
     pages
   }
 
-  /** all pages of category
-    * - inherit ALL specs from mixins
+  /** all pages of category - inherit ALL specs from mixins
+    *
+    * @param cat             cat to look for
+    * @param realm
+    * @param overwriteTopics if true will overwrite base realm topics with same name
+    * @return
     */
   def catPages(cat: String, realm: String, overwriteTopics: Boolean = false): List[WikiEntry] = {
     if ("Spec" == cat) {
       val w = Wikis(realm)
+      val m = w.mixins.flattened
       val l = (w.pages(cat).toList ::: w.mixins.flattened.flatMap(_.pages(cat).toList))
       // distinct in order - so I overwrite mixins
+      // todo doesn't work unless the mixins are not in order - the mixins should always
+      // be sorted
       val b = ListBuffer[WikiEntry]()
       val seen = mutable.HashSet[WikiEntry]()
       for (x <- l) {
         if (!seen.exists(
-          y => (overwriteTopics || !overwriteTopics && y.realm == x.realm) &&
+          y => (!overwriteTopics || overwriteTopics && y.realm == x.realm) &&
               y.category == x.category &&
               y.name == x.name)) {
           b append x
-          seen += x
         }
+        seen += x
       }
       b.toList
     } else {
@@ -139,7 +153,7 @@ object EnginePrep extends Logging {
 
     val id = java.lang.System.currentTimeMillis().toString()
 
-    val pages =
+    val specs =
       if (settings.blenderMode) { // blend all specs and stories
         val d = catPages("Spec", reactor).toList.map { p =>
           //         if draft mode, find the auto-saved version if any
@@ -167,12 +181,18 @@ object EnginePrep extends Logging {
     val specFiddles = useTheseStories.flatMap { p =>
       // add sections - for each fake a page
       // todo instead - this shold be in RDExt.addStoryToAst with the addFiddles flag
-      p :: sectionsToPages(p, p.sections.filter(s => s.stype == "dfiddle" && (Array("spec") contains s.signature)))
+
+      /* I used to include the story itself but it creates problems: $val in story become templates at the root
+      context, see DIESEL_VALS
+       */
+
+//      p ::
+      sectionsToPages(p, p.sections.filter(s => s.stype == "dfiddle" && (Array("spec") contains s.signature)))
     }
 
     // finally build teh entire fom
 
-    val dom = (pages ::: specFiddles).flatMap(p =>
+    val dom = (specs ::: specFiddles).flatMap(p =>
       SpecCache.orcached(p, WikiDomain.domFrom(p)).toList
     ).foldLeft(
       RDomain.empty
@@ -189,7 +209,7 @@ object EnginePrep extends Logging {
     val root = iroot.getOrElse(DomAst("root", "root"))
 
     // start processing all elements
-    val engine = DieselAppContext.mkEngine(dom, root, settings, ipage :: pages map WikiDomain.spec, description)
+    val engine = DieselAppContext.mkEngine(dom, root, settings, ipage :: specs map WikiDomain.spec, description)
 
     val stories = if (!useTheseStories.isEmpty) useTheseStories else List(ipage)
     startStory.map { we =>
@@ -251,13 +271,6 @@ object EnginePrep extends Logging {
     addStoriesToAst(engine, allStories, justTests, justMocks, addFiddles)
   }
 
-  /** nice links to stories in AST trees */
-  case class StoryNode (path:TSpecRef) extends CanHtml with InfoNode {
-    def x = s"""<a id="${path.wpath.replaceAll("^.*:", "")}"></a>""" // from wpath leave just name
-    override def toHtml = x + s"""Story ${path.ahref.mkString}"""
-    override def toString = "Story " + path.wpath
-  }
-
   /* add a message */
   def addMsgToAst(root: DomAst, v : EMsg) = {
     val ast = DomAst(v, AstKinds.RECEIVED)
@@ -278,6 +291,7 @@ object EnginePrep extends Logging {
     var inSequence = true
     val root = engine.root
 
+    /** hookup this new message to the last one */
     def addMsg(v: EMsg) = {
       lastMsg = Some(v);
       // withPrereq will cause the story messages to be ran in sequence
@@ -291,10 +305,13 @@ object EnginePrep extends Logging {
 
     def addMsgPas(v: EMsgPas) = {
       // withPrereq will cause the story messages to be ran in sequence
-      lastMsgAst = if (!(justTests || justMocks)) Some(DomAst(v, AstKinds.RECEIVED).withPrereq({
-        if (inSequence) lastAst.map(_.id)
-        else Nil
-      })) else None // need to reset it
+      lastMsgAst =
+          if (!(justTests || justMocks))
+            Some(DomAst(v, AstKinds.RECEIVED)
+                .withPrereq({
+                  if (inSequence) lastAst.map(_.id)
+                  else Nil
+                })) else None // need to reset it
       lastAst = lastMsgAst.toList
       lastAst
     }
@@ -303,20 +320,40 @@ object EnginePrep extends Logging {
     // this is important for diesel.guardian.starts + diese.setEnv - otherwise tehy run after the tests
     lastAst = root.children.toList
 
+    // to put the storeis in seq
+    var lastStory: Option[DomAst] = None
+
     // add a single story
-    def addStory (story:DSpec) = {
+    def addStory(story: DSpec) = {
       var savedInSequence = inSequence
 
       story.parsed
 
+      val forceStory = true
+
+      var storyAst = root
+
       // add a node to represent the story, if multiple stories or fiddles
-      if(stories.size > 1 || addFiddles)
-        root.childrenCol appendAll {
-          lastAst = List(DomAst(StoryNode(story.specRef), AstKinds.STORY).withPrereq(lastAst.map(_.id)).withStatus(DomState.SKIPPED))
+      val xstoryAst = DomAst(StoryNode(story.specRef), AstKinds.STORY)
+          .withPrereq(lastAst.map(_.id))
+
+      xstoryAst.withCtx(
+        // story node has a scope
+        new ScopeECtx(Nil, root.getCtx, Some(xstoryAst))
+      )
+
+      // fiddle is made up
+      if (stories.size > 1 || forceStory && story.specRef.key != "fiddle" || addFiddles) {
+        root.appendAllNoEvents {
+          lastAst = List(xstoryAst)
+          storyAst = xstoryAst // comment out to remove the story scope nodes
           lastAst
         }
+      }
 
-      if(stories.size > 1) root.childrenCol appendAll addMsg(EMsg("diesel.scope", "push"))
+      // stories run in seq
+      lastStory.foreach(x => storyAst.withPrereq(List(x.id)))
+      lastStory = Some(storyAst)
 
       // markup all constructs - make sure there are no unparsed elements:
       if (
@@ -337,9 +374,11 @@ object EnginePrep extends Logging {
           }
         }
 
+        // identify unparsed expects and add them as errors
+
         // we could do all, but don't care much about other elements, just the tests...
-        root appendAllNoEvents story.contentPreProcessed.lines.map(_.trim).zipWithIndex.filter(
-//        storyAst appendAllNoEvents story.contentPreProcessed.lines.map(_.trim).zipWithIndex.filter(
+//        root appendAllNoEvents story.contentPreProcessed.lines.map(_.trim).zipWithIndex.filter(
+        storyAst appendAllNoEvents story.contentPreProcessed.lines.map(_.trim).zipWithIndex.filter(
           _._1.startsWith("$expect")).collect {
 
           case (line, row) if !findElemLine(row + 1) =>
@@ -349,7 +388,7 @@ object EnginePrep extends Logging {
       }
 
       // add the actual elements
-      root appendAllNoEvents RDomain.domFilter(story) {
+      storyAst appendAllNoEvents RDomain.domFilter(story) {
         case o: O if o.name != "context" => List(DomAst(o, AstKinds.RECEIVED))
 
         case v: EMsg if v.entity == "ctx" && v.met == "storySync" => {
@@ -367,7 +406,7 @@ object EnginePrep extends Logging {
         case v: EMsgPas => addMsgPas(v)
 
         case v: EVal => {
-          // vals are also in sequence... because they use values in context
+          // story vals are also in sequence... because they use values in context
           lastAst = List(DomAst(v, AstKinds.RECEIVED).withPrereq(lastAst.map(_.id)))
           lastAst
         }
@@ -404,19 +443,30 @@ object EnginePrep extends Logging {
 
         // these don't wait - they don't run, they are collected together
         // todo this is a bit inconsistent - if one declares vals and then a mock then a val
+//        case v: ERule => List(DomAst(v, AstKinds.RULE))
+//        case v: EMock => List(DomAst(v, AstKinds.RULE))
+      }.flatten
+
+      // add the actual elements
+      root appendAllNoEvents RDomain.domFilter(story) {
+
+        // these don't wait - they don't run, they are collected together
+        // todo this is a bit inconsistent - if one declares vals and then a mock then a val
         case v: ERule => List(DomAst(v, AstKinds.RULE))
 
         case v: EMock => List(DomAst(v, AstKinds.RULE))
       }.flatten
 
 
-      // final scope pop if multiple stories added
-      if(stories.size > 1) root.childrenCol appendAll addMsg(EMsg("diesel.scope", "pop"))
-
       inSequence = savedInSequence
     }
 
-    stories.foreach (addStory)
+    // sort by tag "orderXXX" and alphabetical?
+    val sortedStories = stories.sortBy(s =>
+      s.tags.find(_.startsWith("testOrder")).getOrElse("testOrderLast") + s.specRef.key
+    )
+
+    sortedStories.foreach(addStory)
   }
 
   /**

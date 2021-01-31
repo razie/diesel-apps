@@ -212,7 +212,6 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
 
   /** test that the EA matches */
   def testEA(e: EMsg, cole: Option[MatchCollector] = None, fallback:Boolean = false)(implicit ctx: ECtx) = {
-//    cdebug << s"Rule tested: $this"
     if(cls.length == 0 || met.length == 0) {
       regexm(cls+met, e.ea) // full match
     } else if ("*" == cls || e.entity == cls || regexm(cls, e.entity)) {
@@ -221,7 +220,6 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
         cole.map(_.plus(e.met))
         true
       } else {
-//        ctrace << s"...rule skipped EA: $this"
         false
       }
     } else false

@@ -198,8 +198,8 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
             )
 
             val level =
-              if(ctx.isInstanceOf[StaticECtx])
-                ctx.asInstanceOf[StaticECtx].curNode.flatMap(n=>
+              if (ctx.isInstanceOf[SimpleECtx])
+                ctx.asInstanceOf[SimpleECtx].curNode.flatMap(n =>
                   ctx.root.engine.map(_.findLevel(n))
                 ).getOrElse(0)
               else
