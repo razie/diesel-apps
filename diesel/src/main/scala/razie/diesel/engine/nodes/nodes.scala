@@ -80,10 +80,12 @@ package object nodes {
 
         val pm = b._1
 
+        val inHasParm = in.exists(x => pm.name == x.name)
+
         if (pm.isMatch && pm.op == "?=") {
           // optionals with default
-          res = in.exists(x => pm.name == x.name) || ctx.exists(x => pm.name == x.name)
-          if(!res) {
+          res = inHasParm || ctx.exists(x => pm.name == x.name)
+          if (!res) {
             // if not there, make it up!
             res = true
             calculated.append(P(pm.name, pm.dflt, pm.ttype, pm.expr).calculatedP)
@@ -91,10 +93,10 @@ package object nodes {
         } else if (pm.isMatch && (pm.dflt.size > 0 || pm.expr.isDefined)) {
           // testing for name and value
           if (b._1.name.size > 0) {
-            // todo - not just check() if all the input parms for expression
-            // exist, then check both true AND false, don't go up looking for some
-            // happy path!
-            res = in.exists(x => pm.check(x)) || ctx.exists(x => pm.check(x))
+            // inHasParm - if parm passed in with value, then don't check context for
+            // some other possible values that higher up are good. Fail now, as someone sent in the wrong
+            // value
+            res = in.exists(x => pm.check(x)) || !inHasParm && ctx.exists(x => pm.check(x))
 
             if (!res && positive || res && !positive) in.find(_.name == pm.name).map { p =>
               // mark it in the cole
