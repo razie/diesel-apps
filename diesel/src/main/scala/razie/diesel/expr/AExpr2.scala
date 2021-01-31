@@ -169,9 +169,8 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
 
           case _ => {
             throw new DieselExprException(
-              "[ERR can't apply operator " + op + s" to ${a.getType} and ${b.getType}] (" + a + " , " + b + ")"
+              "[ERR can't apply operator " + op + s" to types ${av.ttype} and ${bv.ttype}] (" + av + " , " + bv + ")"
             )
-            PValue("[ERR can't apply operator " + op + s" to ${a.getType} and ${b.getType}]")
           }
         }
       }

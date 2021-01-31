@@ -40,30 +40,41 @@ trait ECtx extends ParmSource {
 
   /** find the template corresponding to the ea and direction (direction is optional
     *
-    * @param ea entity.action
+    * @param ea        entity.action
     * @param direction "request" vs "response"
     * @return
     */
-  def findTemplate (ea:String, direction:String="") : Option[DTemplate]
+  def findTemplate(ea: String, direction: String = ""): Option[DTemplate]
 
   /** find template with predicate */
-  def findTemplate (p : DTemplate => Boolean) : Option[DTemplate]
+  def findTemplate(p: DTemplate => Boolean): Option[DTemplate]
 
+  /** check predicate on all values */
   def exists(f: scala.Function1[P, scala.Boolean]): scala.Boolean
 
-  def remove (name: String): Option[P]
-  def apply  (name: String): String = get(name).mkString
-  def getp   (name: String): Option[P] // overwrite this one - leave the get
-  def get    (name: String): Option[String] = getp(name).map(_.currentStringValue)
-  def put    (p: P): Unit
-  def putAll (p: List[P]): Unit
-  def clear  : Unit
+  /** check predicate on all values, except locals */
+  def existsNL(f: scala.Function1[P, scala.Boolean]): scala.Boolean
+
+  def remove(name: String): Option[P]
+
+  def apply(name: String): String = get(name).mkString
+
+  def getp(name: String): Option[P] // overwrite this one - leave the get
+  def get(name: String): Option[String] = getp(name).map(_.currentStringValue)
+
+  def put(p: P): Unit
+
+  def putAll(p: List[P]): Unit
+
+  def clear: Unit
+
   def listAttrs: List[P]
 
-  def getRequired   (name: String): String = getRequiredp(name).currentStringValue
-  def getRequiredp  (name: String): P = {
+  def getRequired(name: String): String = getRequiredp(name).currentStringValue
+
+  def getRequiredp(name: String): P = {
     val p = getp(name)
-    if(! p.isDefined) throw new IllegalArgumentException(s"'$name' not found!")
+    if (!p.isDefined) throw new IllegalArgumentException(s"'$name' not found!")
     p.get
   }
 

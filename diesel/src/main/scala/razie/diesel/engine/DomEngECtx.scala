@@ -20,13 +20,16 @@ import razie.wiki.Config
   *
   * it can keep unique IDs and such, to help with tests ran continuously
   */
-class DomEngECtx(val settings:DomEngineSettings, cur: List[P] = Nil, base: Option[ECtx] = None) extends SimpleECtx(cur, base, None) {
+class DomEngECtx(val settings: DomEngineSettings, cur: List[P] = Nil, base: Option[ECtx] = None)
+    extends SimpleECtx(cur, base, None) {
   var overwritten: Option[ECtx] = None
   var persisted: Boolean = false
-  var engine : Option[DomEngine] = None
+  var engine: Option[DomEngine] = None
 
   /** NOT for moving from engine to engine */
-  def withEngine(e:DomEngine) = { this.engine = Some(e); this}
+  def withEngine(e: DomEngine) = {
+    this.engine = Some(e); this
+  }
 
   def withSpecs(s: List[DSpec]) = {
     _specs = s ::: _specs

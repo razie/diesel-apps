@@ -19,7 +19,8 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
       else ""
       )
 
-  // NOTE start contains last .
+  def restAsP(implicit ctx: ECtx) = P("", rest.map(_.calculatedValue).mkString("."))
+
   def exprDot(implicit ctx: ECtx) =
     start + (if (rest.size > 0) "." else "") + rest.map(_.calculatedValue).mkString(".")
 
