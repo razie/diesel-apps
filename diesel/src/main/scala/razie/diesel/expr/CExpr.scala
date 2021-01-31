@@ -44,7 +44,9 @@ case class CExpr[T](ee: T, ttype: WType = WTypes.wt.EMPTY) extends Expr {
       P("", es, ttype).withValue(es.toBoolean, WTypes.wt.BOOLEAN)
     } else {
       // expand templates by default
-      if (es contains "${") {
+      // important: only for STRING or unknown (default is string)
+      // binary or other representations MUST NOT GO THROUGH expansion, duh!
+      if ((ttype.isEmpty || ttype.name == WTypes.STRING) && (es contains "${")) {
         var s1 = ""
         try {
           val PAT = """(?<!\$)\$\{([^\}]*)\}""".r

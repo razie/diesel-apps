@@ -501,7 +501,8 @@ class EECtx extends EExecutor(EECtx.CTX) {
             Some(PValue[Array[Byte]](res, "application/octet-stream"))))
         }
 
-        res ::: res.headOption.map(x=> x.copy(p=x.p.copy(name=Diesel.PAYLOAD))).toList
+        val res2 = res ::: res.headOption.map(x => x.copy(p = x.p.copy(name = Diesel.PAYLOAD))).toList
+        res2
       }
 
       case "sha1" => {
