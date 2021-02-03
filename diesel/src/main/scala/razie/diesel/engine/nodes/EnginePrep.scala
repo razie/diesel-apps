@@ -86,13 +86,18 @@ object EnginePrep extends Logging {
     * @return
     */
   def catPages(cat: String, realm: String, overwriteTopics: Boolean = false): List[WikiEntry] = {
+    val w = Wikis(realm)
     if ("Spec" == cat) {
-      val w = Wikis(realm)
       val m = w.mixins.flattened
-      val l = (w.pages(cat).toList ::: w.mixins.flattened.flatMap(_.pages(cat).toList))
+      val l = (
+          w.pages(cat).toList :::
+              m.flatMap(_.pages(cat).toList)
+                  .filter(x => !(x.tags.contains("private")))
+          )
       // distinct in order - so I overwrite mixins
       // todo doesn't work unless the mixins are not in order - the mixins should always
       // be sorted
+
       val b = ListBuffer[WikiEntry]()
       val seen = mutable.HashSet[WikiEntry]()
       for (x <- l) {
@@ -106,7 +111,7 @@ object EnginePrep extends Logging {
       }
       b.toList
     } else {
-      Wikis(realm).pages(cat).toList
+      w.pages(cat).toList
     }
   }
 
