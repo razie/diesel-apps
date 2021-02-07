@@ -361,6 +361,14 @@ object DieselMsg {
     final val LIST = "file"
   }
 
+  object IO {
+    final val ENTITY = "diesel.io"
+
+    final val TEXT_FILE = "diesel.io.textFile"
+    final val LIST_FILES = "diesel.io.listFiles"
+  }
+
+
   final val fiddleStoryUpdated = "fiddleStoryUpdated"
   final val fiddleSpecUpdated = "fiddleSpecUpdated"
 }

@@ -320,7 +320,8 @@ trait DomRoot {
         a append DomAst(
           EInfo(
             pas.left.toStringCalc + " = " + res,
-            rightP.calculatedTypedValue.asString
+            "" // now the parm name includes popup
+            // rightP.calculatedTypedValue.asString
           ).withPos(pos),
           AstKinds.DEBUG
         )

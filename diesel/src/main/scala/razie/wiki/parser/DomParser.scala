@@ -266,7 +266,7 @@ trait DomParser extends ParserBase with ExprParser {
   def pgen: Parser[EMap] =
     ows ~> opt("[|.]*".r) ~ keyw(pArrow) ~ ows ~
         opt(pif) ~ ows ~
-        (clsMet | justAttrs) <~ ows <~ opt(";") <~ optComment3 ^^ {
+        (clsMet | justAttrs) <~ opt(";") <~ optComment3 ^^ {
       case level ~ arrow ~ _ ~ cond ~ _ ~ cp => {
         cp match {
           // class with message
@@ -300,7 +300,7 @@ trait DomParser extends ParserBase with ExprParser {
     * - text - i.e. step description
     */
   def pgenStep: Parser[EMap] =
-    ows ~> opt("[|.]*".r) ~ keyw("-") ~ ows ~ opt(pif) ~ ows ~ "[^\n\r;]+".r <~ ows <~ opt(";") <~ optComment3 ^^ {
+    ows ~> opt("[|.]*".r) ~ keyw("-") ~ ows ~ opt(pif) ~ ows ~ "[^\n\r;]+".r <~ opt(";") <~ optComment3 ^^ {
       case level ~ arrow ~ _ ~ cond ~ _ ~ desc => {
         val m = if (desc.trim.startsWith("todo ")) ENGINE.TODO else ENGINE.STEP
         // use expr so we can use ${xxx} inside logs

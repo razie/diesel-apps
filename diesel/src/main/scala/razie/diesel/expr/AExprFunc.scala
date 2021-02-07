@@ -5,6 +5,7 @@
  */
 package razie.diesel.expr
 
+import com.mongodb.casbah.Imports.ObjectId
 import java.net.URLEncoder
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -53,6 +54,13 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
 
     // is it built-in or generic?
     expr match {
+
+      case "uuid" => {
+        // todo singleton
+        val x = new ObjectId().toString
+
+        P.fromTypedValue("", x, WTypes.wt.STRING)
+      }
 
       case "now" => {
         // todo singleton

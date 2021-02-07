@@ -202,7 +202,8 @@ case class BCMP2(a: Expr, op: String, b: Expr)
             case "not" if b.toString == "defined" => ap.ttype == WTypes.wt.UNDEFINED //as.length <= 0
 
             case "is" if b.toString == "nzlen" => ap.ttype != WTypes.wt.UNDEFINED && as.length > 0 && as.trim != "null"
-            case "not" if b.toString == "nzlen" => ap.ttype == WTypes.wt.UNDEFINED || as.length <= 0 || as.trim == "null"
+            case "not" if b.toString == "nzlen" => ap.ttype == WTypes.wt.UNDEFINED || as.length <= 0 || as.trim ==
+                "null"
 
             case "is" if b.toString == "empty" =>
               if (ap.calculatedTypedValue.contentType == WTypes.JSON)
@@ -210,7 +211,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
               else if (ap.calculatedTypedValue.contentType == WTypes.ARRAY)
                 ap.calculatedTypedValue.asArray.isEmpty
               else
-              /*ap.ttype != WTypes.UNDEFINED &&*/ as.length == 0
+              /*ap.ttype != WTypes.UNDEFINED &&*/ as.length == 0 // undefined is empty !
 
             case "not" if b.toString == "empty" =>
               if (ap.calculatedTypedValue.contentType == WTypes.JSON)
@@ -218,7 +219,7 @@ case class BCMP2(a: Expr, op: String, b: Expr)
               else if (ap.calculatedTypedValue.contentType == WTypes.ARRAY)
                 ap.calculatedTypedValue.asArray.nonEmpty
               else
-              /*ap.ttype != WTypes.UNDEFINED &&*/ as.length != 0
+              /*ap.ttype != WTypes.UNDEFINED &&*/ as.length != 0 // undefined is not empty !
 
             case "is" if b.toString == "undefined" => ap.ttype == WTypes.wt.UNDEFINED
             case "not" if b.toString == "undefined" => ap.ttype != WTypes.wt.UNDEFINED

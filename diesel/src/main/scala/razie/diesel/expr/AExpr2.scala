@@ -197,23 +197,23 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
         def doAsWith(b: Expr, bu: String, bs: String, lastTime: Boolean): PValue[_] = {
           val ap = av.calculatedP
           val avv = av.calculatedTypedValue
-          val avalue = avv.asString
+          val as = avv.asString
 
           b match {
 
             // known types
 
             case _ if bs == "boolean" || bs == "bool" =>
-              P.fromTypedValue("", avalue, WTypes.BOOLEAN).calculatedTypedValue
+              P.fromTypedValue("", as, WTypes.BOOLEAN).calculatedTypedValue
 
             case _ if bs == "number" =>
-              P.fromTypedValue("", avalue, WTypes.NUMBER).calculatedTypedValue
+              P.fromTypedValue("", as, WTypes.NUMBER).calculatedTypedValue
 
             case _ if bs == "string" =>
-              P.fromTypedValue("", avalue, WTypes.STRING).calculatedTypedValue
+              P.fromTypedValue("", as, WTypes.STRING).calculatedTypedValue
 
             case _ if bs == "json" || bs == "object" =>
-              P.fromTypedValue("", avalue, WTypes.JSON).calculatedTypedValue
+              P.fromTypedValue("", as, WTypes.JSON).calculatedTypedValue
 
             case _ if bs == "array" => {
               if (avv.cType.name == WTypes.JSON || avv.cType.name == WTypes.OBJECT) {
@@ -227,7 +227,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
                 P.fromTypedValue("", resArr.toList, WTypes.ARRAY).calculatedTypedValue
               } else {
                 // maybe string to array
-                P.fromTypedValue("", avalue, WTypes.ARRAY).calculatedTypedValue
+                P.fromTypedValue("", as, WTypes.ARRAY).calculatedTypedValue
               }
             }
 
@@ -243,7 +243,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
               // todo should we only change theP type not the PVAlue type? like pdf which is a bitstream?
                 P("", av.calculatedValue, WType(t.ee)).withValue(avv.value, WType(t.ee)).calculatedTypedValue
               else
-                P("", avalue, WType(t.ee)).calculatedTypedValue
+                P("", as, WType(t.ee)).calculatedTypedValue
 
             case _ if !lastTime => {
               val bp = b.applyTyped(v)
