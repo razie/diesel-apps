@@ -108,7 +108,10 @@ object DomEngineUtils {
     else
       Audit.logdb("DIESEL_FIDDLE_RUNDOM ", msg)
 
-    val pages = (specs ::: stories).filter(_.section.isEmpty).flatMap(_.page)
+    val pages = (specs ::: stories)
+        .filter(_.section.isEmpty)
+        .distinct
+        .flatMap(_.page)
 
     // to domain
     val dom = WikiDomain.domFrom(page, pages)
@@ -167,15 +170,10 @@ object DomEngineUtils {
         _.name == p.name).isDefined => (p.name, p.currentStringValue)
     }
 
-    val payload = engine.ctx.getp(Diesel.PAYLOAD).map(_.calculatedP(engine.ctx))
-    val resp = payload.orElse(
-      omsg.flatMap(_.omsg).flatMap(o => engine.extractFinalValue(o.ea))
-    )
-    val resValue = resp.map(_.currentStringValue).getOrElse("")
+    val resValue = engine.extractFinalValue(omsg.flatMap(_.omsg).map(_.ea).mkString).map(_.currentStringValue)
 
     var m = Map(
-//                   "value" -> values.headOption.map(_._2).map(stripQuotes).getOrElse(""),
-      "payload" -> payload.getOrElse(P(Diesel.PAYLOAD, "", WTypes.wt.UNDEFINED)),
+      "payload" -> resValue,
       "resValue" -> resValue,
       "value" -> engine.resultingValue,
       "values" -> values.toMap,

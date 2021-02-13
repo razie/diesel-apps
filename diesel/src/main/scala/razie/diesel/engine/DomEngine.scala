@@ -6,10 +6,11 @@
 package razie.diesel.engine
 
 import org.bson.types.ObjectId
+import org.joda.time.DateTime
 import razie.Logging
 import razie.diesel.Diesel
 import razie.diesel.dom.RDOM.P
-import razie.diesel.dom.{DieselAssets, RDomain}
+import razie.diesel.dom.{DieselAssets, RDomain, WTypes}
 import razie.diesel.engine.nodes._
 import razie.diesel.expr._
 import razie.diesel.model.DieselMsg
@@ -38,6 +39,7 @@ trait InfoNode // just a marker for useless info nodes
   * The DomEngineExec is the actual implementation
   *
   * @param correlationId is parentEngineID.parentSuspendID - if dot is missing, this was a fire/forget
+  * @param initialMsg    - the initial message that kicked off this engine - used to extract final value
   *
   */
 abstract class DomEngine(
@@ -47,7 +49,16 @@ abstract class DomEngine(
   val pages: List[DSpec],
   val description: String,
   val correlationId: Option[String] = None,
-  val id: String = new ObjectId().toString) extends Logging with DomEngineState with DomRoot with DomEngineExpander {
+  val id: String = new ObjectId().toString,
+  val createdDtm: DateTime = DateTime.now
+) extends Logging with DomEngineState with DomRoot with DomEngineExpander {
+
+  var initialMsg: Option[EMsg] = None
+
+  def withInitialMsg(m: Option[EMsg]) = {
+    this.initialMsg = m
+    this
+  }
 
   assert(settings.realm.isDefined, "need realm defined for engine settings")
 
@@ -677,11 +688,17 @@ abstract class DomEngine(
   }
 
   /** this was resulted in an html response - add it as a trace */
-  def addResponseInfo (code: Int, body:String, headers:Map[String, String]): Unit = {
+  def addResponseInfo(code: Int, body: String, headers: Map[String, String]): Unit = {
     val h = headers.mkString("\n")
     val ast = new DomAst(EInfo(s"Response: ${code} BODY: ${body.take(500)}", s"HEADERS:\n$h"), AstKinds.TRACE)
     this.root.appendAllNoEvents(List(ast))
   }
+
+  /** collect the last generated value OR empty string */
+  def resultingValue = root.collect {
+    case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _,
+    _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.currentStringValue)
+  }.lastOption.map(_._2).getOrElse("")
 
   /** extract the resulting value from this engine
     * extract one value - try:
@@ -703,21 +720,33 @@ abstract class DomEngine(
     // collect all values
     // todo this must be smarter - ignore diese.before values, don't look inside scopes etc?
     val valuesp = root.collect {
-      case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined => p
+      case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _)
+        if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined => p
     }
 
     // extract one value - try:
     // 1. defined response oattrs
     // 2. last valuep - the last message produced in the flow
     // 3. payload
-    val resp = oattrs.headOption.flatMap(oa=> valuesp.find(_.name == oa.name))
-      .orElse(valuesp.lastOption)
-      .orElse(valuesp.find(_.name == Diesel.PAYLOAD))
+    val resp = oattrs.headOption.flatMap(oa => valuesp.reverse.find(_.name == oa.name))
+        .orElse(valuesp.lastOption)
+        .orElse(valuesp.find(_.name == Diesel.PAYLOAD))
 
+    resp.map(_.calculatedP)
+  }
+
+  // todo still used in some places...
+  // todo not right to look first at PAYLOAD - if you use any message creating payload this fucks it
+  // but what if you don't and you populate it yourself?
+  def extractOldValue(ea: String, evenIfExecuting: Boolean = false) = {
+    val payload = this.ctx.getp(Diesel.PAYLOAD).filter(_.ttype != WTypes.wt.UNDEFINED)
+    val resp = payload.orElse(
+      this.extractFinalValue(ea)
+    )
     resp
   }
 
-  def finalContext (e:String, a:String) = {
+  def finalContext(e: String, a: String) = {
     require(DomState.isDone(this.status)) // no sync
 
     // find the spec and check its result

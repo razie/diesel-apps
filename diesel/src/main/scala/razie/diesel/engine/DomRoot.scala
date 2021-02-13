@@ -41,19 +41,6 @@ trait DomRoot {
   /** find a node */
   def n(id: String): DomAst = root.find(id).get
 
-  /** collect generated values */
-  def resultingValues() = root.collect {
-    // todo see in Api.irunDom, trying to match them to the message sent in...
-    case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _,
-    _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.currentStringValue)
-  }
-
-  /** collect the last generated value OR empty string */
-  def resultingValue = root.collect {
-    case d@DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _,
-    _) /*if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined */ => (p.name, p.currentStringValue)
-  }.lastOption.map(_._2).getOrElse("")
-
   protected def collectValues[T](f: PartialFunction[Any, T]): List[T] =
     root.collect {
       case v if (f.isDefinedAt(v.value)) => f(v.value)
