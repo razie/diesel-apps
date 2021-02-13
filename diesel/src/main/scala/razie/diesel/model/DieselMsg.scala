@@ -167,37 +167,41 @@ case class DieselMsg(
 object DieselTarget {
   final val DEFAULT = "default"
 
+  /** find all specs starting from realm and tq, including mixins except private */
+  def tqSpecs(realm: String, tq: TagQuery) = {
+    // this and mixins
+    val w = Wikis(realm)
+    val tags = tq.and("spec").tags
+    val irdom = (
+        WikiSearch.getList(realm, "", "", tags) :::
+            w.mixins.flattened.flatMap(r =>
+              WikiSearch
+                  .getList(r.realm, "", "", tags)
+                  .filter(x => !(x.tags.contains("private")))
+            )
+        )
+
+    irdom.map(_.wid.toSpecPath)
+  }
+
   /** the environment settings - most common target */
-  def ENV_SETTINGS(realm: String) = SpecRef(realm, realm + ".Spec:EnvironmentSettings", "EnvironmentSettings")
+  def ENV_SETTINGS(realm: String) =
+    SpecRef(realm, realm + ".Spec:EnvironmentSettings", "EnvironmentSettings")
 
   /** specific list of specs to use */
   def from(realm: String, env: String, specs: List[TSpecRef], stories: List[TSpecRef]) =
     new DieselTargetList(realm, env, specs, stories)
 
   /** all specs in a realm and mixins */
-  def ENV (realm:String, env:String=DEFAULT) =
+  def ENV(realm: String, env: String = DEFAULT) =
     new DieselTarget(realm, env) {
       override def specs = {
-        val tq = new TagQuery("")
-
-        // this and mixins
-        val w = Wikis(realm)
-        val irdom = (
-            WikiSearch.getList(realm, "", "", tq.and("spec").tags) :::
-                w.mixins.flattened.flatMap(r =>
-                  WikiSearch.getList(r.realm, "", "", tq.and("spec").tags)
-                )
-            )
-
-        ENV_SETTINGS(realm) :: irdom.map(_.wid.toSpecPath)
+        ENV_SETTINGS(realm) :: tqSpecs(realm, new TagQuery(""))
       }
-
-      // all specs, not just envset
-//      override def specs = List(ENV_SETTINGS(realm))
     }
 
   /** the diesel section from the reactor topic */
-  def REALMDIESEL (realm:String, env:String=DEFAULT) =
+  def REALMDIESEL(realm: String, env: String = DEFAULT) =
     DieselTarget.from(
       realm,
       env,
@@ -205,16 +209,24 @@ object DieselTarget {
       Nil)
 
   /** list of topics by tq */
-  def TQSPECS (realm:String, env:String, tq:TagQuery) =
+  def TQSPECS(realm: String, env: String, tq: TagQuery) =
     new DieselTarget(realm, env) {
 
       override def specs = {
-        val irdom = WikiSearch.getList(realm, "", "", tq.and("spec").tags)
+        ENV_SETTINGS(realm) :: tqSpecs(realm, tq)
+      }
+    }
 
-        ENV_SETTINGS(realm) :: irdom.map(_.wid.toSpecPath)
+  /** list of topics by tq */
+  def TQSPECSANDSTORIES(realm: String, env: String, tq: TagQuery) =
+    new DieselTarget(realm, env) {
+
+      override def specs = {
+        ENV_SETTINGS(realm) :: tqSpecs(realm, tq)
       }
 
       override def stories = {
+        // stories just in current realm
         val irdom = WikiSearch.getList(realm, "", "", tq.and("story").tags)
 
         ENV_SETTINGS(realm) :: irdom.map(_.wid.toSpecPath)
@@ -223,13 +235,6 @@ object DieselTarget {
 
   /** the environment settings - most common target */
   def RK = new DieselTarget("rk")
-
-  /** all the specs */
-//  def SPECS (realm:String) =
-//    new DieselTarget(realm) {
-//      override def specs = TagQuery("spec")
-//    }
-
 }
 
 case class DieselTargetList(
