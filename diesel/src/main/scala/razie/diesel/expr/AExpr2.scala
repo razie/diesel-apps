@@ -234,7 +234,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
             case c if ctx.root.domain.exists(_.classes.contains(bu)) => {
               // domain class, base must be json
               assert(ap.isOfType(WTypes.wt.JSON))
-              avv.copy(cType = avv.cType.copy(schema = bs))
+              avv.copy(cType = avv.cType.copy(schema = bu))
             }
 
             case t: CExpr[String] => // x as "application/pdf"
