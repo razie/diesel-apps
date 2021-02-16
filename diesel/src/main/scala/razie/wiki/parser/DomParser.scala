@@ -27,21 +27,30 @@ trait DomParser extends ParserBase with ExprParser {
 
   // resolve an override resulting when I simplified ExprParser
   override type P = Parser[String]
+
   override def ws = whiteSpace
+
   override def ows = opt(whiteSpace)
 
   import RDOM._
 
   def domainBlocks =
-    panno |  pobject | pclass | passoc | pdef |
-    pwhen | pflow | pmatch | psend | pmsg | pval | pexpect | passert
+    aCommentLine | panno | pobject | pclass | passoc | pdef |
+        pwhen | pflow | pmatch | psend | pmsg | pval | pexpect | passert
 
-  def lazys (f:(StrAstNode, FoldingContext[DSpec,DUser]) => StrAstNode) =
-    LazyAstNode[DSpec, DUser] (f)
+  def lazys(f: (StrAstNode, FoldingContext[DSpec, DUser]) => StrAstNode) =
+    LazyAstNode[DSpec, DUser](f)
 
   // todo replace $ with . i.e. .class
 
   // ----------------------
+
+  /**
+    * a comment line with //
+    */
+  def aCommentLine: PS = ows ~> pComment ^^ {
+    case s => s
+  }
 
   /**
     * .anno (params)
@@ -372,13 +381,16 @@ trait DomParser extends ParserBase with ExprParser {
         optArch ~
         clsMatch ~ ws ~
         opt(pif) ~ optComment3 ~
-        rep(pgen | pgenStep /*| pgenErr*/) ^^ {
+        rep(aCommentLine | pgen | pgenStep /*| pgenErr*/) ^^ {
       case k ~ _ ~ oarch ~ Tuple3(ac, am, aa) ~ _ ~ cond ~ _ ~ gens => {
         lazys { (current, ctx) =>
           val x = nodes.EMatch(ac, am, aa, cond)
           val wpath = ctx.we.map(_.specRef.wpath).mkString
           val arch = oarch.filter(_.length > 0).getOrElse(k.s) // archetype
-          val r = ERule(x, arch, gens.map(m=>m.withPosition(m.pos.get.copy(wpath=wpath))))
+          val r = ERule(x, arch,
+            gens.collect {
+              case m: EMap => m
+            }.map(m => m.withPosition(m.pos.get.copy(wpath = wpath))))
           r.pos = Some(EPos(wpath, k.pos.line, k.pos.column))
           val f = if (k.s contains "when") r else EMock(r)
           addToDom(f).ifold(current, ctx)
