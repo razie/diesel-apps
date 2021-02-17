@@ -8,6 +8,7 @@ package razie.wiki.admin
 
 import java.util.concurrent.atomic.AtomicLong
 import org.joda.time.DateTime
+import razie.diesel.DieselRateLimiter
 import razie.diesel.engine.DieselAppContext
 import razie.diesel.utils.DomCollector
 import scala.concurrent.{Future, Promise}
@@ -65,7 +66,7 @@ object GlobalData {
       "Diesel.activeEngines" -> DieselAppContext.activeEngines.size,
       "Diesel.activeActors" -> DieselAppContext.activeActors.size,
       "Diesel.activeStreams" -> DieselAppContext.activeStreams.size
-    )
+    ) ++ DieselRateLimiter.toj
   }
 }
 
