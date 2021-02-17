@@ -195,11 +195,11 @@ abstract class DomEngine(
   }
 
   /** finalize and release resources, actors etc */
-  def engineDone() = {
+  def engineDone(collect: Boolean = true) = {
     clog << s"WF.STOP.$id"
     GlobalData.dieselEnginesActive.decrementAndGet()
 
-    finishP.success(this)
+    if (!finishP.isCompleted) finishP.success(this)
 
     // remove ctx references
     try {
@@ -211,7 +211,9 @@ abstract class DomEngine(
         log("EXC when cleaning contexts: ", t)
     }
 
-    DomCollector.collectAst("engine", settings.realm.mkString, id, settings.userId, this)
+    if (collect) {
+      DomCollector.collectAst("engine", settings.realm.mkString, id, settings.userId, this)
+    }
 
     // stop owned streams
     // todo get pissed if not done?
@@ -226,6 +228,7 @@ abstract class DomEngine(
       status = DomState.CANCEL
       trace("DomEng " + id + " stopNow")
       engineDone()
+      DieselAppContext.activeActors.get(id).foreach(_ ! DEStop) // stop the actor and remove engine
       DieselAppContext.stopActor(id)
     }
   }
@@ -597,6 +600,8 @@ abstract class DomEngine(
     // include this messages' context
     newCtx = new StaticECtx(ast.value.asInstanceOf[EMsg].attrs, Some(newCtx), Some(ast))
 
+//    GlobalData.dieselEnginesActive.incrementAndGet()
+
     // inherit all context from parent engine
 //    this.ctx.root.overwrite(newCtx)
 
@@ -615,6 +620,10 @@ abstract class DomEngine(
     }
     ast.status = DomState.DONE
     ast.end()
+
+//    engineDone(false)
+//    DieselAppContext.activeActors.get(id).foreach(_ ! DEStop) // stop the actor and remove engine
+
     res
   }
 
