@@ -11,6 +11,7 @@ import org.joda.time.DateTime
 import razie.diesel.DieselRateLimiter
 import razie.diesel.engine.DieselAppContext
 import razie.diesel.utils.DomCollector
+import razie.wiki.Config
 import scala.concurrent.{Future, Promise}
 
 /** current ops data is updated here from all over - you can inspect this in a page
@@ -47,6 +48,8 @@ object GlobalData {
 
   def toMap() = {
     Map(
+      "Global.maxConfThreads" -> Config.prop("akka.actor.default-dispatcher.thread-pool-executor.fixed-pool-size"),
+
       "Global.serving" -> GlobalData.serving.get(),
       "Global.served" -> GlobalData.served.get(),
       "Global.servingApiRequests" -> GlobalData.servingApiRequests.get(),
