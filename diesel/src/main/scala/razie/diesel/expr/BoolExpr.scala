@@ -57,13 +57,13 @@ case class BCMPConst(a: String) extends BoolExpr(a) {
 case class BCMPAndOr(a: BoolExpr, op: String, b: BoolExpr)
     extends BoolExpr("(" + a.toDsl + " " + op + " " + b.toDsl + ")") {
   override def bapply(in: Any)(implicit ctx: ECtx) = {
-    val av = a.bapply(in)
-    val bv = b.bapply(in)
+    lazy val av = a.bapply(in)
+    lazy val bv = b.bapply(in)
 
     op match {
-      case "xor" => (av || bv) && !(av && bv)
-      case "||" | "or" => av || bv   // (av xor bv) xor ((av xor true) xor bv)
-      case "&&" | "and" => av && bv
+      case "xor" => BExprResult((av.value || bv.value) && !(av.value && bv.value))
+      case "||" | "or" => BExprResult(av.value || bv.value)   // (av xor bv) xor ((av xor true) xor bv)
+      case "&&" | "and" => BExprResult(av.value && bv.value)
       case _ => {
         clog << s"[ERR BoolOperator $op UNKNOWN!!!] as in $a $op $b"
         BExprResult(false)

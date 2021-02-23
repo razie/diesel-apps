@@ -427,9 +427,10 @@ object RDOM {
     * @param expr     expression - for sourced parms
     * @param optional "?" if the parm is optional
     */
-  case class P (name:String, dflt:String, ttype:WType = WTypes.wt.EMPTY, expr:Option[Expr]=None, optional:String="",
-                var value:Option[PValue[_]] = None
-               ) extends CM with CanHtml {
+  case class P(name: String, dflt: String, ttype: WType = WTypes.wt.EMPTY, expr: Option[Expr] = None,
+               optional: String = "",
+               var value: Option[PValue[_]] = None
+              ) extends CM with CanHtml with razie.HasJsonStructure {
 
     def withValue[T](va: T, ctype: WType = WTypes.wt.UNKNOWN) = {
       this.copy(ttype = ctype, value = Some(PValue[T](va, ctype)))
@@ -608,6 +609,14 @@ object RDOM {
         case _ => WTypes.mkString(s, classLink)
       }
     }
+
+    def hasJsonStructure: Boolean = this.isOfType(WTypes.wt.JSON) && value.isDefined
+
+    def getJsonStructure: collection.Map[String, Any] =
+      if (this.isOfType(WTypes.wt.JSON) && value.isDefined)
+        this.value.get.asJson
+      else Map.empty[String, Any]
+
   }
 
   /** represents a parameter match expression
