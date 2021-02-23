@@ -19,8 +19,13 @@ import scala.concurrent.duration.Duration
 
 // todo study with cmd pattern - should we do actors?
 class DIBase()
-case class DIConnect(dom:RDomain, env:String, ctx: ECtx) extends DIBase
-case class DITestConnection(dom:RDomain, env:String, ctx: ECtx) extends DIBase
+
+case class DIConnect(dom: RDomain, env: String, ctx: ECtx) extends DIBase
+
+case class DITestConnection(dom: RDomain, env: String, ctx: ECtx) extends DIBase
+
+/** results of query and list type commands */
+case class DIQueryResult(total: Long, data: List[DieselAsset[_]] = Nil)
 
 /**
   * a domain plugin - can adapt a domain to an external implementation
@@ -58,10 +63,21 @@ trait DomInventory {
   /** create an element */
   def upsert(dom: RDomain, ref: FullSpecRef, asset: DieselAsset[_]): Either[Option[DieselAsset[_]], EMsg] = ???
 
-  /** list all elements of class */
-  def listAll(dom: RDomain, ref: FullSpecRef, start: Long, limit: Long, collectRefs: Option[mutable.HashMap[String,
-      String]] = None)
-  : Either[List[DieselAsset[_]], EMsg] = ???
+  /** list all elements of class
+    *
+    * @param dom  current domain
+    * @param ref  reference with basic info
+    * @param from pagination start from index
+    * @param size pagination size
+    * @param sort list of fields to sort by, format: field:desc or field:asc
+    * @param collectRefs
+    * @return either a result or a future message which will give the result
+    */
+  def listAll(dom: RDomain, ref: FullSpecRef,
+              start: Long, limit: Long,
+              sort: Array[String],
+              collectRefs: Option[mutable.HashMap[String, String]] = None)
+  : Either[DIQueryResult, EMsg] = ???
 
   // todo syncDomain into external too ?
 
@@ -71,9 +87,9 @@ trait DomInventory {
     * Each plugin is responsible to configure itself, there's no standard -
     * usually they're added as ReactorMod, see the OdataCrmPlugin for example
     *
-    * @param realm the realm this is for
-    * @param env which environment
-    * @param wi - spec inventory, use it to lookup configuration topics, diesel plugin topics etc
+    * @param realm  the realm this is for
+    * @param env    which environment
+    * @param wi     - spec inventory, use it to lookup configuration topics, diesel plugin topics etc
     * @param iprops initial properties, when created via diesel message
     */
   def mkInstance(realm: String, env:String, wi: DSpecInventory, newName:String, iprops: Map[String, String] = Map.empty): List[DomInventory] = Nil
@@ -97,15 +113,17 @@ trait DomInventory {
     * @param dom   current domain
     * @param ref   reference with basic info
     * @param epath either a query, query path or list of attributes with AND
-    * @param from
-    * @param size
+    * @param from  pagination start from index
+    * @param size  pagination size
+    * @param sort  list of fields to sort by, format: field:desc or field:asc
     * @param collectRefs
-    * @return
+    * @return either a result or a future message which will give the result
     */
   def findByQuery(dom: RDomain, ref: FullSpecRef, epath: Either[String, collection.Map[String, Any]],
                   from: Long = 0, size: Long = 100,
+                  sort: Array[String],
                   collectRefs: Option[mutable.HashMap[String, String]] = None):
-  Either[List[DieselAsset[_]], EMsg] = ???
+  Either[DIQueryResult, EMsg] = ???
 
   /** remove an element by ref */
   def remove(dom: RDomain, ref: FullSpecRef)

@@ -111,19 +111,19 @@ object DomInventories extends razie.Logging {
     * @return
     */
   def findByQuery(ref: FullSpecRef, epath: Either[String, collection.Map[String, Any]],
-                  start: Long = 0, size: Long = 100,
+                  from: Long = 0, size: Long = 100, sort: Array[String],
                   collectRefs: Option[mutable.HashMap[String, String]] = None)
-  : List[DieselAsset[_]] = {
+  : DIQueryResult = {
     val dom = WikiDomain(ref.realm)
     val p = dom.findPlugins(ref.inventory).headOption
-    val o = p.toList.flatMap(inv =>
+    val o = p.map(inv =>
       resolve(
         ref.realm,
         ref,
-        inv.findByQuery(dom.rdom, ref, epath, start, size, collectRefs)
+        inv.findByQuery(dom.rdom, ref, epath, from, size, sort, collectRefs)
       )
     )
-    o
+    o.getOrElse(DIQueryResult(0))
   }
 
   /** query all
@@ -133,18 +133,19 @@ object DomInventories extends razie.Logging {
     * @param collectRefs
     * @return
     */
-  def listAll(ref: FullSpecRef, start: Long = 0, limit: Long = 100, collectRefs: Option[mutable.HashMap[String, String]]
-  = None): List[DieselAsset[_]] = {
+  def listAll(ref: FullSpecRef, start: Long = 0, limit: Long = 100, sort: Array[String], collectRefs: Option[mutable
+  .HashMap[String, String]]
+  = None): DIQueryResult = {
     val dom = WikiDomain(ref.realm)
     val p = dom.findPlugins(ref.inventory).headOption
-    val o = p.toList.flatMap(inv =>
+    val o = p.map(inv =>
       resolve(
         ref.realm,
         ref,
-        inv.listAll(dom.rdom, ref, start, limit, collectRefs)
+        inv.listAll(dom.rdom, ref, start, limit, sort, collectRefs)
       )
     )
-    o
+    o.getOrElse(DIQueryResult(0))
   }
 
   /** turn a json value into a nice object, merge with class def and mark refs etc */
@@ -250,10 +251,10 @@ object DomInventories extends razie.Logging {
     resolve(realm,
       ref,
       e.fold(
-        p => Left(p.toList),
+        p => Left(DIQueryResult(p.toList.size, p.toList)),
         m => Right(m)
       )
-    ).headOption
+    ).data.headOption
   }
 
   /** O to DieselAsset */
@@ -328,7 +329,7 @@ object DomInventories extends razie.Logging {
   }
 
   /** for synchornous people */
-  def resolve(realm: String, ref: FullSpecRef, e: Either[List[DieselAsset[_]], EMsg]): List[DieselAsset[_]] = {
+  def resolve(realm: String, ref: FullSpecRef, e: Either[DIQueryResult, EMsg]): DIQueryResult = {
     // resolve EMrg's parameters in an empty context and run it and await?
     e.fold(
       p => p,
@@ -337,7 +338,7 @@ object DomInventories extends razie.Logging {
 
         if (p.isEmpty || !p.get.isOfType(WTypes.wt.JSON) && !p.get.isOfType(WTypes.wt.ARRAY)) {
           log("sub-flow return nothing or not a list - so no asset found!")
-          Nil
+          DIQueryResult(0)
         } else if (p.get.isOfType(WTypes.wt.JSON)) {
           val j = p.get.calculatedTypedValue(ECtx.empty).asJson
           val c = WikiDomain(realm).rdom.classes.get(p.get.ttype.schema)
@@ -345,16 +346,16 @@ object DomInventories extends razie.Logging {
           if (c.isDefined) {
             val k = j.toMap.get("key").getOrElse(j.toMap.get("ref").mkString).toString
             val o = oFromJMap(k, j.toMap, c.get, c.get.name, Array.empty)
-            List(oToA(o, ref, j.toMap, realm))
+            DIQueryResult(1, List(oToA(o, ref, j.toMap, realm)))
           }
           else
-            List(jToA(p.get, j, realm))
+            DIQueryResult(1, List(jToA(p.get, j, realm)))
         } else {
           // array
           val l = p.get.calculatedTypedValue(ECtx.empty).asArray
           val c = WikiDomain(realm).rdom.classes.get(p.get.ttype.schema)
 
-          l.collect {
+          DIQueryResult(l.size, l.collect {
             case o: P => {
               val j = o.calculatedTypedValue(ECtx.empty).asJson
               val c = WikiDomain(realm).rdom.classes.get(p.get.ttype.schema)
@@ -385,7 +386,7 @@ object DomInventories extends razie.Logging {
                 jToA(P.fromSmartTypedValue(Diesel.PAYLOAD, j), j, realm)
             }
             case x@_ => throw new DieselExprException("Unknown type for: " + x)
-          }.toList
+          }.toList)
         }
       }
     )

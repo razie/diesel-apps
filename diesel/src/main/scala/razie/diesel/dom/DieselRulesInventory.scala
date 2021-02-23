@@ -102,9 +102,11 @@ class DieselRulesInventory(
   }
 
   /** list all elements of class */
-  override def listAll(dom: RDomain, ref: FullSpecRef, start: Long, limit: Long, collectRefs: Option[mutable
-  .HashMap[String, String]] = None)
-  : Either[List[DieselAsset[_]], EMsg] = {
+  override def listAll(dom: RDomain, ref: FullSpecRef,
+                       from: Long, limit: Long, sort: Array[String],
+                       collectRefs: Option[mutable
+                       .HashMap[String, String]] = None)
+  : Either[DIQueryResult, EMsg] = {
     Right(
       new EMsg(
         "diesel.inv.impl",
@@ -181,8 +183,8 @@ class DieselRulesInventory(
           DomInventories.resolve(
             dom.name,
             ref,
-            listAll(dom, ref, 0, 100)
-          ).map { da =>
+            listAll(dom, ref, 0, 100, Array.empty[String])
+          ).data.map { da =>
             asString(da.getValueP)
           }.mkString("\n")
         }
@@ -242,8 +244,9 @@ class DieselRulesInventory(
     */
   override def findByQuery(dom: RDomain, ref: FullSpecRef, epath: Either[String, collection.Map[String, Any]],
                            from: Long = 0, size: Long = 100,
+                           sort: Array[String],
                            collectRefs: Option[mutable.HashMap[String, String]] = None):
-  Either[List[DieselAsset[_]], EMsg] = {
+  Either[DIQueryResult, EMsg] = {
 
     val attrs = epath.fold(
       s => {
@@ -269,6 +272,9 @@ class DieselRulesInventory(
           P("inventory", this.name),
           P("connection", this.conn),
           P("className", ref.cls),
+          P.fromSmartTypedValue("from", from),
+          P.fromSmartTypedValue("size", size),
+          P("sort", sort.mkString(",")),
           attrs
         ))
     )

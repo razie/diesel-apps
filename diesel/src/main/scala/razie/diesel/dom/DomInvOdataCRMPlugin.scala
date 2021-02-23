@@ -532,8 +532,9 @@ class DomInvOdataCRMPlugin(
     */
   override def findByQuery(dom: RDomain, ref: FullSpecRef, epath: Either[String, collection.Map[String, Any]],
                            from: Long = 0, size: Long = 100,
+                           sort: Array[String],
                            collectRefs: Option[mutable.HashMap[String, String]] = None):
-  Either[List[DieselAsset[_]], EMsg] = {
+  Either[DIQueryResult, EMsg] = {
 
     val host = new URI(completeUri).getHost
     val PAT = DomInventories.CLS_FIELD_VALUE
@@ -541,7 +542,7 @@ class DomInvOdataCRMPlugin(
     val PAT(cls, field, id) = epath.left.get
 
     Left(
-      dom.classes.get(cls).toList.flatMap { classDef =>
+      dom.classes.get(cls).map { classDef =>
         val oname = classOname(classDef)
 
         // the idiots use an englishly-correct plural
@@ -562,13 +563,13 @@ class DomInvOdataCRMPlugin(
 
         val v = b \ "value"
 
-        v.nodes.toList.map { n =>
+        DIQueryResult(v.nodes.size, v.nodes.toList.map { n =>
           val jo = n.j.asInstanceOf[JSONObject]
           val key = if (jo.has(oname + "id")) jo.get(oname + "id").toString else epath.left.get
           val o = oFromJ(key, jo, classDef)
           new DieselAsset[O](SpecRef.make(ref.realm, name, conn, classDef.name, key), o)
-        }
-    }
+        })
+      }.getOrElse(DIQueryResult(0))
     )
   }
 
