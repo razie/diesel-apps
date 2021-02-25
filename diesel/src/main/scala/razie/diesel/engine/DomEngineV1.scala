@@ -1328,7 +1328,7 @@ class DomEngineV1(
         } else if (vvals.size > 0 && !e.applicable(a, values)(newctx)) {
           // n/a - had a guard and guard not met
           a append DomAst(
-            TestResult("n/a").withTarget(e),
+            TestResult("n/a", "$if condition not met").withTarget(e),
             AstKinds.TEST
           ).withSpec(e)
         } else if (vvals.size > 0 && e.test(a, values, Some(cole), vvals)(newctx)) {
@@ -1336,6 +1336,13 @@ class DomEngineV1(
           a append DomAst(
             TestResult("ok").withTarget(e),
             AstKinds.TRACE
+          ).withSpec(e)
+        } else if (vvals.size == 0 && !e.applicable(a, values)(newctx)) {
+          // targeted tree generated no values, so this is a global state condition
+          // n/a - had a guard and guard not met
+          a append DomAst(
+            TestResult("n/a", "$if condition not met").withTarget(e),
+            AstKinds.TEST
           ).withSpec(e)
         } else if (vvals.size == 0 && e.test(a, Nil, Some(cole), vvals)(newctx)) {
           // targeted tree generated no values, so this is a global state condition
