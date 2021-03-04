@@ -150,14 +150,16 @@ case class DieselMsg(
     Some(this)
   )
 
-  def toJson : Map[String,Any] = {
+  def withArgs(more: Map[String, Any]) = this.copy(e, a, args ++ more, target, osettings)
+
+  def toJson: Map[String, Any] = {
     Map(
       "e" -> e,
       "a" -> a,
-      "ea" -> (e+"."+a),
+      "ea" -> (e + "." + a),
       "args" -> args,
       "target" -> target.toString
-    ) ++ osettings.map(x=> Map("osettings" -> x.toJson)
+    ) ++ osettings.map(x => Map("osettings" -> x.toJson)
     ).getOrElse(Map.empty)
   }
 
@@ -294,6 +296,7 @@ object DieselMsg {
     final val DIESEL_AFTER = "diesel.after"
     final val DIESEL_LEVELS = "diesel.levels"
     final val DIESEL_RETURN = "diesel.return"
+    final val DIESEL_SCOPE_RETURN = "diesel.scope.return"
     final val DIESEL_THROW = "diesel.throw"
     final val DIESEL_PING = "diesel.ping"
     final val DIESEL_TRY = "diesel.try"
@@ -309,6 +312,7 @@ object DieselMsg {
     final val DIESEL_PONG = "diesel.engine.pong"
     final val DIESEL_STEP = "diesel.step"
     final val DIESEL_TODO = "diesel.todo"
+    final val DIESEL_NOP = "diesel.nop"
 
     final val STEP = "step"
     final val TODO = "todo"
