@@ -299,6 +299,7 @@ object RDOM {
             case WType(WTypes.NUMBER, _, _, _, _) => P(name, s, expectedType).withCachedValue(s.toFloat, expectedType,
               s)
             case WType(WTypes.STRING, _, _, _, _) => P(name, s, expectedType).withCachedValue(s, expectedType, s)
+            case WType(WTypes.DATE, _, _, _, _) => P(name, "", expectedType).withCachedValue(s, expectedType, s)
             case WType(WTypes.EXCEPTION, _, _, _, _) => P(name, s, expectedType)
             case _ if expectedType.trim.length > 0 =>
               throw new DieselExprException(s"$expectedType is an unknown type")
@@ -462,7 +463,7 @@ object RDOM {
 
     def isUndefinedOrEmpty =
       ttype == WTypes.UNDEFINED || (
-          dflt.isEmpty && expr.isEmpty && value.isEmpty
+          expr.isEmpty && value.isEmpty && dflt.isEmpty
           )
 
     /** proper way to get the value */
@@ -473,8 +474,20 @@ object RDOM {
         calculatedTypedValue.asString
       }
 
+    /** mark this parm as dirty, clear caches etc */
+    def dirty() = {
+//      value.foreach(_.cacheString = None)
+      if (this.value.isDefined) {
+//        this.value.get.cacheString = None
+
+        val x = value.get.copy()
+        x.cacheString = None
+        this.value = Some(x)
+      }
+    }
+
     /** proper way to get the value */
-    def calculatedTypedValue(implicit ctx: ECtx) : PValue[_] =
+    def calculatedTypedValue(implicit ctx: ECtx): PValue[_] =
       value.getOrElse(
         if (expr.isEmpty) {
           PValue(currentStringValue, ttype) // someone already calculated a value, maybe a ttype as well...

@@ -5,6 +5,8 @@
  */
 package razie.diesel.expr
 
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import org.json.JSONObject
 import razie.diesel.dom.RDOM.{P, PValue}
 import razie.diesel.dom._
@@ -24,12 +26,14 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
 
     // resolve an expression to P with value and type
     def top(x: Expr): Option[P] = x match {
-      case CExpr(aa, tt)   => Some(P.fromTypedValue("", aa, tt))
-      case aei:AExprIdent  => aei.tryApplyTyped(v)
-      case _               => Some(P("", P.asString(a(v))))
+      case CExpr(aa, tt) => Some(P.fromTypedValue("", aa, tt))
+      case aei: AExprIdent => aei.tryApplyTyped(v)
+      case _ => Some(P("", P.asString(a(v))))
     }
 
     def isNum(p: P): Boolean = p.calculatedTypedValue.cType.name == WTypes.NUMBER
+
+    def isDate(p: P): Boolean = p.calculatedTypedValue.cType.name == WTypes.DATE
 
     val av = a.applyTyped(v)
 
@@ -100,7 +104,36 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
                 bei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) =>
             jsonExpr(op, a(v).toString, b(v).toString)
 
-          case _ if isNum(av) && isNum (bv) => {
+          case _ if isDate(av) => {
+            val as = a(v).toString
+            val bs = b(v).toString
+            if (!bs.matches("[0-9]+ *[nsmhdMy]"))
+              throw new DieselExprException("Right side not a duration like 5s : " + bs)
+            val bi = bs.substring(0, bs.length - 1).trim.toLong
+            val bt = bs.last
+
+            val tsFmtr = DateTimeFormatter.ofPattern(WTypes.DATE_FORMAT)
+            val ad = LocalDateTime.from(tsFmtr.parse(as))
+
+            var res = ad
+
+            bt match {
+              case 'n' => res = res.plusNanos(bi)
+              case 's' => res = res.plusSeconds(bi)
+              case 'm' => res = res.plusMinutes(bi)
+              case 'h' => res = res.plusHours(bi)
+              case 'd' => res = res.plusDays(bi)
+              case 'M' => res = res.plusMonths(bi)
+              case 'y' => res = res.plusYears(bi)
+              case _ =>
+                throw new DieselExprException("Unknown duration type [nsmhdMy] : " + bt)
+            }
+
+            val ts = tsFmtr.format(res)
+            PValue(ts, WTypes.wt.DATE).withStringCache(ts)
+          }
+
+          case _ if isNum(av) && isNum(bv) => {
             // if a is num, b will be converted to num
             val as = a(v).toString
             if (as.contains(".")) {
@@ -116,21 +149,24 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
 
           case _ => {
             // concat lists
-            if(bv.ttype == WTypes.ARRAY ||
-               av.ttype == WTypes.ARRAY) {
-              val al = if(av.ttype == WTypes.ARRAY) av.calculatedTypedValue.asArray else List(av.calculatedTypedValue.value)
-              val bl = if(bv.ttype == WTypes.ARRAY) bv.calculatedTypedValue.asArray else List(bv.calculatedTypedValue.value)
+            if (bv.ttype == WTypes.ARRAY ||
+                av.ttype == WTypes.ARRAY) {
+              val al = if (av.ttype == WTypes.ARRAY) av.calculatedTypedValue.asArray else List(
+                av.calculatedTypedValue.value)
+              val bl = if (bv.ttype == WTypes.ARRAY) bv.calculatedTypedValue.asArray else List(
+                bv.calculatedTypedValue.value)
               val res = new ListBuffer[Any]()
               res.appendAll(al)
               res.appendAll(bl)
               PValue(res, WTypes.wt.ARRAY)
-           } else  if(bv.ttype == WTypes.JSON ||
-                  av.ttype == WTypes.JSON) {
+            } else if (bv.ttype == WTypes.JSON ||
+                av.ttype == WTypes.JSON) {
               // json exprs are different, like cart + { item:...}
               try {
                 jsonExpr(op, a(v).toString, b(v).toString)
               } catch {
-                case t:Throwable => throw new DieselExprException(s"Parm ${av} or ${bv} can't be parse to JSON: " + t.toString).initCause(t)
+                case t: Throwable => throw new DieselExprException(
+                  s"Parm ${av} or ${bv} can't be parse to JSON: " + t.toString).initCause(t)
               }
             } else {
               PValue(av.calculatedValue + bv.calculatedValue)
@@ -214,6 +250,9 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
 
             case _ if bs == "json" || bs == "object" =>
               P.fromTypedValue("", as, WTypes.JSON).calculatedTypedValue
+
+            case _ if bs == "date" =>
+              P.fromTypedValue("", as, WTypes.DATE).calculatedTypedValue
 
             case _ if bs == "array" => {
               if (avv.cType.name == WTypes.JSON || avv.cType.name == WTypes.OBJECT) {

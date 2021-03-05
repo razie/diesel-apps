@@ -64,11 +64,11 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
 
       case "now" => {
         // todo singleton
-        val tsFmtr = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+        val tsFmtr = DateTimeFormatter.ofPattern(WTypes.DATE_FORMAT)
         val nw = LocalDateTime.now
         val ts = tsFmtr.format(nw)
 
-        P.fromTypedValue("", ts, WTypes.wt.STRING)
+        P.fromTypedValue("", ts, WTypes.wt.DATE)
       }
 
       case "sizeOf" => {
