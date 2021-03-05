@@ -29,21 +29,27 @@ case class JBlockExpr(ex: List[(String, Expr)], schema:Option[String]=None) exte
         case p@P(n,d,WTypes.wt.NUMBER, _, _, Some(PValue(i:Long, _))) => i
         case p@P(n,d,WTypes.wt.NUMBER, _, _, Some(PValue(i:Double, _))) => i
 
-        case p@P(n,d,WTypes.wt.BOOLEAN, _, _, Some(PValue(b:Boolean, _))) => b
+        case p@P(n, d, WTypes.wt.BOOLEAN, _, _, Some(PValue(b: Boolean, _))) => b
 
-        case p:P => p.currentStringValue match {
+        case p: P => p.currentStringValue match {
           case i: String if i.trim.startsWith("[") && i.trim.endsWith("]") => i
           case i: String if i.trim.startsWith("{") && i.trim.endsWith("}") => i
           case i => "\"" + i + "\""
         }
 
       }))
-      .map(t=> s""" "${t._1}" : ${t._2} """)
-      .mkString(",")
+    .map(t => (exname(t._1), t._2)) // expand interpolated string
+    .map(t => s""" "${t._1}" : ${t._2} """)
+    .mkString(",")
 
     // parse and clean it up so it blows up right here if invalid
     val j = new JSONObject(s"{$orig}")
     P.fromTypedValue("", j, getType)
+  }
+
+  private def exname(s: String)(implicit ctx: ECtx) = {
+    if (s contains "${") CExpr(s).apply("")
+    else s
   }
 
   override val getType: WType = schema.map(WTypes.wt.JSON.withSchema).getOrElse(WTypes.wt.JSON)
