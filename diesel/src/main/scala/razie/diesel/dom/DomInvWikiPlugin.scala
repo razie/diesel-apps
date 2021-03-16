@@ -39,7 +39,7 @@ class DomInvWikiPlugin(val specInv: DSpecInventory, val realm: String, override 
   }
 
   override def connect(dom: RDomain, env: String): Either[P, EMsg] =
-    Left(P(Diesel.PAYLOAD, "DomInvWikiPlugin connect ok"))
+    Left(P.of(Diesel.PAYLOAD, "DomInvWikiPlugin connect ok"))
 
   /** html for the supported actions */
   def htmlActions(elem: DE): String = {

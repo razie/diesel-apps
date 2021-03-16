@@ -6,6 +6,8 @@
   */
 package razie.diesel.dom
 
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import org.json.{JSONArray, JSONObject}
 import razie.diesel.engine.nodes.{CanHtml, HasPosition}
 import razie.diesel.engine.{DomEngine, EContent}
@@ -167,16 +169,21 @@ object RDOM {
       value.asInstanceOf[collection.Seq[Any]]
     }
 
-    def asRange : Range = value.asInstanceOf[Range]
+    def asRange: Range = value.asInstanceOf[Range]
 
-    def asThrowable : Throwable = value.asInstanceOf[Throwable]
+    def asThrowable: Throwable = value.asInstanceOf[Throwable]
 
-    def asInt : Int = value.toString.toInt
+    def asInt: Int = value.toString.toInt
 
-    def asBoolean : Boolean = value.toString.toBoolean
+    def asBoolean: Boolean = value.toString.toBoolean
+
+    def asDate: LocalDateTime = {
+      val tsFmtr = DateTimeFormatter.ofPattern(WTypes.DATE_FORMAT)
+      LocalDateTime.from(tsFmtr.parse(value.toString))
+    }
 
     /** this will be parsed as JS, so escape things properly */
-    def asEscapedJSString : String = {
+    def asEscapedJSString: String = {
       cType match {
         case WTypes.wt.STRING => "\"" + asString + "\""
         case _ => asString
@@ -247,30 +254,30 @@ object RDOM {
       }
 
       val res = v match {
-        case i: P           => i.copy(name=name)
-        case i: PValue[_] =>   P(name, asString(i.value), i.cType).withValue(i.value, i.cType)
-        case i: Boolean =>     P(name, asString(i), WTypes.wt.BOOLEAN).withValue(i, WTypes.wt.BOOLEAN)
-        case i: Int =>         P(name, asString(i), WTypes.wt.NUMBER).withValue(i, WTypes.wt.NUMBER)
-        case i: Long =>        P(name, asString(i), WTypes.wt.NUMBER).withValue(i, WTypes.wt.NUMBER)
-        case f: Float =>       P(name, asString(f), WTypes.wt.NUMBER).withValue(f, WTypes.wt.NUMBER)
-        case d: Double =>      P(name, asString(d), WTypes.wt.NUMBER).withValue(d, WTypes.wt.NUMBER)
-        case d: Throwable =>   P(name, d.getMessage, WTypes.wt.EXCEPTION).withValue(d, WTypes.wt.EXCEPTION)
+        case i: P => i.copy(name = name)
+        case i: PValue[_] => P(name, asString(i.value), i.cType).withValue(i.value, i.cType)
+        case i: Boolean => P(name, "", WTypes.wt.BOOLEAN).withCachedValue(i, WTypes.wt.BOOLEAN, asString(i))
+        case i: Int => P(name, "", WTypes.wt.NUMBER).withCachedValue(i, WTypes.wt.NUMBER, asString(i))
+        case i: Long => P(name, "", WTypes.wt.NUMBER).withCachedValue(i, WTypes.wt.NUMBER, asString(i))
+        case f: Float => P(name, "", WTypes.wt.NUMBER).withCachedValue(f, WTypes.wt.NUMBER, asString(f))
+        case d: Double => P(name, "", WTypes.wt.NUMBER).withCachedValue(d, WTypes.wt.NUMBER, asString(d))
+        case d: Throwable => P(name, "", WTypes.wt.EXCEPTION).withCachedValue(d, WTypes.wt.EXCEPTION, d.getMessage)
 
-        case s: ParmSource =>  P(name, "Source", WTypes.wt.SOURCE).withValue(s, WTypes.wt.SOURCE)
+        case s: ParmSource => P(name, "Source", WTypes.wt.SOURCE).withValue(s, WTypes.wt.SOURCE)
 
         case i: java.lang.Integer =>
-          P(name, asString(i), WTypes.wt.NUMBER).withValue(i.longValue, WTypes.wt.NUMBER)
+          P(name, "", WTypes.wt.NUMBER).withCachedValue(i.longValue, WTypes.wt.NUMBER, asString(i))
         case i: java.lang.Boolean =>
-          P(name, asString(i), WTypes.wt.BOOLEAN).withValue(i.booleanValue, WTypes.wt.BOOLEAN)
+          P(name, "", WTypes.wt.BOOLEAN).withCachedValue(i.booleanValue, WTypes.wt.BOOLEAN, asString(i))
         case i: java.lang.Float =>
-          P(name, asString(i), WTypes.wt.NUMBER).withValue(i.floatValue, WTypes.wt.NUMBER)
+          P(name, "", WTypes.wt.NUMBER).withCachedValue(i.floatValue, WTypes.wt.NUMBER, asString(i))
         case i: java.lang.Double =>
-          P(name, asString(i), WTypes.wt.NUMBER).withValue(i.doubleValue, WTypes.wt.NUMBER)
+          P(name, "", WTypes.wt.NUMBER).withCachedValue(i.doubleValue, WTypes.wt.NUMBER, asString(i))
         case i: java.lang.Long =>
-          P(name, asString(i), WTypes.wt.NUMBER).withValue(i.longValue, WTypes.wt.NUMBER)
+          P(name, "", WTypes.wt.NUMBER).withCachedValue(i.longValue, WTypes.wt.NUMBER, asString(i))
 
         // must be before Seq
-        case r: Range => P(name, asString(r), WTypes.wt.RANGE).withValue(r, WTypes.wt.RANGE)
+        case r: Range => P(name, "", WTypes.wt.RANGE).withCachedValue(r, WTypes.wt.RANGE, asString(r))
         // the "" dflt will force usage of value
 
         // first get the map
@@ -290,15 +297,15 @@ object RDOM {
 
         case s: String => {
           expectedType match {
-            case WType(WTypes.JSON, _, _, _, _) => P(name, s, expectedType).withCachedValue(
+            case WType(WTypes.JSON, _, _, _, _) => P(name, "", expectedType).withCachedValue(
               js.fromObject(new JSONObject(s)), expectedType, s)
-            case WType(WTypes.ARRAY, _, _, _, _) => P(name, s, expectedType).withCachedValue(
+            case WType(WTypes.ARRAY, _, _, _, _) => P(name, "", expectedType).withCachedValue(
               js.fromArray(new JSONArray(s)), expectedType, s)
-            case WType(WTypes.BOOLEAN, _, _, _, _) => P(name, s, expectedType).withCachedValue(s.toBoolean,
+            case WType(WTypes.BOOLEAN, _, _, _, _) => P(name, "", expectedType).withCachedValue(s.toBoolean,
               expectedType, s)
-            case WType(WTypes.NUMBER, _, _, _, _) => P(name, s, expectedType).withCachedValue(s.toFloat, expectedType,
+            case WType(WTypes.NUMBER, _, _, _, _) => P(name, "", expectedType).withCachedValue(s.toFloat, expectedType,
               s)
-            case WType(WTypes.STRING, _, _, _, _) => P(name, s, expectedType).withCachedValue(s, expectedType, s)
+            case WType(WTypes.STRING, _, _, _, _) => P(name, "", expectedType).withCachedValue(s, expectedType, s)
             case WType(WTypes.DATE, _, _, _, _) => P(name, "", expectedType).withCachedValue(s, expectedType, s)
             case WType(WTypes.EXCEPTION, _, _, _, _) => P(name, s, expectedType)
             case _ if expectedType.trim.length > 0 =>
@@ -408,8 +415,9 @@ object RDOM {
       res
     }
 
-    @deprecated
-    def apply(name: String, dflt: String, ttype: String): P = P(name, dflt, WType(ttype)).withValue(dflt, WType(ttype))
+//    @deprecated
+//    def apply(name: String, dflt: String, ttype: String): P = P(name, dflt, WType(ttype)).withValue(dflt, WType
+//    (ttype))
   }
 
   //  implicit def toWtype2(s:String) : WType = WType(s)

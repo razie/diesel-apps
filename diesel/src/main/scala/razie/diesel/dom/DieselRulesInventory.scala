@@ -63,9 +63,9 @@ class DieselRulesInventory(
       "diesel.inv.impl",
       "testConnection",
       List(
-        P("inventory", this.name),
-        P("connection", this.conn),
-        P("env", this.env)
+        P.of("inventory", this.name),
+        P.of("connection", this.conn),
+        P.of("env", this.env)
       )
       )
     )
@@ -77,9 +77,9 @@ class DieselRulesInventory(
       "diesel.inv.impl",
       "connect",
       List(
-        P("inventory", this.name),
-        P("connection", this.conn),
-        P("env", env)
+        P.of("inventory", this.name),
+        P.of("connection", this.conn),
+        P.of("env", env)
       )
     )
     )
@@ -91,11 +91,11 @@ class DieselRulesInventory(
       "diesel.inv.impl",
         "upsert",
       List(
-        P("inventory", this.name),
-        P("connection", this.conn),
-        P("className", ref.cls),
-        P("key", ref.key),
-        P.fromSmartTypedValue("assetRef", ref.toJson),
+        P.of("inventory", this.name),
+        P.of("connection", this.conn),
+        P.of("className", ref.cls),
+        P.of("key", ref.key),
+        P.of("assetRef", ref.toJson),
         asset.getValueP.copy(name = "entity")
       ))
     )
@@ -112,10 +112,10 @@ class DieselRulesInventory(
         "diesel.inv.impl",
         "listAll",
         List(
-          P("inventory", this.name),
-          P("connection", this.conn),
-          P("className", ref.cls),
-          P.fromSmartTypedValue("ref", ref.toJson)
+          P.of("inventory", this.name),
+          P.of("connection", this.conn),
+          P.of("className", ref.cls),
+          P.of("ref", ref.toJson)
         ))
     )
   }
@@ -130,10 +130,10 @@ class DieselRulesInventory(
         "diesel.inv.impl",
         "remove",
         List(
-          P("inventory", this.name),
-          P("connection", this.conn),
-          P("className", ref.cls),
-          P.fromSmartTypedValue("ref", ref.toJson)
+          P.of("inventory", this.name),
+          P.of("connection", this.conn),
+          P.of("className", ref.cls),
+          P.of("ref", ref.toJson)
         ))
     )
   }
@@ -245,6 +245,7 @@ class DieselRulesInventory(
   override def findByQuery(dom: RDomain, ref: FullSpecRef, epath: Either[String, collection.Map[String, Any]],
                            from: Long = 0, size: Long = 100,
                            sort: Array[String],
+                           countOnly: Boolean = false,
                            collectRefs: Option[mutable.HashMap[String, String]] = None):
   Either[DIQueryResult, EMsg] = {
 
@@ -269,12 +270,13 @@ class DieselRulesInventory(
         "diesel.inv.impl",
         "findByQuery",
         List(
-          P("inventory", this.name),
-          P("connection", this.conn),
-          P("className", ref.cls),
-          P.fromSmartTypedValue("from", from),
-          P.fromSmartTypedValue("size", size),
-          P("sort", sort.mkString(",")),
+          P.of("inventory", this.name),
+          P.of("connection", this.conn),
+          P.of("className", ref.cls),
+          P.of("from", from),
+          P.of("size", size),
+          P.of("countOnly", countOnly),
+          P.of("sort", sort.mkString(",")),
           attrs
         ))
     )
@@ -291,10 +293,10 @@ class DieselRulesInventory(
         "diesel.inv.impl",
         "findByRef",
         List(
-          P("inventory", this.name),
-          P("connection", this.conn),
-          P("className", ref.cls),
-          P.fromSmartTypedValue("ref", ref.toJson)
+          P.of("inventory", this.name),
+          P.of("connection", this.conn),
+          P.of("className", ref.cls),
+          P.of("ref", ref.toJson)
         ))
     )
   }

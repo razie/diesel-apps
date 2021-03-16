@@ -206,11 +206,11 @@ class DomInvOdataCRMPlugin(
          |listClasses=${listClasses(dom, epath).split(",").size}\n
          |
      """.stripMargin
-    Left(P(Diesel.PAYLOAD, s))
+    Left(P.of(Diesel.PAYLOAD, s))
   }
 
   override def connect(dom: RDomain, env: String): Either[P, EMsg] =
-    Left(P(Diesel.PAYLOAD, "ok"))
+    Left(P.of(Diesel.PAYLOAD, "ok"))
 
   /** html for the supported actions */
   private def getEntityAttrs(dom: RDomain, action: String, epath: String): String = {
@@ -447,7 +447,7 @@ class DomInvOdataCRMPlugin(
           val oname = classOname(c)
 
           c.parms.find(_.name == kn).map { cp =>
-            cp.copy(dflt = value.toString) // todo add PValue
+            cp.copy(dflt = value)// todo add PValue
           } getOrElse {
             // key refs
             if (kn.startsWith("_") && kn.endsWith(("_value"))) {
@@ -455,12 +455,12 @@ class DomInvOdataCRMPlugin(
               val PAT(n) = kn
 
               c.parms.find(_.name == n).map { cpk =>
-                cpk.copy(dflt = value.toString) // todo add PValue
+                cpk.copy(dflt = value) // todo add PValue
               } getOrElse {
-                P(kn, value)
+                P.of(kn, value)
               }
             } else
-              P(kn, value)
+              P.of(kn, value)
           }
         }
 
@@ -533,6 +533,7 @@ class DomInvOdataCRMPlugin(
   override def findByQuery(dom: RDomain, ref: FullSpecRef, epath: Either[String, collection.Map[String, Any]],
                            from: Long = 0, size: Long = 100,
                            sort: Array[String],
+                           countOnly: Boolean = false,
                            collectRefs: Option[mutable.HashMap[String, String]] = None):
   Either[DIQueryResult, EMsg] = {
 

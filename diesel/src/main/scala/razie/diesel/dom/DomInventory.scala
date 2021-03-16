@@ -122,7 +122,9 @@ trait DomInventory {
   def findByQuery(dom: RDomain, ref: FullSpecRef, epath: Either[String, collection.Map[String, Any]],
                   from: Long = 0, size: Long = 100,
                   sort: Array[String],
-                  collectRefs: Option[mutable.HashMap[String, String]] = None):
+                  countOnly: Boolean = false,
+                  collectRefs: Option[mutable.HashMap[String, String]] = None
+                 ):
   Either[DIQueryResult, EMsg] = ???
 
   /** remove an element by ref */
@@ -173,7 +175,7 @@ class DefaultRDomainPlugin(val specInv: DSpecInventory, val realm: String, overr
   }
 
   override def connect(dom: RDomain, env: String): Either[P, EMsg] =
-    Left(P(Diesel.PAYLOAD, "ok"))
+    Left(P.of(Diesel.PAYLOAD, "ok"))
 
   /** html for the supported actions */
   def htmlActions(elem: DE): String = {

@@ -112,6 +112,7 @@ object DomInventories extends razie.Logging {
     */
   def findByQuery(ref: FullSpecRef, epath: Either[String, collection.Map[String, Any]],
                   from: Long = 0, size: Long = 100, sort: Array[String],
+                  countOnly: Boolean = false,
                   collectRefs: Option[mutable.HashMap[String, String]] = None)
   : DIQueryResult = {
     val dom = WikiDomain(ref.realm)
@@ -120,7 +121,7 @@ object DomInventories extends razie.Logging {
       resolve(
         ref.realm,
         ref,
-        inv.findByQuery(dom.rdom, ref, epath, from, size, sort, collectRefs)
+        inv.findByQuery(dom.rdom, ref, epath, from, size, sort, countOnly, collectRefs)
       )
     )
     o.getOrElse(DIQueryResult(0))
@@ -172,7 +173,7 @@ object DomInventories extends razie.Logging {
           val oname = invClsName
 
           classDef.parms.find(_.name == kn).map { cp =>
-            cp.copy(dflt = value.toString) // todo add PValue
+            cp.copy(dflt = value) // todo add PValue
           } getOrElse {
             // todo this is odata remnants...
             if (kn.startsWith("_") && kn.endsWith(("_value"))) {
@@ -180,12 +181,12 @@ object DomInventories extends razie.Logging {
               val PAT(n) = kn
 
               classDef.parms.find(_.name == n).map { cpk =>
-                cpk.copy(dflt = value.toString) // todo add PValue
+                cpk.copy(dflt = value) // todo add PValue
               } getOrElse {
-                P(kn, value)
+                P.of(kn, value)
               }
             } else
-              P(kn, value)
+              P.of(kn, value)
           }
         }
 
@@ -214,7 +215,7 @@ object DomInventories extends razie.Logging {
           val oname = invClsName
 
           c.parms.find(_.name == kn).map { cp =>
-            cp.copy(dflt = value.toString) // todo add PValue
+            cp.copy(dflt = value) // todo add PValue
           } getOrElse {
             // key refs
             if (kn.startsWith("_") && kn.endsWith(("_value"))) {
@@ -222,12 +223,12 @@ object DomInventories extends razie.Logging {
               val PAT(n) = kn
 
               c.parms.find(_.name == n).map { cpk =>
-                cpk.copy(dflt = value.toString) // todo add PValue
+                cpk.copy(dflt = value) // todo add PValue
               } getOrElse {
-                P(kn, value)
+                P.of(kn, value)
               }
             } else
-              P(kn, value)
+              P.of(kn, value)
           }
         }
 
