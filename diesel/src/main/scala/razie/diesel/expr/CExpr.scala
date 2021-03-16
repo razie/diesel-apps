@@ -37,11 +37,11 @@ case class CExpr[T](ee: T, ttype: WType = WTypes.wt.EMPTY) extends Expr {
 
     if (ttype == WTypes.NUMBER) {
       if (es.contains("."))
-        P("", es, ttype).withValue(es.toDouble, WTypes.wt.NUMBER)
+        P("", "", ttype).withCachedValue(es.toDouble, WTypes.wt.NUMBER, es)
       else
-        P("", es, ttype).withValue(es.toLong, WTypes.wt.NUMBER)
+        P("", "", ttype).withCachedValue(es.toLong, WTypes.wt.NUMBER, es)
     } else if (ttype == WTypes.BOOLEAN) {
-      P("", es, ttype).withValue(es.toBoolean, WTypes.wt.BOOLEAN)
+      P("", "", ttype).withCachedValue(es.toBoolean, WTypes.wt.BOOLEAN, es)
     } else {
       // expand templates by default
       // important: only for STRING or unknown (default is string)
@@ -71,16 +71,16 @@ case class CExpr[T](ee: T, ttype: WType = WTypes.wt.EMPTY) extends Expr {
 
                 e1
               } getOrElse
-                s"{ERROR: ${m.group(1)}"
+                  s"{ERROR: ${m.group(1)}"
           })
         } catch {
           case e: Exception =>
             throw new DieselExprException(s"REGEX err for $es - " + e.getMessage)
-              .initCause(e)
+                .initCause(e)
         }
-        P("", s1, ttype)
+        P("", "", ttype).withCachedValue(s1, ttype, s1)
       } else
-        P("", es, ttype).withCachedValue(ee, ttype, es)
+        P("", "", ttype).withCachedValue(ee, ttype, es)
     }
   }
 

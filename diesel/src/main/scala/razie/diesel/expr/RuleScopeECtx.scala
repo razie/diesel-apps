@@ -15,6 +15,8 @@ import razie.diesel.engine.nodes.EWarning
   * todo when saving a context, do I save children too?
   *
   * todo when loading context, how do I reover active scope contexts
+  *
+  * NOTE this is used to demarcate rule scopes too
   */
 class RuleScopeECtx(
   cur: List[P] = Nil,
