@@ -297,6 +297,7 @@ object DieselMsg {
     final val DIESEL_LEVELS = "diesel.levels"
     final val DIESEL_RETURN = "diesel.return"
     final val DIESEL_SCOPE_RETURN = "diesel.scope.return"
+    final val DIESEL_RULE_RETURN = "diesel.rule.return"
     final val DIESEL_THROW = "diesel.throw"
     final val DIESEL_PING = "diesel.ping"
     final val DIESEL_TRY = "diesel.try"

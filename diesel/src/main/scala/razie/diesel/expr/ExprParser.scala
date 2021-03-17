@@ -90,10 +90,9 @@ trait ExprParser extends RegexParsers {
   }
 
   // x map (x => x+1)
-//  def exprMAP: Parser[Expr] = exprPLUS ~ rep(ows ~> opsMAP ~ ows ~ exprOR) ^^ {
-def exprMAP: Parser[Expr] = exprOR ~ rep(ows ~> opsMAP ~ ows ~ exprOR) ^^ {
-  case a ~ l => foldAssocAexpr2(a, l, faexpr2)
-}
+  def exprMAP: Parser[Expr] = exprOR ~ rep(ows ~> opsMAP ~ ows ~ exprOR) ^^ {
+    case a ~ l => foldAssocAexpr2(a, l, faexpr2)
+  }
 
   // x > y or ...
   def exprOR: Parser[Expr] = exprAND ~ rep(ows ~> (opsOR <~ ws) ~ ows ~ exprAND) ^^ {
@@ -321,6 +320,7 @@ private def accessorIdent: Parser[RDOM.P] = "." ~> ident ^^ { case id => P("", i
 
   // calling a function, this is not defining it, so no type annotations etc
   // named parameters need to be mentioned, unless it's just one
+  // a.b.c(
   def callFunc: Parser[Expr] = qident ~ attrs ^^ { case i ~ a => AExprFunc(i, a) }
 
   /**

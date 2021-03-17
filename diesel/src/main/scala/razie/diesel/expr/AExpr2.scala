@@ -5,7 +5,7 @@
  */
 package razie.diesel.expr
 
-import java.time.LocalDateTime
+import java.time.{Duration, LocalDateTime}
 import java.time.format.DateTimeFormatter
 import org.json.JSONObject
 import razie.diesel.dom.RDOM.{P, PValue}
@@ -189,6 +189,14 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
                 bei.tryApplyTyped("").exists(_.ttype == WTypes.JSON) =>
             jsonExpr(op, a(v).toString, b(v).toString)
 
+          case _ if isDate(av) && isDate(bv) => {
+            // if a is num, b will be converted to num
+            val ad = av.calculatedTypedValue.asDate
+            val bd = bv.calculatedTypedValue.asDate
+            val d = Duration.between(bd, ad).toMillis / 1000;
+            PValue(d, WTypes.wt.NUMBER)
+          }
+
           case _ if isNum(av) && isNum(bv) => {
             // if a is num, b will be converted to num
             val as = av.calculatedValue
@@ -312,7 +320,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
                 val res = b.applyTyped(x)
                 res
               } else {
-                // we populate an "x" or should it be "elem" ?
+                // todo we populate an "x" or should it be "elem" ?
                 val sctx = new StaticECtx(List(P.fromTypedValue("x", x)), Some(ctx))
                 val res = b.applyTyped(x)(sctx)
                 res
@@ -453,6 +461,34 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
 
             val finalArr = resArr
             PValue(finalArr, WTypes.wt.ARRAY)
+          }
+
+          case WTypes.JSON => {
+            val arr = av.asJson
+
+            val resArr = arr.filter { x =>
+              val xj = P.fromSmartTypedValue("x", Map("key" -> x._1, "value" -> x._2))
+
+              val res = if (b.isInstanceOf[LambdaFuncExpr]) {
+                // arr map x => f
+                val res = b.applyTyped(xj)
+                res
+              } else if (b.isInstanceOf[BlockExpr] && b.asInstanceOf[BlockExpr].ex.isInstanceOf[LambdaFuncExpr]) {
+                // arr map (x => f)
+                // common case, no need to go through context, Block passes through to Lambda
+                val res = b.applyTyped(xj)
+                res
+              } else {
+                // we populate an "x" or should it be "elem" ?
+                val sctx = new StaticECtx(List(P.fromTypedValue("x", x)), Some(ctx))
+                val res = b.applyTyped(xj)(sctx)
+                res
+              }
+              res.calculatedTypedValue.asBoolean
+            }
+
+            val finalArr = resArr
+            PValue(finalArr, WTypes.wt.JSON)
           }
 
           case _ => PValue(new DieselExprException("Can't do filter on: " + av), WTypes.wt.EXCEPTION)

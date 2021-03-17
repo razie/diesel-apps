@@ -175,7 +175,7 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
           throw new DieselExprException(s"No arguments for $expr")
         )
 
-        case _ => {
+      case _ => {
 
         // must be in form x...y.func
         val PAT = """([\w.]+)[./](\w+)""".r
@@ -214,6 +214,8 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
                 0
 
             // a message with this name found, call it sync
+
+            // NOTE - need to use ctx to access values in context etc, i..e map (x => a.b(x))
             val res = newe.execSync(ast, level, ctx)
 
             ast.setKinds(AstKinds.TRACE)
@@ -231,7 +233,7 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
             // todo add more ast info?
           EEFunc.exec(msg, f)
         } getOrElse {
-          throw new DieselExprException("Function/Message not found: " + expr)
+          throw new DieselExprException("Function/Message not found OR no payload resulted: " + expr)
         }
       }
     }
