@@ -23,8 +23,10 @@ trait DomEngineExpander {
   /** expand/execute a node */
 
   protected def expand(a: DomAst, recurse: Boolean = true, level: Int): List[DEMsg]
+
   /** expand/execute a message node */
-  protected def expandEMsg(a: DomAst, in: EMsg, recurse: Boolean, level: Int, parentCtx:ECtx) : List[DomAst]
+  protected def expandEMsg(a: DomAst, in: EMsg, recurse: Boolean, level: Int, parentCtx: ECtx): (List[DomAst],
+      List[DomAst])
 
 }
 

@@ -257,9 +257,11 @@ class DomEngineV1(
   }
 
   /** expand a single message */
-  protected override def expandEMsg(a: DomAst, in: EMsg, recurse: Boolean, level: Int, parentCtx: ECtx): List[DomAst]
+  protected override def expandEMsg(a: DomAst, in: EMsg, recurse: Boolean, level: Int, parentCtx: ECtx):
+  (List[DomAst], List[DomAst])
   = {
     var newNodes: List[DomAst] = Nil // nodes generated this call collect here
+    var skippedNodes: List[DomAst] = Nil // nodes skipped during this call collect here
 
     implicit var ctx = parentCtx
 
@@ -297,7 +299,9 @@ class DomEngineV1(
     a.childrenCol.clear() // remove them so we don't have duplicates in tree - they will be processed later
 
     // 1. engine message?
-    var mocked = expandEngineEMsg(a, n)
+    var (mocked, skipped) = expandEngineEMsg(a, n, newNodes)
+
+    skippedNodes = skippedNodes ::: skipped
 
     var mocksApplied = HashMap[String, EMock]()
 
@@ -562,7 +566,7 @@ class DomEngineV1(
       }
     }
 
-    newNodes
+    (newNodes, skippedNodes)
   }
 
   /** reused - execute a rule */
@@ -593,6 +597,9 @@ class DomEngineV1(
         val parent = findParent(level - 1)
         parent.appendAllNoEvents(List(ast)) // todo I'm not creating events for persist for this
         None //child was consumed
+
+        // the way leveled children work: when processing the parent message, they are REMOVED and re-added as
+        // "generated" nodes
       } else {
         throw new DieselExprException("child level negative in ruleDecomp")
       }
@@ -670,7 +677,7 @@ class DomEngineV1(
     // I was going to allow single sets to go up, but NAH, they make it too random behaviour - all sets behave the same
 
     val oldCtx = a.getCtx.get.asInstanceOf[SimpleECtx]
-    val newParentCtx = a.getCtx.get.base
+    val newParentCtx = a.getCtx.get.base.orElse(a.getCtx)
     val replacementCtx = new RuleScopeECtx(oldCtx.cur, newParentCtx, Some(a)).replacing(oldCtx)
     a.replaceCtx(replacementCtx)
 
@@ -704,270 +711,433 @@ class DomEngineV1(
     result
   }
 
-  /** if it's an internal engine message, execute it */
-  private def expandEngineEMsg(a: DomAst, in: EMsg)(implicit ctx: ECtx): Boolean = {
+  /** if it's an internal engine message, execute it
+    *
+    * @param a
+    * @param in
+    * @param childrenIfAny children of the current node, if there were any - see call site
+    * @param ctx
+    * @return
+    */
+  private def expandEngineEMsg(a: DomAst, in: EMsg, childrenIfAny: List[DomAst])(implicit ctx: ECtx): (Boolean,
+      List[DomAst]) = {
+    var skippedNodes = new ListBuffer[DomAst] // nodes skipped during this call collect here
+
     val ea = in.ea
 
-    if (ea == DieselMsg.ENGINE.DIESEL_EXIT) {
-      Audit.logdb("DIESEL_EXIT", s"user ${settings.userId}")
+    def skipNode(ast: DomAst, state: String) = {
+      skippedNodes.append(ast)
+      evChangeStatus(ast, state)
+    }
 
-      if (Config.isLocalhost) {
-        System.exit(-1)
-      }
+    val res = {
+      if (ea == DieselMsg.ENGINE.DIESEL_NOP) {
+        Audit.logdb("DIESEL_NOP", s"user ${settings.userId}")
 
-      true
+        true
 
-    } else if (ea == DieselMsg.ENGINE.DIESEL_CRASHAKKA) {
-      Audit.logdb("DIESEL_CRASHAKKA", s"user ${settings.userId}")
+      } else if (ea == DieselMsg.ENGINE.DIESEL_EXIT) {
+        Audit.logdb("DIESEL_EXIT", s"user ${settings.userId}")
 
-      if (Config.isLocalhost) {
-        DieselAppContext.getActorSystem.terminate()
-      }
-
-      true
-
-    } else if (ea == DieselMsg.ENGINE.DIESEL_RETURN) {
-      // expand all spec vals
-      in.attrs.map(_.calculatedP).foreach { p =>
-        evAppChildren(a, DomAst(EVal(p)))
-        // set into scope context, since we're finishing this scope
-        setSmartValueInContext(a, a.getCtx.get.getScopeCtx, p)
-//        setSmartValueInContext(a, a.getCtx.get.root, p) // set into root context, since we're returning
-      }
-
-      // stop other children
-      findParent(a).collect {
-        // first parent may be a ENext, see through
-        case ast if ast.value.isInstanceOf[ENext] => findParent(ast)
-        case ast@_ => Some(ast)
-      }.flatten.toList.flatMap(_.children).foreach { ast =>
-        if (!DomState.isDone(ast.status)) {
-          evChangeStatus(ast, DomState.SKIPPED)
+        if (Config.isLocalhost) {
+          System.exit(-1)
         }
-      }
-      true
 
-    } else if (ea == DieselMsg.ENGINE.DIESEL_THROW) {
+        true
 
-      // todo
-      // exc has scope, exception, message and more stuff
-      // default scope is global, other values: "scope" or "rest" or "local"
+      } else if (ea == DieselMsg.ENGINE.DIESEL_CRASHAKKA) {
+        Audit.logdb("DIESEL_CRASHAKKA", s"user ${settings.userId}")
 
-      // todo also while recursing see if htere's matching CATCH and stop skipping
-
-      var msg = "diesel.thrown"
-      var code: Option[Int] = Some(500) // default code
-
-      // expand all spec vals
-      in.attrs.map(_.calculatedP).foreach { p =>
-        evAppChildren(a, DomAst(EVal(p)))
-        setSmartValueInContext(a, a.getCtx.get.getScopeCtx, p) // set to scope directly, as we're exiting the others
-
-        if (p.name == Diesel.PAYLOAD || p.name == "msg") {
-          msg = p.currentStringValue
-        } else if (p.name == DieselMsg.HTTP.STATUS) {
-          code = Some(p.calculatedTypedValue.asInt)
+        if (Config.isLocalhost) {
+          DieselAppContext.getActorSystem.terminate()
         }
-      }
 
-      var caught = false
-      val aLevel = findLevel(a)
+        true
 
-      // stop other children
-      // todo find cur scope, not parent
-      findScope(a).collect {
-        // first parent may be a ENext, see through
-//        case ast if ast.value.isInstanceOf[ENext] => findParent(ast)
-        case ast@_ => Some(ast)
-      }.flatten.toList.flatMap(_.children).foreach { ast =>
-        if (!caught &&
-            ast.value.isInstanceOf[EMsg] &&
-            ast.value.asInstanceOf[EMsg].ea == DieselMsg.ENGINE.DIESEL_CATCH &&
-            findLevel(ast) >= aLevel // only if it's higher level or sibbling
-        // todo should i also check I don't know what, to make sure it was meant to catch me?
-        ) {
-          caught = true // stop when caught
-          // todo add info to the catch that it caught this
-        } else if (!DomState.isDone(ast.status) && !caught) {
-          evChangeStatus(ast, DomState.SKIPPED)
+      } else if (ea == DieselMsg.ENGINE.DIESEL_RETURN) {
+        // expand all spec vals
+        in.attrs.map(_.calculatedP).foreach { p =>
+          evAppChildren(a, DomAst(EVal(p)))
+          setSmartValueInContext(a, a.getCtx.get.root, p) // set into root context, since we're returning
         }
-      }
 
-      // todo then set payload to exception
-      val ex = new DieselException(msg, code)
+        // story node prevents an entire test terminated because one story used diesel.return
+        val scope = findParentWith(a, _.isInstanceOf[StoryNode]).getOrElse(root)
 
-      val p = EVal(P(Diesel.PAYLOAD, msg, WTypes.wt.EXCEPTION).withValue(ex, WTypes.wt.EXCEPTION))
-      setSmartValueInContext(a, a.getCtx.get.getScopeCtx, p.p) // set straight to scope
+        // stop other children
+        val skipped = scope.collect {
+          case ast if (!DomState.isDone(ast.status)) => {
+            if (DomState.inProgress(ast.status)) {
+              skipNode(ast, DomState.CANCEL)
+            } else {
+              skipNode(ast, DomState.SKIPPED)
+            }
+          }
+            ast
+        }
 
-      val newD = DomAst(new EError("Exception:", ex), AstKinds.ERROR)
-      evAppChildren(a, newD)
+        val newD = DomAst(new EInfo(s"Skipped ${skipped.size} nodes", ""), AstKinds.GENERATED)
+        evAppChildren(a, newD)
 
-      true
+        true
 
-    } else if (ea == DieselMsg.ENGINE.DIESEL_ASSERT) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_SCOPE_RETURN) {
+        // expand all spec vals
+        in.attrs.map(_.calculatedP).foreach { p =>
+          evAppChildren(a, DomAst(EVal(p)))
+          // set into scope context, since we're finishing this scope
+          setSmartValueInContext(a, a.getCtx.get.getScopeCtx, p)
+        }
 
-      // evaluate all boolean parms
-      val cp = in.attrs.map(_.calculatedP)
-      val bcp = cp.filter(_.isOfType(WTypes.wt.BOOLEAN)).map { p =>
-        p.value.get.asBoolean
-      }
-      val res = bcp.foldRight(true)((a, b) => a && b)
+        // stop other children of scope
+        val skipped = findScope(a).collect {
+          case ast if (!DomState.isDone(ast.status)) => {
+            if (DomState.inProgress(ast.status)) {
+              skipNode(ast, DomState.CANCEL)
+            } else {
+              skipNode(ast, DomState.SKIPPED)
+            }
+          }
+            ast
+        }
 
-      val newD =
-        if (res && bcp.size > 0)
-          DomAst(new EInfo("assert satisfied"), AstKinds.GENERATED)
-        else
-          DomAst(new EMsg("diesel", "return", cp.filter(!_.isOfType(WTypes.wt.BOOLEAN))),
-            AstKinds.GENERATED)
-      evAppChildren(a, newD)
-      true
+        val newD = DomAst(new EInfo(s"Skipped ${skipped.size} nodes", ""), AstKinds.GENERATED)
+        evAppChildren(a, newD)
 
-    } else if (ea == DieselMsg.ENGINE.DIESEL_LATER) {
+        true
+
+      } else if (ea == DieselMsg.ENGINE.DIESEL_RULE_RETURN) {
+        // expand all spec vals
+        in.attrs.map(_.calculatedP).foreach { p =>
+          evAppChildren(a, DomAst(EVal(p)))
+          // set into scope context, since we're finishing this scope
+          setSmartValueInContext(a, a.getCtx.get.getScopeCtx, p)
+        }
+
+        // stop other children of scope
+        val rule = findParentWith(a, _.getMyOwnCtx.exists(_.isInstanceOf[RuleScopeECtx]))
+        val toSkip = rule.orElse(Some(findScope(a))).collect {
+          // first parent may be a ENext, see through
+          case ast if ast.value.isInstanceOf[ENext] => findParent(ast)
+          case ast@_ => Some(ast)
+        }.flatten.toList.flatMap(_.children)
+
+        var counter = 0
+        toSkip.foreach { a =>
+          a.collect {
+            case ast if (!DomState.isDone(ast.status)) => {
+              counter += 1
+              if (DomState.inProgress(ast.status)) {
+                skipNode(ast, DomState.CANCEL)
+              } else {
+                skipNode(ast, DomState.SKIPPED)
+              }
+              ast
+            }
+          }
+        }
+
+        val newD = DomAst(new EInfo(s"Skipped ${counter} nodes", ""), AstKinds.GENERATED)
+        evAppChildren(a, newD)
+
+        true
+
+      } else if (ea == DieselMsg.ENGINE.DIESEL_THROW) {
+
+        // todo
+        // exc has scope, exception, message and more stuff
+        // default scope is global, other values: "scope" or "rest" or "local"
+
+        // todo also while recursing see if htere's matching CATCH and stop skipping
+
+        var msg = "diesel.thrown"
+        var code: Option[Int] = Some(500) // default code
+
+        // expand all spec vals
+        in.attrs.map(_.calculatedP).foreach { p =>
+          evAppChildren(a, DomAst(EVal(p)))
+          setSmartValueInContext(a, a.getCtx.get.getScopeCtx, p) // set to scope directly, as we're exiting the others
+
+          if (p.name == Diesel.PAYLOAD || p.name == "msg") {
+            msg = p.currentStringValue
+          } else if (p.name == DieselMsg.HTTP.STATUS) {
+            code = Some(p.calculatedTypedValue.asInt)
+          }
+        }
+
+        var caught = false
+        val aLevel = findLevel(a)
+
+        // stop other children
+        // todo find cur scope, not parent
+        findScope(a).collect {
+          case ast@_ => Some(ast)
+        }.flatten.toList.flatMap(_.children).foreach { ast =>
+          if (
+            false && !caught &&
+                (
+                    ast.value.isInstanceOf[EMsg] &&
+                        ast.value.asInstanceOf[EMsg].ea == DieselMsg.ENGINE.DIESEL_CATCH
+                    )
+          //&&
+//            findLevel(ast) <= aLevel // only if it's higher level or sibbling
+          // todo should i also check I don't know what, to make sure it was meant to catch me?
+          // todo that it comes after ME
+          // todo that it didn't catch something already?
+          ) {
+            val x = findLevel(ast)
+            caught = true // stop when caught
+
+            val old = ast.value.asInstanceOf[EMsg]
+
+            // todo add info to the catch that it caught this
+            ast.value = old.copy(
+              attrs = old.attrs ++ List(
+                P.fromSmartTypedValue("caught", true),
+                P.fromSmartTypedValue("exception", msg)
+              )
+            ).copiedFrom(old)
+            // todo record this change in state for engine recovery
+          } else if (
+            false &&
+                !caught &&
+                (
+                    ast.value.isInstanceOf[ENext] &&
+                        ast.value.asInstanceOf[ENext].msg.ea == DieselMsg.ENGINE.DIESEL_CATCH
+                    )
+          //&&
+//            findLevel(ast) <= aLevel // only if it's higher level or sibbling
+          // todo should i also check I don't know what, to make sure it was meant to catch me?
+          // todo that it comes after ME
+          // todo that it didn't catch something already?
+          ) {
+            val x = findLevel(ast)
+            caught = true // stop when caught
+
+            val oldm = ast.value.asInstanceOf[ENext].msg
+            val olde = ast.value.asInstanceOf[ENext]
+
+            // todo add info to the catch that it caught this
+            val newm = oldm.copy(
+              attrs = oldm.attrs ++ List(
+                P.fromSmartTypedValue("caught", true),
+                P.fromSmartTypedValue("exception", msg)
+              )
+            ).copiedFrom(oldm)
+
+            ast.value = olde.copy(msg = newm).copiedFrom(olde)
+
+            // todo record this change in state for engine recovery
+          } else if (!DomState.isDone(ast.status) && !caught) {
+            skipNode(ast, DomState.SKIPPED)
+          }
+        }
+
+        // todo then set payload to exception
+        val ex = new DieselException(msg, code)
+
+        val p = EVal(P(Diesel.PAYLOAD, msg, WTypes.wt.EXCEPTION).withValue(ex, WTypes.wt.EXCEPTION))
+        setSmartValueInContext(a, a.getCtx.get.getScopeCtx, p.p) // set straight to scope
+
+        val newD = DomAst(new EError("Exception:", ex), AstKinds.ERROR)
+        evAppChildren(a, newD)
+
+        true
+
+      } else if (ea == DieselMsg.ENGINE.DIESEL_TRY) {
+        // rudimentary TRY scope for catch.
+        // normally we'd have CATCH apply to the enclosing scope, but we don't have a good EEScope
+
+        val newD = DomAst(new EScope("diesel.try:", ""), AstKinds.GENERATED)
+        evAppChildren(a, newD)
+        true
+
+      } else if (ea == DieselMsg.ENGINE.DIESEL_CATCH) {
+
+        // todo handle
+        // for the current scope, stop prpag exc and handle if matching
+        // exc has attrs: exception and message and then more crap
+        // catch must match
+
+        // for now - let's just handle scope exceptions
+
+        var inScope = false
+        var done = false
+
+        // 1. am I in scope?
+        findScope(a).collect {
+          case ast@_ => Some(ast)
+        }.flatten.toList.flatMap(_.children).foreach { ast =>
+          if (!done) {
+            ast.collect({
+              // todo more generic scope ident
+              // the idea is that catch works in a scope, not just inside try
+              case x if x.value.isInstanceOf[EMsg] && x.value.asInstanceOf[EMsg].ea == DIESEL_TRY => {
+                inScope = true
+              }
+            })
+
+            if (ast eq a) {
+              done = true // found myself - stop - good for seq todo handle par
+            }
+          }
+        }
+
+        done = false
+
+        var handledError = false
+
+        val exc = new ListBuffer[P]()
+
+        findScope(a).collect {
+          case ast@_ => Some(ast)
+        }.flatten.toList.flatMap(_.children).foreach { ast =>
+          // find any EError and mark it "handled"
+          if (!done) {
+            ast.collect({
+              case x if x.value.isInstanceOf[EError] && !x.value.asInstanceOf[EError].handled /* && inScope */ => {
+                val ee = x.value.asInstanceOf[EError]
+                ee.handled = true
+                val newD = DomAst(new EInfo("caught:" + ee.msg, ""), AstKinds.GENERATED)
+                evAppChildren(a, newD)
+                handledError = true
+
+                val p = P.fromSmartTypedValue("exception", Map(
+                  "code" -> ee.code,
+                  "message" -> ee.msg,
+                  "details" -> ee.details
+                ))
+
+                exc.append(p)
+
+                val v = DomAst(new EVal(p), AstKinds.GENERATED)
+                evAppChildren(a, v)
+                setSmartValueInContext(a, ctx.getScopeCtx, p)
+              }
+            })
+
+            if (ast eq a) {
+              done = true // found myself - stop - good for seq todo handle par
+            }
+          }
+        }
+
+        val p = P.fromSmartTypedValue("exceptions", exc.toList)
+        val v = DomAst(new EVal(p), AstKinds.GENERATED)
+        evAppChildren(a, v)
+        setSmartValueInContext(a, ctx.getScopeCtx, p)
+
+
+        // todo if DONE vs CAUGHT - done means just exception found, no "throw" found
+
+        // IF diesel.throw was used, it will have this attribute in case something was "caught"
+        val caught = in.attrs.exists(p => p.name == "caught" && p.calculatedTypedValue.asBoolean == true)
+
+        // skip other children if no exception
+        if (!(handledError || caught)) childrenIfAny.foreach { ast =>
+          if (!DomState.isDone(ast.status)) {
+            ast.status = DomState.SKIPPED
+            // todo this bombs if the children are not in tree yet...
+//          evChangeStatus(ast, DomState.SKIPPED)
+          }
+        }
+
+        true
+
+      } else if (ea == DieselMsg.ENGINE.DIESEL_ASSERT) {
+
+        // evaluate all boolean parms
+        val cp = in.attrs.map(_.calculatedP)
+        val bcp = cp.filter(_.isOfType(WTypes.wt.BOOLEAN)).map { p =>
+          p.value.get.asBoolean
+        }
+        val res = bcp.foldRight(true)((a, b) => a && b)
+
+        val newD =
+          if (res && bcp.size > 0)
+            DomAst(new EInfo("assert satisfied"), AstKinds.GENERATED)
+          else
+            DomAst(new EMsg("diesel", "return", cp.filter(!_.isOfType(WTypes.wt.BOOLEAN))),
+              AstKinds.GENERATED)
+        evAppChildren(a, newD)
+        true
+
+      } else if (ea == DieselMsg.ENGINE.DIESEL_LATER) {
 //      // send new message async later at the root level
 //      val EMsg.REGEX(e, m) = ctx.getRequired("msg")
 //      val nat = in.attrs.filter(e => !Array("msg").contains(e.name))
 //
 //      evAppChildren(findParent(findParent(a).get).get, DomAst(EMsg(e, m, nat), AstKinds.GENERATED))
-      false
+        false
 
-    } else if (ea == DieselMsg.ENGINE.DIESEL_LEVELS) {
-      engine.maxLevels = ctx.getRequired("max").toInt
-      true
+      } else if (ea == DieselMsg.ENGINE.DIESEL_LEVELS) {
+        engine.maxLevels = ctx.getRequired("max").toInt
+        true
 
-    } else if (ea == DieselMsg.ENGINE.DIESEL_TRY) {
-      // rudimentary TRY scope for catch.
-      // normally we'd have CATCH apply to the enclosing scope, but we don't have a good EEScope
+      } else if (ea == DieselMsg.ENGINE.DIESEL_PONG) {
 
-      val newD = DomAst(new EScope("diesel.try:", ""), AstKinds.GENERATED)
-      evAppChildren(a, newD)
-      true
+        // expand vals
+        val nctx = mkMsgContext(Some(in), calcMsg(a, in)(ctx).attrs, ctx, a)
 
-    } else if (ea == DieselMsg.ENGINE.DIESEL_CATCH) {
+        val parentId = nctx.getRequired("parentId")
+        val targetId = nctx.getRequired("targetId")
+        val level = nctx.getRequired("level").toInt
 
-      // todo handle
-      // for the current scope, stop prpag exc and handle if matching
-      // exc has attrs: exception and message and then more crap
-      // catch must match
+        notifyParent(a, parentId, targetId, level)
+        true
 
-      // for now - let's just handle scope exceeeeeptions
+      } else if (ea == DieselMsg.ENGINE.DIESEL_VALS) {
 
-      var inScope = false
-      var done = false
+        // expand all spec vals
+        dom.moreElements.collect {
+          case v: EVal => {
+            evAppChildren(a, DomAst(v, AstKinds.TRACE))
+            // do not calculate here - keep them more like exprs .calculatedP)
 
-      // 1. am I in scope?
-      // todo find cur scope, not parent
-      findScope(a).collect {
-        // first parent may be a ENext, see through
-//        case ast if ast.value.isInstanceOf[ENext] => findParent(ast)
-        case ast@_ => Some(ast)
-      }.flatten.toList.flatMap(_.children).foreach { ast =>
-        if (!done) {
-          ast.collect({
-            // todo more generic scope ident
-            // the idea is that catch works in a scope, not just inside try
-            case x if x.value.isInstanceOf[EMsg] && x.value.asInstanceOf[EMsg].ea == DIESEL_TRY => {
-              inScope = true
-            }
-          })
-
-          if (ast eq a) {
-            done = true // found myself - stop - good for seq todo handle par
-          }
-        }
-      }
-
-      done = false
-
-      // stop other children
-      // todo find cur scope, not parent
-      findScope(a).collect {
-        // first parent may be a ENext, see through
-//        case ast if ast.value.isInstanceOf[ENext] => findParent(ast)
-        case ast@_ => Some(ast)
-      }.flatten.toList.flatMap(_.children).foreach { ast =>
-        // find any EError and mark it "handled"
-        if (!done) {
-          ast.collect({
-            case x if x.value.isInstanceOf[EError] && !x.value.asInstanceOf[EError].handled && inScope => {
-              val ee = x.value.asInstanceOf[EError]
-              ee.handled = true
-              val newD = DomAst(new EInfo("caught:" + ee.msg, ""), AstKinds.GENERATED)
-              evAppChildren(a, newD)
-            }
-          })
-
-          if (ast eq a) {
-            done = true // found myself - stop - good for seq todo handle par
-          }
-        }
-      }
-
-      true
-
-    } else if (ea == DieselMsg.ENGINE.DIESEL_PONG) {
-
-      // expand vals
-      val nctx = mkMsgContext(Some(in), calcMsg(a, in)(ctx).attrs, ctx, a)
-
-      val parentId = nctx.getRequired("parentId")
-      val targetId = nctx.getRequired("targetId")
-      val level = nctx.getRequired("level").toInt
-
-      notifyParent(a, parentId, targetId, level)
-      true
-
-    } else if (ea == DieselMsg.ENGINE.DIESEL_VALS) {
-
-      // expand all spec vals
-      dom.moreElements.collect {
-        case v: EVal => {
-          evAppChildren(a, DomAst(v, AstKinds.TRACE))
-          // do not calculate here - keep them more like exprs .calculatedP)
-
-          // todo this causes all kinds of weird issues
+            // todo this causes all kinds of weird issues
 
 //          setSmartValueInContext(a, this.ctx, v.p)
 
 //          this.engine.ctx.put(v.p) // do not calculate p, just set it at root level
-          a.getCtx.get.getScopeCtx.put(v.p) // do not calculate p, just set it at root level
+            a.getCtx.get.getScopeCtx.put(v.p) // do not calculate p, just set it at root level
+          }
         }
-      }
 
-      true
+        true
 
-    } else if (ea == DieselMsg.ENGINE.DIESEL_WARNINGS) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_WARNINGS) {
 
-      // expand all domain warnings
-      dom.moreElements.collect {
-        case v: EWarning => {
-          evAppChildren(a, DomAst(v, AstKinds.DEBUG))
+        // expand all domain warnings
+        dom.moreElements.collect {
+          case v: EWarning => {
+            evAppChildren(a, DomAst(v, AstKinds.DEBUG))
+          }
         }
-      }
 
-      true
+        true
 
-    } else if (ea == DieselMsg.ENGINE.DIESEL_SYNC) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_SYNC) {
 
-      // turn the engine sync
-      ctx.root.engine.map(_.synchronous = true)
-      true
+        // turn the engine sync
+        ctx.root.engine.map(_.synchronous = true)
+        true
 
-    } else if (ea == DieselMsg.ENGINE.DIESEL_ASYNC) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_ASYNC) {
 
-      // turn the engine async
-      ctx.root.engine.map(_.synchronous = false)
-      true
+        // turn the engine async
+        ctx.root.engine.map(_.synchronous = false)
+        true
 
-    } else if (ea == DieselMsg.SCOPE.DIESEL_PUSH) {
+      } else if (ea == DieselMsg.SCOPE.DIESEL_PUSH) {
 
-      // todo use the DomAst ctx now, not the current
+        // todo use the DomAst ctx now, not the current
 //      this.ctx = new ScopeECtx(Nil, Some(this.ctx), Some(a))
-      true
+        true
 
-    } else if (ea == DieselMsg.SCOPE.DIESEL_POP) {
+      } else if (ea == DieselMsg.SCOPE.DIESEL_POP) {
 
-      // todo use the DomAst ctx now, not the current
-      // find the closest scope and pop it
+        // todo use the DomAst ctx now, not the current
+        // find the closest scope and pop it
 //      var sc: Option[ECtx] = Some(this.ctx)
 //
 //      while (sc.isDefined && !sc.exists(p => p.isInstanceOf[ScopeECtx])) {
@@ -980,162 +1150,166 @@ class DomEngineV1(
 //        evAppChildren(a, DomAst(EError("trying to pop a non-scope...", in.toString)))
 //      }
 
-      true
+        true
 
-    } else if (ea == DieselMsg.SCOPE.RULE_PUSH) {
+      } else if (ea == DieselMsg.SCOPE.RULE_PUSH) {
 
-      this.ctx = new RuleScopeECtx(Nil, Some(this.ctx), Some(a))
-      true
+        this.ctx = new RuleScopeECtx(Nil, Some(this.ctx), Some(a))
+        true
 
-    } else if (ea == DieselMsg.SCOPE.RULE_POP) {
+      } else if (ea == DieselMsg.SCOPE.RULE_POP) {
 
-      assert(this.ctx.isInstanceOf[RuleScopeECtx])
-      this.ctx = this.ctx.base.get
-      true
+        assert(this.ctx.isInstanceOf[RuleScopeECtx])
+        this.ctx = this.ctx.base.get
+        true
 
-    } else if (ea == "diesel.engine.debug") {
+      } else if (ea == "diesel.engine.debug") {
 
-      val s = this.settings.toJson
-      val c = this.ctx.toString
-      val e = this.toString
-      evAppChildren(a, DomAst(EInfo("settings", js.tojsons(s)), AstKinds.DEBUG))
-      evAppChildren(a, DomAst(EInfo("ctx", c), AstKinds.DEBUG))
-      evAppChildren(a, DomAst(EInfo("engine", e), AstKinds.DEBUG))
-      true
+        val s = this.settings.toJson
+        val c = this.ctx.toString
+        val e = this.toString
+        evAppChildren(a, DomAst(EInfo("settings", js.tojsons(s)), AstKinds.DEBUG))
+        evAppChildren(a, DomAst(EInfo("ctx", c), AstKinds.DEBUG))
+        evAppChildren(a, DomAst(EInfo("engine", e), AstKinds.DEBUG))
+        true
 
-    } else if (ea == DieselMsg.ENGINE.DIESEL_ENG_SET) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_ENG_SET) {
 
-      // todo move this to an executor
+        // todo move this to an executor
 
-      // NOTE: this may be a security risk - they can set trust and stuff -  limit to only some parms
-      in.attrs.foreach { p =>
-        val v = p.currentStringValue
-        p.name match {
+        // NOTE: this may be a security risk - they can set trust and stuff -  limit to only some parms
+        in.attrs.foreach { p =>
+          val v = p.currentStringValue
+          p.name match {
 
-          case "diesel.engine.settings.collectCount" | "collectCount" => {
-            this.settings.collectCount = Option(v.toInt)
-            // if it has collect settings there must be a group
-            if (settings.collectGroup.isEmpty) {
-              settings.collectGroup = Some(
-                description) // set it to desc just to be sure - it should be reset here as well
+            case "diesel.engine.settings.collectCount" | "collectCount" => {
+              this.settings.collectCount = Option(v.toInt)
+              // if it has collect settings there must be a group
+              if (settings.collectGroup.isEmpty) {
+                settings.collectGroup = Some(
+                  description) // set it to desc just to be sure - it should be reset here as well
+              }
+            }
+
+            case "diesel.engine.settings.collectGroup" | "collectGroup" => {
+              this.settings.collectGroup = Option(v)
+            }
+
+            case "diesel.engine.maxLevels" | "maxLevels" => {
+              engine.maxLevels = v.toInt
+            }
+
+            case "diesel.engine.maxExpands" | "maxExpands" => {
+              engine.maxExpands = v.toInt
             }
           }
+        }
 
-          case "diesel.engine.settings.collectGroup" | "collectGroup" => {
-            this.settings.collectGroup = Option(v)
-          }
+        evAppChildren(a,
+          DomAst(EInfo(s"collect settings updated ${settings.collectCount} - ${settings.collectGroup}"),
+            AstKinds.TRACE))
 
-          case "diesel.engine.maxLevels" | "maxLevels" => {
-            engine.maxLevels = v.toInt
-          }
+        true
 
-          case "diesel.engine.maxExpands" | "maxExpands" => {
-            engine.maxExpands = v.toInt
+      } else if (ea == "diesel.branch") { // nothing
+        true
+
+      } else if (ea == DieselMsg.REALM.REALM_SET) {
+
+        val props = in.attrs
+            .filter(_.name == "props")
+            .filter(_.isOfType(WTypes.wt.JSON))
+            .flatMap(_.calculatedTypedValue.asJson.toList)
+            .map(t => P.fromSmartTypedValue(t._1, t._2))
+
+        // todo move this to an executor
+        // todo this may be a security risk - they can set trust and stuff -  limit to only some parms?
+        (props ::: in.attrs.filter(_.name != "props")).foreach { p =>
+          val r = this.settings.realm
+          if (r.isEmpty) evAppChildren(a, DomAst(EError("realm not defined...???"), AstKinds.ERROR))
+          else {
+            r.foreach(Website.putRealmProps(_, p.name, p.calculatedP))
+            r.flatMap(Website.forRealm).map(_.put(p.name, p.calculatedValue))
+            evAppChildren(a, DomAst(EInfo("updated..."), AstKinds.DEBUG))
           }
         }
-      }
+        true
 
-      evAppChildren(a,
-        DomAst(EInfo(s"collect settings updated ${settings.collectCount} - ${settings.collectGroup}"), AstKinds.TRACE))
+      } else if (ea == DieselMsg.ENGINE.DIESEL_MAP) {
 
-      true
+        // expanding diesel.map: make an item for each item and copy all children under the item
 
-    } else if (ea == "diesel.branch") { // nothing
-      true
+        // TODO problem is the indented children are evaludated and added AFTER this :(
 
-    } else if (ea == DieselMsg.REALM.REALM_SET) {
+        // save children and delete
+        val parent = findParent(a).flatMap(findParent)
+        val children = a.children
+        a.childrenCol.clear()
 
-      val props = in.attrs
-          .filter(_.name == "props")
-          .filter(_.isOfType(WTypes.wt.JSON))
-          .flatMap(_.calculatedTypedValue.asJson.toList)
-          .map(t => P.fromSmartTypedValue(t._1, t._2))
+        var info: List[Any] = Nil
 
-      // todo move this to an executor
-      // todo this may be a security risk - they can set trust and stuff -  limit to only some parms?
-      (props ::: in.attrs.filter(_.name != "props")).foreach { p =>
-        val r = this.settings.realm
-        if (r.isEmpty) evAppChildren(a, DomAst(EError("realm not defined...???"), AstKinds.ERROR))
-        else {
-          r.foreach(Website.putRealmProps(_, p.name, p.calculatedP))
-          r.flatMap(Website.forRealm).map(_.put(p.name, p.calculatedValue))
-          evAppChildren(a, DomAst(EInfo("updated..."), AstKinds.DEBUG))
+        info = EInfo(s"engine msg") :: info
+
+        // l can be a constant with another parm name OR the actual array
+        val list = {
+          val l = ctx.getRequiredp(Diesel.PAYLOAD).calculatedP
+          if (l.isOfType(WTypes.wt.ARRAY)) {
+            l
+          } else if (l.isOfType(WTypes.wt.STRING)) {
+            ctx.getRequiredp(l.currentStringValue)
+          } else {
+            info = EWarning(s"Can't source input list - what type is it? ${l}") :: info
+            P("", "", WTypes.wt.UNDEFINED) //throw new IllegalArgumentException(s"Can't source input list: $ctxList")
+          }
         }
-      }
-      true
 
-    } else if (ea == DieselMsg.ENGINE.DIESEL_MAP) {
+        razie.js.parse(s"{ list : ${list.currentStringValue} }").apply("list") match {
 
-      // expanding diesel.map: make an item for each item and copy all children under the item
+          case l: collection.Seq[Any] => {
+            // passing any other parameters that were given to foreach
 
-      // TODO problem is the indented children are evaludated and added AFTER this :(
+            l.map { item: Any =>
+              // for each item in list, create message
+              val itemP = P.fromTypedValue(Diesel.PAYLOAD, item)
+              val m = EMsg("diesel", "mapItem", itemP :: Nil)
+              val ast = DomAst(m, AstKinds.GENERATED)
+              evAppChildren(a, ast)
 
-      // save children and delete
-      val parent = findParent(a).flatMap(findParent)
-      val children = a.children
-      a.childrenCol.clear()
-
-      var info: List[Any] = Nil
-
-      info = EInfo(s"engine msg") :: info
-
-      // l can be a constant with another parm name OR the actual array
-      val list = {
-        val l = ctx.getRequiredp(Diesel.PAYLOAD).calculatedP
-        if (l.isOfType(WTypes.wt.ARRAY)) {
-          l
-        } else if (l.isOfType(WTypes.wt.STRING)) {
-          ctx.getRequiredp(l.currentStringValue)
-        } else {
-          info = EWarning(s"Can't source input list - what type is it? ${l}") :: info
-          P("", "", WTypes.wt.UNDEFINED) //throw new IllegalArgumentException(s"Can't source input list: $ctxList")
-        }
-      }
-
-      razie.js.parse(s"{ list : ${list.currentStringValue} }").apply("list") match {
-
-        case l: collection.Seq[Any] => {
-          // passing any other parameters that were given to foreach
-
-          l.map { item: Any =>
-            // for each item in list, create message
-            val itemP = P.fromTypedValue(Diesel.PAYLOAD, item)
-            val m = EMsg("diesel", "mapItem", itemP :: Nil)
-            val ast = DomAst(m, AstKinds.GENERATED)
-            evAppChildren(a, ast)
-
-            // copy children under each item
-            // TODO problem is the indented children are evaludated and added AFTER this :(
+              // copy children under each item
+              // TODO problem is the indented children are evaludated and added AFTER this :(
 //            children.foreach { c =>
 //              evAppChildren(ast, DomAst(c.value, AstKinds.GENERATED))
 //            }
-          }.toList
+            }.toList
+          }
+
+          case x@_ => {
+            List(EError("value to iterate on was not a list", x.getClass.getName) :: info)
+          }
+
         }
 
-        case x@_ => {
-          List(EError("value to iterate on was not a list", x.getClass.getName) :: info)
+        info.map { x =>
+          evAppChildren(a, DomAst(x, AstKinds.TRACE))
         }
 
-      }
-
-      info.map { x =>
-        evAppChildren(a, DomAst(x, AstKinds.TRACE))
-      }
-
-      // expand all spec vals
-      dom.moreElements.collect {
-        case v: EVal => {
-          evAppChildren(a, DomAst(v, AstKinds.TRACE))
-          setSmartValueInContext(a, this.ctx, v.p)
+        // expand all spec vals
+        dom.moreElements.collect {
+          case v: EVal => {
+            evAppChildren(a, DomAst(v, AstKinds.TRACE))
+            setSmartValueInContext(a, this.ctx, v.p)
+          }
         }
+
+        true
+
+      } else {
+
+        false
       }
-
-      true
-
-    } else {
-
-      false
     }
+
+    (res, skippedNodes.toList)
   }
 
   // if the message attrs were expressions, calculate their values
@@ -1172,12 +1346,12 @@ class DomEngineV1(
 
   /** expand a single message and rep - called by engine, results in engine processing */
   private def expandEMsgAndRep(a: DomAst, in: EMsg, recurse: Boolean, level: Int, parentCtx:ECtx) : List[DEMsg] = {
-    val newNodes = expandEMsg(a, in, recurse, level, parentCtx)
+    val (newNodes, skippedNodes) = expandEMsg(a, in, recurse, level, parentCtx)
 
     // analyze the new messages and return
 
     // this is what makes this synchronous behaviour - it reps itself as opposed to waiting for an async DEReply
-    rep(a, recurse, level, newNodes)
+    rep(a, recurse, level, newNodes) //::: skippedNodes.flatMap(freeDepys)
   }
 
   /** test epected message */
