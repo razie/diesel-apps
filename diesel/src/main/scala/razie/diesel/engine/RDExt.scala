@@ -140,7 +140,7 @@ object RDExt extends Logging {
     *
     * @return (what, ea, pos, line, parent)
     */
-  def usagesStories(entity: String, met: String, stories: List[DSpec])(implicit ctx: ECtx)
+  def usagesStories(entity: String, met: String, stories: List[DSpec])
   : List[(String, String, Option[EPos], String, String)] = {
     stories
         .flatMap(

@@ -9,6 +9,7 @@ import razie.diesel.dom.RDOM.{P, ParmSource}
 import razie.diesel.dom.RDomain
 import razie.diesel.engine.{DomAst, DomEngECtx}
 import razie.tconf.{DSpec, DTemplate}
+import scala.collection.mutable.ListBuffer
 
 /**
  * A map-like context of attribute values, used by the Diesel engine.
@@ -85,6 +86,18 @@ trait ECtx extends ParmSource {
       sc = sc.get.base
     }
     sc.getOrElse(root)
+  }
+
+  /** all parent contexts to the scope */
+  def allToCtx = {
+    val res = new ListBuffer[ECtx]()
+    res.append(this)
+    var sc: Option[ECtx] = Some(this)
+    while (sc.isDefined && !sc.exists(p => p.isInstanceOf[ScopeECtx] || p.isInstanceOf[DomEngECtx])) {
+      sc = sc.get.base
+      sc.foreach(x => res.append(x))
+    }
+    res.toList
   }
 
   def curNode: Option[DomAst]

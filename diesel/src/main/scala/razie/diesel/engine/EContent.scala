@@ -12,12 +12,10 @@ import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.exec.EESnakk
 import razie.diesel.engine.nodes.flattenJson
-import razie.diesel.expr.{AExprIdent, ECtx, Expr, SimpleECtx}
-import razie.diesel.model.DieselMsg
+import razie.diesel.expr.{AExprIdent, ECtx, Expr}
 import razie.xp.JsonOWrapper
 import scala.Option.option2Iterable
-import scala.collection.mutable.{HashMap, ListBuffer}
-import scala.collection.parallel.mutable
+import scala.collection.mutable.ListBuffer
 import scala.util.Try
 
 /** a REST request or response: content and type and processing thereof */

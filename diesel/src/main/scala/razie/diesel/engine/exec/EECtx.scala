@@ -141,15 +141,32 @@ class EECtx extends EExecutor(EECtx.CTX) {
         }
       }
 
+//      case "batch" => {
+//        val b = ctx.getRequiredp("batches").calculatedP.value.get.asInt
+//        val s = ctx.getp("start").map(_.calculatedP.value.get.asInt).getOrElse(0)
+//
+//        val EMsg.REGEX(e, m) = parm("msg").get.currentStringValue
+//        val itemName = parm("item").get.currentStringValue
+//
+//        // passing any other parameters that were given to foreach
+//        val nat = in.attrs.filter(e => !Array("list", "item", "msg").contains(e.name))
+//
+//        (s .. b).map { item: Any =>
+//              // for each item in list, create message
+//          val itemP = P.fromTypedValue(itemName, item)
+//          EMsg(e, m, itemP :: nat)
+//        }.toList ::: info
+//      }
+
       case "foreach" => {
-        var info : List[Any] = Nil
+        var info: List[Any] = Nil
 
         // l can be a constant with another parm name OR the actual array
         val list = {
           val l = ctx.getRequiredp("list").calculatedP
-          if(l.isOfType(WTypes.wt.ARRAY)) {
+          if (l.isOfType(WTypes.wt.ARRAY)) {
             l
-          } else if(l.isOfType(WTypes.wt.STRING)) {
+          } else if (l.isOfType(WTypes.wt.STRING)) {
             ctx.getRequiredp(l.currentStringValue)
           } else {
             info = EWarning(s"Can't source input list - what type is it? ${l}") :: info

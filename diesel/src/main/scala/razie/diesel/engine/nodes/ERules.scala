@@ -325,6 +325,12 @@ case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred: B
     this
   }
 
+  def copiedFrom(other: ENext) = {
+    this.parent = other.parent
+    this.spec = other.spec
+    this
+  }
+
   // todo match also the object parms if any and method parms if any
 
   /** apply - evaluate the message if not already */

@@ -191,7 +191,9 @@ trait DomRoot {
           // payload must go to first scope, regardless of enclosing rule scopes
           var sc: Option[ECtx] = Some(ctx)
 
-          while (sc.isDefined && !sc.exists(p => p.isInstanceOf[ScopeECtx] || p.isInstanceOf[DomEngECtx])) {
+          while (sc.isDefined && sc.get.base.isDefined && !sc.exists(
+            p => p.isInstanceOf[ScopeECtx] || p.isInstanceOf[DomEngECtx])) {
+
             sc = sc.get.base
           }
 
@@ -234,9 +236,10 @@ trait DomRoot {
                 val av = last.copy(value = None).calculatedTypedValue.asString
                 val m = pa.calculatedTypedValue.asJson
 
-                if (m.isInstanceOf[HashMap[String, Any]])
+                if (m.isInstanceOf[HashMap[String, Any]]) {
                   m.asInstanceOf[HashMap[String, Any]].put(av, rightValue)
-                else {
+                  pa.dirty()
+                } else {
                   a append DomAst(EError("Not mutable Map: " + parentObject.mkString).withPos(pos), AstKinds.ERROR)
                 }
 
@@ -260,12 +263,18 @@ trait DomRoot {
 
           } else if (pas.left.start == "ctx") {
 
+            // remove any overload from all contexts until the scope
+            ctx.allToCtx.foreach(_.remove(pas.left.restAsP.name))
+
             // this is used with variables ctx[varx] = value, where varx holds the name to set
             setp(ctx.getScopeCtx, "ctx", pas.left.restAsP, rightP)
 
             // todo this should recurse with the rest I think?
 
           } else if (pas.left.start == "dieselScope" || pas.left.start == "return") {
+
+            // remove any overload from all contexts until the scope
+            ctx.allToCtx.foreach(_.remove(pas.left.restAsP.name))
 
             // scope vars are set in the closest enclosing ScopeECtx or EngCtx
             // the idea is to bypass the enclosing RuleScopeECtx
@@ -274,6 +283,10 @@ trait DomRoot {
             // todo this should recurse with the rest I think?
 
           } else if (pas.left.start == "dieselRoot") {
+
+            // todo
+            // remove any overload from all contexts until the scope
+            // ctx.allToCtx.foreach(_.remove(pas.left.restAsP.name))
 
             // root context
             // the idea is to bypass the enclosing RuleScopeECtx

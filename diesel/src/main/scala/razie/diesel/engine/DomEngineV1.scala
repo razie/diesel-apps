@@ -282,7 +282,8 @@ class DomEngineV1(
 
     // if node already has a context, just use it (stories wrapped in Scope for instance)
     ctx = if (
-      a.getMyOwnCtx.exists(_.isInstanceOf[ScopeECtx]) ||
+      a.getMyOwnCtx.exists(_.isInstanceOf[StaticECtx]) ||
+          a.getMyOwnCtx.exists(_.isInstanceOf[ScopeECtx]) ||
           a.getMyOwnCtx.exists(_.isInstanceOf[DomEngECtx])) {
 
       a.getMyOwnCtx.get

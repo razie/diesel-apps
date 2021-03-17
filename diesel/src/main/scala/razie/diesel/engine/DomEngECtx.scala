@@ -136,13 +136,16 @@ class DomEngECtx(val settings: DomEngineSettings, cur: List[P] = Nil, base: Opti
   }
 
   // user id if any
-  def dieselUser(ctx:ECtx) = {
-    val root = ctx.root
-    val settings = root.engine.map(_.settings)
-    val au = settings
-      .flatMap(_.userId)
-
+  def dieselUser(ctx: ECtx) = {
+    val au = ctx.root.engine.map(_.settings).flatMap(_.userId)
     au.mkString
+  }
+
+  // user id if any
+  def dieselUsername(ctx: ECtx) = {
+    val au = ctx.root.engine.map(_.settings).flatMap(_.userId)
+    val x = au.flatMap(id => DUsers.impl.findUserById(new ObjectId(id))).map(_.userName)
+    x.mkString
   }
 
   /** source from settings - only if there's some value... otherwise base won't cascade */
@@ -179,6 +182,7 @@ class DieselParmSource (ctx:DomEngECtx) extends ParmSource {
           .orElse(Some(P("diesel.env", ctx.dieselEnv(ctx))))
 
     case "user" => Some(P("diesel.user", ctx.dieselUser(ctx)))
+    case "username" => Some(P("diesel.username", ctx.dieselUsername(ctx)))
     case "isLocalhost" => Some(P.fromTypedValue("diesel.isLocalhost", razie.wiki.Services.config.isLocalhost))
 
     case "realm.props" | "props.realm" => {
@@ -222,16 +226,43 @@ class DieselParmSource (ctx:DomEngECtx) extends ParmSource {
 
 }
 
-/** todo hierarchical source for objects? */
-class NextParmSource (ctx:DomEngECtx, pname:String, value:P) extends ParmSource {
-  def remove (name: String): Option[P] = ???
+/** source for parms static at realm level */
+class DieselRealmParmSource(ctx: DomEngECtx) extends ParmSource {
+  val realm = ctx.root.settings.realm.mkString
 
-  def getp   (name: String): Option[P] = name match {
-      case pname => Some(value)
-      case _ => None
+  def remove(name: String): Option[P] = ???
+
+  def getp(name: String): Option[P] = name match {
+
+    case _ => {
+      val p = Website.getRealmProps(realm)
+      p.get(name)
     }
 
-  def put    (p: P): Unit = ???
+    case _ => None
+  }
+
+  def put(p: P): Unit = throw new DieselException("Can't overwrite values in this context!")
+//  r.foreach(Website.putRealmProps(_, pas.left.rest.head.name, rightP))
+//  r.flatMap(Website.forRealm).map(_.put(pas.left.rest.head.name, rightP.currentStringValue))
+
+  def listAttrs: List[P] = {
+    val p = Website.getRealmProps(ctx.root.settings.realm.mkString)
+    p.values.toList
+  }
+
+}
+
+/** todo hierarchical source for objects? */
+class NextParmSource(ctx: DomEngECtx, pname: String, value: P) extends ParmSource {
+  def remove(name: String): Option[P] = ???
+
+  def getp(name: String): Option[P] = name match {
+    case pname => Some(value)
+    case _ => None
+  }
+
+  def put(p: P): Unit = ???
 
   def listAttrs: List[P] = ???
 
