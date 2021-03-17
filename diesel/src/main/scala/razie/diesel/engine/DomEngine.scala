@@ -228,39 +228,53 @@ abstract class DomEngine(
       status = DomState.CANCEL
       trace("DomEng " + id + " stopNow")
       engineDone()
-      DieselAppContext.activeActors.get(id).foreach(_ ! DEStop) // stop the actor and remove engine
-      DieselAppContext.stopActor(id)
+
+      cleanResources()
     }
+  }
+
+  /** stop me now */
+  def cleanResources() = {
+    DieselAppContext.activeActors.get(id).foreach(_ ! DEStop) // stop the actor and remove engine
+    DieselAppContext.stopActor(id)
   }
 
   /** completed a node - udpate stat
     *
-    * @param a node that completed
+    * @param a     node that completed
     * @param level - current level, root is 0
     * @return
     */
-  def nodeDone(a: DomAst, level:Int=1): List[DEMsg] = {
-    evChangeStatus(a, DomState.DONE)
-    a.end()
+  def nodeDone(a: DomAst, level: Int = 1): List[DEMsg] = {
+    if (DomState.inProgress(a.status) || DomState.inWaiting(a.status)) {
+      a.end()
+    }
 
-    trace("DomEng "+id+("  " * level)+" done " + a.value)
+    evChangeStatus(a, DomState.DONE)
+
+    trace("DomEng " + id + ("  " * level) + " done " + a.value)
 
     // parent status update
 
+    val x = checkState(findParent(a).getOrElse(root)) ::: freeDepys(a)
+    x
+  }
+
+  /** free dependents, if possible */
+  def freeDepys(a: DomAst): List[DEMsg] = {
     val x =
-      checkState(findParent(a).getOrElse(root)) :::
-          depys.toList.filter(_.prereq.id == a.id).flatMap(d =>
-            root.find(d.depy.id).toList
-          ).filter { n =>
-            val prereq = depys.filter(x => x.depy.id == n.id && DomState.inProgress(x.prereq.status))
-            prereq.isEmpty && n.status == DomState.DEPENDENT // not started - important!
-          }.map { n =>
-            evChangeStatus(n, DomState.LATER)
-            DEReq(id, n, recurse = true,
-              findLevel(n)) // depys are not even equals - they would have their own level...?
-            // had a problem here, where the level was reseting sometimes - can't depend on parent level, have to
-            // re-find it
-          }
+      depys.toList.filter(_.prereq.id == a.id).flatMap(d =>
+        root.find(d.depy.id).toList
+      ).filter { n =>
+        val prereq = depys.filter(x => x.depy.id == n.id && DomState.inProgress(x.prereq.status))
+        prereq.isEmpty && n.status == DomState.DEPENDENT // not started - important!
+      }.map { n =>
+        evChangeStatus(n, DomState.LATER)
+        DEReq(id, n, recurse = true,
+          findLevel(n)) // depys are not even equals - they would have their own level...?
+        // had a problem here, where the level was reseting sometimes - can't depend on parent level, have to
+        // re-find it
+      }
     x
   }
 
@@ -317,7 +331,9 @@ abstract class DomEngine(
     // add explicit depys for results/children
     // note - the strategy to exec logically sync or async rests with the V1, not here - see who populates prereq
     // here we just respect them by creating depys
-    results.filter(_.prereq.nonEmpty).map { res =>
+    results
+        .filter(a => !DomState.isDone(a.status))
+        .filter(_.prereq.nonEmpty).map { res =>
       crdep(res.prereq.flatMap(x => root.find(x)), List(res))
     }
 
@@ -436,8 +452,10 @@ abstract class DomEngine(
     if (res.size > 0) {
       if (node.status != DomState.SUSPENDED) {
         // suspended nodes stay in SUSPENDED. their children can continue tho
-        evChangeStatus(node, DomState.STARTED)
-        node.end()
+        if (!DomState.inProgress(node.status)) {
+          evChangeStatus(node, DomState.STARTED)
+          //node.end()
+        }
       }
     } else if (
       node.status != DomState.SUSPENDED ||
@@ -598,7 +616,11 @@ abstract class DomEngine(
     // stop propagation of local vals to parent engine
     var newCtx: ECtx = new ScopeECtx(Nil, Some(ctx), Some(ast))
     // include this messages' context
-    newCtx = new StaticECtx(ast.value.asInstanceOf[EMsg].attrs, Some(newCtx), Some(ast))
+    newCtx =
+        if (ast.value.isInstanceOf[EMsg]) new StaticECtx(ast.value.asInstanceOf[EMsg].attrs, Some(newCtx), Some(ast))
+        else new StaticECtx(Nil, Some(newCtx), Some(ast))
+
+    ast.replaceCtx(newCtx)
 
 //    GlobalData.dieselEnginesActive.incrementAndGet()
 
@@ -607,14 +629,31 @@ abstract class DomEngine(
 
     // todo clone the root context passed - if anyone goes to the root will find the other engine...
 
-    val msgs = expandEMsg(ast, ast.value.asInstanceOf[EMsg], recurse = true, level, newCtx)
+    var msgs: List[_] = Nil
 
-    evAppChildren(ast, msgs)
+    if (ast.getCtx.isEmpty) ast.withCtx(newCtx)
 
-    var res = newCtx.getp("payload")
+    if (ast.value.isInstanceOf[EMsg]) {
+      val (msgsx, skipped) = expandEMsg(ast, ast.value.asInstanceOf[EMsg], recurse = true, level, newCtx)
+      msgs = msgsx
+      evAppChildren(ast, msgsx)
+    } else {
+      msgs = expand(ast, recurse = true, level)
+    }
+
+    var res = newCtx.getp(Diesel.PAYLOAD)
+
+    // recurse manually
     msgs.collect {
-      case a if a.value.isInstanceOf[EMsg] =>
+
+      case a: DomAst if a.value.isInstanceOf[EMsg] =>
         res = execSync(a, level + 1, newCtx)
+
+      case a: DomAst if a.value.isInstanceOf[ENextPas] =>
+        res = execSync(a, level + 1, newCtx)
+//          a.value.isInstanceOf[ENext] ||
+//          a.value.isInstanceOf[EMsgPas] =>
+
 //      case a if a.value.isInstanceOf[EVal] =>
 //        res = execSync(a, level + 1, newCtx)
     }
