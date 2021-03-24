@@ -310,9 +310,10 @@ class DomEngineV1(
     a.childrenCol.clear() // remove them so we don't have duplicates in tree - they will be processed later
 
     // 1. engine message?
-    var (mocked, skipped) = expandEngineEMsg(a, n, newNodes)
+    var (mocked, skipped, moreNodes) = expandEngineEMsg(a, n, newNodes)
 
     skippedNodes = skippedNodes ::: skipped
+    newNodes = newNodes ::: moreNodes
 
     var mocksApplied = HashMap[String, EMock]()
 
@@ -731,14 +732,20 @@ class DomEngineV1(
     * @return
     */
   private def expandEngineEMsg(a: DomAst, in: EMsg, childrenIfAny: List[DomAst])(implicit ctx: ECtx): (Boolean,
-      List[DomAst]) = {
+      List[DomAst], List[DomAst]) = {
     var skippedNodes = new ListBuffer[DomAst] // nodes skipped during this call collect here
+    var newNodes = new ListBuffer[DomAst] // nodes skipped during this call collect here
 
     val ea = in.ea
 
     def skipNode(ast: DomAst, state: String) = {
       skippedNodes.append(ast)
       evChangeStatus(ast, state)
+    }
+
+    def addChild(parent: DomAst, ast: DomAst) = {
+//      evAppChildren(parent, ast)
+      newNodes.append(ast)
     }
 
     val res = {
@@ -773,7 +780,15 @@ class DomEngineV1(
         }
 
         // story node prevents an entire test terminated because one story used diesel.return
-        val scope = findParentWith(a, _.isInstanceOf[StoryNode]).getOrElse(root)
+        // 1. try to see if I'm inside a story - the top most node under the story,
+        // if not, then the story and if not, then the ROOT
+
+        var scope =
+          findParentWith(a, _.parent.exists(_.value.isInstanceOf[StoryNode]))
+              .orElse(
+                findParentWith(a, _.value.isInstanceOf[StoryNode])
+              )
+              .getOrElse(root)
 
         // stop other children
         val skipped = scope.collect {
@@ -1066,11 +1081,15 @@ class DomEngineV1(
 
         val newD =
           if (res && bcp.size > 0)
-            DomAst(new EInfo("assert satisfied"), AstKinds.GENERATED)
+            DomAst(new EInfo("assert OK"), AstKinds.GENERATED)
           else
-            DomAst(new EMsg("diesel", "return", cp.filter(!_.isOfType(WTypes.wt.BOOLEAN))),
+            DomAst(new EMsg("diesel", "return",
+              P.fromSmartTypedValue(DieselMsg.HTTP.RESPONSE, "Assert failed!") ::
+                  P.fromSmartTypedValue(DieselMsg.HTTP.STATUS, 500) ::
+                  cp.filter(!_.isOfType(WTypes.wt.BOOLEAN))
+            ),
               AstKinds.GENERATED)
-        evAppChildren(a, newD)
+        addChild(a, newD)
         true
 
       } else if (ea == DieselMsg.ENGINE.DIESEL_LATER) {
@@ -1320,7 +1339,7 @@ class DomEngineV1(
       }
     }
 
-    (res, skippedNodes.toList)
+    (res, skippedNodes.toList, newNodes.toList)
   }
 
   // if the message attrs were expressions, calculate their values
