@@ -166,6 +166,11 @@ class DomEngineV1(
           newnode.moveAllNoEvents(a)
 
           msgs = rep(a, recurse, level, List(newnode))
+        } else {
+          a.parent.foreach { p =>
+            evAppChildren(p,
+              DomAst(EInfo("$if failed: " + n1.cond.mkString), AstKinds.DEBUG))
+          }
         }
         // message will be evaluate() later
       }
@@ -179,6 +184,11 @@ class DomEngineV1(
         if (n1.test(a)) {
           // run in parent's context - no need for a local
           appendValsPas(a, m.pos, Some(m), m.attrs, a.getCtx.get)
+        } else {
+          a.parent.foreach { p =>
+            evAppChildren(p,
+              DomAst(EInfo("$if failed: " + n1.cond.mkString), AstKinds.DEBUG))
+          }
         }
       }
 
