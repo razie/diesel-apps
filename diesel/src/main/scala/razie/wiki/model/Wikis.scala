@@ -196,7 +196,7 @@ object Wikis extends Logging with Validation {
 
   /** these are the safe url characters. I also included ',which are confusing many sites */
   val SAFECHARS =
-    """[^0-9a-zA-Z\$\-_\.()',]""" // DO NOT TOUCH THIS PATTERN!
+    """[^0-9a-zA-Z\$\-_()',]""" // DO NOT TOUCH THIS PATTERN!
 
   def formatName(name: String): String = iformatName(name, SAFECHARS, "") // DO NOT TOUCH THIS PATTERN!
 
