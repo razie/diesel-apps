@@ -92,7 +92,7 @@ object RDOM {
             "<small>" + qspan(invname, conn, p.name) + "</small> " + p.toHtml
           })) +
           mks(methods, "{<br><hr>", "<br>", "<br><hr>}", "&nbsp;&nbsp;") +
-          mks(props, " PROPS(", ", ", ") ", "&nbsp;&nbsp;")
+          mks(props, " ANNO(", ", ", ") ", "&nbsp;&nbsp;")
     }
 
     // the query magnif glass

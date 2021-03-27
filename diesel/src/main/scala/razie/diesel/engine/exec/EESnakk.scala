@@ -789,7 +789,7 @@ object EESnakk {
               )
       ) {
         razie.Log.log("error snakking: " + t.getClass.getName + " : " + t.getMessage + " cause: " + t.getCause.getMessage)
-        eres += new EError("Exception: ", t.getCause.getMessage) :: Nil
+        eres += new EError("Exception: " + t.getMessage, " cause: " + t.getCause.getMessage) :: Nil
         t.getCause
       } else if( t.isInstanceOf[CommRtException] && t.asInstanceOf[CommRtException].httpCode > 0 ) {
         razie.Log.log("error snakking: " + t.getClass.getName + " : " + t.getMessage);

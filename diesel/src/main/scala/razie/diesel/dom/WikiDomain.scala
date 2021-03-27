@@ -48,7 +48,9 @@ trait WikiDomain {
             // get annotation "inventory"
             c.asInstanceOf[C].props
                 .find(_.name == INVENTORY)
-                .flatMap(inv => allPlugins.find(_.name == inv.currentStringValue))
+                .flatMap(inv =>
+                  allPlugins.find(_.name == inv.currentStringValue)
+                )
           ).orElse(
         allPlugins
             .find(_.isInstanceOf[DomInvWikiPlugin])

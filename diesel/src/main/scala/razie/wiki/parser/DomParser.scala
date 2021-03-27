@@ -60,7 +60,7 @@ trait DomParser extends ParserBase with ExprParser {
     * annotations have to be in the same page and are claimed by the first element that follows
     */
   def panno: PS =
-    keyw("""[.$]anno(tate)? +""".r) ~ ows ~ optAttrs ^^ {
+    keyw("""[.$]anno(tate)? *""".r) ~ ows ~ optAttrs ^^ {
       case k ~ _ ~ attrs => {
         lazys { (current, ctx) =>
           ctx.we.foreach { w =>
