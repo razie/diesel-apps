@@ -96,6 +96,26 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
             )
       }
 
+      case "toUpper" => {
+        firstParm.map { p =>
+          val pv = p.calculatedValue
+          P.fromTypedValue("", pv.toUpperCase, WTypes.wt.DATE)
+        }.getOrElse(
+          // todo could be unknown?
+          throw new DieselExprException(s"No arguments for $expr")
+        )
+      }
+
+      case "toLower" => {
+        firstParm.map { p =>
+          val pv = p.calculatedValue
+          P.fromTypedValue("", pv.toLowerCase, WTypes.wt.DATE)
+        }.getOrElse(
+          // todo could be unknown?
+          throw new DieselExprException(s"No arguments for $expr")
+        )
+      }
+
       case "typeOf" => {
         firstParm.map { p =>
           val pv = p.calculatedTypedValue
