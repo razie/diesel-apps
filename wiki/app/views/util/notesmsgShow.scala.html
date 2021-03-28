@@ -7,7 +7,7 @@ paint the first message
 
 @if(msg.size>0) {
 razOnLoad(function(){
-  notesMsgShow("@msg(0)._1", "@msg(0)._2");
+  notesMsgShow("@msg(0)._1", "@msg(0)._2.replaceAll("\n", "").replaceAll("\r", "")");
 });
   }
 
