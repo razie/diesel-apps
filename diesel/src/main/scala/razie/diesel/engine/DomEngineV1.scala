@@ -169,7 +169,7 @@ class DomEngineV1(
         } else {
           a.parent.foreach { p =>
             evAppChildren(p,
-              DomAst(EInfo("$if failed: " + n1.cond.mkString), AstKinds.DEBUG))
+              DomAst(EInfo("$if was false: " + n1.cond.mkString).withPos(n1.msg.pos), AstKinds.TRACE))
           }
         }
         // message will be evaluate() later
@@ -187,7 +187,7 @@ class DomEngineV1(
         } else {
           a.parent.foreach { p =>
             evAppChildren(p,
-              DomAst(EInfo("$if failed: " + n1.cond.mkString), AstKinds.DEBUG))
+              DomAst(EInfo("$if was false: " + n1.cond.mkString).withPos(n1.msg.pos), AstKinds.TRACE))
           }
         }
       }
