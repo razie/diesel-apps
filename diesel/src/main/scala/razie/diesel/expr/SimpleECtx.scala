@@ -10,6 +10,8 @@ import razie.diesel.dom.RDomain
 import razie.diesel.engine.nodes.{EVal, EWarning}
 import razie.diesel.engine.{DomAst, DomEngECtx}
 import razie.tconf.{DSpec, DTemplate}
+import scala.collection.mutable
+import scala.collection.mutable.{HashMap, ListBuffer}
 
 /**
   * a context - LIST, use to see speed of list
@@ -62,8 +64,18 @@ class SimpleECtx(
   }
 
   def listAttrs: List[P] = {
-    // todo distinct by name?
-    attrs ++ cur ++ base.toList.flatMap(_.listAttrs)
+    val l = (attrs ++ cur ++ base.toList.flatMap(_.listAttrs)).distinct
+    // distinct by name
+    // copied distinct to do by name
+    val b = new ListBuffer[P]()
+    val seen = mutable.HashSet[String]()
+    for (x <- l) {
+      if (x.name.length > 0 && !seen(x.name)) {
+        b += x
+        seen += x.name
+      }
+    }
+    b.toList
   }
 
   def domain: Option[RDomain] = _domain orElse base.flatMap(_.domain)
