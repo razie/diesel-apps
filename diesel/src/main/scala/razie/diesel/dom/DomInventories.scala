@@ -94,6 +94,7 @@ object DomInventories extends razie.Logging {
     trace(s"  Found inv $p")
     val o = p.flatMap(inv =>
       resolve(
+        false,
         ref.realm,
         ref,
         inv.findByRef(dom.rdom, ref, collectRefs)
@@ -119,6 +120,7 @@ object DomInventories extends razie.Logging {
     val p = dom.findPlugins(ref.inventory).headOption
     val o = p.map(inv =>
       resolve(
+        true,
         ref.realm,
         ref,
         inv.findByQuery(dom.rdom, ref, epath, from, size, sort, countOnly, collectRefs)
@@ -141,6 +143,7 @@ object DomInventories extends razie.Logging {
     val p = dom.findPlugins(ref.inventory).headOption
     val o = p.map(inv =>
       resolve(
+        true,
         ref.realm,
         ref,
         inv.listAll(dom.rdom, ref, start, limit, sort, collectRefs)
@@ -238,7 +241,7 @@ object DomInventories extends razie.Logging {
   val CLS_FIELD_VALUE = """([^/]+)/(.+)/(.+)""".r
 
   /** for synchornous people */
-  def resolve(ref: FullSpecRef, e: Either[P, EMsg]): P = {
+  def resolve(flattenData: Boolean, ref: FullSpecRef, e: Either[P, EMsg]): P = {
     // resolve EMrg's parameters in an empty context and run it and await?
     e.fold(
       p => p,
@@ -248,8 +251,9 @@ object DomInventories extends razie.Logging {
   }
 
   // resolve for messages that return an option not a list - reuse the list one
-  def resolve(realm: String, ref: FullSpecRef, e: Either[Option[DieselAsset[_]], EMsg]): Option[DieselAsset[_]] = {
-    resolve(realm,
+  def resolve(flattenData: Boolean, realm: String, ref: FullSpecRef, e: Either[Option[DieselAsset[_]], EMsg])
+  : Option[DieselAsset[_]] = {
+    resolve(flattenData, realm,
       ref,
       e.fold(
         p => Left(DIQueryResult(p.toList.size, p.toList)),
@@ -329,23 +333,39 @@ object DomInventories extends razie.Logging {
     )
   }
 
+  def jtok(j: scala.collection.Map[String, Any]) = {
+    // todo some use assetRef
+    val k = j.toMap.get("key").orElse(j.toMap.get("ref")).orElse(j.toMap.get("name")).mkString
+    k
+  }
+
   /** for synchornous people */
-  def resolve(realm: String, ref: FullSpecRef, e: Either[DIQueryResult, EMsg]): DIQueryResult = {
+  def resolve(flattenData: Boolean, realm: String, ref: FullSpecRef, e: Either[DIQueryResult, EMsg]): DIQueryResult = {
     // resolve EMrg's parameters in an empty context and run it and await?
     e.fold(
       p => p,
       m => {
-        val p = DomEngineUtils.runMsgSync(new DieselMsg(m, DieselTarget.ENV(realm)))
+        var p = DomEngineUtils.runMsgSync(new DieselMsg(m, DieselTarget.ENV(realm)))
+
+        // flattenData - some ops return an array in "data"
+        if (flattenData && p.exists(_.isOfType(WTypes.wt.JSON))) {
+          val j = p.get.calculatedTypedValue(ECtx.empty).asJson
+          val data = j.get("data")
+          if (data.isDefined) {
+            val l = data.get
+            p = Some(P.fromSmartTypedValue(Diesel.PAYLOAD, l))
+          }
+        }
 
         if (p.isEmpty || !p.get.isOfType(WTypes.wt.JSON) && !p.get.isOfType(WTypes.wt.ARRAY)) {
           log("sub-flow return nothing or not a list - so no asset found!")
-          DIQueryResult(0)
+          DIQueryResult(0, Nil, p.toList)
         } else if (p.get.isOfType(WTypes.wt.JSON)) {
           val j = p.get.calculatedTypedValue(ECtx.empty).asJson
           val c = WikiDomain(realm).rdom.classes.get(p.get.ttype.schema)
 
           if (c.isDefined) {
-            val k = j.toMap.get("key").getOrElse(j.toMap.get("ref").mkString).toString
+            val k = jtok(j)
             val o = oFromJMap(k, j.toMap, c.get, c.get.name, Array.empty)
             DIQueryResult(1, List(oToA(o, ref, j.toMap, realm)))
           }
@@ -362,7 +382,7 @@ object DomInventories extends razie.Logging {
               val c = WikiDomain(realm).rdom.classes.get(p.get.ttype.schema)
 
               if (c.isDefined) {
-                val k = j.toMap.get("key").getOrElse(j.toMap.get("ref").mkString).toString
+                val k = jtok(j)
                 val o = oFromJMap(k, j.toMap, c.get, c.get.name, Array.empty)
                 oToA(o, ref, j.toMap, realm)
               }
@@ -378,7 +398,7 @@ object DomInventories extends razie.Logging {
               }
 
               if (c.isDefined) {
-                val k = j.toMap.get("key").getOrElse(j.toMap.get("ref").mkString).toString
+                val k = jtok(j)
                 val o = oFromJMap(k, j.toMap, c.get, c.get.name,
                   Array.empty)
                 oToA(o, ref, j.toMap, realm)

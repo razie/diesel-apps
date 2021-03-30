@@ -164,7 +164,7 @@ class DomInvOdataCRMPlugin(
       val ref = new FullSpecRef(this.name, conn, epath, "", "", realm)
 
       action match {
-        case "testConnection" => DomInventories.resolve(ref, testConnection(dom, epath)).currentStringValue
+        case "testConnection" => DomInventories.resolve(false, ref, testConnection(dom, epath)).currentStringValue
         case "findByRef" => findByRefs(dom, epath)
         case "findByQuery" => findByQuerys(dom, epath)
         case "listAll" => xlistAll(dom, epath)

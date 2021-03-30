@@ -25,7 +25,7 @@ case class DIConnect(dom: RDomain, env: String, ctx: ECtx) extends DIBase
 case class DITestConnection(dom: RDomain, env: String, ctx: ECtx) extends DIBase
 
 /** results of query and list type commands */
-case class DIQueryResult(total: Long, data: List[DieselAsset[_]] = Nil)
+case class DIQueryResult(total: Long, data: List[DieselAsset[_]] = Nil, errors: List[Any] = Nil)
 
 /**
   * a domain plugin - can adapt a domain to an external implementation

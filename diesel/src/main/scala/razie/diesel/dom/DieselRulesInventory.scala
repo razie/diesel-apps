@@ -7,7 +7,7 @@
 package razie.diesel.dom
 
 import razie.diesel.dom.RDOM.P.asString
-import razie.diesel.dom.RDOM._
+import razie.diesel.dom.RDOM.{P, _}
 import razie.diesel.engine.nodes.EMsg
 import razie.diesel.expr.ECtx
 import razie.tconf.{DSpecInventory, FullSpecRef}
@@ -94,6 +94,7 @@ class DieselRulesInventory(
         P.of("inventory", this.name),
         P.of("connection", this.conn),
         P.of("className", ref.cls),
+        P.of("table", classOname(ref.cls)),
         P.of("key", ref.key),
         P.of("assetRef", ref.toJson),
         asset.getValueP.copy(name = "entity")
@@ -115,7 +116,10 @@ class DieselRulesInventory(
           P.of("inventory", this.name),
           P.of("connection", this.conn),
           P.of("className", ref.cls),
-          P.of("ref", ref.toJson)
+          P.of("table", classOname(ref.cls)),
+          P.of("ref", ref.toJson),
+          P.of("from", from),
+          P.of("size", limit)
         ))
     )
   }
@@ -133,6 +137,7 @@ class DieselRulesInventory(
           P.of("inventory", this.name),
           P.of("connection", this.conn),
           P.of("className", ref.cls),
+          P.of("table", classOname(ref.cls)),
           P.of("ref", ref.toJson)
         ))
     )
@@ -140,6 +145,12 @@ class DieselRulesInventory(
 
   def classOname(c: C): String =
     c.props.find(_.name == TABLE).map(_.calculatedValue(ECtx.empty)).getOrElse(c.name)
+
+  def classOname(cls: String): String = {
+    val dom = WikiDomain(realm)
+    val c = dom.rdom.classes.get(cls).getOrElse(new C(cls))
+    c.props.find(_.name == TABLE).map(_.calculatedValue(ECtx.empty)).getOrElse(c.name)
+  }
 
   // reset during calls
   var completeUri: String = ""
@@ -177,10 +188,10 @@ class DieselRulesInventory(
 
       action match {
         case "testConnection" => {
-          DomInventories.resolve(ref, testConnection(dom, epath)).currentStringValue
+          DomInventories.resolve(false, ref, testConnection(dom, epath)).currentStringValue
         }
         case "listAll" => {
-          DomInventories.resolve(
+          DomInventories.resolve(true,
             dom.name,
             ref,
             listAll(dom, ref, 0, 100, Array.empty[String])
@@ -273,6 +284,7 @@ class DieselRulesInventory(
           P.of("inventory", this.name),
           P.of("connection", this.conn),
           P.of("className", ref.cls),
+          P.of("table", classOname(ref.cls)),
           P.of("from", from),
           P.of("size", size),
           P.of("countOnly", countOnly),
@@ -296,6 +308,7 @@ class DieselRulesInventory(
           P.of("inventory", this.name),
           P.of("connection", this.conn),
           P.of("className", ref.cls),
+          P.of("table", classOname(ref.cls)),
           P.of("ref", ref.toJson)
         ))
     )
