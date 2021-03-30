@@ -10,6 +10,9 @@ import java.net.URLEncoder
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.TimeZone
+import org.joda.time.DateTime
+import org.joda.time.chrono.ISOChronology
+import org.joda.time.format.ISODateTimeFormat
 import razie.diesel.Diesel
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
@@ -64,9 +67,13 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
 
       case "now" => {
         // todo singleton
-        val tsFmtr = DateTimeFormatter.ofPattern(WTypes.DATE_FORMAT)
-        val nw = LocalDateTime.now
-        val ts = tsFmtr.format(nw)
+        val now = new DateTime(ISOChronology.getInstanceUTC()) //DateTime.now()
+        val ts = now.toString(WTypes.DATE_FORMAT)
+
+        // this gave local, not iso
+//        val tsFmtr = DateTimeFormatter.ofPattern(WTypes.DATE_FORMAT)
+//        val nw = LocalDateTime.now
+//        val ts2 = tsFmtr.format(nw)
 
         P.fromTypedValue("", ts, WTypes.wt.DATE)
       }
@@ -99,7 +106,7 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
       case "toUpper" => {
         firstParm.map { p =>
           val pv = p.calculatedValue
-          P.fromTypedValue("", pv.toUpperCase, WTypes.wt.DATE)
+          P.fromTypedValue("", pv.toUpperCase)
         }.getOrElse(
           // todo could be unknown?
           throw new DieselExprException(s"No arguments for $expr")
@@ -109,7 +116,7 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
       case "toLower" => {
         firstParm.map { p =>
           val pv = p.calculatedValue
-          P.fromTypedValue("", pv.toLowerCase, WTypes.wt.DATE)
+          P.fromTypedValue("", pv.toLowerCase)
         }.getOrElse(
           // todo could be unknown?
           throw new DieselExprException(s"No arguments for $expr")
