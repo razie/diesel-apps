@@ -184,12 +184,16 @@ object Website {
 
   /** static properties per realm, as set during say diesel.realm.started */
   def getRealmProp (realm:String, prop:String, dfltValue:Option[String] = None) = {
-    realmProps.get(realm).flatMap(_.m.get(prop).map(_.currentStringValue)).orElse(dfltValue)
+    realmProps.synchronized {
+      realmProps.get(realm).flatMap(_.m.get(prop).map(_.currentStringValue)).orElse(dfltValue)
+    }
   }
 
   /** static properties per realm, as set during say diesel.realm.started */
   def getRealmProps (realm:String):Map[String,P] = {
-   realmProps.get(realm).map(_.m.toMap).getOrElse(Map.empty)
+    realmProps.synchronized {
+      realmProps.get(realm).map(_.m.toMap).getOrElse(Map.empty)
+    }
   }
 
   def all = cache.values.map(_.w).toList
