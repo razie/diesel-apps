@@ -34,7 +34,6 @@ class RuleScopeECtx(
       attrs = p :: attrs.filter(_.name != p.name)
     }
   }
-
 }
 
 

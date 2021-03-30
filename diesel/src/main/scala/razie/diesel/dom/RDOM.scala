@@ -219,10 +219,17 @@ object RDOM {
 
   /** a generic parm source - use it to dynamically source parms from a sub-object like "diesel.xxx" or else */
   trait ParmSource {
-    def remove (name: String): Option[P]
-    def getp   (name: String): Option[P]
-    def put    (p: P): Unit
+    def name: String
+
+    def remove(name: String): Option[P]
+
+    def getp(name: String): Option[P]
+
+    def put(p: P): Unit
+
     def listAttrs: List[P]
+
+    def asP: P = P.fromSmartTypedValue(name, listAttrs.map(x => (x.name, x)).toMap)
   }
 
   /** parm-related helpers
@@ -368,7 +375,7 @@ object RDOM {
     }
 
     /** nicer type-aware toString */
-    def asString(value: Any) = {
+    def asString(value: Any): String = {
       val res = value match {
         case s: HashMap[_, _] => if (s.isEmpty) "{}" else js.tojsons(s, 2).trim
         // this must be before Seq
@@ -396,6 +403,7 @@ object RDOM {
         case s: JSONObject => if (s.length() == 0) "{}" else s.toString(2).trim
         case s: JSONArray => if (s.length() == 0) "[]" else s.toString.trim
         case s: Array[Byte] => new String(s)
+        case s: ParmSource => s.asP.value.map(v => asString(v.value)).getOrElse("??")
         case x@_ => x.toString
       }
 
@@ -440,6 +448,11 @@ object RDOM {
                optional: String = "",
                var value: Option[PValue[_]] = None
               ) extends CM with CanHtml with razie.HasJsonStructure {
+
+    def copyFrom(other: P): P = {
+      this.value = other.value
+      this
+    }
 
     def withValue[T](va: T, ctype: WType = WTypes.wt.UNKNOWN) = {
       this.copy(ttype = ctype, value = Some(PValue[T](va, ctype)))

@@ -6,7 +6,7 @@
 package razie.diesel.engine
 
 import razie.diesel.Diesel
-import razie.diesel.dom.RDOM.{P, PValue}
+import razie.diesel.dom.RDOM.{P, PValue, ParmSource}
 import razie.diesel.dom.{RDOM, WTypes}
 import razie.diesel.engine.nodes._
 import razie.diesel.expr._
@@ -54,7 +54,7 @@ trait DomRoot {
 
   /** find the direct parent of this node that meets the condition */
   def findParentWith(node: DomAst, predicate: (DomAst => Boolean)): Option[DomAst] = {
-    val p = findParent(node)
+    val p = node.parent.orElse(findParent(node))
     p.filter(predicate).orElse(p.flatMap(findParentWith(_, predicate)))
   }
 
@@ -78,7 +78,13 @@ trait DomRoot {
     a: DomAst,
     appendToCtx: ECtx,
     v: EVal
-  ) = {
+  ): Unit = setoSmartValueInContext(Some(a), appendToCtx, v)
+
+  protected def setoSmartValueInContext(
+    a: Option[DomAst],
+    appendToCtx: ECtx,
+    v: EVal
+  ): Unit = {
 
     val aei = (new SimpleExprParser).parseIdent(v.p.name)
     if (aei.isEmpty) {
@@ -95,8 +101,14 @@ trait DomRoot {
     )
   }
 
-  protected def setSmartValueInContext(
+  def setSmartValueInContext(
     a: DomAst,
+    appendToCtx: ECtx,
+    p: P
+  ): Unit = setoSmartValueInContext(Some(a), appendToCtx, p)
+
+  def setoSmartValueInContext(
+    a: Option[DomAst],
     appendToCtx: ECtx,
     p: P
   ) = {
@@ -115,7 +127,7 @@ trait DomRoot {
 
   /** an assignment message - execute now */
   protected def appendValsPas(
-    a: DomAst,
+    a: Option[DomAst],
     pos: Option[EPos],
     x: Option[EMsgPas],
     attrs: List[PAS],
@@ -232,6 +244,13 @@ trait DomRoot {
             // each branch to return the P
             parentObject.collect {
 
+              case pa: RDOM.P if pa.isOfType(WTypes.wt.SOURCE) => {
+                val av = last.copy(value = None).calculatedTypedValue.asString
+                val m = pa.calculatedTypedValue.value.asInstanceOf[ParmSource]
+                m.put(P.fromSmartTypedValue(av, rightValue))
+                rightP.calculatedTypedValue.asNiceString
+              }
+
               case pa: RDOM.P if pa.isOfType(WTypes.wt.JSON) => {
                 val av = last.copy(value = None).calculatedTypedValue.asString
                 val m = pa.calculatedTypedValue.asJson
@@ -240,7 +259,8 @@ trait DomRoot {
                   m.asInstanceOf[HashMap[String, Any]].put(av, rightValue)
                   pa.dirty()
                 } else {
-                  a append DomAst(EError("Not mutable Map: " + parentObject.mkString).withPos(pos), AstKinds.ERROR)
+                  a.map(
+                    _ append DomAst(EError("Not mutable Map: " + parentObject.mkString).withPos(pos), AstKinds.ERROR))
                 }
 
                 // no need, since we've set in hashmap - also it may have come from an Array, not an actual P so this
@@ -262,9 +282,13 @@ trait DomRoot {
             }.mkString
 
           } else if (pas.left.start == "ctx") {
+            // todo merge and reconcile with dieselScope
 
             // remove any overload from all contexts until the scope
-            ctx.allToCtx.foreach(_.remove(pas.left.restAsP.name))
+            // todo should we do this? it will change the value of local parms?
+            // it's important - if someone set this parm somewhere in a parent, it won't
+            // act predictably - but then that's not predictable either...
+            ctx.allToScope.foreach(_.remove(pas.left.restAsP.currentStringValue))
 
             // this is used with variables ctx[varx] = value, where varx holds the name to set
             setp(ctx.getScopeCtx, "ctx", pas.left.restAsP, rightP)
@@ -272,34 +296,14 @@ trait DomRoot {
             // todo this should recurse with the rest I think?
 
           } else if (pas.left.start == "dieselScope" || pas.left.start == "return") {
+            // todo move to DieselCtxParmSource - just that origCtx is root there, needs some recoding
 
             // remove any overload from all contexts until the scope
-            ctx.allToCtx.foreach(_.remove(pas.left.restAsP.name))
+            ctx.allToScope.foreach(_.remove(pas.left.restAsP.name))
 
             // scope vars are set in the closest enclosing ScopeECtx or EngCtx
             // the idea is to bypass the enclosing RuleScopeECtx
             setp(ctx.getScopeCtx, "dieselScope", pas.left.restAsP, rightP)
-
-            // todo this should recurse with the rest I think?
-
-          } else if (pas.left.start == "dieselRoot") {
-
-            // todo
-            // remove any overload from all contexts until the scope
-            // ctx.allToCtx.foreach(_.remove(pas.left.restAsP.name))
-
-            // root context
-            // the idea is to bypass the enclosing RuleScopeECtx
-            // useful for returning values etc
-            setp(ctx.root, "dieselRoot", pas.left.restAsP, rightP)
-
-          } else if (pas.left.start == "dieselRealm") {
-
-            // root context
-            // the idea is to bypass the enclosing RuleScopeECtx
-            val r = ctx.root.settings.realm
-            r.foreach(Website.putRealmProps(_, pas.left.rest.head.name, rightP))
-            r.flatMap(Website.forRealm).map(_.put(pas.left.rest.head.name, rightP.currentStringValue))
 
           } else {
 
@@ -317,14 +321,14 @@ trait DomRoot {
           }
 
         // create the assignment node
-        a append DomAst(
+        a.map(_ append DomAst(
           EInfo(
             pas.left.toStringCalc + " = " + res,
             "" // now the parm name includes popup
             // rightP.calculatedTypedValue.asString
           ).withPos(pos),
           AstKinds.DEBUG
-        )
+        ))
 
         (Nil, Nil)
       }
@@ -333,7 +337,7 @@ trait DomRoot {
     // add EVals to the tree, for each left pair
 
     if (AstKinds.IGNORE != kind)
-      a appendAll calc.flatMap(_._1).flatMap { p =>
+      a.map(_ appendAll calc.flatMap(_._1).flatMap { p =>
         if (p.ttype == WTypes.EXCEPTION) {
           p.value.map { v =>
             val err = handleError(p, v)
@@ -349,6 +353,7 @@ trait DomRoot {
           // no info needed from each val as now parm name pops up details
         }
       }
+      )
 
     // put each right pair into current context
     // we do not propagate locally values that went up
@@ -379,7 +384,7 @@ trait DomRoot {
       val aei = (new SimpleExprParser).parseIdent(p.name)
 
       appendValsPas(
-        a,
+        Some(a),
         pos,
         None,
         List(PAS(aei.get, p.calculatedP.currentValue)),
@@ -397,7 +402,7 @@ trait DomRoot {
     * @param ctx
     * @param p
     */
-  private def setValueInContext(a: DomAst, ctx: ECtx, p: P) {
+  private def setValueInContext(a: Option[DomAst], ctx: ECtx, p: P) {
     ctx.put(p)
   }
 }

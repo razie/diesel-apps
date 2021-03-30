@@ -183,7 +183,7 @@ class DomEngineV1(
 
         if (n1.test(a)) {
           // run in parent's context - no need for a local
-          appendValsPas(a, m.pos, Some(m), m.attrs, a.getCtx.get)
+          appendValsPas(Some(a), m.pos, Some(m), m.attrs, a.getCtx.get)
         } else {
           a.parent.foreach { p =>
             evAppChildren(p,
@@ -196,7 +196,7 @@ class DomEngineV1(
       case n1@EMsgPas(ar) => {
 
         // run in parent's context - no need for a local
-        appendValsPas(a, n1.pos, Some(n1), n1.attrs, a.getCtx.get)
+        appendValsPas(Some(a), n1.pos, Some(n1), n1.attrs, a.getCtx.get)
       }
 
       case x: EMsg if x.entity == "" && x.met == "" => {
@@ -1121,15 +1121,17 @@ class DomEngineV1(
         // expand all spec vals
         dom.moreElements.collect {
           case v: EVal => {
-            evAppChildren(a, DomAst(v, AstKinds.TRACE))
+            // clone so nobody changes the calculated value of p
+            val newv = v.copy(p = v.p.copy().copyFrom(v.p)).copyFrom(v)
+            evAppChildren(a, DomAst(newv, AstKinds.TRACE))
             // do not calculate here - keep them more like exprs .calculatedP)
 
             // todo this causes all kinds of weird issues
 
-//          setSmartValueInContext(a, this.ctx, v.p)
+//          setSmartValueInContext(a, this.ctx, newv.p)
 
-//          this.engine.ctx.put(v.p) // do not calculate p, just set it at root level
-            a.getCtx.get.getScopeCtx.put(v.p) // do not calculate p, just set it at root level
+//          this.engine.ctx.put(newv.p) // do not calculate p, just set it at root level
+            a.getCtx.get.getScopeCtx.put(newv.p) // do not calculate p, just set it at root level
           }
         }
 

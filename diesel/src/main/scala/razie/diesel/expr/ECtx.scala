@@ -69,6 +69,7 @@ trait ECtx extends ParmSource {
 
   def clear: Unit
 
+  /** flatten and list all values in this and all parent contexts, using proper overriding */
   def listAttrs: List[P]
 
   def getRequired(name: String): String = getRequiredp(name).currentStringValue
@@ -89,7 +90,7 @@ trait ECtx extends ParmSource {
   }
 
   /** all parent contexts to the scope */
-  def allToCtx = {
+  def allToScope = {
     val res = new ListBuffer[ECtx]()
     res.append(this)
     var sc: Option[ECtx] = Some(this)

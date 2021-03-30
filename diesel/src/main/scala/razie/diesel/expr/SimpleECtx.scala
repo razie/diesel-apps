@@ -5,10 +5,12 @@
  */
 package razie.diesel.expr
 
+import org.bson.types.ObjectId
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom.RDomain
 import razie.diesel.engine.nodes.{EVal, EWarning}
-import razie.diesel.engine.{DomAst, DomEngECtx}
+import razie.diesel.engine.{DieselCtxParmSource, DieselParmSource, DieselRealmParmSource, DomAst, DomEngECtx}
+import razie.diesel.model.DieselMsg
 import razie.tconf.{DSpec, DTemplate}
 import scala.collection.mutable
 import scala.collection.mutable.{HashMap, ListBuffer}
@@ -31,6 +33,8 @@ class SimpleECtx(
   protected var _domain: Option[RDomain] = None
   protected var _specs: List[DSpec] = Nil
   private var userId: Option[String] = None
+
+  def name = "Ctx"
 
   //payload is never static
 
@@ -125,8 +129,51 @@ class SimpleECtx(
     None
         .orElse(attrs.find(a => a.name == name)) // was it overwritten?
         .orElse(cur.find(a => a.name == name && a.hasCurrentValue)) // or is it the static value?
+        .orElse(specpu(name))
         .orElse(base.flatMap(_.getp(name)))
         .orElse(getpFromDomain(name))
+
+  // uniques
+  val uid = P("DIESEL_UID", new ObjectId().toString)
+  val millis = P.fromSmartTypedValue("DIESEL_MILLIS", System.currentTimeMillis())
+
+  /** source some of the unique values to help rerun tests */
+  protected def pu(s: String): Option[P] = s match {
+    case "DIESEL_UID" => Some(uid)
+    case "DIESEL_MILLIS" => Some(millis)
+    case "DIESEL_CURMILLIS" => Some(P.fromSmartTypedValue("DIESEL_CURMILLIS", System.currentTimeMillis()))
+
+    case "diesel.db.newId" => Some(P("diesel.db.newId", new ObjectId().toString))
+    case DieselMsg.ENGINE.DIESEL_ENG_DESC => Some(
+      P(DieselMsg.ENGINE.DIESEL_ENG_DESC, root.engine.map(_.description).mkString))
+
+    case "diesel" => {
+      Some(P.fromSmartTypedValue("diesel", new DieselParmSource(root)))
+    }
+
+    case "dieselRealm" => {
+      Some(P.fromSmartTypedValue("dieselRealm", new DieselRealmParmSource(root)))
+    }
+
+    case "dieselRoot" => {
+      Some(P.fromSmartTypedValue("dieselRoot", new DieselCtxParmSource("dieselRoot", root, this)))
+    }
+
+    case "dieselScope" => {
+      Some(P.fromSmartTypedValue("dieselScope", new DieselCtxParmSource("dieselScope", this.getScopeCtx, this)))
+    }
+
+    case _ => None
+  }
+
+  /** just needed this for hacking purposes */
+  protected def specpu(s: String): Option[P] = s match {
+    case "dieselScope" => {
+      Some(P.fromSmartTypedValue("dieselScope", new DieselCtxParmSource("dieselScope", this.getScopeCtx, this)))
+    }
+
+    case _ => None
+  }
 
   /** see if we can source a value from the domain, i.e. static $val */
   protected def getpFromDomain(name: String): Option[P] = {
