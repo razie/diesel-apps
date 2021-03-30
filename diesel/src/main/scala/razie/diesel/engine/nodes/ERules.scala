@@ -473,13 +473,20 @@ case class EVal(p: RDOM.P) extends CanHtml with HasPosition with HasKind {
     this
   }
 
-  // overwrite default, so some values don't show in info view
-  var kind: Option[String] = None
-  def withKind(k: String) = {
-    this.kind = Some(k); this
+  def copyFrom(other: EVal) = {
+    this.pos = other.pos
+    this
   }
 
-  def toj : Map[String,Any] =
+  // overwrite default, so some values don't show in info view
+  var kind: Option[String] = None
+
+  def withKind(k: String) = {
+    this.kind = Some(k);
+    this
+  }
+
+  def toj: Map[String, Any] =
     Map(
       "class" -> "EVal",
       "name" -> p.name,
