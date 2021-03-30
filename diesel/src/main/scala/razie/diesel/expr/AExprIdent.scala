@@ -26,7 +26,6 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
 
   // allow ctx["name"] as well as name
   def getp(name: String)(implicit ctx: ECtx): Option[P] = {
-//     if("ctx" == name)
     ctx.getp(name)
   }
 
@@ -197,10 +196,14 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
             if (zi < 0) zi = list.size + zi - 1
             if (zi == scala.Int.MaxValue) zi = list.size - 1
 
+            // take only as many as possible
+            if (zi >= list.size) zi = list.size - ai
+
             if (blowUp && list.size < ai)
-              throw new DieselExprException(s"$ai out of bounds of List")
+              throw new DieselExprException(s"$ai out of bounds of List.size=${list.size}")
+
             if (blowUp && list.size < zi)
-              throw new DieselExprException(s"$zi out of bounds of List")
+              throw new DieselExprException(s"$zi out of bounds of List.size=${list.size}")
 
             val res = list.slice(ai, zi + 1)
 
