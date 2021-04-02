@@ -136,9 +136,14 @@ object DomInventories extends razie.Logging {
     * @param collectRefs
     * @return
     */
-  def listAll(ref: FullSpecRef, start: Long = 0, limit: Long = 100, sort: Array[String], collectRefs: Option[mutable
-  .HashMap[String, String]]
-  = None): DIQueryResult = {
+  def listAll(ref: FullSpecRef,
+              start: Long = 0,
+              limit: Long = 100,
+              sort: Array[String],
+              countOnly: Boolean = false,
+              collectRefs: Option[mutable
+              .HashMap[String, String]]
+              = None): DIQueryResult = {
     val dom = WikiDomain(ref.realm)
     val p = dom.findPlugins(ref.inventory).headOption
     val o = p.map(inv =>
@@ -146,7 +151,7 @@ object DomInventories extends razie.Logging {
         true,
         ref.realm,
         ref,
-        inv.listAll(dom.rdom, ref, start, limit, sort, collectRefs)
+        inv.listAll(dom.rdom, ref, start, limit, sort, countOnly, collectRefs)
       )
     )
     o.getOrElse(DIQueryResult(0))

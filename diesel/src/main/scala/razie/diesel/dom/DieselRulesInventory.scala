@@ -105,8 +105,8 @@ class DieselRulesInventory(
   /** list all elements of class */
   override def listAll(dom: RDomain, ref: FullSpecRef,
                        from: Long, limit: Long, sort: Array[String],
-                       collectRefs: Option[mutable
-                       .HashMap[String, String]] = None)
+                       countOnly: Boolean = false,
+                       collectRefs: Option[mutable.HashMap[String, String]] = None)
   : Either[DIQueryResult, EMsg] = {
     Right(
       new EMsg(

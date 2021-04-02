@@ -76,6 +76,7 @@ trait DomInventory {
   def listAll(dom: RDomain, ref: FullSpecRef,
               start: Long, limit: Long,
               sort: Array[String],
+              countOnly: Boolean = false,
               collectRefs: Option[mutable.HashMap[String, String]] = None)
   : Either[DIQueryResult, EMsg] = ???
 
@@ -92,7 +93,11 @@ trait DomInventory {
     * @param wi     - spec inventory, use it to lookup configuration topics, diesel plugin topics etc
     * @param iprops initial properties, when created via diesel message
     */
-  def mkInstance(realm: String, env:String, wi: DSpecInventory, newName:String, iprops: Map[String, String] = Map.empty): List[DomInventory] = Nil
+  def mkInstance(realm: String,
+                 env: String,
+                 wi: DSpecInventory,
+                 newName: String,
+                 iprops: Map[String, String] = Map.empty): List[DomInventory] = Nil
 
   /**
     * can this support the class? You can look at it's annotations etc
