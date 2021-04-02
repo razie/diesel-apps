@@ -6,8 +6,7 @@
 package razie.diesel.engine
 
 import razie.diesel.engine.RDExt.TestResult
-import razie.diesel.engine.nodes.StoryNode
-import razie.diesel.engine.nodes.{EError, ExpectAssert, ExpectM, ExpectV}
+import razie.diesel.engine.nodes.{EError, ExpectAssert, ExpectM, ExpectV, StoryNode, StoryTestStats}
 import razie.diesel.utils.DomHtml.quickBadge
 
 /** a tree node
@@ -27,12 +26,8 @@ object DomEngineView {
 
     val resl = Range(0, stories.size).map { i =>
       val s = stories(i)
-      val nodes = s._1.children
-//        if(i < stories.size - 1) a.children.slice(s._2+1, stories(i+1)._2 - 1)
-//        else a.children.slice(s._2+1, a.children.size - 1)
-
-      val failed = failedTestCount(nodes.toList)
-      val total = totalTestedCount(nodes.toList)
+      val sn = s._1.value.asInstanceOf[StoryNode]
+      val StoryTestStats(failed, total, _, _, _) = sn.getStats
 
       s"""<a href="#${s._1.value.asInstanceOf[StoryNode].path.wpath.replaceAll("^.*:", "")}">[details]</a>""" +
           quickBadge(failed, total, -1, "") +
@@ -89,27 +84,34 @@ object DomEngineView {
   def todoTestCount(a: DomAst): Int = todoTestCount(List(a))
 
   /** count test results */
-  def totalTestedCount(nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {
+  def totalTestedCount(nodes: List[DomAst]): Int = (nodes.flatMap(_.collect {
     case d@DomAst(n: TestResult, _, _, _) => n
-  })).size
+  })).size + storyStats(nodes, _.total)
+
+  /** count test results */
+  def storyStats(nodes: List[DomAst], f: StoryTestStats => Int) = (nodes.flatMap(_.collect {
+    case d@DomAst(n: StoryNode, _, _, _) if n.stats.isDefined => n
+  })).map(sn => f(sn.getStats)).sum
 
   /** count tests to do */
-  def todoTestCount(nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {
+  def todoTestCount(nodes: List[DomAst]): Int = (nodes.flatMap(_.collect {
     case d@DomAst(n: ExpectAssert, _, _, _) /*if DomState.isDone(d.status)*/ => n
     case d@DomAst(n: ExpectM, _, _, _) /*if DomState.isDone(d.status)*/ => n
     case d@DomAst(n: ExpectV, _, _, _) /*if DomState.isDone(d.status)*/ => n
   })).size
 
-  def failedTestCount(nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {
+  def failedTestCount(nodes: List[DomAst]): Int = (nodes.flatMap(_.collect {
     case d@DomAst(n: TestResult, _, _, _) if n.value.startsWith("fail") => n
     case d@DomAst(n: EError, _, _, _) if !n.handled => n
   })).size
+  // not add storyStats because we keep erorred stories intact
 
-  def errorCount(nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {
+  def errorCount(nodes: List[DomAst]): Int = (nodes.flatMap(_.collect {
     case d@DomAst(n: EError, _, _, _) if !n.handled => n
   })).size
+  // not add storyStats because we keep erorred stories intact
 
-  def successTestCount (nodes:List[DomAst]): Int = (nodes.flatMap(_.collect {
+  def successTestCount(nodes: List[DomAst]): Int = (nodes.flatMap(_.collect {
     case d@DomAst(n: TestResult, _, _, _) if n.value.startsWith("ok") => n
-  })).size
+  })).size + storyStats(nodes, _.success)
 }

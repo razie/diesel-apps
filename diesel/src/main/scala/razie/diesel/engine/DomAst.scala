@@ -185,6 +185,16 @@ case class DomAst(
     this
   }
 
+  /** reduce footprint/memory size */
+  def removeDetails() = {
+    moreDetails = " "
+  }
+
+  /** prune story - call this on Story nodes */
+  def removeTestDetails() = {
+    childrenCol.foreach(_.childrenCol.clear())
+  }
+
   //============== traversal
 
   private def shouldPrune(k: DomAst) =

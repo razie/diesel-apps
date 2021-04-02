@@ -288,6 +288,7 @@ object DieselMsg {
   object ENGINE {
     final val ENTITY = "diesel"
     final val VALS = "vals"
+    final val DIESEL_CLEANSTORY = "diesel.story.clean"
     final val DIESEL_EXIT = "diesel.pleaseexit"
     final val DIESEL_CRASHAKKA = "diesel.crashakka"
     final val DIESEL_VALS = "diesel.vals"

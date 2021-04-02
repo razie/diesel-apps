@@ -10,6 +10,10 @@ import razie.Logging
 import razie.diesel.dom.RDOM.{O, P}
 import razie.diesel.dom.RDomain.DOM_LIST
 import razie.diesel.dom.{RDomain, WikiDomain}
+import razie.diesel.engine.DomEngineView.{
+  errorCount, failedTestCount, successTestCount, todoTestCount,
+  totalTestedCount
+}
 import razie.diesel.engine._
 import razie.diesel.expr.ScopeECtx
 import razie.diesel.model.DieselMsg
@@ -20,9 +24,39 @@ import razie.wiki.model._
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
+/** story summary */
+case class StoryTestStats(
+  failed: Int,
+  total: Int,
+  success: Int,
+  errors: Int,
+  todo: Int
+)
+
 /** nice links to stories in AST trees */
 case class StoryNode(path: TSpecRef) extends CanHtml with InfoNode {
   def x = s"""<a id="${path.wpath.replaceAll("^.*:", "")}"></a>""" // from wpath leave just name
+
+  // calculated stats
+  var stats: Option[StoryTestStats] = None
+
+  /** get succ/fail */
+  def getStats: StoryTestStats = stats.getOrElse(StoryTestStats(0, 0, 0, 0, 0))
+
+  /** calculate succ/fail */
+  def calculateStats(ast: DomAst): StoryTestStats = {
+    if (stats.isEmpty) {
+      val nodes = ast.children
+      val failed = failedTestCount(nodes)
+      val total = totalTestedCount(nodes)
+      val success = successTestCount(nodes)
+      val errors = errorCount(nodes)
+      val todo = todoTestCount(nodes)
+      stats = Option(StoryTestStats(failed, total, success, errors, todo))
+    }
+    stats.get
+  }
+
   override def toHtml = x + s"""Story ${path.ahref.mkString}"""
 
   override def toString = "Story " + path.wpath
@@ -285,8 +319,6 @@ object EnginePrep extends Logging {
 
   /**
     * add all nodes from story and add them to root
-    *
-    * todo when are expressions evaluated?
     */
   def addStoriesToAst(engine: DomEngine, stories: List[DSpec], justTests: Boolean = false, justMocks: Boolean =
   false, addFiddles: Boolean = false) = {
@@ -297,10 +329,10 @@ object EnginePrep extends Logging {
     val root = engine.root
 
     /** hookup this new message to the last one */
-    def addMsg(v: EMsg) = {
+    def addMsg(v: EMsg, kind: String = AstKinds.RECEIVED) = {
       lastMsg = Some(v);
       // withPrereq will cause the story messages to be ran in sequence
-      lastMsgAst = if (!(justTests || justMocks)) Some(DomAst(v, AstKinds.RECEIVED).withPrereq({
+      lastMsgAst = if (!(justTests || justMocks)) Some(DomAst(v, kind).withPrereq({
         if (inSequence) lastAst.map(_.id)
         else Nil
       })) else None // need to reset it
@@ -325,7 +357,7 @@ object EnginePrep extends Logging {
     // this is important for diesel.guardian.starts + diese.setEnv - otherwise tehy run after the tests
     lastAst = root.children.toList
 
-    // to put the storeis in seq
+    // to put the stores in seq
     var lastStory: Option[DomAst] = None
 
     // add a single story
@@ -338,7 +370,7 @@ object EnginePrep extends Logging {
 
       var storyAst = root
 
-      // add a node to represent the story, if multiple stories or fiddles
+      // add a node to represent the story
       val xstoryAst = DomAst(StoryNode(story.specRef), AstKinds.STORY)
           .withPrereq(lastAst.map(_.id))
 
@@ -462,6 +494,8 @@ object EnginePrep extends Logging {
         case v: EMock => List(DomAst(v, AstKinds.RULE))
       }.flatten
 
+      // clean successful stories
+      storyAst.childrenCol appendAll addMsg(EMsg("diesel.story.clean"), AstKinds.TRACE)
 
       inSequence = savedInSequence
     }

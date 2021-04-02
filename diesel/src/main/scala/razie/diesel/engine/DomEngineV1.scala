@@ -216,7 +216,7 @@ class DomEngineV1(
         // todo problem right now: parent parms are not in context, so can't use in child messages
 
         // node context created in expandEMsg
-        msgs = expandEMsgAndRep(a, in, recurse, level, a.getCtx.get) ::: msgs
+        msgs = expandEMsgAndRep(a, in, recurse, level, a.getCtx.getOrElse(ctx)) ::: msgs
       }
 
       case n: EVal if !AstKinds.isGenerated(a.kind) => {
@@ -751,6 +751,29 @@ class DomEngineV1(
     val res = {
       if (ea == DieselMsg.ENGINE.DIESEL_NOP) {
         Audit.logdb("DIESEL_NOP", s"user ${settings.userId}")
+
+        true
+
+      } else if (ea == DieselMsg.ENGINE.DIESEL_CLEANSTORY) {
+
+        if (description contains "Guardian") {
+          // parent node must be story
+          var p = a.parent
+          if (a.parent.exists(_.value.isInstanceOf[ENext])) {
+            p = p.get.parent
+          }
+
+          p.filter(_.value.isInstanceOf[StoryNode]).foreach { p =>
+            val sn = p.value.asInstanceOf[StoryNode]
+            if (sn.calculateStats(p).failed == 0) {
+              // if story completed and nothing failed, remove it from test report
+              p.removeTestDetails()
+            }
+          }
+        } else {
+          val newD = DomAst(new EInfo(s"Skipped - not guardian", ""), AstKinds.GENERATED)
+          evAppChildren(a, newD)
+        }
 
         true
 

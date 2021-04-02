@@ -16,11 +16,11 @@ import scala.concurrent.ExecutionContext.Implicits.global
 /**
   * Created by raz on 2017-06-13.
   */
-object SimpleFlow {
+object SimpleFlowSample {
 
   // some rules - make sure each line starts with $ and ends with \n
   val specs = List(
-    TextSpec ( "spec1",
+    TextSpec("spec1",
       """
 $when home.guest_arrived(name) => lights.on
 
