@@ -19,7 +19,7 @@ object DomCollector {
 
   /** a single collected trace */
   case class CollectedAst(stream: String, realm: String, id: String, userId: Option[String], engine: DomEngine,
-                          details: String, dtm: DateTime = DateTime.now) {
+                          collectGroup: String, details: String, dtm: DateTime = DateTime.now) {
     def isLowerPriority = {
       val desc = engine.description // not collectGroup
       desc.contains(DieselMsg.fiddleStoryUpdated) ||
@@ -31,8 +31,8 @@ object DomCollector {
     /** how many of these to keep in trace collector? */
     def getMaxCount = {
       engine.settings.collectCount.filter(_ != 0).getOrElse {
-        val desc = engine.settings.collectGroup.getOrElse(engine.description)
-        if (
+        val desc = engine.collectGroup
+        val res = if (
           desc.endsWith(DieselMsg.ENGINE.DIESEL_PING)
         ) 3 else if (
           desc.contains(DieselMsg.fiddleStoryUpdated) ||
@@ -41,6 +41,7 @@ object DomCollector {
           if (engine.settings.slaSet.contains(DieselSLASettings.NOKEEP)) -1 else 0
           // 0  means no self-imposed limit, default
         }
+        res
       }
     }
   }
@@ -58,10 +59,9 @@ object DomCollector {
     stream: String, realm: String, xid: String,
     userId: Option[String], eng: DomEngine, details: String = "") = synchronized {
 
-    val newOne = CollectedAst(stream, realm, xid, userId, eng, details)
-    val count = newOne.getMaxCount
-
     val collectGroup = eng.collectGroup
+    val newOne = CollectedAst(stream, realm, xid, userId, eng, collectGroup, details)
+    val count = newOne.getMaxCount
 
     if (count >= 0) { // collect it
 
@@ -69,7 +69,8 @@ object DomCollector {
 
       // does it have collect settings? collect settings are per description
       if (count > 0) {
-        var lesser = newAsts.filter(_.engine.description == eng.description)
+        //        var lesser = newAsts.filter(_.engine.description == eng.description)
+        var lesser = newAsts.filter(_.collectGroup == collectGroup)
 
         // if it does and collected more in the same description, remove some
         var stupidLimit = MAX_SIZE // bug 636 - had a logic issue with 2.1.5.t6, too risky to rethink now, so put a
@@ -79,7 +80,7 @@ object DomCollector {
           // remove one of this kind, done
           lesser.reverse.find(e => DomState.isDone(e.engine.status)).map(_.id).foreach { lastId =>
             newAsts = newAsts.filter(_.id != lastId).take(MAX_SIZE - 1)
-            lesser = newAsts.filter(_.engine.collectGroup == collectGroup)
+            lesser = newAsts.filter(_.collectGroup == collectGroup)
           }
 
           // bug 636 - it was spinning if too many flows in progress with same description
@@ -87,7 +88,7 @@ object DomCollector {
             // remove some of the in progress flows too
             lesser.lastOption.map(_.id).foreach { lastId =>
               newAsts = newAsts.filter(_.id != lastId).take(MAX_SIZE - 1)
-              lesser = newAsts.filter(_.engine.collectGroup == collectGroup)
+              lesser = newAsts.filter(_.collectGroup == collectGroup)
             }
           }
         }
