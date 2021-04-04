@@ -170,7 +170,7 @@ object DomEngineUtils {
         _.name == p.name).isDefined => (p.name, p.currentStringValue)
     }
 
-    val resValue = engine.extractFinalValue(omsg.flatMap(_.omsg).map(_.ea).mkString).map(_.currentStringValue)
+    val resValue = engine.extractFinalValue(omsg.flatMap(_.omsg).map(_.ea).mkString).map(_.currentStringValue).mkString
 
     var m = Map(
       "payload" -> resValue,
@@ -196,7 +196,12 @@ object DomEngineUtils {
 
     // get timeout max from realm settings: paid gets more etc
     val res = Await.result(fut, Duration.create(30, "seconds"))
-    res.get(Diesel.PAYLOAD).map(_.asInstanceOf[P])
+    res.get(Diesel.PAYLOAD)
+        .map(p =>
+          if (p.isInstanceOf[P]) p.asInstanceOf[P]
+          else P.fromSmartTypedValue(Diesel.PAYLOAD, p.toString)
+//          else P.fromSmartTypedValue(Diesel.PAYLOAD, new RuntimeException(p.toString))
+        )
   }
 
   /**

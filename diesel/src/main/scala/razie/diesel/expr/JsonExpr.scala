@@ -20,24 +20,41 @@ case class JBlockExpr(ex: List[(String, Expr)], schema:Option[String]=None) exte
   override def apply(v: Any)(implicit ctx: ECtx) = applyTyped(v).currentStringValue
 
   override def applyTyped(v: Any)(implicit ctx: ECtx) = {
-    // todo this can be way faster for a few types, like Array - $send ctx.set (state281 = {source: [0,1,2,3,4,5], dest: [], aux: []})
+    // todo this can be way faster for a few types, like Array - $send ctx.set (state281 = {source: [0,1,2,3,4,5],
+    //  dest: [], aux: []})
 //    val orig = template(expr)
+
+    def escapeJson(raw: String) = {
+      var escaped = raw;
+      escaped = escaped.replace("\\", "\\\\");
+      escaped = escaped.replace("\"", "\\\"");
+      escaped = escaped.replace("\b", "\\b");
+      escaped = escaped.replace("\f", "\\f");
+      escaped = escaped.replace("\n", "\\n");
+      escaped = escaped.replace("\r", "\\r");
+      escaped = escaped.replace("\t", "\\t");
+      escaped;
+    }
+
     val orig = ex
-      .map(t=> (t._1, t._2.applyTyped(v)))
-      .map(t=> (t._1, t._2 match {
-        case p@P(n,d,WTypes.wt.NUMBER, _, _, Some(PValue(i:Int, _))) => i
-        case p@P(n,d,WTypes.wt.NUMBER, _, _, Some(PValue(i:Long, _))) => i
-        case p@P(n,d,WTypes.wt.NUMBER, _, _, Some(PValue(i:Double, _))) => i
+        .map(t => (t._1, t._2.applyTyped(v)))
+        .map(t => (t._1, t._2 match {
+          case p@P(n, d, WTypes.wt.NUMBER, _, _, Some(PValue(i: Int, _))) => i
+          case p@P(n, d, WTypes.wt.NUMBER, _, _, Some(PValue(i: Long, _))) => i
+          case p@P(n, d, WTypes.wt.NUMBER, _, _, Some(PValue(i: Double, _))) => i
 
-        case p@P(n, d, WTypes.wt.BOOLEAN, _, _, Some(PValue(b: Boolean, _))) => b
+          case p@P(n, d, WTypes.wt.BOOLEAN, _, _, Some(PValue(b: Boolean, _))) => b
 
-        case p: P => p.currentStringValue match {
-          case i: String if i.trim.startsWith("[") && i.trim.endsWith("]") => i
-          case i: String if i.trim.startsWith("{") && i.trim.endsWith("}") => i
-          case i => "\"" + i + "\""
-        }
+          case p: P => p.currentStringValue match {
+            // parts of json stay as json
+            case i: String if i.trim.startsWith("[") && i.trim.endsWith("]") => i
+            case i: String if i.trim.startsWith("{") && i.trim.endsWith("}") => i
 
-      }))
+            // any other string must be escaped
+            case i => "\"" + escapeJson(i) + "\""
+          }
+
+        }))
     .map(t => (exname(t._1), t._2)) // expand interpolated string
     .map(t => s""" "${t._1}" : ${t._2} """)
     .mkString(",")

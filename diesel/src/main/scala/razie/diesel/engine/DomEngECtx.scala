@@ -153,6 +153,12 @@ class DieselParmSource (ctx:DomEngECtx) extends ParmSource {
     case "username" => Some(P("diesel.username", ctx.dieselUsername(ctx)))
     case "isLocalhost" => Some(P.fromTypedValue("diesel.isLocalhost", razie.wiki.Services.config.isLocalhost))
 
+    // todo deprecated, remove - search in all realms
+    case "realm.props" | "props.realm" => {
+      val p = Website.getRealmProps(ctx.root.settings.realm.mkString)
+      Some(P.fromTypedValue("diesel.realm.props", p))
+    }
+
     case "realm" => {
       next("diesel.realm", Map(
         "props" -> (n => Right(new DieselRealmParmSource(ctx)))
@@ -172,7 +178,10 @@ class DieselParmSource (ctx:DomEngECtx) extends ParmSource {
   def next(name: String, values: Map[String, String => Either[P, ParmSource]]) =
     Some(P.fromTypedValue(name, new NextDParmSource(ctx, name, values)))
 
-  def put(p: P): Unit = throw new DieselException("Can't overwrite values in this context!")
+  def put(p: P): Unit = p.name match {
+    // for "env" we could override locally only
+    case _ => throw new DieselException("Can't overwrite values in this context!")
+  }
 
   def listAttrs: List[P] = Nil
 
