@@ -5,6 +5,7 @@
  */
 package razie.diesel.expr
 
+import java.time.LocalDateTime
 import razie.clog
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
@@ -144,6 +145,10 @@ case class BCMP2(a: Expr, op: String, b: Expr)
             p.ttype.name == WTypes.NUMBER || p.value.exists(_.cType.name == WTypes.NUMBER)
           }
 
+          def isDate(p: P) = {
+            p.ttype.name == WTypes.DATE || p.value.exists(_.cType.name == WTypes.DATE)
+          }
+
           def checkIS = { // is number or is date or is string etc
             /* x is TYPE (single id, not a value) */
             if (b.isInstanceOf[AExprIdent] &&
@@ -178,18 +183,29 @@ case class BCMP2(a: Expr, op: String, b: Expr)
             )
           }
 
+          if (cmpop && (isDate(ap) && isDate(bp))) {
+            return BExprResult(
+              cmpDates(ap.calculatedTypedValue.asDate, bp.calculatedTypedValue.asDate, op),
+              oap,
+              obp
+            )
+          }
+
           op match {
             case "?=" => a(in).toString.length >= 0 // anything with a default
             case "!=" => a(in) != b(in)
             case "~=" | "matches" => a(in).toString matches b(in).toString
-            case "~path" => EContent.extractPathParms(a(in).toString , b(in).toString)._1
+            case "~path" => EContent.extractPathParms(a(in).toString, b(in).toString)._1
+
             case "<=" => a(in).toString <= b(in).toString
             case ">=" => a(in).toString >= b(in).toString
             case "<" => a(in).toString < b(in).toString
-            case ">" => a(in).toString > b(in).toString
+            case ">" => {
+              a(in).toString > b(in).toString
+            }
 
-            case "contains" if ap.ttype == WTypes.wt.ARRAY => isin (bp, ap)
-            case "containsNot" if ap.ttype == WTypes.wt.ARRAY => !isin (bp, ap)
+            case "contains" if ap.ttype == WTypes.wt.ARRAY => isin(bp, ap)
+            case "containsNot" if ap.ttype == WTypes.wt.ARRAY => !isin(bp, ap)
             case "contains" => a(in).toString contains b(in).toString
             case "containsNot" => !(a(in).toString contains b(in).toString) // todo deprecate
             case "not" if b.toString == "contains" => !(a(in).toString contains b(in).toString)
@@ -340,12 +356,12 @@ case class BCMP2(a: Expr, op: String, b: Expr)
       BExprResult(resBool, oap, obp)
 
     } catch {
-      case t:Throwable => throw new DieselExprException("Can't typecast to: " + t.toString).initCause(t)
+      case t: Throwable => throw new DieselExprException("Can't typecast to: " + t.toString).initCause(t)
     }
   }
 
-    private def cmpNums(as: String, bs: String, op: String): Boolean = {
-      Try {
+  private def cmpNums(as: String, bs: String, op: String): Boolean = {
+    Try {
       val ai = {
         if (as.contains(".")) as.toDouble
         else as.toInt
@@ -355,22 +371,44 @@ case class BCMP2(a: Expr, op: String, b: Expr)
         else bs.toInt
       }
 
-    op match {
-      case "?="  => true
-      case "=="  => ai == bi
-      case "~="  => ai == bi
-      case "!="  => ai != bi
-      case "<="  => ai <= bi
-      case ">="  => ai >= bi
-      case "<"   => ai < bi
-      case ">"   => ai > bi
-      case "is"  => ai == bi
-      case "not" => ai != bi
-      case _ => {
-        clog << s"[ERR Operator $op UNKNOWN!!!] as in $ai $op $bi" ;
-        false
+      op match {
+        case "?=" => true
+        case "==" => ai == bi
+        case "~=" => ai == bi
+        case "!=" => ai != bi
+        case "<=" => ai <= bi
+        case ">=" => ai >= bi
+        case "<" => ai < bi
+        case ">" => ai > bi
+        case "is" => ai == bi
+        case "not" => ai != bi
+        case _ => {
+          clog << s"[ERR Operator $op UNKNOWN!!!] as in $ai $op $bi";
+          false
+        }
       }
-    }
+    } getOrElse (false)
+  }
+
+  private def cmpDates(ai: LocalDateTime, bi: LocalDateTime, op: String): Boolean = {
+    Try {
+      val cmp = (ai compareTo bi)
+      op match {
+        case "?=" => true
+        case "==" => (cmp) == 0
+        case "~=" => (cmp) == 0
+        case "!=" => (cmp) != 0
+        case "<=" => (cmp) <= 0
+        case ">=" => (cmp) >= 0
+        case "<" => (cmp) < 0
+        case ">" => (cmp) > 0
+        case "is" => (cmp) == 0
+        case "not" => (cmp) != 0
+        case _ => {
+          clog << s"[ERR Operator $op UNKNOWN!!!] as in $ai $op $bi";
+          false
+        }
+      }
     } getOrElse (false)
   }
 }

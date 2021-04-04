@@ -11,6 +11,7 @@ import razie.diesel.engine.nodes.CanHtml
 
 /** marker exception class for expr - understood by AST engine and treated nicer than a random exception */
 class DieselExprException (msg:String) extends RuntimeException (msg)
+// to add a base, use withcause or smth
 
 /** element has DSL form
   *

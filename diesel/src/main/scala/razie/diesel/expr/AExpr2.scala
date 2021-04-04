@@ -107,26 +107,41 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
           case _ if isDate(av) => {
             val as = a(v).toString
             val bs = b(v).toString
-            if (!bs.matches("[0-9]+ *[nsmhdMy]"))
-              throw new DieselExprException("Right side not a duration like 5s : " + bs)
-            val bi = bs.substring(0, bs.length - 1).trim.toLong
-            val bt = bs.last
+            var dur: Option[scala.concurrent.duration.Duration] = None
+
+            if (!bs.matches("[0-9]+ *[nsmhdMy]")) {
+              try {
+                // try with duration expressions
+                dur = Some(scala.concurrent.duration.Duration(bs.toLowerCase))
+              } catch {
+                case e: Exception => throw new DieselExprException(
+                  "Right side not a duration like 5s or 5 seconds: " + bs)
+              }
+            }
 
             val tsFmtr = DateTimeFormatter.ofPattern(WTypes.DATE_FORMAT)
+
             val ad = LocalDateTime.from(tsFmtr.parse(as))
 
             var res = ad
 
-            bt match {
-              case 'n' => res = res.plusNanos(bi)
-              case 's' => res = res.plusSeconds(bi)
-              case 'm' => res = res.plusMinutes(bi)
-              case 'h' => res = res.plusHours(bi)
-              case 'd' => res = res.plusDays(bi)
-              case 'M' => res = res.plusMonths(bi)
-              case 'y' => res = res.plusYears(bi)
-              case _ =>
-                throw new DieselExprException("Unknown duration type [nsmhdMy] : " + bt)
+            if (dur.isDefined) {
+              res = res.plusNanos(dur.get.toNanos)
+            } else {
+              val bi = bs.substring(0, bs.length - 1).trim.toLong
+              val bt = bs.last
+
+              bt match {
+                case 'n' => res = res.plusNanos(bi)
+                case 's' => res = res.plusSeconds(bi)
+                case 'm' => res = res.plusMinutes(bi)
+                case 'h' => res = res.plusHours(bi)
+                case 'd' => res = res.plusDays(bi)
+                case 'M' => res = res.plusMonths(bi)
+                case 'y' => res = res.plusYears(bi)
+                case _ =>
+                  throw new DieselExprException("Unknown duration type [nsmhdMy] : " + bt)
+              }
             }
 
             val ts = tsFmtr.format(res)
