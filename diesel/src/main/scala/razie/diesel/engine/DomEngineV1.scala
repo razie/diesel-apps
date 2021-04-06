@@ -62,6 +62,11 @@ class DomEngineV1(
           TestResult(
             "fail: maxLevels!", "You have a recursive rule generating this branch..."),
           "error"))
+      evAppChildren(a,
+        DomAst(
+          EMsg("diesel", "throw",
+            List(P("error", "maxLevels! recursive rule..."))
+          )))
       return Nil
     }
 
@@ -770,6 +775,9 @@ class DomEngineV1(
               p.removeTestDetails()
             }
           }
+
+          // also reset the maxExpands, so it works per story?
+          this.curExpands = 0
         } else {
           val newD = DomAst(new EInfo(s"Skipped - not guardian", ""), AstKinds.GENERATED)
           evAppChildren(a, newD)
@@ -1095,24 +1103,41 @@ class DomEngineV1(
 
       } else if (ea == DieselMsg.ENGINE.DIESEL_ASSERT) {
 
+        var errs: List[P] = Nil
+
         // evaluate all boolean parms
         val cp = in.attrs.map(_.calculatedP)
         val bcp = cp.filter(_.isOfType(WTypes.wt.BOOLEAN)).map { p =>
-          p.value.get.asBoolean
+          val res = p.value.get.asBoolean
+          if (!res) errs = p :: errs
+          res
         }
         val res = bcp.foldRight(true)((a, b) => a && b)
 
         val newD =
           if (res && bcp.size > 0)
-            DomAst(new EInfo("assert OK"), AstKinds.GENERATED)
-          else
-            DomAst(new EMsg("diesel", "return",
-              P.fromSmartTypedValue(DieselMsg.HTTP.RESPONSE, "Assert failed!") ::
-                  P.fromSmartTypedValue(DieselMsg.HTTP.STATUS, 500) ::
-                  cp.filter(!_.isOfType(WTypes.wt.BOOLEAN))
-            ),
-              AstKinds.GENERATED)
-        addChild(a, newD)
+            List(DomAst(new EInfo("assert OK"), AstKinds.GENERATED))
+          else {
+            val m = errs.mkString
+            val resp = cp
+                .find(_.name == DieselMsg.HTTP.RESPONSE)
+                .getOrElse {
+                  P.fromSmartTypedValue(DieselMsg.HTTP.RESPONSE, "Assert failed: " + m)
+                }
+            val code = cp
+                .find(_.name == DieselMsg.HTTP.STATUS)
+                .getOrElse {
+                  P.fromSmartTypedValue(DieselMsg.HTTP.STATUS, 500)
+                }
+
+            List(
+              DomAst(EWarning("Assert failed: " + m)),
+              DomAst(new EMsg("diesel", "return",
+                resp :: code :: cp.filter(!_.isOfType(WTypes.wt.BOOLEAN))
+              ),
+                AstKinds.GENERATED))
+          }
+        newD.foreach(addChild(a, _))
         true
 
       } else if (ea == DieselMsg.ENGINE.DIESEL_LATER) {
