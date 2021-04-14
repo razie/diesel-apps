@@ -33,6 +33,8 @@ trait DomRoot {
 
   def totalTestCount = DomEngineView.totalTestedCount(root)
 
+  def todoTestCount = DomEngineView.todoTestCount(root)
+
   def progress: String = DomEngineView.failedTestCount(root) + "/" + DomEngineView.totalTestedCount(
     root) + "/" + DomEngineView.todoTestCount(root)
 
@@ -114,6 +116,9 @@ trait DomRoot {
   ) = {
 
     val aei = (new SimpleExprParser).parseIdent(p.name)
+    if (aei.isEmpty) {
+      throw new DieselExprException("Left side not qualified ID:" + p.name)
+    }
 
     appendValsPas(
       a,
@@ -382,6 +387,9 @@ trait DomRoot {
 
     attrs.foreach { p =>
       val aei = (new SimpleExprParser).parseIdent(p.name)
+      if (aei.isEmpty) {
+        throw new DieselExprException("Left side not qualified ID:" + p.name)
+      }
 
       appendValsPas(
         Some(a),

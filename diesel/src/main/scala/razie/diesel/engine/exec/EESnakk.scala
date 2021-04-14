@@ -779,8 +779,10 @@ object EESnakk {
     var code = -1
     var errContent = ""
 
+    val ecause = t.getCause
+
     val cause =
-      if(t.getCause != null &&
+      if (t.getCause != null &&
           (t.getCause.isInstanceOf[java.lang.IllegalArgumentException] ||
               t.getCause.isInstanceOf[java.net.SocketTimeoutException] ||
               t.getCause.isInstanceOf[java.net.ConnectException] ||
@@ -788,8 +790,9 @@ object EESnakk {
               // why not all java.net ex - no point remembering the stack traces
               )
       ) {
-        razie.Log.log("error snakking: " + t.getClass.getName + " : " + t.getMessage + " cause: " + t.getCause.getMessage)
-        eres += new EError("Exception: " + t.getMessage, " cause: " + t.getCause.getMessage) :: Nil
+        razie.Log.log(
+          "error snakking: " + t.getClass.getName + " : " + t.getMessage + " cause: " + t.getCause.getMessage)
+        eres += new EError("Exception: " + ecause, " cause: " + t.getCause.getMessage) :: Nil
         t.getCause
       } else if( t.isInstanceOf[CommRtException] && t.asInstanceOf[CommRtException].httpCode > 0 ) {
         razie.Log.log("error snakking: " + t.getClass.getName + " : " + t.getMessage);
@@ -834,7 +837,7 @@ object EESnakk {
 
     eres +=
         // need to create a val - otherwise DomApi.rest returns the last Val
-        EVal(P("snakkError", html(cause.getMessage, 10000))) ::
+        EVal(P("snakkError", html(cause.toString, 10000))) ::
             Nil
   }
 
