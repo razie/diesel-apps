@@ -64,7 +64,11 @@ abstract class DomEngine(
 
   GlobalData.dieselEnginesTotal.incrementAndGet()
 
-  def collectGroup = settings.collectGroup.getOrElse(description)
+  // remove parameters so it becomes more invariable, like just message name or smth
+  def collectGroup = {
+    val x = settings.collectGroup.getOrElse(description.replaceFirst("\\(.*", ""))
+    if (x.length < 10) x + "-collectGroup" else x
+  }
 
   def wid = WID("DieselEngine", id)
 
