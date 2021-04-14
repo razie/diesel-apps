@@ -263,7 +263,12 @@ class EECtx extends EExecutor(EECtx.CTX) {
           ctx.getScopeCtx.remove(ex.currentStringValue)
         }
         // ctx.set goes to the enclosing scope
-        res.foreach(v => DomRoot.setValueInScopeContext(ctx, v.p))
+        res.foreach(v =>
+          // not doing this for exports - that's just scope normal parms - see specs tests, they fail this way
+          //ctx.root.engine.map(_.setoSmartValueInContext(None, ctx.getScopeCtx, v.p))
+          // setting normally
+          DomRoot.setValueInScopeContext(ctx, v.p)
+        )
         res
       }
 
@@ -285,7 +290,13 @@ class EECtx extends EExecutor(EECtx.CTX) {
         }.filter(_.isDefined).map(_.get)
 
         // ctx.set goes to the enclosing scope
-        res.foreach(v => DomRoot.setValueInScopeContext(ctx, v.p))
+        res.foreach(v =>
+//            if(v.p.name contains ".") {
+          ctx.root.engine.map(_.setoSmartValueInContext(None, ctx.getScopeCtx, v.p))
+//            } else {
+//          DomRoot.setValueInScopeContext(ctx, v.p)
+//            }
+        )
         res
       }
 
