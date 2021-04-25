@@ -52,8 +52,9 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
     // calc first parm value
     def firstParm = aParm(parms.headOption)
 
-    // calc first parm value
     def secondParm = aParm(parms.drop(1).headOption)
+
+    def thirdParm = aParm(parms.drop(2).headOption)
 
     // is it built-in or generic?
     expr match {
@@ -76,6 +77,50 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
 //        val ts2 = tsFmtr.format(nw)
 
         P.fromTypedValue("", ts, WTypes.wt.DATE)
+      }
+
+      case "matches" => {
+        val av = firstParm.getOrElse {
+          throw new DieselExprException("Need two arguments.")
+        }.calculatedValue
+
+        val bv = secondParm.getOrElse {
+          throw new DieselExprException("Need two arguments.")
+        }.calculatedValue
+
+        P.fromTypedValue("", av.matches(bv), WTypes.wt.BOOLEAN)
+      }
+
+      case "replaceAll" => {
+        val av = firstParm.getOrElse {
+          throw new DieselExprException("Need three arguments.")
+        }.calculatedValue
+
+        val bv = secondParm.getOrElse {
+          throw new DieselExprException("Need three arguments.")
+        }.calculatedValue
+
+        val cv = thirdParm.getOrElse {
+          throw new DieselExprException("Need three arguments.")
+        }.calculatedValue
+
+        P.fromTypedValue("", av.replaceAll(bv, cv), WTypes.wt.STRING)
+      }
+
+      case "replaceFirst" => {
+        val av = firstParm.getOrElse {
+          throw new DieselExprException("Need three arguments.")
+        }.calculatedValue
+
+        val bv = secondParm.getOrElse {
+          throw new DieselExprException("Need three arguments.")
+        }.calculatedValue
+
+        val cv = secondParm.getOrElse {
+          throw new DieselExprException("Need three arguments.")
+        }.calculatedValue
+
+        P.fromTypedValue(av.replaceFirst(bv, cv), WTypes.wt.STRING)
       }
 
       case "sizeOf" => {
