@@ -810,6 +810,14 @@ class DomEngineV1(
           setSmartValueInContext(a, a.getCtx.get.root, p) // set into root context, since we're returning
         }
 
+        // payload must overwrite anything
+        in.attrs.map(_.calculatedP).filter(_.name == Diesel.PAYLOAD).foreach { p =>
+          evAppChildren(a, DomAst(EVal(p)))
+          // set into scope context, since we're finishing this scope
+          setSmartValueInContext(a, a.getCtx.get, p)
+        }
+
+
         // story node prevents an entire test terminated because one story used diesel.return
         // 1. try to see if I'm inside a story - the top most node under the story,
         // if not, then the story and if not, then the ROOT
@@ -844,6 +852,13 @@ class DomEngineV1(
           evAppChildren(a, DomAst(EVal(p)))
           // set into scope context, since we're finishing this scope
           setSmartValueInContext(a, a.getCtx.get.getScopeCtx, p)
+        }
+
+        // payload must overwrite anything
+        in.attrs.map(_.calculatedP).filter(_.name == Diesel.PAYLOAD).foreach { p =>
+          evAppChildren(a, DomAst(EVal(p)))
+          // set into scope context, since we're finishing this scope
+          setSmartValueInContext(a, a.getCtx.get, p)
         }
 
         // stop other children of scope
