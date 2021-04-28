@@ -183,7 +183,9 @@ class EESnakk extends EExecutor("snakk") with Logging {
           trace("Snakking CURL: ")
           trace(trimmed(sc.toCurl, 5000))
 
-          eres += EInfo("Snakking " + x.toString, Enc.escapeHtml(trimmed(sc.toCurl))).withPos(pos)
+//          eres += EInfo("Snakking " + x.toString, Enc.escapeHtml(trimmed(sc.toCurl))).withPos(pos)
+          eres += EInfo("Snakking " + x.toString).withPos(pos)
+          eres += new EVal(P.fromTypedValue("snakkCurl", trimmed(sc.toCurl))).withKind(AstKinds.TRACE)
 
           response = sc.body // make the call
 
@@ -214,6 +216,7 @@ class EESnakk extends EExecutor("snakk") with Logging {
 
           content.warnings.foreach(eres.append)
           eres += ETrace("Response", html(content.toString))
+
           content
         }
 
