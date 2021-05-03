@@ -314,15 +314,16 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       case "debug" => {
-        cdebug(in.attrs)
+        EInfo("Local attrs:") ::
+            cdebug(in.attrs)
       }
 
       // debug current context
       case "trace" => {
-        EInfo("All flattened:") ::
-            cdebug(in.attrs) ::
-            EInfo("-----------detailed tree:") ::
-            ctrace(ctx)
+        EInfo("All flattened looking up:") ::
+            ctrace(ctx) :::
+            EInfo("-----------debug:") ::
+            cdebug(in.attrs)
       }
 
         // url safe version
@@ -650,26 +651,20 @@ class EECtx extends EExecutor(EECtx.CTX) {
     in.map { p =>
       new EInfo(s"${p.name} = ${p.currentStringValue} expr=(${p.expr}) cv= ${p.calculatedValue}")
     } :::
-        (new EInfo(s"Ctx: ${ctx.getClass.getName}") ::
-        ctx.listAttrs.map { p =>
-            Try {
-              new EInfo(s"${p.name} = ${p.currentStringValue} expr=(${p.expr}) cv= ${p.calculatedValue}")
-            }.recover{
-              case ex => new EInfo(s"${p.name} = ${p.currentStringValue} expr=(${p.expr}) cv= EXCEPTION: $ex")
-            }.get
-        })
+        (new EInfo(s"Ctx.listAttrs: ${ctx.getClass.getName}") ::
+            ctx.listAttrs.map { p =>
+              Try {
+                new EInfo(s"${p.name} = ${p.currentStringValue} expr=(${p.expr}) cv= ${p.calculatedValue}")
+              }.recover {
+                case ex => new EInfo(s"${p.name} = ${p.currentStringValue} expr=(${p.expr}) cv= EXCEPTION: $ex")
+              }.get
+            })
   }
 
-  // trace current context
+  // trace all contexts looking up
   def ctrace(c:ECtx)(implicit ctx:ECtx) : List[Any] = {
     EInfo("--------") ::
         (c match {
-      case sc: StaticECtx => {
-        EInfo(sc.toString) :: Nil
-      }
-      case r: DomEngECtx => {
-        EInfo(r.toString) :: Nil
-      }
       case c@_ => {
         EInfo(c.toString) :: Nil
       }

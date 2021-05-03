@@ -80,7 +80,7 @@ trait ECtx extends ParmSource {
     p.get
   }
 
-  /** return the closest enclosing scope, if any */
+  /** return the closest enclosing scope or root */
   def getScopeCtx = {
     var sc: Option[ECtx] = Some(this)
     while (sc.isDefined && !sc.exists(p => p.isInstanceOf[ScopeECtx] || p.isInstanceOf[DomEngECtx])) {
@@ -89,7 +89,7 @@ trait ECtx extends ParmSource {
     sc.getOrElse(root)
   }
 
-  /** all parent contexts to the scope */
+  /** all parent contexts to the first scope or root */
   def allToScope = {
     val res = new ListBuffer[ECtx]()
     res.append(this)

@@ -129,6 +129,7 @@ class SimpleECtx(
     None
         .orElse(attrs.find(a => a.name == name)) // was it overwritten?
         .orElse(cur.find(a => a.name == name && a.hasCurrentValue)) // or is it the static value?
+//        .orElse(pu(name))
         .orElse(specpu(name))
         .orElse(base.flatMap(_.getp(name)))
         .orElse(getpFromDomain(name))
@@ -159,7 +160,7 @@ class SimpleECtx(
       Some(P.fromSmartTypedValue("dieselRoot", new DieselCtxParmSource("dieselRoot", root, this)))
     }
 
-    case "dieselScope" => {
+    case "ctx" | "dieselScope" => {
       Some(P.fromSmartTypedValue("dieselScope", new DieselCtxParmSource("dieselScope", this.getScopeCtx, this)))
     }
 
@@ -168,7 +169,7 @@ class SimpleECtx(
 
   /** just needed this for hacking purposes */
   protected def specpu(s: String): Option[P] = s match {
-    case "dieselScope" => {
+    case "ctx" | "dieselScope" => {
       Some(P.fromSmartTypedValue("dieselScope", new DieselCtxParmSource("dieselScope", this.getScopeCtx, this)))
     }
 
