@@ -10,6 +10,7 @@ import razie.Logging
 import razie.diesel.dom.DieselAssets
 import razie.diesel.dom.RDOM.P
 import razie.diesel.engine.nodes.EMsg
+import razie.diesel.expr.ScopeECtx
 import razie.diesel.model.DieselMsg
 import razie.wiki.model.WID
 import scala.collection.mutable.ListBuffer
@@ -35,6 +36,7 @@ abstract class DomStream(
   val description: String,
   val batch: Boolean = false,
   val batchSize: Int,
+  val context: P = P.of("context", "{}"),
   val correlationId: Option[String] = None,
   val maxSize: Int = 100,
   val id: String = new ObjectId().toString) extends Logging {
@@ -62,6 +64,14 @@ abstract class DomStream(
   private var isDone = false
   private var isError = false
   private var isConsumed = false
+
+  def streamIsDone = isDone
+
+  def setCtx(ast: DomAst): DomAst = {
+    // todo need to exec in separate scopes...
+//    ast.replaceCtx(new ScopeECtx(Nil, targetId.map(owner.n).flatMap(_.getCtx)))
+    ast
+  }
 
   /** put some elements onto the stream
     *
@@ -91,22 +101,40 @@ abstract class DomStream(
       if (batch && batchSize > 0) {
 
         var pickedUp = 0
-        val asts = list.toList
+        val asts = new ListBuffer[DomAst]()
+
+        list.toList
             .grouped(batchSize)
             .toList
-            .map { batch =>
+            .foreach { batch =>
               trace(" - DStream sending.slice: " + batch.mkString(","))
               pickedUp += batch.size
 
-              DomAst(EMsg(
+              val m = new EMsg(
                 DieselMsg.STREAMS.STREAM_ONDATASLICE,
-                P.of("stream", name) :: P.of("data", batch) :: Nil
-              ))
+                P.of("stream", name) ::
+                    P.of("data", batch) ::
+                    P.of("context", context) ::
+                    Nil
+              ) with KeepOnlySomeSiblings
+
+              val ast = DomAst(m)
+                  .withPrereq(
+                    // todo add a "parallel" setting on consume?
+                    asts.map(_.id).toList
+                  )
+
+              setCtx(ast)
+
+              asts.append(ast)
             }
+
+        // todo each node should have its own scope or run in sequence...
 
         trace(s" - DStream size ${list.size} dropping: $pickedUp")
         list.remove(0, pickedUp)
-        DieselAppContext ! DEAddChildren(owner.id, tid, recurse = true, -1, asts)
+        DieselAppContext ! DEAddChildren(owner.id, tid, recurse = true, -1, asts.toList,
+          Some((a, e) => a.withPrereq(getDepy)))
         trace(s" - DStream list size ${list.size} is: " + list.mkString)
 
       } else {
@@ -114,11 +142,18 @@ abstract class DomStream(
         // no batch
 
         list.toList.map { data =>
-          val ast = DomAst(EMsg(
+          val ast = DomAst(new EMsg(
             DieselMsg.STREAMS.STREAM_ONDATA,
-            P.of("stream", name) :: P.of("data", data) :: Nil
-          ))
-          DieselAppContext ! DEAddChildren(owner.id, tid, recurse = true, -1, List(ast))
+            P.of("stream", name) ::
+                P.of("data", data) ::
+                P.of("context", context) ::
+                Nil
+          ) with KeepOnlySomeSiblings)
+
+          setCtx(ast)
+
+          DieselAppContext ! DEAddChildren(owner.id, tid, recurse = true, -1, List(ast),
+            Some((a, e) => a.withPrereq(getDepy)))
         }
 
         trace(" - DStream clear: ")
@@ -139,15 +174,29 @@ abstract class DomStream(
       val ast = DomAst(EMsg(
         DieselMsg.STREAMS.STREAM_ONDONE,
         List(
-          P.of("stream", name)
+          P.of("stream", name), P.of("context", context)
         )
       ))
 
+      setCtx(ast)
+
       targetId.map { tid =>
-        DieselAppContext ! DEAddChildren(owner.id, tid, recurse = true, -1, List(ast))
+        DieselAppContext ! DEAddChildren(owner.id, tid, recurse = true, -1, List(ast),
+          Some((a, e) => a.withPrereq(getDepy)))
         DieselAppContext ! DEComplete(owner.id, targetId.get, recurse = true, -1, Nil)
       }
     }
+  }
+
+  /** get list of other generated nodes */
+  def getDepy: List[String] = {
+    val target = targetId.map(owner.n)
+    val res = target.toList.flatMap(
+      _.children
+          .filter(_.status != DomState.DONE)
+          .filter(_.value.isInstanceOf[EMsg])
+          .map(_.id))
+    res
   }
 
   def error(l: List[P], justConsume: Boolean = false): Unit = {
@@ -163,12 +212,15 @@ abstract class DomStream(
       val ast = DomAst(EMsg(
         DieselMsg.STREAMS.STREAM_ONERROR,
         List(
-          P.of("stream", name)
+          P.of("stream", name), P.of("context", context)
         ) ::: errors.toList
       ))
 
+      setCtx(ast)
+
       targetId.map { tid =>
-        DieselAppContext ! DEAddChildren(owner.id, targetId.get, recurse = true, -1, List(ast))
+        DieselAppContext ! DEAddChildren(owner.id, targetId.get, recurse = true, -1, List(ast),
+          Some((a, e) => a.withPrereq(getDepy)))
         DieselAppContext ! DEComplete(owner.id, targetId.get, recurse = true, -1, Nil)
       }
     }
@@ -181,7 +233,6 @@ abstract class DomStream(
     if (list.size > 0) put(Nil, true)
     if (isDone && !isError) done(true)
     if (isDone && isError) error(Nil, true)
-
 
     // not done - will wait for done
 //    targetId.map { tid =>
@@ -197,6 +248,8 @@ abstract class DomStream(
     // cleanup
     DieselAppContext ! DESClean(name)
   }
+
+  override def toString = s"DomStream($name, $id)"
 }
 
 class DomStreamV1(
@@ -205,6 +258,8 @@ class DomStreamV1(
   description: String,
   batch: Boolean = false,
   batchSize: Int = -1,
-  correlationId: Option[String] = None) extends DomStream(owner, name, description, batch, batchSize, correlationId) {
+  context: P = P.of("context", "{}"),
+  correlationId: Option[String] = None) extends DomStream(owner, name, description, batch, batchSize, context,
+  correlationId) {
 
 }

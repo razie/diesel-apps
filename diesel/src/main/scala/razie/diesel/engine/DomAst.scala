@@ -364,18 +364,40 @@ case class DomAst(
     if(this.id == id)
       Some(this)
     else
-      children.foldLeft(None:Option[DomAst])((a,b)=>a orElse b.find(id))
+      children.foldLeft(None: Option[DomAst])((a, b) => a orElse b.find(id))
 
   /** find in subtree, by predicate */
-  def find(pred: DomAst => Boolean) : Option[DomAst] =
-    if(pred(this))
+  def find(pred: DomAst => Boolean): Option[DomAst] =
+    if (pred(this))
       Some(this)
     else
-      children.foldLeft(None:Option[DomAst])((a,b)=>a orElse b.find(pred))
+      children.foldLeft(None: Option[DomAst])((a, b) => a orElse b.find(pred))
 
-  def setKinds (kkk:String) : DomAst = {
-    this.kind=kkk
+  def setKinds(kkk: String): DomAst = {
+    this.kind = kkk
     this.children.map(_.setKinds(kkk))
+    this
+  }
+}
+
+/** how many kids to keep, for loops and large items */
+trait KeepOnlySomeChildren {
+  var keepCount: Int = 3
+
+  /** how many kids to keep, for loops and large items */
+  def withKeepCount(k: Int) = {
+    this.keepCount = k;
+    this
+  }
+}
+
+/** how many kids to keep, for loops and large items */
+trait KeepOnlySomeSiblings {
+  var keepCount: Int = 3
+
+  /** how many kids to keep, for loops and large items */
+  def withKeepCount(k: Int) = {
+    this.keepCount = k;
     this
   }
 }

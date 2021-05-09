@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit
 import razie.audit.Audit
 import razie.clog
 import razie.diesel.dom.RDOM.P
+import razie.wiki.admin.GlobalData
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.util.Try
@@ -48,9 +49,21 @@ case class DEComplete(engineId: String, targetId: String, recurse: Boolean, leve
   * @param recurse
   * @param level
   * @param results
+  * @param mapper   - optional mapper to transform teh nodes before adding, after locking the engine
   */
-case class DEAddChildren(engineId: String, targetId: String, recurse: Boolean, level: Int, results: List[DomAst])
+case class DEAddChildren(engineId: String, targetId: String, recurse: Boolean, level: Int, results: List[DomAst],
+                         mapper: Option[(DomAst, DomEngine) => DomAst] = None)
     extends DEMsg
+
+/**
+  * prune children later, leave X
+  *
+  * @param engineId
+  * @param parentId
+  * @param leave
+  */
+case class DEPruneChildren(engineId: String, parentId: String, keep: Int, level: Int) extends DEMsg
+
 
 /** initialize and stop the engine */
 case object DEInit extends DEMsg {override def engineId = ""}
@@ -187,7 +200,18 @@ class DomEngineActor(eng: DomEngine) extends Actor with Stash {
       }
     }
 
-    case rep@DEAddChildren(eid, a, r, l, results) if checkInit => {
+    case rep@DEAddChildren(eid, _, _, _, _, _) if checkInit => {
+      checkInit
+      if (eng.id == eid) {
+        Try {
+          eng.processDEMsg(rep)
+        }
+      } else {
+        DieselAppContext.router.map(_ ! rep)
+      }
+    }
+
+    case rep@DEPruneChildren(eid, _, _, _) if checkInit => {
       checkInit
       if (eng.id == eid) {
         Try {
@@ -309,6 +333,7 @@ class DomStreamActor(stream: DomStream) extends Actor with Stash {
     case req@DESClean(name) => {
       if (stream.name == name) {
         //remove refs for active engines
+        GlobalData.dieselStreamsActive.decrementAndGet()
         DieselAppContext.activeStreams.remove(stream.id)
         DieselAppContext.activeStreamsByName.remove(stream.name)
         DieselAppContext.activeActors.remove(stream.id)

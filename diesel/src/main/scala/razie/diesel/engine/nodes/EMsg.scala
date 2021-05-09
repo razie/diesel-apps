@@ -7,7 +7,7 @@ package razie.diesel.engine.nodes
 
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
-import razie.diesel.engine.{AstKinds, DomAstInfo}
+import razie.diesel.engine.{AstKinds, DomAstInfo, EGenerated}
 import razie.diesel.engine.exec.Executors
 import razie.diesel.expr.{AExprIdent, ECtx, StaticECtx}
 import razie.diesel.model.DieselMsg
@@ -17,26 +17,35 @@ import scala.Option.option2Iterable
 
 /** simple assignment - needed because the left side is more than just a val
   */
-case class EMsgPas(attrs: List[PAS]=Nil) extends CanHtml with HasPosition with DomAstInfo {
+case class EMsgPas(attrs: List[PAS] = Nil)
+    extends CanHtml with HasPosition with EGenerated with DomAstInfo {
 
   /** the pos of the rule that decomposes me, as a spec */
   var rulePos: Option[EPos] = None
 
   /** the pos of the rule/map that generated me as an instance */
-  var pos : Option[EPos] = None
+  var pos: Option[EPos] = None
 
-  def withRulePos(p:Option[EPos]) = {this.rulePos = p; this}
-  def withPos(p:Option[EPos]) = {this.pos = p; this}
+  def withRulePos(p: Option[EPos]) = {
+    this.rulePos = p;
+    this
+  }
+
+  def withPos(p: Option[EPos]) = {
+    this.pos = p;
+    this
+  }
 
   private def msgLabelColor: String = "primary"
 
   // if this was an instance and you know of a spec
-  private def first(instPos:Option[EPos]) : String = {
+  private def first(instPos: Option[EPos]): String = {
     // clean visual stypes annotations
     val stypeStr = "".replaceAllLiterally(",prune", "").replaceAllLiterally(",warn", "")
     kspan("msg", msgLabelColor, instPos) + span(stypeStr, "info") + (if (stypeStr.trim.length > 0) " " else "")
-    //    kspan("msg", msgLabelColor, spec.flatMap(_.pos)) + span(stypeStr, "info") + (if(stypeStr.trim.length > 0) " " else "")
-    }
+    //    kspan("msg", msgLabelColor, spec.flatMap(_.pos)) + span(stypeStr, "info") + (if(stypeStr.trim.length > 0) "
+    //    " else "")
+  }
 
   /** this html works well in a diesel fiddle, use toHtmlInPage elsewhere */
   override def toHtml = {
@@ -62,14 +71,17 @@ case class EMsgPas(attrs: List[PAS]=Nil) extends CanHtml with HasPosition with D
   * @param ret
   */
 case class EMsg(
-                 entity: String,
-                 met: String,
-                 attrs: List[RDOM.P]=Nil,
-                 arch:String="",
-                 ret: List[RDOM.P] = Nil,
-                 stype: String = "") extends CanHtml with HasPosition with DomAstInfo {
+  entity: String,
+  met: String,
+  attrs: List[RDOM.P] = Nil,
+  arch: String = "",
+  ret: List[RDOM.P] = Nil,
+  stype: String = "")
+    extends CanHtml with HasPosition with EGenerated with DomAstInfo {
 
   import EMsg._
+
+  def this(ea: String, attrs: Attrs) = this(EMsg.getEA(ea)._1, EMsg.getEA(ea)._2, attrs)
 
   /** my specification - has attributes like public etc */
   var spec: Option[EMsg] = None
@@ -78,16 +90,29 @@ case class EMsg(
   var rulePos: Option[EPos] = None
 
   /** the pos of the rule/map that generated me as an instance */
-  var pos : Option[EPos] = None
+  var pos: Option[EPos] = None
 
-  def withSpec(p:Option[EMsg]) = {this.spec = p; this}
-  def withRulePos(p:Option[EPos]) = {this.rulePos = p; this}
-  def withPos(p:Option[EPos]) = {this.pos = p; this}
+  def withSpec(p: Option[EMsg]) = {
+    this.spec = p;
+    this
+  }
 
-  def asCtx (implicit ctx:ECtx) : ECtx = new StaticECtx(this.attrs, Some(ctx))
+  def withRulePos(p: Option[EPos]) = {
+    this.rulePos = p;
+    this
+  }
+
+  def withPos(p: Option[EPos]) = {
+    this.pos = p;
+    this
+  }
+
+  def withArch(s: String) = this.copy(arch = s).copiedFrom(this)
+
+  def asCtx(implicit ctx: ECtx): ECtx = new StaticECtx(this.attrs, Some(ctx))
 
   /** copy doesn't copy over the vars */
-  def copiedFrom (from:EMsg) =  {
+  def copiedFrom(from: EMsg) = {
     this.spec = from.spec
     this.pos = from.pos
     this.rulePos = from.rulePos
@@ -339,14 +364,19 @@ object EMsg {
   /** regex to match (e,a) */
   val REGEX = """([\w.]+)[./](\w+)""".r
 
-  def apply(ea:String) : EMsg = {
+  def apply(ea: String): EMsg = {
     val REGEX(ee, aa) = ea
     EMsg(ee, aa)
   }
 
-  def apply(ea:String, attrs:Attrs) : EMsg = {
+  def apply(ea: String, attrs: Attrs): EMsg = {
     val REGEX(ee, aa) = ea
     EMsg(ee, aa, attrs)
+  }
+
+  def getEA(ea: String): (String, String) = {
+    val REGEX(ee, aa) = ea
+    (ee, aa)
   }
 
 }

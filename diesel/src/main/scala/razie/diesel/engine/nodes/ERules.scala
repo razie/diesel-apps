@@ -9,7 +9,7 @@ import razie.ctrace
 import razie.diesel.dom.RDOM._
 import razie.diesel.dom._
 import razie.diesel.engine.exec.EApplicable
-import razie.diesel.engine.{AstKinds, DomAst, DomState}
+import razie.diesel.engine.{AstKinds, DomAst, DomState, EGenerated}
 import razie.diesel.expr.{BoolExpr, CExpr, DieselExprException, ECtx}
 import razie.tconf.EPos
 import razie.wiki.Enc
@@ -269,7 +269,9 @@ case class EMatch(cls: String, met: String, attrs: MatchAttrs, cond: Option[EIf]
   * @param deferred
   */
 case class ENextPas(msg: EMsgPas, arrow: String, cond: Option[EIf] = None, deferred: Boolean = false,
-                    indentLevel: Int = 0) extends CanHtml with EConditioned {
+                    indentLevel: Int = 0)
+    extends CanHtml with EConditioned with EGenerated {
+
   var parent: Option[EMsg] = None
   var spec: Option[EMsg] = None
 
@@ -311,7 +313,7 @@ case class ENextPas(msg: EMsgPas, arrow: String, cond: Option[EIf] = None, defer
   * @param indentLevel if > 0 then this is part of a subtree
   */
 case class ENext(msg: EMsg, arrow: String, cond: Option[EIf] = None, deferred: Boolean = false, indentLevel: Int = 0)
-    extends CanHtml with EConditioned {
+    extends CanHtml with EConditioned with EGenerated {
   var parent: Option[EMsg] = None
   var spec: Option[EMsg] = None
 

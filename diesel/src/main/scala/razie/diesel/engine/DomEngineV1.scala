@@ -694,8 +694,18 @@ class DomEngineV1(
     // I was going to allow single sets to go up, but NAH, they make it too random behaviour - all sets behave the same
 
     val oldCtx = a.getCtx.get.asInstanceOf[SimpleECtx]
-    val newParentCtx = a.getCtx.get.base.orElse(a.getCtx)
+
+    // if new node had a scope context, honor it
+    val newParentCtx =
+    // todo commented - see DomStream.setCtx - creator must be able to spec scopes
+//      if (a.getMyOwnCtx.exists(_.isInstanceOf[ScopeECtx])) {
+//        a.getMyOwnCtx
+//      }
+//      else
+      a.getCtx.get.base.orElse(a.getCtx)
+
     val replacementCtx = new RuleScopeECtx(oldCtx.cur, newParentCtx, Some(a)).replacing(oldCtx)
+
     a.replaceCtx(replacementCtx)
 
     // if has a spec and exports params, export them
@@ -706,8 +716,7 @@ class DomEngineV1(
           P("toExport", r.name, WTypes.wt.STRING),
           P(r.name, "", WTypes.wt.EMPTY, Some(AExprIdent(r.name)))
         )
-      )//, AstKinds.TRACE)
-      x.withPos(in.pos)
+      ).withArch(AstKinds.TRACE).withPos(in.pos)
       result = result ::: List(
         DomAst(ENext(x, "=>"), AstKinds.NEXT).withSpec(r)
       )

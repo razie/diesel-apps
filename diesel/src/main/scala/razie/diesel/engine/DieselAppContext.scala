@@ -6,15 +6,18 @@
 package razie.diesel.engine
 
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
-import razie.Logging
+import akka.util.Timeout
+import razie.{Logging, clog}
 import razie.audit.Audit
 import razie.diesel.dom.RDomain
 import razie.diesel.engine.exec._
 import razie.tconf.DSpec
+import razie.wiki.admin.GlobalData
 import scala.collection.concurrent.TrieMap
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.DurationInt
 
-/** engine factory*/
+/** engine factory */
 class DieselEngineFactory(node: String, app: String) {
 
   /** make an engine instance for the given AST root */
@@ -74,6 +77,9 @@ object DieselAppContext extends Logging {
     this._simpleMode = true
     this
   }
+
+  /** find stream by name */
+  def findStream(name: String) = activeStreamsByName.get(name)
 
   def stopActor(id: String) = {
     val ac = activeActors.get(id).get
@@ -177,6 +183,8 @@ object DieselAppContext extends Logging {
     val p = Props(new DomStreamActor(stream))
     val a = actorOf(p, name = "stream-" + stream.id)
 
+    GlobalData.dieselStreamsTotal.incrementAndGet()
+    GlobalData.dieselStreamsActive.incrementAndGet()
     DieselAppContext.activeStreamsByName.put(stream.name, stream)
     DieselAppContext.activeStreams.put(stream.id, stream)
     DieselAppContext.activeActors.put(stream.id, a)
@@ -217,6 +225,29 @@ object DieselAppContext extends Logging {
     if (router.isEmpty) {
       throw new IllegalStateException("DieselAppContext.router not initialized?")
     }
+  }
+
+  /** send a message via the router */
+  def stopStream(name: String): Unit = {
+    import akka.pattern.ask
+    implicit val timeout = Timeout(5 seconds)
+
+//    activeStreamsByName
+//        .get(name)
+//        .map(x => {
+//          activeActors.get(x.id).map(_ ? DESClean)
+//            route(x.id, m); ""
+//        })
+//        .getOrElse(
+//          clog << "DomEngine Router DROP STREAM message " + m
+//        )
+//  }
+
+
+//    router.map(_ ? message)
+//    if (router.isEmpty) {
+//      throw new IllegalStateException("DieselAppContext.router not initialized?")
+//    }
   }
 
   def stop = {}

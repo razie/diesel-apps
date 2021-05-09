@@ -27,6 +27,8 @@ import scala.util.Try
 
 trait InfoNode // just a marker for useless info nodes
 
+trait EGenerated // just a marker for "action" generated nodes (EMsg, EMsgPas, ENext etc)
+
 /** the engine: one flow = one engine = one actor
   *
   * this class is a generic engine, managing the execution of the nodes, starting from the root
@@ -52,6 +54,50 @@ abstract class DomEngine(
   val id: String = new ObjectId().toString,
   val createdDtm: DateTime = DateTime.now
 ) extends Logging with DomEngineState with DomRoot with DomEngineExpander {
+
+  def shouldPrune(a: DomAst, parent: Option[DomAst]) =
+    a.value.toString.contains("diesel.stream.onData") || // todo why doesn't KeepSiblings work here??
+        parent.isDefined && parent.get.value.toString.contains(
+          "ctx.foreach") && parent.get.childrenCol.size > 100 &&
+            a.value.isInstanceOf[KeepOnlySomeSiblings] // todo why doesn't KeepSiblings work here??
+
+  /** prune children of parent and keep only some */
+  def prune(parent: DomAst, k: Int, level: Int) = {
+
+    val p = parent
+    val rem = new ListBuffer[DomAst]()
+
+    if (p.childrenCol.size > k + 1 && p.childrenCol.exists(_.status == DomState.DONE)) {
+
+      var i = p.childrenCol.indexWhere(n => n.status == DomState.DONE && shouldPrune(n, Some(parent)))
+
+      while (p.childrenCol.size > k + 1 && i >= 0) {
+        val removed = p.childrenCol(i)
+        rem.append(removed)
+        p.childrenCol.remove(i)
+
+        log("DomEng " + id + ("  " * level) + s" remove kid #${i} from " + parent.value)
+
+        // impersonate the replaced ID's?
+        val replacement = new DomAst(EInfo(s"Keeping only $k nodes below..."), AstKinds.DEBUG, new ListBuffer[DomAst](),
+          removed.id)
+            .withStatus(DomState.DONE)
+
+        p.childrenCol.insert(i, replacement)
+
+        i = p.childrenCol.indexWhere(n => n.status == DomState.DONE && shouldPrune(n, Some(parent)))
+      }
+
+      // todo if not already
+//      p.childrenCol.insert(0,
+//        new DomAst(EInfo(s"Keeping only $k nodes below..."), AstKinds.DEBUG)
+//            .withStatus(DomState.DONE)
+//      )
+
+      val shouldBeZero = rem.toList.flatMap(freeDepys)
+      shouldBeZero
+    }
+  }
 
   var initialMsg: Option[EMsg] = None
 
@@ -156,7 +202,8 @@ abstract class DomEngine(
   protected def spawn(nodes: List[DomAst], correlationId: Option[String]) = {
     val newRoot = DomAst("root", AstKinds.ROOT).withDetails("(spawned)")
     newRoot.appendAllNoEvents(nodes)
-    val engine = DieselAppContext.mkEngine(dom, newRoot, settings, pages, "engine:spawn", correlationId)
+    val engine = DieselAppContext.mkEngine(dom, newRoot, settings, pages,
+      "engine:spawn " + nodes.head.value.toString.take(200), correlationId)
     engine.ctx.root._hostname = ctx.root._hostname
     engine
   }
@@ -181,7 +228,7 @@ abstract class DomEngine(
     if (synchronous) {
       m.map(processDEMsg)
     } else
-      m.map(m => DieselAppContext.router.map(_ ! m))
+      m.map(m => DieselAppContext.router.get ! m) // cause err if router not up
   }
 
   /** stop and discard this engine */
@@ -222,6 +269,14 @@ abstract class DomEngine(
     // stop owned streams
     // todo get pissed if not done?
     this.ownedStreams.foreach(stream => {
+      if (!stream.streamIsDone) {
+        root.append(
+          new DomAst(
+            EWarning(s"Stream ${stream.name} was open!! Closing, but some generator or consumer may still use it!"),
+            AstKinds.ERROR
+          )
+        )
+      }
       stream.cleanup()
     })
   }
@@ -256,12 +311,35 @@ abstract class DomEngine(
 
     evChangeStatus(a, DomState.DONE)
 
+    val parent = a.parent.orElse(findParent(a))
+
     trace("DomEng " + id + ("  " * level) + " done " + a.value)
 
     // parent status update
 
     val x = checkState(findParent(a).getOrElse(root)) ::: freeDepys(a)
-    x
+
+    // remove siblings if needed
+
+    val rem = new ListBuffer[DEMsg]()
+
+    if (parent.exists(_.value.isInstanceOf[KeepOnlySomeChildren]) ||
+        a.value.isInstanceOf[KeepOnlySomeSiblings] ||
+        shouldPrune(a, parent)) { // todo why doesn't KeepSiblings work here??
+      val p = parent.get
+      val k =
+        if (parent.exists(_.value.isInstanceOf[KeepOnlySomeChildren]))
+          parent.get.value.asInstanceOf[KeepOnlySomeChildren].keepCount
+        else if (a.value.isInstanceOf[KeepOnlySomeChildren])
+          a.value.asInstanceOf[KeepOnlySomeSiblings].keepCount
+        else 2
+
+      if (p.childrenCol.size > k + 1 && p.childrenCol.exists(_.status == DomState.DONE)) {
+        rem.append(new DEPruneChildren(this.id, parent.get.id, k, level))
+      }
+    }
+
+    x ::: rem.toList
   }
 
   /** free dependents, if possible */
@@ -661,7 +739,7 @@ abstract class DomEngine(
 //      case a if a.value.isInstanceOf[EVal] =>
 //        res = execSync(a, level + 1, newCtx)
     }
-    ast.status = DomState.DONE
+    ast.status = DomState.DONE // bypass evChangedStatus
     ast.end()
 
 //    engineDone(false)
@@ -706,7 +784,7 @@ abstract class DomEngine(
         }
       }
 
-      case DEAddChildren(eid, aid, r, l, results) => {
+      case DEAddChildren(eid, aid, r, l, results, mapper) => {
         // add more children to a node (used for async prcs, like stream consumption)
         require(eid == this.id) // todo logical error not a fault
         val target = n(aid)
@@ -714,9 +792,18 @@ abstract class DomEngine(
         // don't trust them, find level
         val level = Try {findLevel(target)}.getOrElse(l)
 
+        val asts = if (mapper.isDefined) results.map(mapper.get.apply(_, this)) else results
+
         later(
-          this.rep(target, true, level + 1, results)
+          this.rep(target, true, level + 1, asts)
         )
+      }
+
+      case DEPruneChildren(eid, tid, leave, level) => {
+        require(eid == this.id) // todo logical error not a fault
+        val target = n(tid)
+
+        this.prune(target, leave, level)
       }
     }
   }
@@ -742,7 +829,8 @@ abstract class DomEngine(
   /** this was resulted in an html response - add it as a trace */
   def addResponseInfo(code: Int, body: String, headers: Map[String, String]): Unit = {
     val h = headers.mkString("\n")
-    val ast = new DomAst(EInfo(s"Response: ${code} BODY: ${body.take(500)}", s"HEADERS:\n$h"), AstKinds.TRACE)
+    val ast = new DomAst(
+      EInfo(s"Response: ${code} BODY: ${body.take(500)}", s"BODY:\n${body}\n\nHEADERS:\n$h"), AstKinds.TRACE)
     this.root.appendAllNoEvents(List(ast))
   }
 

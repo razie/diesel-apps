@@ -9,6 +9,7 @@ import razie.diesel.Diesel
 import razie.diesel.dom.RDOM.{P, PValue, ParmSource}
 import razie.diesel.dom.{RDOM, WTypes}
 import razie.diesel.engine.nodes._
+import razie.diesel.expr.BExprFALSE.shorten
 import razie.diesel.expr._
 import razie.diesel.model.DieselMsg
 import razie.hosting.Website
@@ -205,19 +206,12 @@ trait DomRoot {
           // RAZ2 OLD - remove this
           // setting in current context too
 
+          val calcp2 = P(pas.left.start, "").copy(expr = Some(pas.right)).calculatedP
           // payload must go to first scope, regardless of enclosing rule scopes
-          var sc: Option[ECtx] = Some(ctx)
+          ctx.allToScope.foreach(_.remove(Diesel.PAYLOAD))
 
-          while (sc.isDefined && sc.get.base.isDefined && !sc.exists(
-            p => p.isInstanceOf[ScopeECtx] || p.isInstanceOf[DomEngECtx])) {
-
-            sc = sc.get.base
-          }
-
-          sc.foreach(c =>
-            // set it now in base scope
-            setValueInContext(a, c, calcp)
-          )
+          // set it now in base scope
+          setValueInContext(a, ctx.getScopeCtx, calcp)
 
           // don't propagate to current scope, it creates side effects when the parent is changed
           (List(calcp), Nil) // also return it
@@ -252,7 +246,8 @@ trait DomRoot {
               case pa: RDOM.P if pa.isOfType(WTypes.wt.SOURCE) => {
                 val av = last.copy(value = None).calculatedTypedValue.asString
                 val m = pa.calculatedTypedValue.value.asInstanceOf[ParmSource]
-                m.put(P.fromSmartTypedValue(av, rightValue))
+//                m.put(P.fromSmartTypedValue(av, rightValue))
+                m.put(rightP.copy(name = av).copyFrom(rightP))
                 rightP.calculatedTypedValue.asNiceString
               }
 
@@ -326,10 +321,11 @@ trait DomRoot {
           }
 
         // create the assignment node
+        val s = res.toString
         a.map(_ append DomAst(
           EInfo(
-            pas.left.toStringCalc + " = " + res,
-            "" // now the parm name includes popup
+            pas.left.toStringCalc + " = " + shorten(s, 100),
+            s
             // rightP.calculatedTypedValue.asString
           ).withPos(pos),
           AstKinds.DEBUG
@@ -363,6 +359,8 @@ trait DomRoot {
     // put each right pair into current context
     // we do not propagate locally values that went up
     appendToCtx putAll calc.flatMap(_._2)
+
+    // warn about overwriting local vars in static contexts
   }
 
   private def handleError (p:P, v:PValue[_]) = {

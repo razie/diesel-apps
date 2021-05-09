@@ -14,10 +14,13 @@ class EEngMsg(val msg: String, val details: String = "", val kind:String, val co
     with HasPosition
     with InfoNode {
 
+  /** MAKE SURE this does not implement EGenerated, these are built-in */
+
   var pos: Option[EPos] = None
 
   def withPos(p: Option[EPos]) = {
-    this.pos = p; this
+    this.pos = p;
+    this
   }
 
   override def toHtml =

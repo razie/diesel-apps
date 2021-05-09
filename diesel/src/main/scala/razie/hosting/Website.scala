@@ -8,7 +8,8 @@ package razie.hosting
 import org.bson.types.ObjectId
 import play.api.mvc.{Request, RequestHeader}
 import razie.OR._
-import razie.diesel.dom.RDOM.P
+import razie.diesel.dom.RDOM.{P, wttos}
+import razie.diesel.dom.WTypes
 import razie.wiki.{Services, WikiConfig}
 import razie.wiki.model._
 import razie.wiki.util.{DslProps, PlayTools}
@@ -17,8 +18,8 @@ import scala.collection.mutable.HashMap
 import scala.collection.parallel.mutable
 
 /**
- * Multihosting - website settings - will collect website properties from the topic if it has a 'website' section
- */
+  * Multihosting - website settings - will collect website properties from the topic if it has a 'website' section
+  */
 class Website (we:WikiPage, extra:Seq[(String,String)] = Seq()) extends DslProps(Some(we), "website,properties", extra) {
   def label:String = this prop "label" OR name
   def name:String = this prop "name" OR we.name //"-"
@@ -169,10 +170,10 @@ object Website {
   }
 
   /** static properties per realm, as set during say diesel.realm.started
-    * make sure P is calculated to a value - no context from here on
+    * make sure P is calculated to a value or is undefined - no context from here on
     */
   def putRealmProps (realm:String, prop:String, value:P):Unit = {
-    if(!value.hasCurrentValue) {
+    if (!value.hasCurrentValue && !value.isOfType(WTypes.wt.UNDEFINED)) {
       throw new IllegalArgumentException("P needs a calculatedValue")
     }
     // important to sync here, conflicts are not harmless

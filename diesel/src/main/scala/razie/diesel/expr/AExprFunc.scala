@@ -123,6 +123,21 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
         P.fromTypedValue(av.replaceFirst(bv, cv), WTypes.wt.STRING)
       }
 
+      case "rangeList" => {
+        val f = firstParm
+            .getOrElse {
+              throw new DieselExprException(s"No first argument for $expr")
+            }
+        val s = secondParm
+            .getOrElse {
+              throw new DieselExprException(s"No second argument for $expr")
+            }
+        val av = f.calculatedTypedValue.asInt
+        val bv = s.calculatedTypedValue.asInt
+
+        P.of("", Range(av, bv).toList)
+      }
+
       case "sizeOf" => {
         firstParm.map { p =>
           val pv = p.calculatedTypedValue

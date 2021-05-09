@@ -33,6 +33,8 @@ object GlobalData {
 
   val dieselEnginesTotal = new AtomicLong(0) // how many engines created
   val dieselEnginesActive = new AtomicLong(0) // how many engines active
+  val dieselStreamsTotal = new AtomicLong(0) // how many streams created
+  val dieselStreamsActive = new AtomicLong(0) // how many streams active
 
   /** how many wiki options have been requested - simple stats */
   var wikiOptions = 0L
