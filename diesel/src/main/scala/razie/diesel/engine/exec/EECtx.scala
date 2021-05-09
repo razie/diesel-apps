@@ -177,7 +177,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         val EMsg.REGEX(e, m) = parm("msg").get.currentStringValue
         val itemName = parm("item").get.currentStringValue
 
-        razie.js.parse(s"{ list : ${list.currentStringValue} }").apply("list") match {
+        val kidz = razie.js.parse(s"{ list : ${list.currentStringValue} }").apply("list") match {
           case l: collection.Seq[Any] => {
             // passing any other parameters that were given to foreach
             val nat = in.attrs.filter(e => !Array("list", "item", "msg").contains(e.name))
@@ -185,13 +185,15 @@ class EECtx extends EExecutor(EECtx.CTX) {
             l.map { item: Any =>
               // for each item in list, create message
               val itemP = P.fromTypedValue(itemName, item)
-              EMsg(e, m, itemP :: nat)
+              new EMsg(e, m, itemP :: nat) with KeepOnlySomeSiblings {keepCount = 5}
             }.toList ::: info
           }
           case x@_ => {
             List(EError("value to iterate on was not a list", x.getClass.getName) :: info)
           }
         }
+
+        kidz
       }
 
         // nice print of either input parms of default payload

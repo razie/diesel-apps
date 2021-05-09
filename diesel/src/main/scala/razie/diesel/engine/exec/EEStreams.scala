@@ -5,11 +5,13 @@
  */
 package razie.diesel.engine.exec
 
+import akka.util.Timeout
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom.WTypes
 import razie.diesel.engine._
 import razie.diesel.engine.nodes._
 import razie.diesel.expr.ECtx
+import scala.concurrent.duration.DurationInt
 
 object EEStreams {
   final val PREFIX = "diesel.stream"
@@ -32,7 +34,7 @@ class EEStreams extends EExecutor(EEStreams.PREFIX) {
   }
 
   /**
-    * this is client-side: these opertaions go through the stream's actor
+    * this is client-side: these operations go through the stream's actor
     */
   override def apply(in: EMsg, destSpec: Option[EMsg])(implicit ctx: ECtx): List[Any] = {
     in.met match {
@@ -42,11 +44,28 @@ class EEStreams extends EExecutor(EEStreams.PREFIX) {
         val batch = ctx.getp("batch").map(_.calculatedTypedValue.asBoolean).getOrElse(false)
         val batchSize = ctx.getp("batchSize").map(_.calculatedTypedValue.asInt).getOrElse(100)
 
+        val others = in.attrs
+            .filter(_.name != "stream")
+            .filter(_.name != "batch")
+            .filter(_.name != "batchSize")
+            .map(_.calculatedP)
+
+        val context = P.of("context", others.map(p => (p.name, p)).toMap)
+
         // todo factory for V1
-        val s = DieselAppContext.mkStream(new DomStreamV1(ctx.root.engine.get, name, name, batch, batchSize))
+        val warn = DieselAppContext.findStream(name).map { s =>
+          // todo clean and remove the old one, sync
+//          import akka.pattern.ask
+//          implicit val timeout = Timeout(5 seconds)
+//          DieselAppContext.activeActors.values.map(_ ? DEStop)
+//          DieselAppContext ? DESDone(name)
+          EWarning(s"Stream $name was open!! Closing, but some generator or consumer may still use it!")
+        }.toList
+
+        val s = DieselAppContext.mkStream(new DomStreamV1(ctx.root.engine.get, name, name, batch, batchSize, context))
         ctx.root.engine.get.evAppStream(s)
 
-        EInfo("stream - creating " + name) ::
+        warn ::: EInfo("stream - creating " + name) ::
             EVal(P.fromTypedValue(name, s, WTypes.wt.OBJECT)) ::
             Nil
       }
@@ -63,6 +82,18 @@ class EEStreams extends EExecutor(EEStreams.PREFIX) {
         val name = ctx.getRequired("stream")
         val parms = in.attrs.filter(_.name != "stream").map(_.calculatedP)
         val list = parms.flatMap(_.calculatedTypedValue.asArray.toList)
+        DieselAppContext ! DESPut(name, list)
+        EInfo(s"stream.put - put ${list.size} elements") :: Nil
+      }
+
+      case "generate" => {
+        val name = ctx.getRequired("stream")
+        val start = ctx.getRequired("start").toInt
+        val end = ctx.getRequired("end").toInt
+        val map = ctx.get("mapper")
+
+        val list = (start to end).toList
+
         DieselAppContext ! DESPut(name, list)
         EInfo(s"stream.put - put ${list.size} elements") :: Nil
       }
@@ -88,7 +119,7 @@ class EEStreams extends EExecutor(EEStreams.PREFIX) {
         val timeout = ctx.get("timeout")
 
         if (DieselAppContext.activeStreamsByName.get(name).isDefined) {
-          EEngSuspend("stream.consume", "", Some((e, a, l) => {
+          new EEngSuspend("stream.consume", "", Some((e, a, l) => {
             val stream = DieselAppContext.activeStreamsByName.get(name).get
             stream.withTargetId(a.id)
 
@@ -97,7 +128,7 @@ class EEStreams extends EExecutor(EEStreams.PREFIX) {
             timeout.foreach(d => {
               DieselAppContext ! DELater(e.id, d.toInt, DEComplete(e.id, a.id, recurse = true, l, Nil))
             })
-          })) ::
+          })) :: //with KeepOnlySomeChildren ::
               Nil
         } else {
           EError(s"stream.consume - stream not found: " + name) :: Nil
@@ -118,5 +149,6 @@ class EEStreams extends EExecutor(EEStreams.PREFIX) {
         EMsg(PREFIX, "done") ::
         EMsg(PREFIX, "consume") ::
         EMsg(PREFIX, "putAll") ::
+        EMsg(PREFIX, "generate") ::
         Nil
 }
