@@ -116,11 +116,19 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
           throw new DieselExprException("Need three arguments.")
         }.calculatedValue
 
-        val cv = secondParm.getOrElse {
+        val cv = thirdParm.getOrElse {
           throw new DieselExprException("Need three arguments.")
         }.calculatedValue
 
-        P.fromTypedValue(av.replaceFirst(bv, cv), WTypes.wt.STRING)
+        P.fromTypedValue("", av.replaceFirst(bv, cv), WTypes.wt.STRING)
+      }
+
+      case "trim" => {
+        val av = firstParm.getOrElse {
+          throw new DieselExprException("Need one arguments.")
+        }.calculatedValue
+
+        P.fromTypedValue("", av.trim(), WTypes.wt.STRING)
       }
 
       case "rangeList" => {

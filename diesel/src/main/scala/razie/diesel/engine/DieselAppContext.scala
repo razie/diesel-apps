@@ -255,6 +255,6 @@ object DieselAppContext extends Logging {
   def ctx = engineFactory.getOrElse(init())
 
   def report =
-    s"Engines: ${activeEngines.size} - running: ${activeEngines.values.filter(_.status == DomState.DONE).size}"
+    s"Engines: ${activeEngines.size} - running: ${activeEngines.values.filter(_.status != DomState.DONE).size}"
 }
 

@@ -13,7 +13,7 @@ import razie.diesel.dom.{RDOM, _}
 import razie.diesel.engine.DomEngineSettings.DIESEL_USER_ID
 import razie.diesel.engine._
 import razie.diesel.engine.nodes._
-import razie.diesel.expr.{AExprFunc, ECtx, StaticECtx}
+import razie.diesel.expr.{AExprFunc, DieselExprException, ECtx, StaticECtx}
 import razie.diesel.model.DieselMsg
 import razie.tconf.DUsers
 import razie.tconf.hosting.Reactors
@@ -72,7 +72,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       case "log" => {
-        clog << "DIESEL.log " + ctx.toString
+        clog << "ctx.log " + ctx.toString
         Nil
       }
 
@@ -83,7 +83,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       case "test" => {
-        clog << "DIESEL.test " + ctx.toString
+        clog << "ctx.test " + ctx.toString
 
         Nil
       }
@@ -177,20 +177,25 @@ class EECtx extends EExecutor(EECtx.CTX) {
         val EMsg.REGEX(e, m) = parm("msg").get.currentStringValue
         val itemName = parm("item").get.currentStringValue
 
-        val kidz = razie.js.parse(s"{ list : ${list.currentStringValue} }").apply("list") match {
-          case l: collection.Seq[Any] => {
-            // passing any other parameters that were given to foreach
-            val nat = in.attrs.filter(e => !Array("list", "item", "msg").contains(e.name))
+        val kidz = try {
+          razie.js.parse(s"{ list : ${list.currentStringValue} }").apply("list") match {
+            case l: collection.Seq[Any] => {
+              // passing any other parameters that were given to foreach
+              val nat = in.attrs.filter(e => !Array("list", "item", "msg").contains(e.name))
 
-            l.map { item: Any =>
-              // for each item in list, create message
-              val itemP = P.fromTypedValue(itemName, item)
-              new EMsg(e, m, itemP :: nat) with KeepOnlySomeSiblings {keepCount = 5}
-            }.toList ::: info
+              l.map { item: Any =>
+                // for each item in list, create message
+                val itemP = P.fromTypedValue(itemName, item)
+                new EMsg(e, m, itemP :: nat) with KeepOnlySomeSiblings {keepCount = 5}
+              }.toList ::: info
+            }
+            case x@_ => {
+              List(EError("value to iterate on was not a list", x.getClass.getName) :: info)
+            }
           }
-          case x@_ => {
-            List(EError("value to iterate on was not a list", x.getClass.getName) :: info)
-          }
+        } catch {
+          case throwable: Throwable => throw new DieselExprException(
+            s"Caught ${throwable.toString} while evaluating ctx.foreach for list: " + list.currentStringValue)
         }
 
         kidz
@@ -243,7 +248,11 @@ class EECtx extends EExecutor(EECtx.CTX) {
       }
 
       case "export" => {
-        // special export to scope - gets extra parm "toExpect"
+        // special export to scope - gets extra parm "toExport"
+
+        if (in.attrs.find(_.name == "toExport").isEmpty) throw new DieselExprException(
+          "ctx.export requires argument *toExport*")
+
         val ex = in.attrs.find(_.name == "toExport").get
 
         val res = in.attrs.filter(_.name != "toExport").map { p =>
@@ -268,7 +277,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         res.foreach(v =>
           // not doing this for exports - that's just scope normal parms - see specs tests, they fail this way
           //ctx.root.engine.map(_.setoSmartValueInContext(None, ctx.getScopeCtx, v.p))
-          // setting normally
+          // INSTEAD: setting normally
           DomRoot.setValueInScopeContext(ctx, v.p)
         )
         res

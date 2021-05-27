@@ -328,7 +328,7 @@ trait DomRoot {
             s
             // rightP.calculatedTypedValue.asString
           ).withPos(pos),
-          AstKinds.DEBUG
+          AstKinds.TRACE
         ))
 
         (Nil, Nil)

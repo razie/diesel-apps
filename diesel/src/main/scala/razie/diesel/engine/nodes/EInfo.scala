@@ -42,13 +42,15 @@ object EErrorUtils {
 }
 
 /** some error, with a message and details */
-case class EError(msg: String, details: String = "", code: String = "ERROR")
+case class EError(msg: String, details: String = "", code: String = "ERROR", t: Option[Throwable] = None)
     extends CanHtml with HasPosition with InfoNode {
 
   def this(msg: String, t: Throwable) =
     this(
       Enc.escapeHtml(msg + ": " + t.getClass.getSimpleName + ": " + t.getMessage),
-      Enc.escapeHtml(EErrorUtils.ttos(t))
+      Enc.escapeHtml(EErrorUtils.ttos(t)),
+      "ERROR",
+      Some(t)
     ) // escape html - some exc contain html content
 
   var pos: Option[EPos] = None
@@ -183,10 +185,10 @@ case class EInfoWrapper(a:Any) extends CanHtml with HasPosition with InfoNode {
   var pos: Option[EPos] = if(a.isInstanceOf[HasPosition]) a.asInstanceOf[HasPosition].pos else None
 
   override def toHtml =
-    if(a.isInstanceOf[CanHtml]) a.asInstanceOf[CanHtml].toHtml
-    else span("info::", "info", a.toString)
+    if (a.isInstanceOf[CanHtml]) a.asInstanceOf[CanHtml].toHtml
+    else span("info::", "info", "") + " " + a.toString.replace("\n", "")
 
-  override def toString = a.toString
+  override def toString = "info:: " + shorten(a.toString, 200)
 }
 
 /** duration of the curent op */

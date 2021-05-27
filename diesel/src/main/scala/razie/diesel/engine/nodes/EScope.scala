@@ -9,8 +9,14 @@ import razie.diesel.engine._
 import razie.tconf.EPos
 
 
-/** a generic scope demarcation, for things like error propag etc */
-case class EScope(msg: String, details: String = "") extends CanHtml with HasPosition with InfoNode {
+/** a generic scope demarcation, for things like error propag etc
+  *
+  * @param msg
+  * @param scope the message generating this, if any. If diesel.try it would have more parms
+  * @param details
+  */
+case class EScope(msg: String, scope: Option[EMsg], details: String = "") extends CanHtml with HasPosition with
+    InfoNode {
   var pos: Option[EPos] = None
 
   def withPos(p: Option[EPos]) = {

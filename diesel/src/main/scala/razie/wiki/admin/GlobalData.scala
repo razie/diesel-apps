@@ -31,10 +31,13 @@ object GlobalData {
   val servedApiRequests = new AtomicLong(0)
   val limitedApiRequests = new AtomicLong(0) // how many were kicked off under load
 
-  val dieselEnginesTotal = new AtomicLong(0) // how many engines created
-  val dieselEnginesActive = new AtomicLong(0) // how many engines active
-  val dieselStreamsTotal = new AtomicLong(0) // how many streams created
-  val dieselStreamsActive = new AtomicLong(0) // how many streams active
+  val dieselEnginesTotal = new AtomicLong(0) // how many engines created since start
+  val dieselEnginesActive = new AtomicLong(0) // how many engines active now
+  val dieselStreamsTotal = new AtomicLong(0) // how many streams created since start
+  val dieselStreamsActive = new AtomicLong(0) // how many streams active now
+
+  val dieselCronsActive = new AtomicLong(0) // how many crons active
+  val dieselCronsTotal = new AtomicLong(0)   // how many crons triggered since start
 
   /** how many wiki options have been requested - simple stats */
   var wikiOptions = 0L
@@ -45,8 +48,9 @@ object GlobalData {
 
   var reactorsLoaded = false
   val reactorsLoadedP: Promise[Boolean] = Promise[Boolean]()
+
   /** wait here if you need reactors */
-  val reactorsLoadedF: Future[Boolean] = reactorsLoadedP.future
+  def reactorsLoadedF: Future[Boolean] = reactorsLoadedP.future
 
   def toMap() = {
     Map(
@@ -72,6 +76,22 @@ object GlobalData {
       "Diesel.activeActors" -> DieselAppContext.activeActors.size,
       "Diesel.activeStreams" -> DieselAppContext.activeStreams.size
     ) ++ DieselRateLimiter.toj
+  }
+
+  def perfMap() = {
+    Map(
+      "maxConfThreads" -> Config.prop("akka.actor.default-dispatcher.thread-pool-executor.fixed-pool-size"),
+      "serving" -> GlobalData.serving.get(),
+      "servingApiRequests" -> GlobalData.servingApiRequests.get(),
+      "limitedApiRequests" -> GlobalData.limitedApiRequests.get(),
+      "maxServing" -> GlobalData.maxServing.get(),
+      "maxServingApiRequests" -> GlobalData.maxServingApiRequests.get(),
+      "dieselEnginesTotal" -> GlobalData.dieselEnginesTotal.get(),
+      "dieselEnginesActive" -> GlobalData.dieselEnginesActive.get(),
+      "activeEngines" -> DieselAppContext.activeEngines.size,
+      "activeActors" -> DieselAppContext.activeActors.size,
+      "activeStreams" -> DieselAppContext.activeStreams.size
+    )
   }
 }
 

@@ -135,13 +135,16 @@ object DomEngineUtils {
 
     val root = DomAst("root", "root")
 
+    // replace first line if ctx.set, better desc
+    val desc = if (msg.startsWith("$msg ctx.set")) msg.replaceFirst("""^\$msg ctx.set.*""", "") else msg
+
     // start processing all elements
     val engine = DieselAppContext.mkEngine(
       dom plus idom,
       root,
       settings,
       ipage :: pages map WikiDomain.spec,
-      DieselMsg.runDom + msg)
+      DieselMsg.runDom + desc)
 
     EnginePrep.addStoriesToAst(engine, List(ipage))
 

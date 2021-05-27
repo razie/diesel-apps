@@ -9,6 +9,8 @@ package razie.wiki.model
 import razie.diesel.dom.WikiDomain
 import razie.hosting.WikiReactors
 import razie.wiki.util.DslProps
+import scala.concurrent.{Future, Promise}
+import scala.util.Try
 
 /** a hosted wiki instance, i.e. independent hosted website.
   *
@@ -19,32 +21,38 @@ import razie.wiki.util.DslProps
   * Wikis can mixin other wikis - linearized multiple inheritance.
   */
 trait Reactor {
-  def realm:String
-  def fallBacks:List[Reactor]
-  def we:Option[WikiEntry]
+  val ready: Promise[Boolean] = Promise[Boolean]()
 
-  def wiki   : WikiInst
-  def domain : WikiDomain
+  def realm: String
+
+  def fallBacks: List[Reactor]
+
+  def we: Option[WikiEntry]
+
+  def wiki: WikiInst
+
+  def domain: WikiDomain
 
   /** list of supers - all mixins reactors linearized */
-  val supers : Array[String]
+  val supers: Array[String]
 
   /** all mixed in reactors, linearized */
-  val mixins : Mixins[Reactor]
+  val mixins: Mixins[Reactor]
 
-  def club :Option[WikiEntry]
+  def club: Option[WikiEntry]
 
-  def userRoles :List[String]
-  def adminEmails :List[String]
+  def userRoles: List[String]
+
+  def adminEmails: List[String]
 
   /** Admin:UserHome if user or Admin:Home or Reactor:realm if nothing else is defined */
-  def mainPage(au:Option[WikiUser]) : WID
+  def mainPage(au: Option[WikiUser]): WID
 
-  def websiteProps : DslProps
+  def websiteProps: DslProps
 
   //todo fallback also in real time to rk, per prop
   // todo listen to updates and reload
-  def props : DslProps
+  def props: DslProps
 
   /** the membership level of the owner (see if it's paid etc) */
   def membershipLevel:Option[String]

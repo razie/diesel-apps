@@ -63,7 +63,7 @@ object DomCollector {
     val newOne = CollectedAst(stream, realm, xid, userId, eng, collectGroup, details)
     val count = newOne.getMaxCount
 
-    if (count >= 0) { // collect it
+    if (count > 0) { // collect it
 
       var newAsts = newOne :: asts.filter(_.id != xid) // make sure no duplos
 

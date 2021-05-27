@@ -282,16 +282,19 @@ trait WikiParserMini extends ParserBase with CsvParser with Tokens {
   def dotProp: PS = """^\.""".r ~> """[.]?[^.: ][^: ]+""".r ~ """[: ]""".r ~ """[^\r\n]*""".r ^^ {
     case name ~ _ ~ value => {
       // default to widgets
-      if(Wikis(realm).index.containsName("widget_" + name.toLowerCase()))
+
+      // todo optimize common widgets like todo
+
+      if (Wikis(realm).index.containsName("widget_" + name.toLowerCase()))
         StrAstNode(
           Wikis(realm).find(WID("Admin", "widget_" + name.toLowerCase())).map(_.content).map { c =>
             List(("WIDGET_ARGS", value)).foldLeft(c)((c, a) => c.replaceAll(a._1, a._2))
           } getOrElse "")
       else {
         if (name startsWith ".")
-          StrAstNode ("", Map (name.substring (1) -> value) ) // hidden
+          StrAstNode("", Map(name.substring(1) -> value)) // hidden
         else
-          StrAstNode (s"""<span style="font-weight:bold">{{Property $name=$value}}</span>\n\n""", Map (name -> value) )
+          StrAstNode(s"""<span style="font-weight:bold">{{Property $name=$value}}</span>\n\n""", Map(name -> value))
       }
     }
   }

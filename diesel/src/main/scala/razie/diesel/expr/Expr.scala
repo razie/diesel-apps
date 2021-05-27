@@ -10,17 +10,19 @@ import razie.diesel.dom._
 import razie.diesel.engine.nodes.CanHtml
 
 /** marker exception class for expr - understood by AST engine and treated nicer than a random exception */
-class DieselExprException (msg:String) extends RuntimeException (msg)
+class DieselExprException(msg: String) extends RuntimeException(msg) {
+}
+
 // to add a base, use withcause or smth
 
 /** element has DSL form
   *
-  *  deserialization is assumed via parser
+  * deserialization is assumed via parser
   *
-  *  the idea is that all activities would have an external DSL form as well
-  *  and can serialize themselves in that form
+  * the idea is that all activities would have an external DSL form as well
+  * and can serialize themselves in that form
   *
-  *  serialize the DEFINITION only - not including states/values
+  * serialize the DEFINITION only - not including states/values
   */
 trait HasDsl /*extends GReferenceable*/ {
   def serialize: String = toDsl
