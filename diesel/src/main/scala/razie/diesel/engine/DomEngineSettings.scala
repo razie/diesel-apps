@@ -75,7 +75,9 @@ case class DomEngineSettings
       BLENDER_MODE -> blenderMode.toString,
       DRAFT_MODE -> draftMode.toString,
       EXEC_MODE -> execMode,
-      RESULT_MODE -> resultMode
+      RESULT_MODE -> resultMode,
+      "collectGroup" -> collectGroup.mkString,
+      "collectCount" -> collectCount.mkString
     ) ++ parentNodeId.map(x => Map(DIESEL_NODE_ID -> x)
     ).getOrElse(Map.empty) ++ configTag.map(x => Map(DIESEL_CONFIG_TAG -> x)
     ).getOrElse(Map.empty) ++ userId.map(x => Map(DIESEL_USER_ID -> x)

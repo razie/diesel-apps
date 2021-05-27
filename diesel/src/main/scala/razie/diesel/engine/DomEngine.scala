@@ -14,7 +14,10 @@ import razie.diesel.dom.{DieselAssets, RDomain, WTypes}
 import razie.diesel.engine.nodes._
 import razie.diesel.expr._
 import razie.diesel.model.DieselMsg
-import razie.diesel.model.DieselMsg.ENGINE.{DIESEL_MSG_ACTION, DIESEL_MSG_ATTRS, DIESEL_MSG_EA, DIESEL_MSG_ENTITY}
+import razie.diesel.model.DieselMsg.ENGINE.{
+  DIESEL_MSG_ACTION, DIESEL_MSG_ATTRS, DIESEL_MSG_EA, DIESEL_MSG_ENTITY,
+  DIESEL_SUMMARY
+}
 import razie.diesel.utils.DomCollector
 import razie.tconf.DSpec
 import razie.wiki.admin.GlobalData
@@ -55,11 +58,21 @@ abstract class DomEngine(
   val createdDtm: DateTime = DateTime.now
 ) extends Logging with DomEngineState with DomRoot with DomEngineExpander {
 
+  /** info node replacing pruned nodes */
+  class Pruned(keep: Int, var removed: Int) {
+    override def toString = s"Keeping only $keep nodes, removed $removed..."
+  }
+
   def shouldPrune(a: DomAst, parent: Option[DomAst]) =
-    a.value.toString.contains("diesel.stream.onData") || // todo why doesn't KeepSiblings work here??
-        parent.isDefined && parent.get.value.toString.contains(
-          "ctx.foreach") && parent.get.childrenCol.size > 100 &&
-            a.value.isInstanceOf[KeepOnlySomeSiblings] // todo why doesn't KeepSiblings work here??
+    a.value.isInstanceOf[EMsg] &&
+        a.value.asInstanceOf[EMsg].ea.contains("diesel.stream.onData") || // todo why doesn't KeepSiblings work here??
+        parent.isDefined &&
+            parent.get.value.isInstanceOf[EMsg] &&
+            parent.get.value.asInstanceOf[EMsg].ea.contains("ctx.foreach") &&
+            parent.get.childrenCol.size > 20 &&
+            !(a.value.isInstanceOf[EInfoWrapper] &&
+                a.value.asInstanceOf[EInfoWrapper].a.isInstanceOf[Pruned])//&&
+//            a.value.isInstanceOf[KeepOnlySomeSiblings] // todo why doesn't KeepSiblings work here??
 
   /** prune children of parent and keep only some */
   def prune(parent: DomAst, k: Int, level: Int) = {
@@ -69,24 +82,75 @@ abstract class DomEngine(
 
     if (p.childrenCol.size > k + 1 && p.childrenCol.exists(_.status == DomState.DONE)) {
 
-      var i = p.childrenCol.indexWhere(n => n.status == DomState.DONE && shouldPrune(n, Some(parent)))
+      var prunes = p.childrenCol.zipWithIndex.filter(
+        n => n._1.status == DomState.DONE && shouldPrune(n._1, Some(parent)))
 
-      while (p.childrenCol.size > k + 1 && i >= 0) {
-        val removed = p.childrenCol(i)
+      while (prunes.size > k) {
+        val toRemove = prunes.head
+        val removed = p.childrenCol(toRemove._2)
         rem.append(removed)
-        p.childrenCol.remove(i)
+        p.childrenCol.remove(toRemove._2)
 
-        log("DomEng " + id + ("  " * level) + s" remove kid #${i} from " + parent.value)
+        log("DomEng " + id + ("  " * level) + s" remove kid #${toRemove._2} from " + parent.value)
 
-        // impersonate the replaced ID's?
-        val replacement = new DomAst(EInfo(s"Keeping only $k nodes below..."), AstKinds.DEBUG, new ListBuffer[DomAst](),
-          removed.id)
-            .withStatus(DomState.DONE)
+        val prunedInfo = p.childrenCol.find(
+          x => x.value.isInstanceOf[EInfoWrapper] && x.value.asInstanceOf[EInfoWrapper].a.isInstanceOf[Pruned])
+            .map(_.value.asInstanceOf[EInfoWrapper].a.asInstanceOf[Pruned])
 
-        p.childrenCol.insert(i, replacement)
+        // todo should record the move in the event history?
+        // replace only if there's some details or
+        if (removed.childrenCol.nonEmpty && prunedInfo.isEmpty) {
 
-        i = p.childrenCol.indexWhere(n => n.status == DomState.DONE && shouldPrune(n, Some(parent)))
+          // impersonate the replaced ID's?
+          val replacement = new DomAst(EInfoWrapper(new Pruned(k, 1)), AstKinds.DEBUG,
+            new ListBuffer[DomAst](),
+            removed.id)
+              .withStatus(DomState.DONE)
+
+          // save summaries, if any...
+          removed.collect {
+            case ac: DomAst
+              if ac.value != null &&
+                  ac.value.isInstanceOf[EMsg] &&
+                  ac.value.asInstanceOf[EMsg].ea == DIESEL_SUMMARY =>
+              replacement.append(DomAst(ac.value, ac.kind).withStatus(ac.status))
+          }
+
+          p.childrenCol.insert(toRemove._2, replacement)
+        } else {
+          prunedInfo.foreach(_.removed += 1)
+        }
+
+        // next?
+        prunes = prunes.drop(1)
+
+        // the nodes were DONE so we can remove depys, both from and to, so they don't grow forever
+
+        toRemove._1.collect {
+          case a => {
+            val i = depys.indexWhere(_.prereq.id == a.id)
+            if (i >= 0) depys.remove(i)
+            val j = depys.indexWhere(_.depy.id == a.id)
+            if (j >= 0) depys.remove(j)
+          }
+        }
       }
+
+      var more = false // keep removing
+
+      // either way, just keep no more than 100
+//      while (p.childrenCol.size > 30 && more) {
+//        more = false
+//        val toRemove = p.childrenCol.indexWhere(
+//          x => x.value.isInstanceOf[EInfo] && x.value.asInstanceOf[EInfo].msg.startsWith("Keeping only"))
+//
+//        if (toRemove >= 0) {
+//          more = true
+//          p.childrenCol.remove(toRemove)
+//          log("DomEng " + id + ("  " * level) + s" remove kid #${toRemove} from " + parent.value)
+//        }
+//      }
+
 
       // todo if not already
 //      p.childrenCol.insert(0,
@@ -94,6 +158,7 @@ abstract class DomEngine(
 //            .withStatus(DomState.DONE)
 //      )
 
+      // todo optimize - remove rem and count while removing
       val shouldBeZero = rem.toList.flatMap(freeDepys)
       shouldBeZero
     }
@@ -226,9 +291,10 @@ abstract class DomEngine(
   /** process a list of continuations */
   protected def later(m: List[DEMsg]): List[Any] = {
     if (synchronous) {
+      clog << "SYNCHRONOUS engine processing..."
       m.map(processDEMsg)
     } else
-      m.map(m => DieselAppContext.router.get ! m) // cause err if router not up
+      m.map(m => DieselAppContext ! m) // cause err if router not up
   }
 
   /** stop and discard this engine */
@@ -332,7 +398,7 @@ abstract class DomEngine(
           parent.get.value.asInstanceOf[KeepOnlySomeChildren].keepCount
         else if (a.value.isInstanceOf[KeepOnlySomeChildren])
           a.value.asInstanceOf[KeepOnlySomeSiblings].keepCount
-        else 2
+        else 3//this.ctx.get("diesel.engine.keep").map(_.toInt).getOrElse(3)
 
       if (p.childrenCol.size > k + 1 && p.childrenCol.exists(_.status == DomState.DONE)) {
         rem.append(new DEPruneChildren(this.id, parent.get.id, k, level))
@@ -466,6 +532,7 @@ abstract class DomEngine(
           val ast = DomAst(new EError("Exception " + t.getMessage, t)).withStatus(DomState.DONE)
 
           evAppChildren(a, ast)
+
           err :: nodeDone(ast, level + 1)
         }
       }.get
@@ -582,7 +649,8 @@ abstract class DomEngine(
     val after = DomAst(EMsg(DieselMsg.ENGINE.DIESEL_AFTER), AstKinds.TRACE)
     val desc = DomAst(EInfo(
       description,
-      this.pages.map(_.specRef.wpath).mkString("\n") + "\n" + this.settings.toString
+      this.pages.map(_.specRef.wpath).mkString("\n") + "\n" +
+          this.settings.toString
     ), AstKinds.DEBUG).withStatus(DomState.SKIPPED)
 
     // create dependencies and add them to the list
@@ -594,7 +662,7 @@ abstract class DomEngine(
 
     warnings = Some(warns)
 
-    //child engines notify parent if needed
+    //child engines notify parent if needed - payload is passed as well, see V1 for pong
     correlationId
         .filter(_ contains ".")
         .foreach(cid => {
@@ -762,16 +830,25 @@ abstract class DomEngine(
       }
 
       case DEComplete(eid, aid, r, l, results) => {
+        // completed child spawned that I'm waiting for
         require(eid == this.id) // todo logical error not a fault
         val target = n(aid)
         val completer = DomAst(EEngComplete("DEComplete"), AstKinds.BUILTIN)
         val toAdd = results ::: completer :: Nil
         // don't trust them, find level
         val level = Try {findLevel(target)}.getOrElse(l)
+
         if (target.status != DomState.DONE) {
           evAppChildren(target, toAdd)
           val msgs = nodeDone(completer, level + 1)
           checkState()
+
+          // populate values
+          results.collect {
+            case a: DomAst if a.value.isInstanceOf[EVal] =>
+              setSmartValueInContext(a, a.getCtx.get, a.value.asInstanceOf[EVal].p)
+          }
+
           later(msgs)
         } else {
           // todo add a warn
@@ -805,6 +882,7 @@ abstract class DomEngine(
 
         this.prune(target, leave, level)
       }
+
     }
   }
 

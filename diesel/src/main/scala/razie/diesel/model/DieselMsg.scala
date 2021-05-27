@@ -89,16 +89,18 @@ case class DieselMsgString(msg: String,
 /** schedule a message for later - send this to Services */
 case class ScheduledDieselMsg(schedule: String, msg: DieselMsg) {}
 
+case class ScheduledDieselMsgString(schedule: String, msg: DieselMsgString) {}
+
 /** a target for a message: either a specified list of config, or a realm
   *
-  * @param realm - the target realm
-  * @param env - the target env inside the target realm
-  * @param specs - list of specifications to get the rules from
+  * @param realm   - the target realm
+  * @param env     - the target env inside the target realm
+  * @param specs   - list of specifications to get the rules from
   * @param stories - optional list of stories to execute and validate
   */
-class DieselTarget (
-  val realm:String,
-  val env:String = DieselTarget.DEFAULT) {
+class DieselTarget(
+  val realm: String,
+  val env: String = DieselTarget.DEFAULT) {
 
   def specs: List[TSpecRef] = Nil
 
@@ -302,7 +304,12 @@ object DieselMsg {
     final val DIESEL_THROW = "diesel.throw"
     final val DIESEL_PING = "diesel.ping"
     final val DIESEL_TRY = "diesel.try"
+    final val DIESEL_REALM_READY = "diesel.realm.ready"
+    final val DIESEL_ERROR = "diesel.error"
+    final val DIESEL_LOG = "diesel.log"
+    final val DIESEL_AUDIT = "diesel.audit"
     final val DIESEL_CATCH = "diesel.catch"
+    final val DIESEL_SUMMARY = "diesel.summary"
     final val DIESEL_DEBUG = "diesel.debug"
     final val DIESEL_LATER = "diesel.later"
     final val DIESEL_WHILE = "diesel.while"
@@ -377,6 +384,7 @@ object DieselMsg {
 
     final val TEXT_FILE = "diesel.io.textFile"
     final val LIST_FILES = "diesel.io.listFiles"
+    final val CAN_READ = "diesel.io.canRead"
   }
 
 

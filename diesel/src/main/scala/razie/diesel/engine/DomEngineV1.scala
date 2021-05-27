@@ -18,7 +18,8 @@ import razie.diesel.engine.nodes._
 import razie.diesel.expr._
 import razie.diesel.model.DieselMsg
 import razie.diesel.model.DieselMsg.ENGINE._
-import razie.hosting.Website
+import razie.hosting.{Website, WikiReactors}
+import razie.hosting.WikiReactors.reactors
 import razie.tconf.DSpec
 import razie.wiki.Config
 import scala.Option.option2Iterable
@@ -118,14 +119,17 @@ class DomEngineV1(
         implicit val ctx = a.withCtx(mkPassthroughMsgContext(
           next.parent,
           next.parent.map(_.attrs).getOrElse(Nil),
-          this.ctx, // todo probably use a.getCtx.get not this.ctx
+          a.getCtx.get, //RAZ2 this.ctx,
+//          this.ctx, // todo probably use a.getCtx.get not this.ctx
           a))
 
         // start new engine/process - evaluate this message as the root of new engine
         // todo should find settings for target service  ?
-        val spawnedNodes = ListBuffer(DomAst(next.evaluateMsgCall))
+        val msg = next.evaluateMsgCall
+        val spawnedNodes = ListBuffer(DomAst(msg))
         var correlationId = this.id
 
+        // for this pattern, add a suspend and set correlationId
         if ("<=>" == arrow) {
           val suspend =
             DomAst(EEngSuspend("spawn <=>", "Waiting for spawned engine", Some((e, a, l) => {
@@ -142,11 +146,11 @@ class DomEngineV1(
 
         eng.process // start it up in the background
 
-        // todo use mkLink for asset, not hardcode url
         evAppChildren(a, DomAst(EInfo(
           s"""Spawn $arrow engine ${eng.href}""")))//.withPos((m.get.pos)))
 
         if ("<=>" == arrow) {
+          // nothing special here, I'm already about to Suspend (see above) and child will send a pong when done
         }
 
         // else no need to return anything - children have been decomposed
@@ -154,8 +158,6 @@ class DomEngineV1(
 
       case n1@ENext(m, ar, cond, _, _) if "-" == ar || "=>" == ar => {
         // message executed later
-
-        // todo bubu: static parent parms overwrite side effects updated in this.ctx
 
         implicit val ctx = a.withCtx(mkPassthroughMsgContext(
           n1.parent,
@@ -171,6 +173,53 @@ class DomEngineV1(
           newnode.moveAllNoEvents(a)
 
           msgs = rep(a, recurse, level, List(newnode))
+        } else {
+          a.parent.foreach { p =>
+            evAppChildren(p,
+              DomAst(EInfo("$if was false: " + n1.cond.mkString).withPos(n1.msg.pos), AstKinds.TRACE))
+          }
+        }
+        // message will be evaluate() later
+      }
+
+      case n1@ENext(m, ar, cond, _, _) if "xxx=>>" == ar => {
+        // message executed in separate engine context
+
+        implicit val ctx = a.withCtx(mkPassthroughMsgContext(
+          n1.parent,
+          n1.parent.map(_.attrs).getOrElse(Nil),
+          a.getCtx.get, //RAZ2 this.ctx,
+          a))
+
+        if (n1.test(a)) {
+          val newmsg = n1.evaluateMsgCall
+          val newnode = DomAst(newmsg, AstKinds.kindOf(newmsg.arch))
+
+          // old node may have had children already
+          newnode.moveAllNoEvents(a)
+
+          val newe = DieselAppContext.mkEngine(
+            this.dom,
+            newnode,
+            this.settings,
+            this.pages,
+            "SYNC-" + this.description
+          )
+
+          val level = findLevel(a)
+
+          // a message with this name found, call it sync
+
+          // NOTE - need to use ctx to access values in context etc, i..e map (x => a.b(x))
+          val res = newe.execSync(newnode, level, ctx)
+
+          newnode.setKinds(AstKinds.TRACE)
+          newnode.kind = AstKinds.SUBTRACE
+
+          // save the trace in the main tree
+          a.appendAllNoEvents(List(newnode))
+
+          appendVals(a, m.pos, Some(m), res.toList, ctx, AstKinds.kindOf(m.arch))
         } else {
           a.parent.foreach { p =>
             evAppChildren(p,
@@ -246,6 +295,16 @@ class DomEngineV1(
         nodes.foreach(_.resetParent(null))
         a.childrenCol.clear()
         msgs = rep(a, recurse, level, nodes)
+      }
+
+      case e: EError => {
+
+        // todo complete this so it throws on any err right away
+        if (findParentWith(a, _.value.isInstanceOf[EScope]).exists(_.value.asInstanceOf[EScope].isStrict)) {
+          val ex = e.t.map(P.of("exception", _)).toList
+          val msg = if (e.t.isEmpty) List(P.of("msg", e.details)) else Nil
+          a append DomAst(new EMsg("diesel", "throw", ex ::: msg), AstKinds.GENERATED)
+        }
       }
 
       case e: InfoNode =>  // ignore
@@ -492,11 +551,12 @@ class DomEngineV1(
           }
         } catch {
           case e: Throwable =>
-            razie.Log.alarmThis("Exception from Executor:", e)
+            razie.Log.alarmThis(s"Exception from Executor ${r.name} for Msg: ${n.toString} : ", e)
             val p = EVal(P(Diesel.PAYLOAD, e.getMessage, WTypes.wt.EXCEPTION).withValue(e, WTypes.wt.EXCEPTION))
 
             setSmartValueInContext(a, ctx, p.p)
-            List(DomAst(new EError("Exception:", e), AstKinds.ERROR), DomAst(p, AstKinds.ERROR))
+            var res = List(DomAst(new EError("Exception:", e), AstKinds.ERROR), DomAst(p, AstKinds.ERROR))
+            res
         }
 
         /* make any generated activities dependent so they run in sequence
@@ -768,7 +828,7 @@ class DomEngineV1(
 
         true
 
-      } else if (ea == DieselMsg.ENGINE.DIESEL_CLEANSTORY) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_CLEANSTORY) { //========================
 
         if (description contains "Guardian") {
           // parent node must be story
@@ -794,7 +854,8 @@ class DomEngineV1(
 
         true
 
-      } else if (ea == DieselMsg.ENGINE.DIESEL_EXIT) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_EXIT) { //========================
+
         Audit.logdb("DIESEL_EXIT", s"user ${settings.userId}")
 
         if (Config.isLocalhost) {
@@ -803,7 +864,26 @@ class DomEngineV1(
 
         true
 
-      } else if (ea == DieselMsg.ENGINE.DIESEL_CRASHAKKA) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_LOG) { //========================
+
+        in.attrs.map(_.calculatedP).foreach { p =>
+          clog << "diesel.log " + p.calculatedValue
+        }
+
+        true
+
+      } else if (ea == DieselMsg.ENGINE.DIESEL_AUDIT) { //========================
+
+        Audit.logdb("DIESEL_AUDIT", in.attrs.map(_.calculatedValue): _*)
+
+        in.attrs.map(_.calculatedP).foreach { p =>
+          clog << "diesel.audit " + p.calculatedValue
+        }
+
+        true
+
+      } else if (ea == DieselMsg.ENGINE.DIESEL_CRASHAKKA) { //========================
+
         Audit.logdb("DIESEL_CRASHAKKA", s"user ${settings.userId}")
 
         if (Config.isLocalhost) {
@@ -812,8 +892,9 @@ class DomEngineV1(
 
         true
 
-      } else if (ea == DieselMsg.ENGINE.DIESEL_RETURN) {
-        // expand all spec vals
+      } else if (ea == DieselMsg.ENGINE.DIESEL_RETURN) { //========================
+
+        // set all attributes in the root context
         in.attrs.map(_.calculatedP).foreach { p =>
           evAppChildren(a, DomAst(EVal(p)))
           setSmartValueInContext(a, a.getCtx.get.root, p) // set into root context, since we're returning
@@ -826,15 +907,19 @@ class DomEngineV1(
           setSmartValueInContext(a, a.getCtx.get, p)
         }
 
-
         // story node prevents an entire test terminated because one story used diesel.return
         // 1. try to see if I'm inside a story - the top most node under the story,
         // if not, then the story and if not, then the ROOT
+
+        // likewise, diesel.rest is a scope for return
 
         var scope =
           findParentWith(a, _.parent.exists(_.value.isInstanceOf[StoryNode]))
               .orElse(
                 findParentWith(a, _.value.isInstanceOf[StoryNode])
+              )
+              .orElse(
+                findParentWith(a, x => x.value.isInstanceOf[EMsg] && x.value.asInstanceOf[EMsg].ea == DIESEL_REST)
               )
               .getOrElse(root)
 
@@ -855,7 +940,8 @@ class DomEngineV1(
 
         true
 
-      } else if (ea == DieselMsg.ENGINE.DIESEL_SCOPE_RETURN) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_SCOPE_RETURN) { //========================
+
         // expand all spec vals
         in.attrs.map(_.calculatedP).foreach { p =>
           evAppChildren(a, DomAst(EVal(p)))
@@ -887,7 +973,8 @@ class DomEngineV1(
 
         true
 
-      } else if (ea == DieselMsg.ENGINE.DIESEL_RULE_RETURN) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_RULE_RETURN) { //========================
+
         // expand all spec vals
         in.attrs.map(_.calculatedP).foreach { p =>
           evAppChildren(a, DomAst(EVal(p)))
@@ -923,7 +1010,7 @@ class DomEngineV1(
 
         true
 
-      } else if (ea == DieselMsg.ENGINE.DIESEL_THROW) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_THROW) { //========================
 
         // todo
         // exc has scope, exception, message and more stuff
@@ -1025,15 +1112,30 @@ class DomEngineV1(
 
         true
 
-      } else if (ea == DieselMsg.ENGINE.DIESEL_TRY) {
-        // rudimentary TRY scope for catch.
-        // normally we'd have CATCH apply to the enclosing scope, but we don't have a good EEScope
+      } else if (ea == DieselMsg.ENGINE.DIESEL_ERROR) { //========================
 
-        val newD = DomAst(new EScope("diesel.try:", ""), AstKinds.GENERATED)
+        val newD = DomAst(new EError("diesel.error", in.attrs.map(_.calculatedValue).mkString),
+          AstKinds.ERROR)
         evAppChildren(a, newD)
         true
 
-      } else if (ea == DieselMsg.ENGINE.DIESEL_CATCH) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_REALM_READY) { //========================
+
+        val realm = ctx.getRequired("realm")
+        val r = WikiReactors(realm)
+        if (!r.ready.isCompleted) WikiReactors(realm).ready.success(true)
+        true
+
+      } else if (ea == DieselMsg.ENGINE.DIESEL_TRY) { //========================
+
+        // rudimentary TRY scope for catch.
+        // normally we'd have CATCH apply to the enclosing scope, but we don't have a good EEScope
+
+        val newD = DomAst(new EScope("diesel.try:", Some(in), ""), AstKinds.GENERATED)
+        evAppChildren(a, newD)
+        true
+
+      } else if (ea == DieselMsg.ENGINE.DIESEL_CATCH) { //========================
 
         // todo handle
         // for the current scope, stop prpag exc and handle if matching
@@ -1164,7 +1266,8 @@ class DomEngineV1(
         newD.foreach(addChild(a, _))
         true
 
-      } else if (ea == DieselMsg.ENGINE.DIESEL_LATER) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_LATER) { //========================
+
 //      // send new message async later at the root level
 //      val EMsg.REGEX(e, m) = ctx.getRequired("msg")
 //      val nat = in.attrs.filter(e => !Array("msg").contains(e.name))
@@ -1172,11 +1275,12 @@ class DomEngineV1(
 //      evAppChildren(findParent(findParent(a).get).get, DomAst(EMsg(e, m, nat), AstKinds.GENERATED))
         false
 
-      } else if (ea == DieselMsg.ENGINE.DIESEL_LEVELS) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_LEVELS) { //========================
+
         engine.maxLevels = ctx.getRequired("max").toInt
         true
 
-      } else if (ea == DieselMsg.ENGINE.DIESEL_PONG) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_PONG) { //========================
 
         // expand vals
         val nctx = mkMsgContext(Some(in), calcMsg(a, in)(ctx).attrs, ctx, a)
@@ -1185,6 +1289,7 @@ class DomEngineV1(
         val targetId = nctx.getRequired("targetId")
         val level = nctx.getRequired("level").toInt
 
+        // this passes payload too
         notifyParent(a, parentId, targetId, level)
         true
 
@@ -1209,7 +1314,7 @@ class DomEngineV1(
 
         true
 
-      } else if (ea == DieselMsg.ENGINE.DIESEL_WARNINGS) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_WARNINGS) { //========================
 
         // expand all domain warnings
         dom.moreElements.collect {
@@ -1220,25 +1325,25 @@ class DomEngineV1(
 
         true
 
-      } else if (ea == DieselMsg.ENGINE.DIESEL_SYNC) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_SYNC) { //========================
 
         // turn the engine sync
         ctx.root.engine.map(_.synchronous = true)
         true
 
-      } else if (ea == DieselMsg.ENGINE.DIESEL_ASYNC) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_ASYNC) { //========================
 
         // turn the engine async
         ctx.root.engine.map(_.synchronous = false)
         true
 
-      } else if (ea == DieselMsg.SCOPE.DIESEL_PUSH) {
+      } else if (ea == DieselMsg.SCOPE.DIESEL_PUSH) { //========================
 
         // todo use the DomAst ctx now, not the current
 //      this.ctx = new ScopeECtx(Nil, Some(this.ctx), Some(a))
         true
 
-      } else if (ea == DieselMsg.SCOPE.DIESEL_POP) {
+      } else if (ea == DieselMsg.SCOPE.DIESEL_POP) { //========================
 
         // todo use the DomAst ctx now, not the current
         // find the closest scope and pop it
@@ -1256,12 +1361,12 @@ class DomEngineV1(
 
         true
 
-      } else if (ea == DieselMsg.SCOPE.RULE_PUSH) {
+      } else if (ea == DieselMsg.SCOPE.RULE_PUSH) { //========================
 
         this.ctx = new RuleScopeECtx(Nil, Some(this.ctx), Some(a))
         true
 
-      } else if (ea == DieselMsg.SCOPE.RULE_POP) {
+      } else if (ea == DieselMsg.SCOPE.RULE_POP) { //========================
 
         assert(this.ctx.isInstanceOf[RuleScopeECtx])
         this.ctx = this.ctx.base.get
@@ -1277,7 +1382,7 @@ class DomEngineV1(
         evAppChildren(a, DomAst(EInfo("engine", e), AstKinds.DEBUG))
         true
 
-      } else if (ea == DieselMsg.ENGINE.DIESEL_ENG_SET) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_ENG_SET) { //========================
 
         // todo move this to an executor
 
@@ -1318,7 +1423,7 @@ class DomEngineV1(
       } else if (ea == "diesel.branch") { // nothing
         true
 
-      } else if (ea == DieselMsg.REALM.REALM_SET) {
+      } else if (ea == DieselMsg.REALM.REALM_SET) { //========================
 
         val props = in.attrs
             .filter(_.name == "props")
@@ -1339,7 +1444,7 @@ class DomEngineV1(
         }
         true
 
-      } else if (ea == DieselMsg.ENGINE.DIESEL_MAP) {
+      } else if (ea == DieselMsg.ENGINE.DIESEL_MAP) { //========================
 
         // expanding diesel.map: make an item for each item and copy all children under the item
 
