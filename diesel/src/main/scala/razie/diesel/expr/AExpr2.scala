@@ -40,16 +40,17 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
     val res: PValue[_] = op match {
       case "/" => {
         val bv = b.applyTyped(v)
+        val bs = bv.calculatedValue
         (a, b) match {
           case _ if isNum(av) && isNum(bv) => {
             val as = av.calculatedValue
-            if (as.contains(".")) {
+            if (as.contains(".") || bs.contains(".")) {
               val ai = as.toFloat
-              val bi = bv.calculatedValue.toFloat
+              val bi = bs.toFloat
               PValue(ai / bi, WTypes.wt.NUMBER)
             } else {
               val ai = as.toLong
-              val bi = bv.calculatedValue.toLong
+              val bi = bs.toLong
               PValue(ai / bi, WTypes.wt.NUMBER)
             }
             // todo float and type safe numb
@@ -66,16 +67,17 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
 
       case "*" => {
         val bv = b.applyTyped(v)
+        val bs = bv.calculatedValue
         (a, b) match {
           case _ if isNum(av) && isNum(bv) => {
             val as = av.calculatedValue
-            if (as.contains(".")) {
+            if (as.contains(".") || bs.contains(".")) {
               val ai = as.toFloat
-              val bi = bv.calculatedValue.toFloat
+              val bi = bs.toFloat
               PValue(ai * bi, WTypes.wt.NUMBER)
             } else {
               val ai = as.toLong
-              val bi = bv.calculatedValue.toLong
+              val bi = bs.toLong
               PValue(ai * bi, WTypes.wt.NUMBER)
             }
             // todo float and type safe numb
@@ -164,7 +166,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
 
           case _ => {
             // concat lists
-            if (bv.ttype == WTypes.ARRAY ||
+            if (bv.ttype == WTypes.ARRAY &&
                 av.ttype == WTypes.ARRAY) {
               val al = if (av.ttype == WTypes.ARRAY) av.calculatedTypedValue.asArray else List(
                 av.calculatedTypedValue.value)
@@ -174,7 +176,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
               res.appendAll(al)
               res.appendAll(bl)
               PValue(res, WTypes.wt.ARRAY)
-            } else if (bv.ttype == WTypes.JSON ||
+            } else if (bv.ttype == WTypes.JSON &&
                 av.ttype == WTypes.JSON) {
               // json exprs are different, like cart + { item:...}
               try {
@@ -325,6 +327,32 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
             val elementType = av.calculatedTypedValue.cType.wrappedType
 
             val arr = av.calculatedTypedValue.asArray
+
+            val resArr = arr.map { x =>
+              val res = if (b.isInstanceOf[LambdaFuncExpr]) {
+                val res = b.applyTyped(x)
+                res
+              } else if (b.isInstanceOf[BlockExpr] && b.asInstanceOf[BlockExpr].ex.isInstanceOf[LambdaFuncExpr]) {
+                // common case, no need to go through context, Block passes through to Lambda
+                val res = b.applyTyped(x)
+                res
+              } else {
+                // todo we populate an "x" or should it be "elem" ?
+                val sctx = new StaticECtx(List(P.fromTypedValue("x", x)), Some(ctx))
+                val res = b.applyTyped(x)(sctx)
+                res
+              }
+              res
+            }
+
+            val finalArr = resArr.map(_.calculatedTypedValue.value)
+            PValue(finalArr, WTypes.wt.ARRAY)
+          }
+
+          case WTypes.RANGE => {
+            val elementType = WTypes.wt.RANGE
+
+            val arr = av.calculatedTypedValue.asRange
 
             val resArr = arr.map { x =>
               val res = if (b.isInstanceOf[LambdaFuncExpr]) {
@@ -635,7 +663,7 @@ case class AExpr2(a: Expr, op: String, b: Expr) extends Expr {
               }
             }
 
-            case m: collection.Map[_, _] => {
+            case m: collection.Map[_, _] if bv.isInstanceOf[collection.Map[_, _]] => {
               // merge maps
               val mres = new mutable.HashMap[String, Any]()
               m.foreach { t =>
