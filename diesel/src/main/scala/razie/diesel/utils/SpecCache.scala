@@ -18,7 +18,7 @@ import razie.tconf.DSpec
 object SpecCache {
 
   // todo configure max entries - monitor with mem per box size etc
-  final val MAX = 100
+  final val MAX = 140
 
   // stupid LRU expiry
   private var cachel = new collection.concurrent.TrieMap[String, Long]()
@@ -27,29 +27,32 @@ object SpecCache {
   private var cachem = new collection.concurrent.TrieMap[String,(DSpec,Option[RDomain])]()
 
   def orcached (we:DSpec, d: =>Option[RDomain]) : Option[RDomain] = {
-    val res = cachem.get(we.content).flatMap(_._2).orElse {
-        cachem.put(we.content, (we, d))
-        cachel.put(we.content, System.currentTimeMillis())
+    // include realm in index so we don't get domains from other realms, very confusing - Domain entities keep refs
+    // to original specs - also wpath so if two are identical, there's no confusion...
+    val key = we.specRef.realm + we.specRef.wpath + we.content
+    val res = cachem.get(key).flatMap(_._2).orElse {
+      cachem.put(key, (we, d))
+      cachel.put(key, System.currentTimeMillis())
 
-        // prune by size
-        if (cachel.size > MAX) {
-          var min = System.currentTimeMillis()
-          var minc = ""
-          cachel.foreach(x => if (x._2 < min) {
-            min = x._2
-            minc = x._1
-          })
-          if (minc != we.content) {
-            cachel.remove(minc)
-            cachem.remove(minc)
-          }
+      // prune by size
+      if (cachel.size > MAX) {
+        var min = System.currentTimeMillis()
+        var minc = ""
+        cachel.foreach(x => if (x._2 < min) {
+          min = x._2
+          minc = x._1
+        })
+        if (minc != key) {
+          cachel.remove(minc)
+          cachem.remove(minc)
         }
+      }
 
-        cachem = cachem
-        cachel = cachel
-        d
+      cachem = cachem
+      cachel = cachel
+      d
     }
-    cachel.update(we.content, System.currentTimeMillis())
+    cachel.update(key, System.currentTimeMillis())
     res
   }
 }
