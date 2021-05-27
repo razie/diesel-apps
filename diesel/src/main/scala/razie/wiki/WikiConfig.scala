@@ -78,29 +78,29 @@ abstract class WikiConfig {
   final val hostport    = prop("wiki.hostport")
   final val node        = prop("wiki.node", hostport)//java.net.InetAddress.getLocalHost.getCanonicalHostName)
   final val safeMode    = prop("wiki.safemode")
-  final val analytics   = true; //props.getProperty("rk.analytics").toBoolean
-  final val noads       = prop("wiki.noads", isLocalhost.toString).toBoolean
-  final val forcephone  = prop("wiki.forcephone").toBoolean
+  final val analytics = true; //props.getProperty("rk.analytics").toBoolean
+  final val noads = prop("wiki.noads", isLocalhost.toString).toBoolean
+  final val forcephone = prop("wiki.forcephone").toBoolean
 
-  final val mongodb     = prop("wiki.mongodb")
+  final val mongodb = prop("wiki.mongodb")
   final val mongohost = prop("wiki.mongohost")
   final val mongoport = prop("wiki.mongoport", "27017").toInt
   final val mongouser = prop("wiki.mongouser")
-  final val mongopass   = prop("wiki.mongopass")
+  final val mongopass = prop("wiki.mongopass")
 
-  final val cacheWikis  = prop("wiki.cachewikis", "false").toBoolean
-  final val cacheFormat = prop("wiki.cacheformat", "false").toBoolean
-  final val cacheDb     = prop("wiki.cachedb", "false").toBoolean
+  final val cacheWikis = prop("wiki.cachewikis", "true").toBoolean
+  final val cacheFormat = prop("wiki.cacheformat", "true").toBoolean
+  final val cacheDb = prop("wiki.cachedb", "true").toBoolean
 
   /** when running in localhost, keep quiet with the audit, so DB doesn't grow */
-  final val localQuiet  = prop("wiki.localquiet", "false").toBoolean
+  final val localQuiet = prop("wiki.localquiet", "false").toBoolean
 
   final val clusterMode = prop("wiki.cluster", "no")
 
-  final val CONNECTED   = prop("wiki.connected", "connected")
+  final val CONNECTED = prop("wiki.connected", "connected")
 
   /** when running on localhost, simulate this host */
-  def simulateHost      = prop("wiki.simulateHost")
+  def simulateHost = prop("wiki.simulateHost")
 
   // todo is only used for auth on the support email when sending - to configure password per reactor
   /** support email */
