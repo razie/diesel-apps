@@ -181,8 +181,13 @@ class DomEngineActor(eng: DomEngine) extends Actor with Stash {
     case rep@DERep(eid, a, r, l, results) if checkInit => {
       checkInit
       if (eng.id == eid) {
-        Try {
+        try {
           eng.processDEMsg(rep)
+        } catch {
+          case throwable: Throwable => {
+            eng.addError(throwable)
+            razie.clog << throwable
+          }
         }
       } else {
         DieselAppContext.router.map(_ ! rep)
@@ -192,8 +197,13 @@ class DomEngineActor(eng: DomEngine) extends Actor with Stash {
     case rep@DEComplete(eid, a, r, l, results) if checkInit => {
       checkInit
       if (eng.id == eid) {
-        Try {
+        try {
           eng.processDEMsg(rep)
+        } catch {
+          case throwable: Throwable => {
+            eng.addError(throwable)
+            razie.clog << throwable
+          }
         }
       } else {
         DieselAppContext.router.map(_ ! rep)
@@ -203,8 +213,13 @@ class DomEngineActor(eng: DomEngine) extends Actor with Stash {
     case rep@DEAddChildren(eid, _, _, _, _, _) if checkInit => {
       checkInit
       if (eng.id == eid) {
-        Try {
+        try {
           eng.processDEMsg(rep)
+        } catch {
+          case throwable: Throwable => {
+            eng.addError(throwable)
+            razie.clog << throwable
+          }
         }
       } else {
         DieselAppContext.router.map(_ ! rep)
@@ -214,8 +229,13 @@ class DomEngineActor(eng: DomEngine) extends Actor with Stash {
     case rep@DEPruneChildren(eid, _, _, _) if checkInit => {
       checkInit
       if (eng.id == eid) {
-        Try {
+        try {
           eng.processDEMsg(rep)
+        } catch {
+          case throwable: Throwable => {
+            eng.addError(throwable)
+            razie.clog << throwable
+          }
         }
       } else {
         DieselAppContext.router.map(_ ! rep)

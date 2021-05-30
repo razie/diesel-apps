@@ -87,18 +87,35 @@ abstract class DomEngine(
 
       while (prunes.size > k) {
         val toRemove = prunes.head
+
         val removed = p.childrenCol(toRemove._2)
         rem.append(removed)
         p.childrenCol.remove(toRemove._2)
 
         log("DomEng " + id + ("  " * level) + s" remove kid #${toRemove._2} from " + parent.value)
 
-        val prunedInfo = p.childrenCol.find(
+        val prunedNode = p.childrenCol.find(
           x => x.value.isInstanceOf[EInfoWrapper] && x.value.asInstanceOf[EInfoWrapper].a.isInstanceOf[Pruned])
+
+        val prunedInfo = prunedNode
             .map(_.value.asInstanceOf[EInfoWrapper].a.asInstanceOf[Pruned])
+
+        var keep = false
+
+        // save summaries, if any...
+        val summaries = removed.collect {
+          case ac: DomAst
+            if ac.value != null &&
+                ac.value.isInstanceOf[EMsg] &&
+                ac.value.asInstanceOf[EMsg].ea == DIESEL_SUMMARY => {
+            keep = keep || ac.value.asInstanceOf[EMsg].attrs.exists(_.currentStringValue == "true")
+            (DomAst(ac.value, ac.kind).withStatus(ac.status))
+          }
+        }
 
         // todo should record the move in the event history?
         // replace only if there's some details or
+
         if (removed.childrenCol.nonEmpty && prunedInfo.isEmpty) {
 
           // impersonate the replaced ID's?
@@ -107,19 +124,17 @@ abstract class DomEngine(
             removed.id)
               .withStatus(DomState.DONE)
 
-          // save summaries, if any...
-          removed.collect {
-            case ac: DomAst
-              if ac.value != null &&
-                  ac.value.isInstanceOf[EMsg] &&
-                  ac.value.asInstanceOf[EMsg].ea == DIESEL_SUMMARY =>
-              replacement.append(DomAst(ac.value, ac.kind).withStatus(ac.status))
-          }
-
           p.childrenCol.insert(toRemove._2, replacement)
+          replacement.appendAll(summaries)
+          // if a summary says "keep" then we keep it
+          if (keep) replacement.append(removed.resetParent(null))
         } else {
           prunedInfo.foreach(_.removed += 1)
+          prunedNode.map(_.appendAll(summaries))
+          // if a summary says "keep" then we keep it
+          if (keep) prunedNode.map(_.append(removed.resetParent(null)))
         }
+
 
         // next?
         prunes = prunes.drop(1)
@@ -975,11 +990,15 @@ abstract class DomEngine(
 
     // collect values
     val values = root.collect {
-      case DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) if oattrs.isEmpty || oattrs.find(_.name == p.name).isDefined => p
+      case DomAst(EVal(p), /*AstKinds.GENERATED*/ _, _, _) if oattrs.isEmpty || oattrs.find(
+        _.name == p.name).isDefined => p
     }
 
     values
   }
 
+  def addError(t: Throwable) {
+    root.append(DomAst(new EError("Exception:", t), AstKinds.ERROR).withStatus(DomState.DONE))
+  }
 }
 

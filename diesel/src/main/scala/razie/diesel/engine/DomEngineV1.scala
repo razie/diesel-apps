@@ -1029,7 +1029,7 @@ class DomEngineV1(
           if (p.name == Diesel.PAYLOAD || p.name == "msg") {
             msg = p.currentStringValue
           } else if (p.name == DieselMsg.HTTP.STATUS) {
-            code = Some(p.calculatedTypedValue.asInt)
+            code = Some(p.calculatedTypedValue.asLong.toInt)
           }
         }
 

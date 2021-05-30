@@ -58,8 +58,10 @@ case class DomAst(
   /** get my context if any, no parent fallbacks */
   def getMyOwnCtx: Option[ECtx] = imyCtx
 
+  /** reset to null if you're changing parent... */
   def resetParent(f: => DomAst) = {
     this.parent = Option.apply(f)
+    this
   }
 
   def withParent(f: => DomAst) = {
