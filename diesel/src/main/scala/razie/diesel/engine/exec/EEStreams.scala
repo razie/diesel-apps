@@ -42,7 +42,7 @@ class EEStreams extends EExecutor(EEStreams.PREFIX) {
       case "new" => {
         val name = ctx.getRequired("stream")
         val batch = ctx.getp("batch").map(_.calculatedTypedValue.asBoolean).getOrElse(false)
-        val batchSize = ctx.getp("batchSize").map(_.calculatedTypedValue.asInt).getOrElse(100)
+        val batchSize = ctx.getp("batchSize").map(_.calculatedTypedValue.asLong.toInt).getOrElse(100)
 
         val others = in.attrs
             .filter(_.name != "stream")
@@ -62,7 +62,8 @@ class EEStreams extends EExecutor(EEStreams.PREFIX) {
           EWarning(s"Stream $name was open!! Closing, but some generator or consumer may still use it!")
         }.toList
 
-        val s = DieselAppContext.mkStream(new DomStreamV1(ctx.root.engine.get, name, name, batch, batchSize, context))
+        val s = DieselAppContext.mkStream(
+          new DomStreamV1(ctx.root.engine.get, name, name, batch, batchSize, context))
         ctx.root.engine.get.evAppStream(s)
 
         warn ::: EInfo("stream - creating " + name) ::

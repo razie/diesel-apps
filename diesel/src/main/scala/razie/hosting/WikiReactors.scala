@@ -13,7 +13,7 @@ import razie.audit.Audit
 import razie.db.RazMongo
 import razie.db.RazSalatContext._
 import razie.diesel.engine.DieselAppContext
-import razie.diesel.model.{DieselMsg, DieselTarget, ScheduledDieselMsg}
+import razie.diesel.model.{DieselMsg, DieselMsgString, DieselTarget, ScheduledDieselMsg, ScheduledDieselMsgString}
 import razie.tconf.hosting.Reactors
 import razie.wiki.admin.GlobalData
 import razie.wiki.model._
@@ -221,25 +221,42 @@ object WikiReactors extends Logging with Reactors {
 
             val envSettings = re.wiki.find("Spec", "EnvironmentSettings")
 
-            // send realm.config message if anyone used it
-            if(envSettings.exists(_.content.contains(DieselMsg.REALM.REALM_CONFIGURE))) {
-              Services ! ScheduledDieselMsg("5 seconds", DieselMsg(
-                DieselMsg.REALM.ENTITY,
-                DieselMsg.REALM.CONFIGURE,
-                Map("realm" -> realm),
-                DieselTarget.ENV(realm)
+            val startupFlow =
+              s"""
+                 |$$send diesel.realm.configure(realm="$realm")
+                 |
+                 |$$send diesel.realm.loaded(realm="$realm")
+                 |
+                 |$$send diesel.realm.ready(realm="$realm")
+                 |""".stripMargin
+
+            // send realm.config and load messages if anyone used it
+            if (envSettings.exists(_.content.contains(DieselMsg.REALM.REALM_CONFIGURE)) ||
+                envSettings.exists(_.content.contains(DieselMsg.REALM.REALM_LOADED))) {
+              Services ! ScheduledDieselMsgString("1 second", DieselMsgString(
+                startupFlow,
+                DieselTarget.ENV(realm),
+                Map("realm" -> realm)
               ))
             }
 
-            // send realm.loaded message if anyone used it
-            if(envSettings.exists(_.content.contains(DieselMsg.REALM.REALM_LOADED))) {
-              Services ! ScheduledDieselMsg("10 seconds", DieselMsg(
-                DieselMsg.REALM.ENTITY,
-                DieselMsg.REALM.LOADED,
-                Map("realm" -> realm),
-                DieselTarget.ENV(realm)
-              ))
-            }
+//            if (envSettings.exists(_.content.contains(DieselMsg.REALM.REALM_CONFIGURE))) {
+//              Services ! ScheduledDieselMsg("1 second", DieselMsg(
+//                DieselMsg.REALM.ENTITY,
+//                DieselMsg.REALM.CONFIGURE,
+//                Map("realm" -> realm),
+//                DieselTarget.ENV(realm)
+//              ))
+//            }
+//
+//            if (envSettings.exists(_.content.contains(DieselMsg.REALM.REALM_LOADED))) {
+//              Services ! ScheduledDieselMsg("10 seconds", DieselMsg(
+//                DieselMsg.REALM.ENTITY,
+//                DieselMsg.REALM.LOADED,
+//                Map("realm" -> realm),
+//                DieselTarget.ENV(realm)
+//              ))
+//            }
 
           } else {
             clog << s"NEED TO LOAD LATER REACTOR ${we.wid.name} depends on ${mixins.mkString(",")}"
