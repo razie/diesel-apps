@@ -77,7 +77,7 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
       //=============== index is number
 
       if (av.contentType == WTypes.NUMBER) {
-        val ai = av.asInt
+        val ai = av.asLong.toInt
 
         pv.contentType match {
 
@@ -90,7 +90,7 @@ case class AExprIdent(val start: String, rest:List[P] = Nil) extends Expr {
                 list.size - ai
 
             if(index >= 0 && index < list.size) {
-              val res = list.apply(index)
+              val res = list.apply(index.toInt)
               Some(P.fromTypedValue(newpname, res))
             } else {
               None

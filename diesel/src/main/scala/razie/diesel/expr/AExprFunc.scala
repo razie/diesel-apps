@@ -140,8 +140,8 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
             .getOrElse {
               throw new DieselExprException(s"No second argument for $expr")
             }
-        val av = f.calculatedTypedValue.asInt
-        val bv = s.calculatedTypedValue.asInt
+        val av = f.calculatedTypedValue.asLong.toInt
+        val bv = s.calculatedTypedValue.asLong.toInt
 
         P.of("", Range(av, bv).toList)
       }

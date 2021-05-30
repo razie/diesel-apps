@@ -163,7 +163,7 @@ object RDOM {
     }
 
     def asArray : collection.Seq[Any] = {
-      if(! value.isInstanceOf[collection.Seq[Any]]) {
+      if (!value.isInstanceOf[collection.Seq[Any]]) {
         razie.Log.error("Value is not array - will throw ClassCast asap - value is: " + this)
       }
       value.asInstanceOf[collection.Seq[Any]]
@@ -173,7 +173,9 @@ object RDOM {
 
     def asThrowable: Throwable = value.asInstanceOf[Throwable]
 
-    def asInt: Int = value.toString.toInt
+    def asLong: Long = value.toString.toLong
+
+    def asFloat: Float = value.toString.toFloat
 
     def asBoolean: Boolean = value.toString.toBoolean
 
@@ -189,6 +191,17 @@ object RDOM {
         case _ => asString
       }
     }
+
+    /** java object compatible */
+//    def asJavaObject: Object = {
+//      cType match {
+//        case WTypes.wt.STRING => asString
+//        case WTypes.wt.NUMBER => asFloat
+//        case WTypes.wt.BOOLEAN => asBoolean
+//        // todo complete list
+//        case _ => asString
+//      }
+//    }
 
     /** cached, nicer type-aware toString */
     def asString = {

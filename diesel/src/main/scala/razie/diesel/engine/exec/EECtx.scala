@@ -597,7 +597,7 @@ class EECtx extends EExecutor(EECtx.CTX) {
         3. continuation DEComplete
          */
 
-        val d = in.attrs.find(_.name == "duration").map(_.calculatedTypedValue.asInt).getOrElse(1000)
+        val d = in.attrs.find(_.name == "duration").map(_.calculatedTypedValue.asLong.toInt).getOrElse(1000)
         EInfo("ctx.sleep - slept " + d) ::
             EEngSuspend("ctx.sleep", "", Some((e, a, l) => {
               DieselAppContext ! DELater(e.id, d, DEComplete(e.id, a.id, recurse = true, l, Nil))

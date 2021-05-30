@@ -42,7 +42,7 @@ trait DomRoot {
   def totalCount = DomEngineView.totalTestedCount(root)
 
   /** find a node */
-  def n(id: String): DomAst = root.find(id).get
+  def n(id: String): DomAst = root.find(id).getOrElse(throw new DieselException("Node not found in root: " + id))
 
   protected def collectValues[T](f: PartialFunction[Any, T]): List[T] =
     root.collect {
@@ -271,9 +271,9 @@ trait DomRoot {
 
               case pa: RDOM.P if pa.isOfType(WTypes.wt.ARRAY) => {
                 val av = last.copy(value = None).calculatedTypedValue
-                val ai = av.asInt
+                val ai = av.asLong
                 val list = pa.calculatedTypedValue.asArray.toArray
-                list(ai) = rightP.calculatedTypedValue.value
+                list(ai.toInt) = rightP.calculatedTypedValue.value
 
                 val newv = PValue(list.toList, WTypes.wt.ARRAY)
                 pa.value = Some(newv)

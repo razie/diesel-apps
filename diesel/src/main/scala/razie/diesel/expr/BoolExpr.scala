@@ -364,11 +364,11 @@ case class BCMP2(a: Expr, op: String, b: Expr)
     Try {
       val ai = {
         if (as.contains(".")) as.toDouble
-        else as.toInt
+        else as.toLong
       }
       val bi = {
         if (bs.contains(".")) bs.toDouble
-        else bs.toInt
+        else bs.toLong
       }
 
       op match {
