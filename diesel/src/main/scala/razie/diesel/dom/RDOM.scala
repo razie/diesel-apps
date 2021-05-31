@@ -6,6 +6,7 @@
   */
 package razie.diesel.dom
 
+import java.lang
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import org.json.{JSONArray, JSONObject}
@@ -145,15 +146,29 @@ object RDOM {
     * the asXXX methods assume it is of the right type
     */
   case class PValue[+T] (value:T, cType:WType = WTypes.wt.UNKNOWN) {
-//    case class PValue[+T] (value:T, contentType:String = WTypes.UNKNOWN, domClassName:String = WTypes.UNKNOWN) {
-    var cacheString : Option[String] = None
+    //    case class PValue[+T] (value:T, contentType:String = WTypes.UNKNOWN, domClassName:String = WTypes.UNKNOWN) {
+    var cacheString: Option[String] = None
 
     /** @deprecated */
     def contentType = cType.name
 
-    def asObject : collection.Map[String,Any] = asJson
+    /** convert as proper java object */
+    def asJavaObject: AnyRef = cType match {
 
-    def asJson : collection.Map[String,Any] = {
+      case WTypes.wt.JSON | WTypes.wt.OBJECT => asJson
+
+      case WTypes.wt.EXCEPTION => asThrowable
+
+      case WTypes.wt.NUMBER =>
+        if (value.toString.contains(".")) new lang.Float(value.toString)
+        else new lang.Long(value.toString)
+
+      case _ => asString
+    }
+
+    def asObject: collection.Map[String, Any] = asJson
+
+    def asJson: collection.Map[String, Any] = {
       if (value.isInstanceOf[String]) {
         var v = value.toString
         if (v.trim.length == 0) v = "{}"

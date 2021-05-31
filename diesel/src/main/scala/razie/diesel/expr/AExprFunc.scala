@@ -17,7 +17,7 @@ import razie.diesel.Diesel
 import razie.diesel.dom.RDOM.P
 import razie.diesel.dom._
 import razie.diesel.engine.exec.EEFunc
-import razie.diesel.engine.nodes.EMsg
+import razie.diesel.engine.nodes.{EMsg, EVal}
 import razie.diesel.engine.{AstKinds, DieselAppContext, DomAst}
 import razie.wiki.{Enc, EncUrl}
 
@@ -105,6 +105,19 @@ case class AExprFunc(val expr: String, parms: List[RDOM.P]) extends Expr {
         }.calculatedValue
 
         P.fromTypedValue("", av.replaceAll(bv, cv), WTypes.wt.STRING)
+      }
+
+      case "sprintf" => {
+        val av = firstParm.getOrElse {
+          throw new DieselExprException("Need three arguments.")
+        }.calculatedValue
+
+        val bv = secondParm.getOrElse {
+          throw new DieselExprException("Need three arguments.")
+        }.calculatedTypedValue.asJavaObject
+
+        val res = String.format(av, bv)
+        P.fromSmartTypedValue("", res)
       }
 
       case "replaceFirst" => {
