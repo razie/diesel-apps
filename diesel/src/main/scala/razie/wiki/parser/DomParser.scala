@@ -265,7 +265,7 @@ trait DomParser extends ParserBase with ExprParser {
       }
     }
 
-  def pArrow: Parser[String] = "=>" | "==>" | "<=>" ^^ {
+  def pArrow: Parser[String] = "=>>" | "=>" | "==>" | "<=>" ^^ {
     case s => s
   }
 

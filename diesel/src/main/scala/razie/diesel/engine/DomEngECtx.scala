@@ -11,9 +11,9 @@ import razie.diesel.dom.RDOM.{P, ParmSource}
 import razie.diesel.dom.RDomain
 import razie.diesel.expr.{ECtx, SimpleECtx}
 import razie.diesel.model.DieselMsg
-import razie.hosting.Website
+import razie.hosting.{RkReactors, Website}
 import razie.tconf.{DSpec, DUsers}
-import razie.wiki.Config
+import razie.wiki.{Config, Services}
 
 
 /** specific root context for an engine instance
@@ -135,7 +135,10 @@ class DomEngECtx(val settings: DomEngineSettings, cur: List[P] = Nil, base: Opti
       cur.mkString(",") + ":attrs==" + attrs.mkString(",") //+ base.map(_.toString).mkString
 }
 
-/** source for parms starting with "diesel" */
+/** source for parms starting with "diesel"
+  *
+  * @param ctx is the root context of this engine
+  */
 class DieselParmSource (ctx:DomEngECtx) extends ParmSource {
   def name = "diesel"
 
@@ -161,6 +164,13 @@ class DieselParmSource (ctx:DomEngECtx) extends ParmSource {
 
     case "realm" => {
       next("diesel.realm", Map(
+        "name" -> (n => Left(P.fromSmartTypedValue("diesel.realm.name", ctx.settings.realm.mkString))),
+        "local" -> {
+          val p = if (Services.config.isLocalhost)
+            P.fromSmartTypedValue("diesel.realm.local", RkReactors.forHost(Services.config.simulateHost).mkString)
+          else P.undefined("diesel.realm.local")
+          (n => Left(p))
+        },
         "props" -> (n => Right(new DieselRealmParmSource(ctx)))
       ))
     }
@@ -171,6 +181,14 @@ class DieselParmSource (ctx:DomEngECtx) extends ParmSource {
       "hostName" -> java.net.InetAddress.getLocalHost.getHostName,
       "ip" -> java.net.InetAddress.getLocalHost.getHostAddress
     )))
+
+//    case "engine" => {
+//      next("diesel.engine", Map(
+//        "description" -> (n => Left(
+//          P(DieselMsg.ENGINE.DIESEL_ENG_DESC, ctx.engine.map(_.description).mkString)
+//        ))
+//      ))
+//    }
 
     case _ => None
   }

@@ -110,9 +110,15 @@ class EEStreams extends EExecutor(EEStreams.PREFIX) {
 
       case "done" => {
         val name = ctx.getRequired("stream")
+
+        val stream = DieselAppContext.findStream(name)
+
         DieselAppContext ! DESDone(name)
 
-        EInfo(s"stream.done") :: Nil
+        val found = stream.map(_.name).mkString
+        val consumed = stream.map(_.getIsConsumed).mkString
+        val done = stream.map(_.streamIsDone).mkString
+        EInfo(s"stream.done: found:$found consumed:$consumed done:$done") :: Nil
       }
 
       case "consume" => {

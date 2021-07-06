@@ -145,6 +145,7 @@ class SimpleECtx(
     case "DIESEL_CURMILLIS" => Some(P.fromSmartTypedValue("DIESEL_CURMILLIS", System.currentTimeMillis()))
 
     case "diesel.db.newId" => Some(P("diesel.db.newId", new ObjectId().toString))
+
     case DieselMsg.ENGINE.DIESEL_ENG_DESC => Some(
       P(DieselMsg.ENGINE.DIESEL_ENG_DESC, root.engine.map(_.description).mkString))
 

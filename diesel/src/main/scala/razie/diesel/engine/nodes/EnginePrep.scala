@@ -495,7 +495,7 @@ object EnginePrep extends Logging {
       }.flatten
 
       // clean successful stories
-      storyAst.childrenCol appendAll addMsg(EMsg("diesel.story.clean"), AstKinds.TRACE)
+      storyAst.childrenCol appendAll addMsg(EMsg(DieselMsg.ENGINE.DIESEL_CLEANSTORY), AstKinds.TRACE)
 
       inSequence = savedInSequence
     }

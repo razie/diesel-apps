@@ -65,6 +65,8 @@ abstract class DomStream(
   private var isError = false
   private var isConsumed = false
 
+  def getIsConsumed = isConsumed
+
   def streamIsDone = isDone
 
   def setCtx(ast: DomAst): DomAst = {

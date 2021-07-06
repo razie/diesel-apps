@@ -82,7 +82,6 @@ object DieselAppContext extends Logging {
   def findStream(name: String) = activeStreamsByName.get(name)
 
   def stopActor(id: String) = {
-    val ac = activeActors.get(id).get
     activeActors.get(id).map(getActorSystem.stop)
   }
 

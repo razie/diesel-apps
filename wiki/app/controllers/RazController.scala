@@ -189,7 +189,9 @@ request</a> and we'll take care of it! Thanks!
   def unauthorized(more: String = "", shouldAudit:Boolean=true)(implicit request: RequestHeader, errCollector: VErrors = IgnoreErrors) = {
     //    implicit val stok = razRequest
     if(shouldAudit)
-      Audit.unauthorized("BY %s - Info: %s PATH: %s HEADERS: %s".format((xauth.map(_.userName).getOrElse("")), more + " " + errCollector.mkString, request.path, request.headers))
+      Audit.unauthorized(
+        "BY %s - Info: %s PATH: %s HEADERS: %s".format((xauth.map(_.userName).getOrElse("")), /*more + " " + */
+          errCollector.mkString, request.path, request.headers))
     else
       log("UNAUTHORIZED BY %s - Info: %s PATH: %s HEADERS: %s".format((xauth.map(_.userName).getOrElse("")), more + " " + errCollector.mkString, request.path, request.headers))
 

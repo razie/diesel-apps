@@ -38,7 +38,7 @@ object DomCollector {
           desc.contains(DieselMsg.fiddleStoryUpdated) ||
               desc.contains(DieselMsg.GPOLL)
         ) 6 else {
-          if (engine.settings.slaSet.contains(DieselSLASettings.NOKEEP)) -1 else 0
+          if (engine.settings.slaSet.contains(DieselSLASettings.NOKEEP)) -1 else 5
           // 0  means no self-imposed limit, default
         }
         res
