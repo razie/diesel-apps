@@ -44,8 +44,8 @@ class StaticECtx(
   }
 
   override def remove(name: String): Option[P] = {
-    throw new DieselExprException("CAN'T OVERWRITE STATIC CTX VARS [remove]")
-//    base.flatMap(_.remove(name))
+    if (name == Diesel.PAYLOAD) base.flatMap(_.remove(name))
+    else throw new DieselExprException("CAN'T OVERWRITE STATIC CTX VARS [remove]")
   }
 
   override def clear = {

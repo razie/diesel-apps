@@ -7,13 +7,16 @@ package razie.diesel.engine
 
 import api.dwix
 import org.bson.types.ObjectId
+import razie.diesel.Diesel
 import razie.diesel.dom.RDOM.{P, ParmSource}
 import razie.diesel.dom.RDomain
+import razie.diesel.engine.nodes.EVal
 import razie.diesel.expr.{ECtx, SimpleECtx}
 import razie.diesel.model.DieselMsg
 import razie.hosting.{RkReactors, Website}
 import razie.tconf.{DSpec, DUsers}
 import razie.wiki.{Config, Services}
+import scala.collection.JavaConverters.propertiesAsScalaMapConverter
 
 
 /** specific root context for an engine instance
@@ -160,6 +163,20 @@ class DieselParmSource (ctx:DomEngECtx) extends ParmSource {
     case "realm.props" | "props.realm" => {
       val p = Website.getRealmProps(ctx.root.settings.realm.mkString)
       Some(P.fromTypedValue("diesel.realm.props", p))
+    }
+
+    case "props" => {
+      next("diesel.props", Map(
+        "system" -> (n => {
+          val m = if (Config.isLocalhost) {
+            System.getProperties.asScala
+          } else {
+            throw new IllegalArgumentException("Error: No permission")
+          }
+          Left(P.fromSmartTypedValue("diesel.props.system", m))
+        }),
+        "realm" -> (n => Right(new DieselRealmParmSource(ctx)))
+      ))
     }
 
     case "realm" => {

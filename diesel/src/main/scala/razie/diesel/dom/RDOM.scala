@@ -133,8 +133,10 @@ object RDOM {
   object PValue {
     // todo deprecate and remove
     @deprecated
-    def apply[T] (v:T, c:String) : PValue[T] = PValue(v, WType(c))
+    def apply[T](v: T, c: String): PValue[T] = PValue(v, WType(c))
 //    def apply[T] (v:T, c:WType) : PValue[T] = PValue(v, c)
+
+    def emptyArray = PValue(Nil, WTypes.wt.ARRAY)
   }
 
   /** a basic typed value
